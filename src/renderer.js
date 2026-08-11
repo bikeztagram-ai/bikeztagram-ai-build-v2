@@ -6,34 +6,33 @@ export async function renderProject(mediaItems, plan, onProgress) {
       canvas.height = 1920;
       const ctx = canvas.getContext('2d');
 
-      const canvasStream = canvas.captureStream(30);
-      
-      // Safely extract audio tracks if available
-      let combinedStream = new MediaStream();
-      canvasStream.getTracks().forEach((track) => combinedStream.addTrack(track));
+      const stream = canvas.captureStream(30);
 
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const dest = audioCtx.createMediaStreamDestination();
-      
-      const audioTracks = dest.stream.getAudioTracks();
-      if (audioTracks && audioTracks.length > 0) {
-        combinedStream.addTrack(audioTracks[0]);
-      }
+      // Find mobile-compatible mimeType supported by the browser
+      const mimeTypes = [
+        'video/mp4;codecs=h264',
+        'video/mp4',
+        'video/webm;codecs=vp8',
+        'video/webm'
+      ];
+
+      let selectedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
 
       let recorder;
-      try {
-        recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm;codecs=vp9' });
-      } catch (e) {
-        recorder = new MediaRecorder(combinedStream);
+      if (selectedType) {
+        recorder = new MediaRecorder(stream, { mimeType: selectedType });
+      } else {
+        recorder = new MediaRecorder(stream);
       }
 
       const chunks = [];
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
+        if (e.data && e.data.size > 0) chunks.push(e.data);
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/mp4' });
+        const outputType = selectedType.includes('mp4') ? 'video/mp4' : 'video/webm';
+        const blob = new Blob(chunks, { type: outputType });
         resolve(blob);
       };
 
@@ -99,7 +98,6 @@ export async function renderProject(mediaItems, plan, onProgress) {
             }
           }, 33);
         } else {
-          // Process Image
           const img = new Image();
           img.src = URL.createObjectURL(media.file);
 
