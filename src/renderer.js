@@ -43,8 +43,9 @@ export async function renderProject(media, plan, onProgress) {
     const input = `input_${i}.${ext(m.name)}`;
     await ffmpeg.writeFile(input, await fetchFile(m.file));
     inputNames.push(input);
+    
     if (m.type.startsWith('image')) {
-      filterParts.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,zoompan=z='min(zoom+0.0008,1.06)':d=${Math.max(1, Math.round(cut.duration * 30))}:s=1080x1920:fps=30,setsar=1[v${i}]`);
+      filterParts.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${i}]`);
     } else {
       filterParts.push(`[${i}:v]trim=start=${cut.start}:duration=${cut.duration},setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${i}]`);
     }
@@ -59,7 +60,10 @@ export async function renderProject(media, plan, onProgress) {
   const args = [];
   inputNames.forEach((n, i) => {
     const m = media.find(x => `input_${i}.${ext(x.name)}` === n);
-    if (m?.type.startsWith('image')) args.push('-loop', '1');
+    if (m?.type.startsWith('image')) {
+      const cut = plan.cuts[i];
+      args.push('-loop', '1', '-t', String(cut?.duration || 3));
+    }
     args.push('-i', n);
   });
 
@@ -70,13 +74,9 @@ export async function renderProject(media, plan, onProgress) {
     '-map', `${inputNames.length}:a`,
     '-t', String(plan.duration),
     '-r', '30',
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '27',
     '-pix_fmt', 'yuv420p',
-    '-c:a', 'aac',
-    '-b:a', '128k',
-    '-shortest', 'bikeztagram-ai-v' + (plan.version || 1) + '.mp4'
+    '-shortest',
+    'bikeztagram-ai-v' + (plan.version || 1) + '.mp4'
   );
 
   await ffmpeg.exec(args);
