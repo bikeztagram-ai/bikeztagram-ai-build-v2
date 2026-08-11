@@ -1,0 +1,26 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import fs from 'node:fs';
+import path from 'node:path';
+
+function copyFfmpegAssets() {
+  return {
+    name: 'copy-ffmpeg-assets',
+    closeBundle() {
+      const src = path.resolve('node_modules/@ffmpeg/core/dist/esm');
+      const dest = path.resolve('dist/ffmpeg');
+      fs.mkdirSync(dest, { recursive: true });
+      for (const file of ['ffmpeg-core.js', 'ffmpeg-core.wasm', 'ffmpeg-core.worker.js']) {
+        const from = path.join(src, file);
+        if (!fs.existsSync(from)) throw new Error(`Missing FFmpeg asset: ${from}`);
+        fs.copyFileSync(from, path.join(dest, file));
+      }
+    }
+  };
+}
+
+export default defineConfig({
+  plugins: [react(), copyFfmpegAssets()],
+  base: './',
+  server: { host: true }
+});
