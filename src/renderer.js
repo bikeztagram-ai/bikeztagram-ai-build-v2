@@ -32,56 +32,80 @@ export async function renderProject(media, plan, onProgress) {
   if (!plan.cuts?.length) throw new Error('No selected shots to render.');
   await ensureFFmpeg(onProgress);
   const files = new Map(media.map(m => [m.id, m]));
-  const inputNames = [];
-  const filterParts = [];
-  const labels = [];
+  const segmentFiles = [];
 
+  // Step 1: Process each media item individually into a standard 1080x1920 30fps segment
   for (let i = 0; i < plan.cuts.length; i++) {
     const cut = plan.cuts[i];
     const m = files.get(cut.mediaId);
     if (!m?.file) continue;
-    const input = `input_${i}.${ext(m.name)}`;
-    await ffmpeg.writeFile(input, await fetchFile(m.file));
-    inputNames.push(input);
-    
+
+    const rawInput = `raw_${i}.${ext(m.name)}`;
+    const segOutput = `seg_${i}.ts`;
+    await ffmpeg.writeFile(rawInput, await fetchFile(m.file));
+
+    const filter = `scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30`;
+
     if (m.type.startsWith('image')) {
-      filterParts.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${i}]`);
+      await ffmpeg.exec([
+        '-loop', '1',
+        '-i', rawInput,
+        '-vf', filter,
+        '-t', String(cut.duration || 3),
+        '-c:v', 'mpeg2video',
+        '-q:v', '2',
+        segOutput
+      ]);
     } else {
-      filterParts.push(`[${i}:v]trim=start=${cut.start}:duration=${cut.duration},setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${i}]`);
+      await ffmpeg.exec([
+        '-ss', String(cut.start || 0),
+        '-i', rawInput,
+        '-vf', filter,
+        '-t', String(cut.duration || 3),
+        '-c:v', 'mpeg2video',
+        '-q:v', '2',
+        '-an',
+        segOutput
+      ]);
     }
-    labels.push(`[v${i}]`);
+
+    segmentFiles.push(segOutput);
+    await ffmpeg.deleteFile(rawInput).catch(() => {});
   }
 
-  const concat = `${labels.join('')}concat=n=${labels.length}:v=1:a=0[outv]`;
-  filterParts.push(concat);
+  // Step 2: Combine segments using concat protocol
+  const concatList = segmentFiles.map(f => `file '${f}'`).join('\n');
+  await ffmpeg.writeFile('concat.txt', concatList);
+
+  // Step 3: Generate audio pulse
   const musicBlob = createOriginalPulseWav(Math.max(30, plan.duration + 4), 112);
-  await ffmpeg.writeFile('bikeztagram-pulse.wav', await fetchFile(musicBlob));
+  await ffmpeg.writeFile('pulse.wav', await fetchFile(musicBlob));
 
-  const args = [];
-  inputNames.forEach((n, i) => {
-    const m = media.find(x => `input_${i}.${ext(x.name)}` === n);
-    if (m?.type.startsWith('image')) {
-      const cut = plan.cuts[i];
-      args.push('-loop', '1', '-t', String(cut?.duration || 3));
-    }
-    args.push('-i', n);
-  });
-
-  args.push(
-    '-i', 'bikeztagram-pulse.wav',
-    '-filter_complex', filterParts.join(';'),
-    '-map', '[outv]',
-    '-map', `${inputNames.length}:a`,
-    '-t', String(plan.duration),
-    '-r', '30',
+  // Step 4: Final export
+  const outputFile = 'bikeztagram-ai-v' + (plan.version || 1) + '.mp4';
+  await ffmpeg.exec([
+    '-f', 'concat',
+    '-safe', '0',
+    '-i', 'concat.txt',
+    '-i', 'pulse.wav',
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
     '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac',
     '-shortest',
-    'bikeztagram-ai-v' + (plan.version || 1) + '.mp4'
-  );
+    outputFile
+  ]);
 
-  await ffmpeg.exec(args);
-  const data = await ffmpeg.readFile('bikeztagram-ai-v' + (plan.version || 1) + '.mp4');
+  const data = await ffmpeg.readFile(outputFile);
   const blob = new Blob([data.buffer], { type: 'video/mp4' });
+
+  // Cleanup temporary files
+  for (const seg of segmentFiles) {
+    await ffmpeg.deleteFile(seg).catch(() => {});
+  }
+  await ffmpeg.deleteFile('concat.txt').catch(() => {});
+  await ffmpeg.deleteFile('pulse.wav').catch(() => {});
+
   onProgress?.(100);
   return blob;
 }
