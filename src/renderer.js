@@ -23,45 +23,65 @@ async function ensureFFmpeg(onProgress) {
 }
 
 function ext(name) {
-  const p=name.toLowerCase().split('.');
-  return p[p.length-1] || 'bin';
+  const p = name.toLowerCase().split('.');
+  return p[p.length - 1] || 'bin';
 }
 
 export async function renderProject(media, plan, onProgress) {
   if (!plan.cuts?.length) throw new Error('No selected shots to render.');
   await ensureFFmpeg(onProgress);
-  const files = new Map(media.map(m=>[m.id,m]));
-  const inputNames=[];
-  const filterParts=[];
-  const labels=[];
-  for (let i=0;i<plan.cuts.length;i++) {
-    const cut=plan.cuts[i];
-    const m=files.get(cut.mediaId);
+  const files = new Map(media.map(m => [m.id, m]));
+  const inputNames = [];
+  const filterParts = [];
+  const labels = [];
+
+  for (let i = 0; i < plan.cuts.length; i++) {
+    const cut = plan.cuts[i];
+    const m = files.get(cut.mediaId);
     if (!m?.file) continue;
-    const input=`input_${i}.${ext(m.name)}`;
+    const input = `input_${i}.${ext(m.name)}`;
     await ffmpeg.writeFile(input, await fetchFile(m.file));
     inputNames.push(input);
     if (m.type.startsWith('image')) {
-      filterParts.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,zoompan=z='min(zoom+0.0008,1.06)':d=${Math.max(1,Math.round(cut.duration*30))}:s=1080x1920:fps=30,setsar=1[v${i}]`);
+      filterParts.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,zoompan=z='min(zoom+0.0008,1.06)':d=${Math.max(1, Math.round(cut.duration * 30))}:s=1080x1920:fps=30,setsar=1[v${i}]`);
     } else {
       filterParts.push(`[${i}:v]trim=start=${cut.start}:duration=${cut.duration},setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v${i}]`);
     }
     labels.push(`[v${i}]`);
   }
+
   const concat = `${labels.join('')}concat=n=${labels.length}:v=1:a=0[outv]`;
   filterParts.push(concat);
-  const musicBlob=createOriginalPulseWav(Math.max(30, plan.duration+4), 112);
+  const musicBlob = createOriginalPulseWav(Math.max(30, plan.duration + 4), 112);
   await ffmpeg.writeFile('bikeztagram-pulse.wav', await fetchFile(musicBlob));
-  const args=[];
-  inputNames.forEach((n, i)=> {
-    const m=media.find(x=>`input_${i}.${ext(x.name)}`===n);
-    if (m?.type.startsWith('image')) args.push('-loop','1');
-    args.push('-i',n);
+
+  const args = [];
+  inputNames.forEach((n, i) => {
+    const m = media.find(x => `input_${i}.${ext(x.name)}` === n);
+    if (m?.type.startsWith('image')) args.push('-loop', '1');
+    args.push('-i', n);
   });
-  args.push('-i','bikeztagram-pulse.wav','-filter_complex',filterParts.join(';'),'-map','[outv]','-map',`${inputNames.length}:a`,'-t',String(plan.duration),'-r','30','-c:v','libx264','-preset','ultrafast','-crf','27','-pix_fmt','yuv420p','-c:a','aac','-b:a','128k','-shortest','bikeztagram-ai-v'+(plan.version||1)+'.mp4');
+
+  args.push(
+    '-i', 'bikeztagram-pulse.wav',
+    '-filter_complex', filterParts.join(';'),
+    '-map', '[outv]',
+    '-map', `${inputNames.length}:a`,
+    '-t', String(plan.duration),
+    '-r', '30',
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-crf', '27',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'aac',
+    '-b:a', '128k',
+    '-shortest', 'bikeztagram-ai-v' + (plan.version || 1) + '.mp4'
+  );
+
   await ffmpeg.exec(args);
-  const data=await ffmpeg.readFile('bikeztagram-ai-v'+(plan.version||1)+'.mp4');
-  const blob=new Blob([data.buffer],{type:'video/mp4'});
+  const data = await ffmpeg.readFile('bikeztagram-ai-v' + (plan.version || 1) + '.mp4');
+  const blob = new Blob([data.buffer], { type: 'video/mp4' });
   onProgress?.(100);
   return blob;
 }
+
