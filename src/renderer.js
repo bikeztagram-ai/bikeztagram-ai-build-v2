@@ -1,111 +1,135 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { createOriginalPulseWav } from './musicProvider';
-
-let ffmpeg;
-let loaded = false;
-
-async function ensureFFmpeg(onProgress) {
-  if (!ffmpeg) {
-    ffmpeg = new FFmpeg();
-    ffmpeg.on('progress', ({ progress }) => onProgress?.(Math.round(progress * 100)));
-    ffmpeg.on('log', ({ message }) => console.debug('[ffmpeg]', message));
-  }
-  if (!loaded) {
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
-    });
-    
-    loaded = true;
-  }
-}
-
-function ext(name) {
-  const p = name.toLowerCase().split('.');
-  return p[p.length - 1] || 'bin';
-}
 
 export async function renderProject(media, plan, onProgress) {
   if (!plan.cuts?.length) throw new Error('No selected shots to render.');
-  await ensureFFmpeg(onProgress);
-  const files = new Map(media.map(m => [m.id, m]));
-  const segmentFiles = [];
 
-  // Step 1: Process each media item individually into a standard 1080x1920 30fps segment
-  for (let i = 0; i < plan.cuts.length; i++) {
-    const cut = plan.cuts[i];
-    const m = files.get(cut.mediaId);
-    if (!m?.file) continue;
+  const canvas = document.createElement('canvas');
+  canvas.width = 1080;
+  canvas.height = 1920;
+  const ctx = canvas.getContext('2d');
 
-    const rawInput = `raw_${i}.${ext(m.name)}`;
-    const segOutput = `seg_${i}.ts`;
-    await ffmpeg.writeFile(rawInput, await fetchFile(m.file));
-
-    const filter = `scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30`;
-
-    if (m.type.startsWith('image')) {
-      await ffmpeg.exec([
-        '-loop', '1',
-        '-i', rawInput,
-        '-vf', filter,
-        '-t', String(cut.duration || 3),
-        '-c:v', 'mpeg2video',
-        '-q:v', '2',
-        segOutput
-      ]);
-    } else {
-      await ffmpeg.exec([
-        '-ss', String(cut.start || 0),
-        '-i', rawInput,
-        '-vf', filter,
-        '-t', String(cut.duration || 3),
-        '-c:v', 'mpeg2video',
-        '-q:v', '2',
-        '-an',
-        segOutput
-      ]);
-    }
-
-    segmentFiles.push(segOutput);
-    await ffmpeg.deleteFile(rawInput).catch(() => {});
-  }
-
-  // Step 2: Combine segments using concat protocol
-  const concatList = segmentFiles.map(f => `file '${f}'`).join('\n');
-  await ffmpeg.writeFile('concat.txt', concatList);
-
-  // Step 3: Generate audio pulse
+  const stream = canvas.captureStream(30);
+  
+  // Set up audio from the pulse generator
   const musicBlob = createOriginalPulseWav(Math.max(30, plan.duration + 4), 112);
-  await ffmpeg.writeFile('pulse.wav', await fetchFile(musicBlob));
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const audioBuffer = await audioContext.decodeAudioData(await musicBlob.arrayBuffer());
+  const audioSource = audioContext.createBufferSource();
+  const dest = audioContext.createMediaStreamDestination();
+  audioSource.buffer = audioBuffer;
+  audioSource.connect(dest);
 
-  // Step 4: Final export
-  const outputFile = 'bikeztagram-ai-v' + (plan.version || 1) + '.mp4';
-  await ffmpeg.exec([
-    '-f', 'concat',
-    '-safe', '0',
-    '-i', 'concat.txt',
-    '-i', 'pulse.wav',
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-pix_fmt', 'yuv420p',
-    '-c:a', 'aac',
-    '-shortest',
-    outputFile
+  // Combine video stream with generated audio stream
+  const combinedStream = new MediaStream([
+    ...stream.getVideoTracks(),
+    ...dest.getAudioTracks()
   ]);
 
-  const data = await ffmpeg.readFile(outputFile);
-  const blob = new Blob([data.buffer], { type: 'video/mp4' });
+  const mimeType = MediaRecorder.isTypeSupported('video/mp4;codecs=h264')
+    ? 'video/mp4;codecs=h264'
+    : MediaRecorder.isTypeSupported('video/mp4')
+    ? 'video/mp4'
+    : 'video/webm';
 
-  // Cleanup temporary files
-  for (const seg of segmentFiles) {
-    await ffmpeg.deleteFile(seg).catch(() => {});
+  const recorder = new MediaRecorder(combinedStream, { mimeType });
+  const chunks = [];
+
+  recorder.ondataavailable = (e) => {
+    if (e.data.size > 0) chunks.push(e.data);
+  };
+
+  const filesMap = new Map(media.map(m => [m.id, m]));
+
+  // Preload all images and video elements into memory
+  const loadedAssets = new Map();
+  for (const cut of plan.cuts) {
+    const item = filesMap.get(cut.mediaId);
+    if (!item || loadedAssets.has(cut.mediaId)) continue;
+
+    if (item.type.startsWith('image')) {
+      const img = new Image();
+      img.src = URL.createObjectURL(item.file);
+      await new Promise((res) => { img.onload = res; });
+      loadedAssets.set(cut.mediaId, { type: 'image', element: img });
+    } else {
+      const video = document.createElement('video');
+      video.src = URL.createObjectURL(item.file);
+      video.muted = true;
+      video.playsInline = true;
+      await new Promise((res) => { video.onloadedmetadata = res; });
+      loadedAssets.set(cut.mediaId, { type: 'video', element: video });
+    }
   }
-  await ffmpeg.deleteFile('concat.txt').catch(() => {});
-  await ffmpeg.deleteFile('pulse.wav').catch(() => {});
 
-  onProgress?.(100);
-  return blob;
+  // Draw scaled media centered on 1080x1920 vertical canvas
+  function drawMedia(asset, videoTime = 0) {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, 1080, 1920);
+
+    const el = asset.element;
+    const srcW = asset.type === 'image' ? el.naturalWidth : el.videoWidth;
+    const srcH = asset.type === 'image' ? el.naturalHeight : el.videoHeight;
+
+    if (asset.type === 'video') {
+      el.currentTime = videoTime;
+    }
+
+    const scale = Math.min(1080 / srcW, 1920 / srcH);
+    const drawW = srcW * scale;
+    const drawH = srcH * scale;
+    const offsetX = (1080 - drawW) / 2;
+    const offsetY = (1920 - drawH) / 2;
+
+    ctx.drawImage(el, offsetX, offsetY, drawW, drawH);
+  }
+
+  return new Promise((resolve) => {
+    recorder.onstop = () => {
+      const finalBlob = new Blob(chunks, { type: mimeType });
+      onProgress?.(100);
+      resolve(finalBlob);
+    };
+
+    recorder.start();
+    audioSource.start(0);
+
+    let currentCutIndex = 0;
+    let cutStartTime = performance.now();
+    const fps = 30;
+    const frameInterval = 1000 / fps;
+    const totalDurationMs = plan.duration * 1000;
+    const renderStartTime = performance.now();
+
+    const intervalId = setInterval(() => {
+      const now = performance.now();
+      const elapsedTotal = now - renderStartTime;
+
+      if (elapsedTotal >= totalDurationMs || currentCutIndex >= plan.cuts.length) {
+        clearInterval(intervalId);
+        recorder.stop();
+        audioSource.stop();
+        return;
+      }
+
+      const currentCut = plan.cuts[currentCutIndex];
+      const elapsedCut = (now - cutStartTime) / 1000;
+
+      if (elapsedCut >= currentCut.duration) {
+        currentCutIndex++;
+        cutStartTime = now;
+        if (currentCutIndex >= plan.cuts.length) return;
+      }
+
+      const cut = plan.cuts[currentCutIndex];
+      const asset = loadedAssets.get(cut.mediaId);
+
+      if (asset) {
+        const videoTime = (cut.start || 0) + ((now - cutStartTime) / 1000);
+        drawMedia(asset, videoTime);
+      }
+
+      const progressPct = Math.min(99, Math.round((elapsedTotal / totalDurationMs) * 100));
+      onProgress?.(progressPct);
+    }, frameInterval);
+  });
 }
