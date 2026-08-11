@@ -8,32 +8,20 @@ export async function renderProject(mediaItems, plan, onProgress) {
 
       const stream = canvas.captureStream(30);
 
-      // Find mobile-compatible mimeType supported by the browser
       const mimeTypes = [
         'video/mp4;codecs=h264',
         'video/mp4',
         'video/webm;codecs=vp8',
         'video/webm'
       ];
-
       let selectedType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
-
-      let recorder;
-      if (selectedType) {
-        recorder = new MediaRecorder(stream, { mimeType: selectedType });
-      } else {
-        recorder = new MediaRecorder(stream);
-      }
+      let recorder = selectedType ? new MediaRecorder(stream, { mimeType: selectedType }) : new MediaRecorder(stream);
 
       const chunks = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) chunks.push(e.data);
-      };
-
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = () => {
         const outputType = selectedType.includes('mp4') ? 'video/mp4' : 'video/webm';
-        const blob = new Blob(chunks, { type: outputType });
-        resolve(blob);
+        resolve(new Blob(chunks, { type: outputType }));
       };
 
       recorder.start();
@@ -55,7 +43,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
 
         const cut = cuts[currentCutIndex];
         const media = mediaItems.find((m) => m.id === cut.mediaId);
-        const durationMs = (cut.duration || 2) * 1000;
+        const durationMs = (cut.duration || 3) * 1000;
 
         if (!media) {
           currentCutIndex++;
@@ -64,66 +52,86 @@ export async function renderProject(mediaItems, plan, onProgress) {
         }
 
         const isVideo = media.type.startsWith('video');
+        const fileUrl = URL.createObjectURL(media.file);
+        const element = isVideo ? document.createElement('video') : new Image();
 
-        if (isVideo) {
-          const video = document.createElement('video');
-          video.src = URL.createObjectURL(media.file);
-          video.muted = true;
-          video.playsInline = true;
+        try {
+          if (isVideo) {
+            element.muted = true;
+            element.playsInline = true;
+            element.src = fileUrl;
 
-          await new Promise((res) => {
-            video.onloadeddata = () => res();
-            video.onerror = () => res();
-          });
+            await new Promise((res) => {
+              const timeout = setTimeout(res, 3000); // 3s fallback so it never hangs forever
+              element.onloadeddata = () => { clearTimeout(timeout); res(); };
+              element.onerror = () => { clearTimeout(timeout); res(); };
+            });
 
-          await video.play().catch(() => {});
-
-          const startTime = Date.now();
-          const interval = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const overallProgress = Math.min(
-              100,
-              Math.round(((currentCutIndex + elapsed / durationMs) / totalCuts) * 100)
-            );
-            if (onProgress) onProgress(overallProgress);
-
-            if (elapsed >= durationMs) {
-              clearInterval(interval);
-              video.pause();
-              URL.revokeObjectURL(video.src);
-              currentCutIndex++;
-              processNextCut();
-            }
-          }, 33);
-        } else {
-          const img = new Image();
-          img.src = URL.createObjectURL(media.file);
-
-          await new Promise((res) => {
-            img.onload = () => res();
-            img.onerror = () => res();
-          });
+            await element.play().catch(() => {});
+          } else {
+            element.src = fileUrl;
+            await new Promise((res) => {
+              const timeout = setTimeout(res, 2000);
+              element.onload = () => { clearTimeout(timeout); res(); };
+              element.onerror = () => { clearTimeout(timeout); res(); };
+            });
+          }
 
           const startTime = Date.now();
           const interval = setInterval(() => {
             const elapsed = Date.now() - startTime;
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const progress = Math.min(1, elapsed / durationMs);
 
-            const overallProgress = Math.min(
-              100,
-              Math.round(((currentCutIndex + elapsed / durationMs) / totalCuts) * 100)
-            );
+            // Apply Dark Moody Contrast Filter
+            ctx.filter = 'brightness(0.75) contrast(1.25) saturate(1.35)';
+
+            // Smooth Slow Zoom
+            const scale = 1.0 + progress * 0.08;
+            const w = canvas.width * scale;
+            const h = canvas.height * scale;
+            const x = (canvas.width - w) / 2;
+            const y = (canvas.height - h) / 2;
+
+            if (isVideo ? element.readyState >= 2 : element.complete) {
+              ctx.drawImage(element, x, y, w, h);
+            } else {
+              ctx.fillStyle = '#111';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            ctx.filter = 'none';
+
+            // Letterbox Bars
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, 140);
+            ctx.fillRect(0, canvas.height - 140, canvas.width, 140);
+
+            // Dynamic Text Overlay
+            if (plan.textOverlay) {
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 52px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+              ctx.shadowBlur = 12;
+              ctx.fillText(plan.textOverlay.toUpperCase(), canvas.width / 2, canvas.height - 200);
+              ctx.shadowBlur = 0;
+            }
+
+            const overallProgress = Math.min(100, Math.round(((currentCutIndex + progress) / totalCuts) * 100));
             if (onProgress) onProgress(overallProgress);
 
             if (elapsed >= durationMs) {
               clearInterval(interval);
-              URL.revokeObjectURL(img.src);
+              if (isVideo) element.pause();
+              try { URL.revokeObjectURL(fileUrl); } catch (e) {}
               currentCutIndex++;
               processNextCut();
             }
           }, 33);
+        } catch (err) {
+          console.error(err);
+          try { URL.revokeObjectURL(fileUrl); } catch (e) {}
+          currentCutIndex++;
+          processNextCut();
         }
       };
 
