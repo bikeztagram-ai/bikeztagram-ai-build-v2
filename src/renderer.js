@@ -1,5 +1,6 @@
+
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile } from '@ffmpeg/util';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { createOriginalPulseWav } from './musicProvider';
 
 let ffmpeg;
@@ -12,12 +13,14 @@ async function ensureFFmpeg(onProgress) {
     ffmpeg.on('log', ({ message }) => console.debug('[ffmpeg]', message));
   }
   if (!loaded) {
-    const base = `${import.meta.env.BASE_URL}ffmpeg/`;
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm';
+    
     await ffmpeg.load({
-      coreURL: `${base}ffmpeg-core.js`,
-      wasmURL: `${base}ffmpeg-core.wasm`,
-      workerURL: `${base}ffmpeg-core.worker.js`
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      workerURL: await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript'),
     });
+    
     loaded = true;
   }
 }
@@ -84,4 +87,3 @@ export async function renderProject(media, plan, onProgress) {
   onProgress?.(100);
   return blob;
 }
-
