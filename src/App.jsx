@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { renderProject } from './renderer';
-import { scoreMedia } from './director';
 import './styles.css';
 
 export default function App() {
@@ -22,7 +21,9 @@ export default function App() {
   }, [files]);
 
   const handleFileChange = (event) => {
-    const selectedFiles = Array.from(event.target.files || []);
+    const selectedFiles = Array.from(
+      event.target.files || []
+    );
 
     setFiles(selectedFiles);
     setVideoUrl(null);
@@ -30,69 +31,73 @@ export default function App() {
 
     if (selectedFiles.length > 0) {
       setStatus(
-        `${selectedFiles.length} clip${selectedFiles.length === 1 ? '' : 's'} loaded.`
+        `${selectedFiles.length} clip${
+          selectedFiles.length === 1 ? '' : 's'
+        } loaded.`
       );
     } else {
       setStatus('');
     }
   };
 
-  const buildEditPlan = () => {
-    /*
-     * Score the uploaded media so the best clips are considered first.
-     * This is the foundation for the AI Director.
-     */
-    const scored = mediaItems
-      .map((media, index) => ({
-        ...media,
-        originalIndex: index,
-        score: scoreMedia(media)
-      }))
-      .sort((a, b) => b.score - a.score);
+  const createAIEditPlan = async () => {
+    const media = mediaItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      size: item.size
+    }));
 
-    const totalDuration = Math.max(
-      8,
-      Math.min(30, 2.5 * scored.length)
-    );
-
-    const clipDuration =
-      totalDuration / Math.max(scored.length, 1);
-
-    const cuts = scored.map((media, index) => {
-      const transitions = [
-        'zoom-in',
-        'pan-right',
-        'zoom-out',
-        'pan-left'
-      ];
-
-      return {
-        mediaIndex: media.originalIndex,
-        mediaId: media.id,
-        duration: Math.max(1.5, clipDuration),
-        transition: transitions[index % transitions.length],
-        motionStyle: transitions[index % transitions.length],
-        text:
-          index === 0
-            ? 'NINJA 1000SX'
-            : ''
-      };
+    const response = await fetch('/api/render', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        prompt:
+          prompt ||
+          'Create an epic cinematic motorcycle trailer.',
+        media
+      })
     });
 
-    return {
-      title: 'Bikeztagram AI Reel',
-      prompt,
-      cuts,
-      colorGrade: prompt.toLowerCase().includes('dark')
-        ? 'moody-blue'
-        : 'dark-cinematic',
-      textOverlay: 'NINJA 1000SX'
-    };
+    const responseText = await response.text();
+
+    let data;
+
+    try {
+      data = JSON.parse(responseText);
+    } catch (error) {
+      throw new Error(
+        `AI server returned an invalid response: ${
+          responseText.slice(0, 200) ||
+          'Empty response'
+        }`
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data?.error ||
+          data?.message ||
+          `AI server error (${response.status})`
+      );
+    }
+
+    if (!data?.plan) {
+      throw new Error(
+        'The AI server did not return an edit plan.'
+      );
+    }
+
+    return data.plan;
   };
 
   const handleGenerate = async () => {
     if (files.length === 0) {
-      setStatus('Please upload at least one image or video clip.');
+      setStatus(
+        'Please upload at least one image or video clip.'
+      );
       return;
     }
 
@@ -101,38 +106,62 @@ export default function App() {
     setVideoUrl(null);
 
     try {
-      setStatus('Analysing your clips...');
+      setStatus(
+        'AI Director is analysing your request...'
+      );
 
-      /*
-       * Give the media a moment to be analysed before rendering.
-       */
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      const editPlan =
+        await createAIEditPlan();
 
-      const editPlan = buildEditPlan();
+      if (
+        !editPlan.cuts ||
+        !Array.isArray(editPlan.cuts) ||
+        editPlan.cuts.length === 0
+      ) {
+        throw new Error(
+          'The AI created an empty edit plan.'
+        );
+      }
 
       setStatus(
-        `AI Director selected ${editPlan.cuts.length} clips. Rendering...`
+        `AI Director created ${editPlan.cuts.length} shots. Rendering...`
       );
 
-      const videoBlob = await renderProject(
-        mediaItems,
-        editPlan,
-        (percentage) => {
-          setProgress(Math.round(percentage));
-        }
-      );
+      const videoBlob =
+        await renderProject(
+          mediaItems,
+          editPlan,
+          (percentage) => {
+            setProgress(
+              Math.round(percentage)
+            );
+          }
+        );
 
-      const url = URL.createObjectURL(videoBlob);
+      if (!videoBlob || videoBlob.size === 0) {
+        throw new Error(
+          'The renderer produced an empty video.'
+        );
+      }
+
+      const url =
+        URL.createObjectURL(videoBlob);
 
       setVideoUrl(url);
       setProgress(100);
-      setStatus('Your reel is ready!');
+      setStatus(
+        'Your AI-directed cinematic reel is ready!'
+      );
     } catch (error) {
-      console.error('Generation error:', error);
+      console.error(
+        'Generation error:',
+        error
+      );
 
       setStatus(
         `Something went wrong: ${
-          error?.message || 'Unknown error'
+          error?.message ||
+          'Unknown error'
         }`
       );
     } finally {
@@ -157,7 +186,10 @@ export default function App() {
       <header className="app-header">
         <div>
           <h1>BIKEZTAGRAM AI</h1>
-          <p>AI-powered motorcycle video editor</p>
+
+          <p>
+            AI-powered motorcycle video editor
+          </p>
         </div>
       </header>
 
@@ -179,7 +211,9 @@ export default function App() {
           {files.length > 0 && (
             <p className="status-text">
               {files.length} media item
-              {files.length === 1 ? '' : 's'} loaded
+              {files.length === 1
+                ? ''
+                : 's'} loaded
             </p>
           )}
         </section>
@@ -191,13 +225,13 @@ export default function App() {
 
           <textarea
             id="edit-prompt"
-            rows={4}
+            rows={6}
             value={prompt}
             onChange={(event) =>
               setPrompt(event.target.value)
             }
             disabled={isProcessing}
-            placeholder="Example: Make a dark, cinematic Kawasaki Ninja reel with fast cuts, dramatic movement and a powerful reveal."
+            placeholder="Example: Create an epic cinema-grade Kawasaki Ninja 1000SX launch trailer. Start mysterious, build tension, reveal the bike, then finish with fast aggressive riding footage. Use premium cinematic transitions, dramatic pacing and minimal text."
           />
         </section>
 
@@ -205,7 +239,8 @@ export default function App() {
           <button
             onClick={handleGenerate}
             disabled={
-              isProcessing || files.length === 0
+              isProcessing ||
+              files.length === 0
             }
             className="generate-btn"
           >
@@ -214,19 +249,23 @@ export default function App() {
               : '✨ Create AI Reel'}
           </button>
 
-          {(files.length > 0 || videoUrl) && !isProcessing && (
-            <button
-              onClick={clearProject}
-              className="clear-btn"
-            >
-              Clear
-            </button>
-          )}
+          {(files.length > 0 ||
+            videoUrl) &&
+            !isProcessing && (
+              <button
+                onClick={clearProject}
+                className="clear-btn"
+              >
+                Clear
+              </button>
+            )}
         </div>
 
         {status && (
           <div className="status-panel">
-            <p className="status-text">{status}</p>
+            <p className="status-text">
+              {status}
+            </p>
 
             {isProcessing && (
               <div className="progress-track">
@@ -243,7 +282,9 @@ export default function App() {
 
         {videoUrl && (
           <section className="result-container">
-            <h2>Your Completed Reel</h2>
+            <h2>
+              Your Completed Reel
+            </h2>
 
             <video
               src={videoUrl}
@@ -256,7 +297,7 @@ export default function App() {
 
             <a
               href={videoUrl}
-              download="bikeztagram-ai-reel.mp4"
+              download="bikeztagram-ai-reel.webm"
               className="download-btn"
             >
               Download Reel
