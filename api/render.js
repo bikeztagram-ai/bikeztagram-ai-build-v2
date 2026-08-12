@@ -1,4 +1,3 @@
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({
@@ -9,12 +8,12 @@ export default async function handler(req, res) {
 
   try {
     const {
-      prompt,
-      media = [],
-      visuals = []
+      prompt = '',
+      media = []
     } = req.body || {};
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey =
+      process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       return res.status(500).json({
@@ -24,72 +23,256 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!Array.isArray(media) || media.length === 0) {
+    if (
+      !Array.isArray(media) ||
+      media.length === 0
+    ) {
       return res.status(400).json({
         success: false,
-        error: 'No media information was supplied.'
+        error:
+          'No media was supplied.'
       });
     }
 
-    const mediaDescription = media
-      .map((item) => {
-        return [
-          `MEDIA ${item.id}`,
-          `filename: ${item.name || 'unknown'}`,
-          `type: ${item.type || 'unknown'}`,
-          `size: ${item.size || 0} bytes`
-        ].join('\n');
+    const mediaList = media
+      .map((item, index) => {
+        return `
+MEDIA ${index}
+filename: ${item.name || 'unknown'}
+type: ${item.type || 'unknown'}
+size: ${item.size || 0} bytes
+`;
       })
-      .join('\n\n');
+      .join('\n');
 
-    const systemPrompt = `
-You are the senior editor and creative director for a professional
-cinematic motorcycle production.
+    const directorPrompt = `
+You are an elite professional film editor and motorcycle
+commercial director.
 
-You are editing the user's actual uploaded motorcycle footage and photos.
+You are creating a cinematic social-media motorcycle trailer.
 
-IMPORTANT:
-You will receive representative frames extracted from the user's actual
-media. STUDY THE FRAMES carefully before making editing decisions.
-
-Do not simply use the files in numerical order.
-
-Identify:
-- motorcycle hero shots
-- close-up/detail shots
-- riding shots
-- moving shots
-- road/scenery shots
-- front/rear/side angles
-- wheel shots
-- rider shots
-- dramatic reveal opportunities
-- visually weak or repetitive material
-
-Create a genuinely edited sequence.
-
-The user's creative request is:
+USER'S CREATIVE REQUEST:
 
 ${prompt || 'Create an epic cinematic motorcycle trailer.'}
 
-AVAILABLE MEDIA:
+UPLOADED MEDIA:
 
-${mediaDescription}
+${mediaList}
+
+Your job is NOT to simply place the media in upload order.
+
+Instead, act as an intelligent editor.
+
+==================================================
+1. SORT THE FOOTAGE
+==================================================
+
+Determine the best possible order for the available media.
+
+Consider:
+
+- visual impact
+- motorcycle visibility
+- camera angle
+- action
+- movement
+- composition
+- variety
+- continuity
+- story progression
+- reveal potential
+- energy
+- suitability for opening
+- suitability for ending
+
+Do not assume the upload order is correct.
+
+==================================================
+2. BUILD A STORY
+==================================================
+
+Whenever the footage allows, structure the edit like this:
+
+ACT 1 — MYSTERY
+Short intriguing shots.
+
+ACT 2 — ANTICIPATION
+Details, movement and preparation.
+
+ACT 3 — REVEAL
+Show the motorcycle properly.
+
+ACT 4 — ESCALATION
+Increase pace and energy.
+
+ACT 5 — ACTION
+Use the strongest riding/movement footage.
+
+ACT 6 — HERO ENDING
+Finish with the strongest visual.
+
+The structure may change if the footage suggests
+a better story.
+
+==================================================
+3. CHOOSE THE BEST CLIPS
+==================================================
+
+You do NOT have to use every media item.
+
+If several clips are repetitive, use the strongest one.
+
+Do not include weak footage simply because it exists.
+
+However, do not discard a clip unless there is a
+reasonable editorial reason.
+
+==================================================
+4. SHOT LENGTH
+==================================================
+
+Use shorter shots for:
+
+- action
+- acceleration
+- fast movement
+- transitions
+- build-up
+
+Use longer shots for:
+
+- hero shots
+- motorcycle reveals
+- beautiful scenery
+- important cinematic moments
+
+Normal shot duration:
+
+0.5–3 seconds.
+
+A particularly strong hero shot may be longer.
+
+==================================================
+5. TRANSITIONS
+==================================================
+
+Use transitions purposefully.
+
+Available:
+
+hard-cut
+fade-in
+fade-out
+dip-black
+crossfade
+flash-cut
+whip-left
+whip-right
+
+Do NOT use the same transition repeatedly.
+
+Most action cuts should normally be hard cuts.
+
+==================================================
+6. CAMERA MOTION
+==================================================
+
+Use:
+
+static
+slow-push
+slow-pull
+pan-left
+pan-right
+tilt-up
+tilt-down
+
+Only use motion when it improves the shot.
+
+==================================================
+7. SPEED
+==================================================
+
+Use a speed value between:
+
+0.5 and 1.5
+
+Slow motion can be used for:
+
+- reveals
+- hero shots
+- dramatic moments
+
+Faster playback can be used for:
+
+- action
+- acceleration
+- energy
+
+==================================================
+8. TEXT
+==================================================
+
+Keep text minimal.
+
+Do not put text on every shot.
+
+Possible text:
+
+NINJA 1000SX
+KAWASAKI
+BIKEZTAGRAM
+
+Only use text when it improves the trailer.
+
+==================================================
+9. EDITING PRINCIPLES
+==================================================
+
+Avoid:
+
+- repetitive shots
+- random ordering
+- unnecessary transitions
+- excessive text
+- constant zooming
+- boring openings
+- weak endings
+
+Prioritise:
+
+- rhythm
+- contrast
+- anticipation
+- payoff
+- movement
+- visual variety
+- cinematic pacing
+
+==================================================
+10. IMPORTANT LIMITATION
+==================================================
+
+You only know the metadata and filenames of the media.
+
+DO NOT pretend you can see footage that has not been provided.
+
+Use filenames as clues but do not invent events.
+
+==================================================
 
 Return ONLY valid JSON.
 
-Use this exact structure:
+Use exactly this structure:
 
 {
   "title": "string",
-  "style": "string",
+  "style": "cinematic motorcycle trailer",
   "colorGrade": "dark-cinematic",
-  "textOverlay": "string",
+  "textOverlay": "NINJA 1000SX",
   "cuts": [
     {
       "mediaIndex": 0,
-      "startTime": 0,
-      "endTime": 2,
       "duration": 2,
       "purpose": "mystery",
       "transition": "fade-in",
@@ -100,137 +283,54 @@ Use this exact structure:
   ]
 }
 
-EDITING RULES:
+IMPORTANT:
 
-1. Do NOT simply stitch every file together in upload order.
+mediaIndex refers to the MEDIA number above.
 
-2. Choose the strongest visual material first.
+Do not create mediaIndex values that don't exist.
 
-3. Repetition should be avoided.
+The cuts array represents the FINAL EDIT ORDER.
 
-4. Build a story:
-   - mystery/opening
-   - anticipation
-   - reveal
-   - action
-   - hero ending
+The order of cuts is the order the finished video
+should play.
 
-5. Use short shots when energy should increase.
+Do not simply return MEDIA 0, MEDIA 1, MEDIA 2 etc.
 
-6. Use longer shots for important hero moments.
-
-7. Use approximately 0.5–3.0 seconds per shot unless a longer hero shot
-   is genuinely justified.
-
-8. For videos, use startTime and endTime to select the strongest section
-   of the clip.
-
-9. Do not invent moments that are not visible in the supplied frames.
-
-10. Use different transition types intelligently:
-    - hard-cut
-    - fade-in
-    - fade-out
-    - crossfade
-    - dip-black
-    - flash-cut
-    - whip-left
-    - whip-right
-
-11. Use different motion styles intelligently:
-    - static
-    - slow-push
-    - slow-pull
-    - pan-left
-    - pan-right
-    - tilt-up
-    - tilt-down
-
-12. Speed should normally be between 0.5 and 1.5.
-
-13. Do not use text on every shot.
-
-14. Text should be minimal and cinematic.
-
-15. The final shot should normally be one of the strongest motorcycle
-    hero shots.
-
-16. The final result should feel like a professional motorcycle
-    advertising trailer rather than a slideshow.
-
-17. If the user requests an aggressive edit, increase cutting speed.
-
-18. If the user requests a cinematic edit, use controlled pacing and
-    longer hero shots.
-
-19. If the user requests a social-media edit, favour a strong first
-    second and visually powerful early shots.
-
-20. Only reference mediaIndex values that actually exist.
+Actually rearrange them based on the best cinematic story.
 `;
 
-    const parts = [
-      {
-        text: systemPrompt
-      }
-    ];
+    const geminiResponse =
+      await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
 
-    /*
-     * Add the representative visual frames to Gemini.
-     */
-    for (const visual of visuals) {
-      if (!visual || !Array.isArray(visual.frames)) {
-        continue;
-      }
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
 
-      parts.push({
-        text:
-          `\nVISUAL ANALYSIS FOR MEDIA ${visual.mediaIndex}:\n` +
-          `These are representative frames from ${visual.name || 'the media file'}.\n`
-      });
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
 
-      for (const frame of visual.frames) {
-        if (!frame || !frame.data) {
-          continue;
-        }
+                parts: [
+                  {
+                    text: directorPrompt
+                  }
+                ]
+              }
+            ],
 
-        parts.push({
-          inline_data: {
-            mime_type: frame.mimeType || 'image/jpeg',
-            data: frame.data
-          }
-        });
-
-        parts.push({
-          text:
-            `Frame timestamp: ${
-              Number(frame.time || 0).toFixed(2)
-            } seconds`
-        });
-      }
-    }
-
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts
+            generationConfig: {
+              temperature: 0.8,
+              responseMimeType:
+                'application/json'
             }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            responseMimeType: 'application/json'
-          }
-        })
-      }
-    );
+          })
+        }
+      );
 
     const responseText =
       await geminiResponse.text();
@@ -244,7 +344,7 @@ EDITING RULES:
       return res.status(500).json({
         success: false,
         error:
-          `Gemini Error ${geminiResponse.status}: ` +
+          `Gemini error ${geminiResponse.status}: ` +
           responseText.slice(0, 500)
       });
     }
@@ -258,7 +358,7 @@ EDITING RULES:
       return res.status(500).json({
         success: false,
         error:
-          'Gemini returned an invalid API response.'
+          'Gemini returned invalid JSON.'
       });
     }
 
@@ -266,22 +366,32 @@ EDITING RULES:
       geminiData
         ?.candidates?.[0]
         ?.content?.parts?.find(
-          (part) => part.text
+          (part) =>
+            typeof part.text ===
+            'string'
         )
         ?.text || '';
 
-    modelText = modelText
-      .replace(/```json/gi, '')
-      .replace(/```/g, '')
-      .trim();
+    modelText =
+      modelText
+        .replace(
+          /```json/gi,
+          ''
+        )
+        .replace(
+          /```/g,
+          ''
+        )
+        .trim();
 
     let plan;
 
     try {
-      plan = JSON.parse(modelText);
-    } catch (error) {
+      plan =
+        JSON.parse(modelText);
+    } catch {
       console.error(
-        'Invalid edit-plan JSON:',
+        'Invalid edit plan:',
         modelText
       );
 
@@ -300,79 +410,99 @@ EDITING RULES:
       return res.status(500).json({
         success: false,
         error:
-          'Gemini did not create any usable video cuts.'
+          'Gemini did not create any usable cuts.'
       });
     }
 
     /*
-     * Safety validation.
+     * Validate every media index.
      */
-    plan.cuts = plan.cuts
-      .filter((cut) => {
-        const index =
-          Number(cut.mediaIndex);
+    plan.cuts =
+      plan.cuts
+        .filter((cut) => {
+          const index =
+            Number(
+              cut.mediaIndex
+            );
 
-        return (
-          Number.isInteger(index) &&
-          index >= 0 &&
-          index < media.length
-        );
-      })
-      .map((cut) => ({
-        mediaIndex:
-          Number(cut.mediaIndex),
+          return (
+            Number.isInteger(index) &&
+            index >= 0 &&
+            index < media.length
+          );
+        })
+        .map((cut) => {
+          const duration =
+            Number(
+              cut.duration
+            );
 
-        mediaId:
-          Number(cut.mediaIndex),
+          const speed =
+            Number(
+              cut.speed
+            );
 
-        startTime:
-          Math.max(
-            0,
-            Number(cut.startTime) || 0
-          ),
+          return {
+            mediaIndex:
+              Number(
+                cut.mediaIndex
+              ),
 
-        endTime:
-          Math.max(
-            0,
-            Number(cut.endTime) || 0
-          ),
+            mediaId:
+              Number(
+                cut.mediaIndex
+              ),
 
-        duration:
-          Math.max(
-            0.5,
-            Math.min(
-              5,
-              Number(cut.duration) || 2
-            )
-          ),
+            duration:
+              Math.max(
+                0.5,
+                Math.min(
+                  5,
+                  Number.isFinite(
+                    duration
+                  )
+                    ? duration
+                    : 2
+                )
+              ),
 
-        purpose:
-          String(
-            cut.purpose || 'cinematic'
-          ),
+            purpose:
+              String(
+                cut.purpose ||
+                  'cinematic'
+              ),
 
-        transition:
-          String(
-            cut.transition || 'hard-cut'
-          ),
+            transition:
+              String(
+                cut.transition ||
+                  'hard-cut'
+              ),
 
-        motionStyle:
-          String(
-            cut.motionStyle || 'static'
-          ),
+            motionStyle:
+              String(
+                cut.motionStyle ||
+                  'static'
+              ),
 
-        speed:
-          Math.max(
-            0.5,
-            Math.min(
-              1.5,
-              Number(cut.speed) || 1
-            )
-          ),
+            speed:
+              Math.max(
+                0.5,
+                Math.min(
+                  1.5,
+                  Number.isFinite(
+                    speed
+                  )
+                    ? speed
+                    : 1
+                )
+              ),
 
-        text:
-          String(cut.text || '')
-      }));
+            text:
+              String(
+                cut.text || ''
+              )
+          };
+        });
 
     return res.status(200).json({
       success: true,
