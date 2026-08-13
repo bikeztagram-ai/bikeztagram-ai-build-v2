@@ -314,9 +314,16 @@ Do not simply return MEDIA 0, MEDIA 1, MEDIA 2 etc.
 Actually rearrange them based on the best cinematic story.
 `;
 
+    const geminiUrl =
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+    console.log(
+      'Calling Gemini model: gemini-2.5-flash'
+    );
+
     const geminiResponse =
       await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        geminiUrl,
         {
           method: 'POST',
 
@@ -350,10 +357,20 @@ Actually rearrange them based on the best cinematic story.
     const responseText =
       await geminiResponse.text();
 
+    console.log(
+      'Gemini HTTP status:',
+      geminiResponse.status
+    );
+
+    console.log(
+      'Gemini response body:',
+      responseText.slice(0, 2000)
+    );
+
     if (!geminiResponse.ok) {
       console.error(
         'Gemini API error:',
-        responseText
+        responseText.slice(0, 2000)
       );
 
       return res.status(500).json({
