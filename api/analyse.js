@@ -21,7 +21,8 @@ export default async function handler(req, res) {
     if (!apiKey) {
       return res.status(500).json({
         success: false,
-        error: 'GEMINI_API_KEY is missing in Vercel settings.'
+        error:
+          'GEMINI_API_KEY is missing in Vercel settings.'
       });
     }
 
@@ -43,8 +44,8 @@ export default async function handler(req, res) {
     });
 
     /*
-     * Convert the incoming base64 video into a temporary
-     * Gemini file using the current Google GenAI SDK.
+     * The browser sends the video as base64.
+     * Convert it back into binary data for Gemini.
      */
 
     const videoBuffer = Buffer.from(
@@ -56,110 +57,204 @@ export default async function handler(req, res) {
       'Video received:',
       filename,
       'bytes:',
-      videoBuffer.length
+      videoBuffer.length,
+      'mime:',
+      mimeType
     );
 
+    if (videoBuffer.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'The supplied video was empty.'
+      });
+    }
+
     /*
-     * Upload the actual video to Gemini.
+     * Upload the actual video to Gemini Files API.
      */
 
-    const uploadedFile = await ai.files.upload({
-      file: new Blob(
-        [videoBuffer],
-        { type: mimeType }
-      ),
-      config: {
-        mimeType,
-        displayName: filename
-      }
-    });
+    let videoFile;
+
+    try {
+      videoFile = await ai.files.upload({
+        file: new Blob(
+          [videoBuffer],
+          {
+            type: mimeType
+          }
+        ),
+        config: {
+          mimeType,
+          displayName: filename
+        }
+      });
+    } catch (error) {
+      console.error(
+        'Gemini file upload error:',
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          `Gemini video upload failed: ${
+            error?.message ||
+            'Unknown upload error'
+          }`
+      });
+    }
 
     console.log(
-      'Gemini file uploaded:',
-      uploadedFile?.name || 'unknown'
+      'Gemini file:',
+      videoFile?.name,
+      videoFile?.uri,
+      videoFile?.mimeType,
+      videoFile?.state
     );
 
+    if (!videoFile?.name) {
+      return res.status(500).json({
+        success: false,
+        error:
+          'Gemini did not return a valid uploaded file.'
+      });
+    }
+
     /*
-     * Gemini may need a short amount of time to process
-     * the uploaded video before it can be analysed.
+     * Wait for Gemini to finish processing the video.
      */
 
-    let file = uploadedFile;
+    let currentFile = videoFile;
 
-    for (let attempt = 0; attempt < 20; attempt++) {
+    for (
+      let attempt = 0;
+      attempt < 30;
+      attempt++
+    ) {
+      const state =
+        String(
+          currentFile?.state ||
+          ''
+        ).toUpperCase();
+
+      console.log(
+        'Gemini video processing state:',
+        state || 'UNKNOWN',
+        'attempt:',
+        attempt + 1
+      );
+
       if (
-        file?.state === 'ACTIVE' ||
-        file?.state === 'active'
+        state === 'ACTIVE'
       ) {
         break;
       }
 
       if (
-        file?.state === 'FAILED' ||
-        file?.state === 'failed'
+        state === 'FAILED'
       ) {
         return res.status(500).json({
           success: false,
-          error: 'Gemini failed to process the uploaded video.'
+          error:
+            'Gemini failed while processing the video.'
         });
       }
 
-      await new Promise((resolve) =>
-        setTimeout(resolve, 1000)
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            2000
+          )
       );
 
-      if (uploadedFile?.name) {
-        file = await ai.files.get({
-          name: uploadedFile.name
+      currentFile =
+        await ai.files.get({
+          name:
+            videoFile.name
         });
-      }
     }
 
+    const finalState =
+      String(
+        currentFile?.state ||
+        ''
+      ).toUpperCase();
+
     if (
-      !file ||
-      !file.uri ||
-      !file.mimeType
+      finalState !==
+      'ACTIVE'
     ) {
       return res.status(500).json({
         success: false,
-        error: 'Gemini video file was not ready for analysis.'
+        error:
+          'Gemini video processing timed out.'
       });
     }
 
+    if (
+      !currentFile?.uri
+    ) {
+      return res.status(500).json({
+        success: false,
+        error:
+          'Gemini processed the video but returned no file URI.'
+      });
+    }
+
+    console.log(
+      'Gemini video ready:',
+      currentFile.uri
+    );
+
     /*
-     * Ask Gemini to actually inspect the footage.
+     * This is the important part.
+     *
+     * Gemini is now receiving the ACTUAL VIDEO,
+     * not just the filename and file size.
      */
 
     const analysisPrompt = `
-You are an expert professional motorcycle film editor,
-cinematographer and AI video director.
+You are the AI Director for BIKEZTAGRAM AI.
 
-Analyse the ACTUAL VIDEO supplied to you.
+You are an elite professional motorcycle film editor,
+cinematographer and social-media trailer director.
 
-Do not analyse the filename alone.
+You have been given the ACTUAL VIDEO FILE.
 
-Watch the footage and identify what is genuinely visible.
+WATCH AND ANALYSE THE VIDEO ITSELF.
 
-We are developing BIKEZTAGRAM AI, an intelligent motorcycle
-video editor.
+Do NOT rely on the filename.
 
-Analyse the footage for:
+Do NOT invent anything that is not visible or audible.
+
+Your job is to determine exactly how useful this footage
+would be inside a professional cinematic motorcycle reel.
+
+Analyse:
 
 1. SUBJECT
+
+Identify:
+
 - motorcycle visibility
 - motorcycle model if recognisable
 - rider visibility
 - scenery
 - other important subjects
+- whether the motorcycle is the clear focus
 
 2. SHOT TYPE
-Identify whether the shot is:
+
+Identify the strongest description:
+
 - wide
 - medium
 - close-up
 - detail
-- tracking
 - riding
+- tracking
+- follow shot
 - stationary
 - reveal
 - action
@@ -167,175 +262,13 @@ Identify whether the shot is:
 - other
 
 3. CAMERA
-Describe:
+
+Analyse:
+
 - camera movement
-- direction of movement
+- camera direction
+- camera angle
 - stability
-- approximate camera angle
 - whether the camera follows the motorcycle
-
-4. ACTION
-Identify genuine movement or events.
-
-5. CINEMATIC VALUE
-Give the shot a score from 1 to 10.
-
-Consider:
-- composition
-- subject visibility
-- movement
-- visual interest
-- motorcycle appeal
-- usefulness in a cinematic motorcycle trailer
-
-6. BEST MOMENTS
-
-Identify up to three particularly useful moments.
-
-Give approximate timestamps in seconds.
-
-7. EDITING RECOMMENDATION
-
-Suggest:
-- where this shot could appear in a trailer
-- approximate useful duration
-- whether it should be slow motion
-- whether it should be fast
-- whether it should be a hero shot
-- whether it should be an action shot
-
-IMPORTANT:
-
-Only report things you can actually see in the video.
-
-Do not invent motorcycle movements,
-camera movements, scenery or events.
-
-Return ONLY valid JSON.
-
-Use exactly this structure:
-
-{
-  "filename": "${filename}",
-  "durationSeconds": 0,
-  "subject": {
-    "motorcycleVisible": false,
-    "riderVisible": false,
-    "description": ""
-  },
-  "shot": {
-    "type": "",
-    "cameraMovement": "",
-    "cameraAngle": "",
-    "stability": ""
-  },
-  "action": "",
-  "cinematicScore": 0,
-  "bestMoments": [
-    {
-      "start": 0,
-      "end": 0,
-      "description": ""
-    }
-  ],
-  "editingRecommendation": {
-    "role": "",
-    "suggestedDuration": 0,
-    "speed": 1,
-    "reason": ""
-  }
-}
-`;
-
-    const response = await ai.interactions.create({
-      model: 'gemini-3.5-flash',
-      input: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: analysisPrompt
-            },
-            {
-              type: 'file',
-              fileId: file.name
-            }
-          ]
-        }
-      ]
-    });
-
-    console.log(
-      'Gemini analysis completed.'
-    );
-
-    let text = '';
-
-    if (typeof response?.output_text === 'string') {
-      text = response.output_text;
-    }
-
-    if (!text && Array.isArray(response?.outputs)) {
-      for (const output of response.outputs) {
-        if (
-          Array.isArray(output?.content)
-        ) {
-          for (const part of output.content) {
-            if (
-              typeof part?.text === 'string'
-            ) {
-              text += part.text;
-            }
-          }
-        }
-      }
-    }
-
-    text = text
-      .replace(/```json/gi, '')
-      .replace(/```/g, '')
-      .trim();
-
-    if (!text) {
-      return res.status(500).json({
-        success: false,
-        error: 'Gemini returned no analysis.'
-      });
-    }
-
-    let analysis;
-
-    try {
-      analysis = JSON.parse(text);
-    } catch (error) {
-      console.error(
-        'Invalid Gemini analysis:',
-        text.slice(0, 3000)
-      );
-
-      return res.status(500).json({
-        success: false,
-        error: 'Gemini returned invalid analysis JSON.'
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      analysis
-    });
-
-  } catch (error) {
-    console.error(
-      'Video analysis error:',
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      error:
-        error?.message ||
-        'Unknown video analysis error.'
-    });
-  }
-              }
+- whether the shot is handheld, mounted or stationary
+- whether
