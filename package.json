@@ -11,7 +11,7 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@google/genai": "^1.16.0",
-    "@vercel/blob": "^2.0.0",
+    "@vercel/blob": "^1.1.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
