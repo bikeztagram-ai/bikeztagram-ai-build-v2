@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { upload } from '@vercel/blob/client';
 import './styles.css';
 
 export default function App() {
@@ -10,11 +11,13 @@ export default function App() {
 
   function handleFile(event) {
     const selected = event.target.files?.[0] || null;
+
     setFile(selected);
     setAnalysis(null);
 
     if (selected) {
       const mb = selected.size / 1024 / 1024;
+
       setStatus(
         `Loaded: ${selected.name} (${mb.toFixed(1)} MB)`
       );
@@ -38,26 +41,46 @@ export default function App() {
     setAnalysis(null);
 
     try {
-      setStatus('Uploading video to Gemini...');
+      setStatus('Uploading video directly to Vercel Blob...');
 
-      const formData = new FormData();
-
-      formData.append('video', file);
-      formData.append('filename', file.name);
-      formData.append(
-        'mimeType',
-        file.type || 'video/mp4'
-      );
-      formData.append(
-        'prompt',
-        prompt ||
-          'Analyse this motorcycle footage for the best cinematic moments, camera movement, action and editing opportunities.'
+      const blob = await upload(
+        `videos/${Date.now()}-${file.name}`,
+        file,
+        {
+          access: 'private',
+          handleUploadUrl: '/api/upload',
+          contentType: file.type || 'video/mp4'
+        }
       );
 
-      const response = await fetch('/api/analyse', {
-        method: 'POST',
-        body: formData
-      });
+      if (!blob?.url) {
+        throw new Error(
+          'Vercel Blob did not return a video URL.'
+        );
+      }
+
+      setStatus(
+        '✅ Video uploaded. Sending it to Gemini...'
+      );
+
+      const response = await fetch(
+        '/api/analyse',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            videoUrl: blob.url,
+            filename: file.name,
+            mimeType:
+              file.type || 'video/mp4',
+            prompt:
+              prompt ||
+              'Analyse this motorcycle footage for the best cinematic moments, camera movement, action and editing opportunities.'
+          })
+        }
+      );
 
       const text = await response.text();
 
@@ -88,15 +111,20 @@ export default function App() {
       }
 
       setAnalysis(data.analysis);
+
       setStatus(
         '✅ Gemini has analysed the actual video.'
       );
     } catch (error) {
-      console.error(error);
+      console.error(
+        'Video analysis error:',
+        error
+      );
 
       setStatus(
         `Something went wrong: ${
-          error?.message || 'Unknown error'
+          error?.message ||
+          'Unknown error'
         }`
       );
     } finally {
@@ -116,7 +144,10 @@ export default function App() {
       <header className="app-header">
         <div>
           <h1>BIKEZTAGRAM AI</h1>
-          <p>AI-powered motorcycle video editor</p>
+
+          <p>
+            AI-powered motorcycle video editor
+          </p>
         </div>
       </header>
 
@@ -162,7 +193,9 @@ export default function App() {
           <button
             className="generate-btn"
             onClick={analyseVideo}
-            disabled={loading || !file}
+            disabled={
+              loading || !file
+            }
           >
             {loading
               ? '🎬 Gemini Is Watching...'
@@ -189,18 +222,23 @@ export default function App() {
 
         {analysis && (
           <section className="result-container">
-            <h2>Gemini Video Analysis</h2>
+            <h2>
+              Gemini Video Analysis
+            </h2>
 
             <div className="status-panel">
               <pre
                 style={{
-                  whiteSpace: 'pre-wrap',
+                  whiteSpace:
+                    'pre-wrap',
                   margin: 0,
                   textAlign: 'left',
-                  wordBreak: 'break-word'
+                  wordBreak:
+                    'break-word'
                 }}
               >
-                {typeof analysis === 'string'
+                {typeof analysis ===
+                'string'
                   ? analysis
                   : JSON.stringify(
                       analysis,
