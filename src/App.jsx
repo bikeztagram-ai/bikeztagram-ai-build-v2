@@ -6,178 +6,212 @@ export default function App() {
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState('');
   const [analysis, setAnalysis] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleFileChange = (event) => {
-    const selectedFile =
-      event.target.files?.[0] || null;
-
-    setFile(selectedFile);
+  function handleFile(event) {
+    const selected = event.target.files?.[0] || null;
+    setFile(selected);
     setAnalysis(null);
 
-    if (selectedFile) {
-      const sizeMB =
-        selectedFile.size /
-        (1024 * 1024);
-
+    if (selected) {
+      const mb = selected.size / 1024 / 1024;
       setStatus(
-        `Loaded: ${selectedFile.name} (${sizeMB.toFixed(1)} MB)`
+        `Loaded: ${selected.name} (${mb.toFixed(1)} MB)`
       );
     } else {
       setStatus('');
     }
-  };
+  }
 
-  const analyseVideo = async () => {
+  async function analyseVideo() {
     if (!file) {
-      setStatus(
-        'Please select a video first.'
-      );
+      setStatus('Please select a video first.');
       return;
     }
 
     if (!file.type.startsWith('video/')) {
-      setStatus(
-        'Please upload a video clip.'
-      );
+      setStatus('Please upload a video file.');
       return;
     }
 
-    setIsProcessing(true);
+    setLoading(true);
     setAnalysis(null);
 
     try {
-      setStatus(
-        'Preparing your video for Gemini...'
-      );
+      setStatus('Uploading video to Gemini...');
 
-      const formData =
-        new FormData();
+      const formData = new FormData();
 
-      formData.append(
-        'video',
-        file,
-        file.name
-      );
-
-      formData.append(
-        'filename',
-        file.name
-      );
-
+      formData.append('video', file);
+      formData.append('filename', file.name);
       formData.append(
         'mimeType',
         file.type || 'video/mp4'
       );
-
       formData.append(
         'prompt',
         prompt ||
-          'Analyse this motorcycle footage for the strongest cinematic moments, camera movement, action, composition and best timestamps for an exciting social-media motorcycle trailer.'
+          'Analyse this motorcycle footage for the best cinematic moments, camera movement, action and editing opportunities.'
       );
 
-      setStatus(
-        'Uploading the actual video to Gemini...'
-      );
+      const response = await fetch('/api/analyse', {
+        method: 'POST',
+        body: formData
+      });
 
-      const response =
-        await fetch(
-          '/api/analyse',
-          {
-            method: 'POST',
-            body: formData
-          }
-        );
-
-      const responseText =
-        await response.text();
+      const text = await response.text();
 
       let data;
 
       try {
-        data =
-          JSON.parse(
-            responseText
-          );
+        data = JSON.parse(text);
       } catch {
         throw new Error(
-          `The analysis server returned an invalid response: ${
-            responseText.slice(
-              0,
-              300
-            ) ||
-            'Empty response'
-          }`
+          `Server returned an invalid response: ${text.slice(
+            0,
+            300
+          )}`
         );
       }
 
       if (!response.ok) {
         throw new Error(
           data?.error ||
-            `Analysis server error (${response.status})`
+            `Server error ${response.status}`
         );
       }
 
       if (!data?.analysis) {
         throw new Error(
-          'Gemini did not return an analysis.'
+          'Gemini returned no analysis.'
         );
       }
 
-      setAnalysis(
-        data.analysis
-      );
-
+      setAnalysis(data.analysis);
       setStatus(
         '✅ Gemini has analysed the actual video.'
       );
     } catch (error) {
-      console.error(
-        'Video analysis error:',
-        error
-      );
+      console.error(error);
 
       setStatus(
         `Something went wrong: ${
-          error?.message ||
-          'Unknown error'
+          error?.message || 'Unknown error'
         }`
       );
     } finally {
-      setIsProcessing(false);
+      setLoading(false);
     }
-  };
+  }
 
-  const clearTest = () => {
+  function clearAll() {
     setFile(null);
     setPrompt('');
     setStatus('');
     setAnalysis(null);
-  };
+  }
 
   return (
     <div className="app-container">
       <header className="app-header">
         <div>
-          <h1>
-            BIKEZTAGRAM AI
-          </h1>
-
-          <p>
-            AI-powered motorcycle video editor
-          </p>
+          <h1>BIKEZTAGRAM AI</h1>
+          <p>AI-powered motorcycle video editor</p>
         </div>
       </header>
 
       <main>
         <section className="form-group">
-          <label htmlFor="media-upload">
+          <label htmlFor="video">
             Test motorcycle footage
           </label>
 
           <input
-            id="media-upload"
+            id="video"
             type="file"
             accept="video/*"
-            onChange={
-             
+            onChange={handleFile}
+            disabled={loading}
+          />
+
+          {file && (
+            <p className="status-text">
+              {file.name}
+            </p>
+          )}
+        </section>
+
+        <section className="form-group">
+          <label htmlFor="prompt">
+            Tell Gemini what to look for
+          </label>
+
+          <textarea
+            id="prompt"
+            rows="5"
+            value={prompt}
+            onChange={(event) =>
+              setPrompt(event.target.value)
+            }
+            disabled={loading}
+            placeholder="Analyse this motorcycle footage for the strongest cinematic moments, camera movement, action, composition and best timestamps for an exciting social-media motorcycle trailer."
+          />
+        </section>
+
+        <div className="button-row">
+          <button
+            className="generate-btn"
+            onClick={analyseVideo}
+            disabled={loading || !file}
+          >
+            {loading
+              ? '🎬 Gemini Is Watching...'
+              : '👁️ Analyse Actual Video'}
+          </button>
+
+          {file && !loading && (
+            <button
+              className="clear-btn"
+              onClick={clearAll}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {status && (
+          <div className="status-panel">
+            <p className="status-text">
+              {status}
+            </p>
+          </div>
+        )}
+
+        {analysis && (
+          <section className="result-container">
+            <h2>Gemini Video Analysis</h2>
+
+            <div className="status-panel">
+              <pre
+                style={{
+                  whiteSpace: 'pre-wrap',
+                  margin: 0,
+                  textAlign: 'left',
+                  wordBreak: 'break-word'
+                }}
+              >
+                {typeof analysis === 'string'
+                  ? analysis
+                  : JSON.stringify(
+                      analysis,
+                      null,
+                      2
+                    )}
+              </pre>
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
