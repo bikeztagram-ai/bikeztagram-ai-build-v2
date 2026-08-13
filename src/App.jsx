@@ -1,160 +1,171 @@
-import React, { useMemo, useState } from 'react';
-import { renderProject } from './renderer';
+import React, { useState } from 'react';
 import './styles.css';
 
 export default function App() {
-  const [files, setFiles] = useState([]);
+  const [file, setFile] = useState(null);
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState('');
-  const [progress, setProgress] = useState(0);
-  const [videoUrl, setVideoUrl] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const mediaItems = useMemo(() => {
-    return files.map((file, index) => ({
-      id: index,
-      file,
-      type: file.type,
-      name: file.name,
-      size: file.size
-    }));
-  }, [files]);
-
   const handleFileChange = (event) => {
-    const selectedFiles = Array.from(
-      event.target.files || []
-    );
+    const selectedFile =
+      event.target.files?.[0] || null;
 
-    setFiles(selectedFiles);
-    setVideoUrl(null);
-    setProgress(0);
+    setFile(selectedFile);
+    setAnalysis(null);
 
-    if (selectedFiles.length > 0) {
+    if (selectedFile) {
+      const sizeMB =
+        selectedFile.size /
+        (1024 * 1024);
+
       setStatus(
-        `${selectedFiles.length} clip${
-          selectedFiles.length === 1 ? '' : 's'
-        } loaded.`
+        `Loaded: ${selectedFile.name} (${sizeMB.toFixed(
+          1
+        )} MB)`
       );
     } else {
       setStatus('');
     }
   };
 
-  const createAIEditPlan = async () => {
-    const media = mediaItems.map((item) => ({
-      id: item.id,
-      name: item.name,
-      type: item.type,
-      size: item.size
-    }));
-
-    const response = await fetch('/api/render', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        prompt:
-          prompt ||
-          'Create an epic cinematic motorcycle trailer.',
-        media
-      })
-    });
-
-    const responseText = await response.text();
-
-    let data;
-
-    try {
-      data = JSON.parse(responseText);
-    } catch (error) {
-      throw new Error(
-        `AI server returned an invalid response: ${
-          responseText.slice(0, 200) ||
-          'Empty response'
-        }`
-      );
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        data?.error ||
-          data?.message ||
-          `AI server error (${response.status})`
-      );
-    }
-
-    if (!data?.plan) {
-      throw new Error(
-        'The AI server did not return an edit plan.'
-      );
-    }
-
-    return data.plan;
-  };
-
-  const handleGenerate = async () => {
-    if (files.length === 0) {
+  const analyseVideo = async () => {
+    if (!file) {
       setStatus(
-        'Please upload at least one image or video clip.'
+        'Please select a video first.'
+      );
+      return;
+    }
+
+    if (!file.type.startsWith('video/')) {
+      setStatus(
+        'For this test, please upload a video clip.'
       );
       return;
     }
 
     setIsProcessing(true);
-    setProgress(0);
-    setVideoUrl(null);
+    setAnalysis(null);
 
     try {
       setStatus(
-        'AI Director is analysing your request...'
+        'Preparing your video for Gemini...'
       );
 
-      const editPlan =
-        await createAIEditPlan();
+      /*
+       * Convert the video into base64 so it can
+       * be sent to our Vercel API endpoint.
+       */
 
-      if (
-        !editPlan.cuts ||
-        !Array.isArray(editPlan.cuts) ||
-        editPlan.cuts.length === 0
+      const arrayBuffer =
+        await file.arrayBuffer();
+
+      const bytes =
+        new Uint8Array(
+          arrayBuffer
+        );
+
+      let binary = '';
+
+      const chunkSize = 0x8000;
+
+      for (
+        let i = 0;
+        i < bytes.length;
+        i += chunkSize
       ) {
-        throw new Error(
-          'The AI created an empty edit plan.'
+        binary += String.fromCharCode(
+          ...bytes.subarray(
+            i,
+            Math.min(
+              i + chunkSize,
+              bytes.length
+            )
+          )
         );
       }
 
+      const videoBase64 =
+        btoa(binary);
+
       setStatus(
-        `AI Director created ${editPlan.cuts.length} shots. Rendering...`
+        'Uploading the actual video to Gemini...'
       );
 
-      const videoBlob =
-        await renderProject(
-          mediaItems,
-          editPlan,
-          (percentage) => {
-            setProgress(
-              Math.round(percentage)
-            );
+      const response =
+        await fetch(
+          '/api/analyse',
+          {
+            method: 'POST',
+
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
+
+            body: JSON.stringify({
+              videoBase64,
+              mimeType:
+                file.type ||
+                'video/mp4',
+              filename:
+                file.name,
+              prompt:
+                prompt ||
+                'Analyse this motorcycle footage for a cinematic social-media edit.'
+            })
           }
         );
 
-      if (!videoBlob || videoBlob.size === 0) {
+      const responseText =
+        await response.text();
+
+      let data;
+
+      try {
+        data =
+          JSON.parse(
+            responseText
+          );
+      } catch {
         throw new Error(
-          'The renderer produced an empty video.'
+          `The analysis server returned an invalid response: ${
+            responseText.slice(
+              0,
+              300
+            ) ||
+            'Empty response'
+          }`
         );
       }
 
-      const url =
-        URL.createObjectURL(videoBlob);
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            `Analysis server error (${response.status})`
+        );
+      }
 
-      setVideoUrl(url);
-      setProgress(100);
-      setStatus(
-        'Your AI-directed cinematic reel is ready!'
+      if (
+        !data?.analysis
+      ) {
+        throw new Error(
+          'Gemini did not return an analysis.'
+        );
+      }
+
+      setAnalysis(
+        data.analysis
       );
+
+      setStatus(
+        '✅ Gemini has analysed the actual video.'
+      );
+
     } catch (error) {
       console.error(
-        'Generation error:',
+        'Video analysis error:',
         error
       );
 
@@ -169,23 +180,20 @@ export default function App() {
     }
   };
 
-  const clearProject = () => {
-    if (videoUrl) {
-      URL.revokeObjectURL(videoUrl);
-    }
-
-    setFiles([]);
+  const clearTest = () => {
+    setFile(null);
     setPrompt('');
     setStatus('');
-    setProgress(0);
-    setVideoUrl(null);
+    setAnalysis(null);
   };
 
   return (
     <div className="app-container">
       <header className="app-header">
         <div>
-          <h1>BIKEZTAGRAM AI</h1>
+          <h1>
+            BIKEZTAGRAM AI
+          </h1>
 
           <p>
             AI-powered motorcycle video editor
@@ -194,71 +202,81 @@ export default function App() {
       </header>
 
       <main>
+
         <section className="form-group">
           <label htmlFor="media-upload">
-            Your clips & photos
+            Test motorcycle footage
           </label>
 
           <input
             id="media-upload"
             type="file"
-            multiple
-            accept="image/*,video/*"
-            onChange={handleFileChange}
-            disabled={isProcessing}
+            accept="video/*"
+            onChange={
+              handleFileChange
+            }
+            disabled={
+              isProcessing
+            }
           />
 
-          {files.length > 0 && (
+          {file && (
             <p className="status-text">
-              {files.length} media item
-              {files.length === 1
-                ? ''
-                : 's'} loaded
+              {file.name}
             </p>
           )}
         </section>
 
         <section className="form-group">
-          <label htmlFor="edit-prompt">
-            Tell the AI what you want
+          <label htmlFor="analysis-prompt">
+            Tell Gemini what to look for
           </label>
 
           <textarea
-            id="edit-prompt"
-            rows={6}
+            id="analysis-prompt"
+            rows={5}
             value={prompt}
             onChange={(event) =>
-              setPrompt(event.target.value)
+              setPrompt(
+                event.target.value
+              )
             }
-            disabled={isProcessing}
-            placeholder="Example: Create an epic cinema-grade Kawasaki Ninja 1000SX launch trailer. Start mysterious, build tension, reveal the bike, then finish with fast aggressive riding footage."
+            disabled={
+              isProcessing
+            }
+            placeholder="Analyse this motorcycle footage for the strongest cinematic moments, camera movement, action, composition and best timestamps for an exciting social-media motorcycle trailer."
           />
         </section>
 
         <div className="button-row">
+
           <button
-            onClick={handleGenerate}
+            onClick={
+              analyseVideo
+            }
             disabled={
               isProcessing ||
-              files.length === 0
+              !file
             }
             className="generate-btn"
           >
             {isProcessing
-              ? `Creating Reel ${progress}%`
-              : '✨ Create AI Reel'}
+              ? '🎬 Gemini Is Watching...'
+              : '👁️ Analyse Actual Video'}
           </button>
 
-          {(files.length > 0 ||
-            videoUrl) &&
+          {file &&
             !isProcessing && (
               <button
-                onClick={clearProject}
+                onClick={
+                  clearTest
+                }
                 className="clear-btn"
               >
                 Clear
               </button>
             )}
+
         </div>
 
         {status && (
@@ -266,43 +284,29 @@ export default function App() {
             <p className="status-text">
               {status}
             </p>
-
-            {isProcessing && (
-              <div className="progress-track">
-                <div
-                  className="progress-bar"
-                  style={{
-                    width: `${progress}%`
-                  }}
-                />
-              </div>
-            )}
           </div>
         )}
 
-        {videoUrl && (
+        {analysis && (
           <section className="result-container">
-            <h2>Your Completed Reel</h2>
 
-            <video
-              src={videoUrl}
-              controls
-              autoPlay
-              loop
-              playsInline
-              className="video-preview"
-            />
+            <h2>
+              Gemini Video Analysis
+            </h2>
 
-            <a
-              href={videoUrl}
-              download="bikeztagram-ai-reel.webm"
-              className="download-btn"
+            <div
+              className="status-panel"
+              style={{
+                whiteSpace:
+                  'pre-wrap',
+                textAlign:
+                  'left',
+                wordBreak:
+                  'break-word'
+              }}
             >
-              Download Reel
-            </a>
-          </section>
-        )}
-      </main>
-    </div>
-  );
-}
+              <pre
+                style={{
+                  whiteSpace:
+                    'pre-wrap',
+                  margin: 0,
