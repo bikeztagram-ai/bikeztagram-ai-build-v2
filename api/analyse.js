@@ -11,25 +11,18 @@ export default async function handler(req, res) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
 
-    console.log(
-      'Analyse API key detected:',
-      Boolean(apiKey),
-      'length:',
-      apiKey ? apiKey.length : 0
-    );
-
     if (!apiKey) {
       return res.status(500).json({
         success: false,
-        error:
-          'GEMINI_API_KEY is missing in Vercel settings.'
+        error: 'GEMINI_API_KEY is missing in Vercel settings.'
       });
     }
 
     const {
       videoBase64 = '',
       mimeType = 'video/mp4',
-      filename = 'video.mp4'
+      filename = 'video.mp4',
+      prompt = ''
     } = req.body || {};
 
     if (!videoBase64) {
@@ -39,14 +32,11 @@ export default async function handler(req, res) {
       });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey
-    });
-
-    /*
-     * The browser sends the video as base64.
-     * Convert it back into binary data for Gemini.
-     */
+    console.log(
+      'Receiving video:',
+      filename,
+      mimeType
+    );
 
     const videoBuffer = Buffer.from(
       videoBase64,
@@ -54,164 +44,118 @@ export default async function handler(req, res) {
     );
 
     console.log(
-      'Video received:',
-      filename,
-      'bytes:',
-      videoBuffer.length,
-      'mime:',
-      mimeType
+      'Video bytes:',
+      videoBuffer.length
     );
 
-    if (videoBuffer.length === 0) {
+    if (!videoBuffer.length) {
       return res.status(400).json({
         success: false,
         error: 'The supplied video was empty.'
       });
     }
 
+    const ai = new GoogleGenAI({
+      apiKey
+    });
+
     /*
      * Upload the actual video to Gemini Files API.
      */
 
-    let videoFile;
+    console.log('Uploading video to Gemini...');
 
-    try {
-      videoFile = await ai.files.upload({
-        file: new Blob(
-          [videoBuffer],
-          {
-            type: mimeType
-          }
-        ),
-        config: {
-          mimeType,
-          displayName: filename
+    const uploadedFile = await ai.files.upload({
+      file: new Blob(
+        [videoBuffer],
+        {
+          type: mimeType
         }
-      });
-    } catch (error) {
-      console.error(
-        'Gemini file upload error:',
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        error:
-          `Gemini video upload failed: ${
-            error?.message ||
-            'Unknown upload error'
-          }`
-      });
-    }
+      ),
+      config: {
+        mimeType,
+        displayName: filename
+      }
+    });
 
     console.log(
-      'Gemini file:',
-      videoFile?.name,
-      videoFile?.uri,
-      videoFile?.mimeType,
-      videoFile?.state
+      'Gemini upload:',
+      uploadedFile?.name,
+      uploadedFile?.uri,
+      uploadedFile?.state
     );
 
-    if (!videoFile?.name) {
-      return res.status(500).json({
-        success: false,
-        error:
-          'Gemini did not return a valid uploaded file.'
-      });
+    if (!uploadedFile?.name) {
+      throw new Error(
+        'Gemini did not return a file name after upload.'
+      );
     }
 
     /*
-     * Wait for Gemini to finish processing the video.
+     * Wait until Gemini has finished processing
+     * the uploaded video.
      */
 
-    let currentFile = videoFile;
+    let videoFile = uploadedFile;
 
-    for (
-      let attempt = 0;
-      attempt < 30;
-      attempt++
-    ) {
+    for (let attempt = 1; attempt <= 30; attempt++) {
       const state =
-        String(
-          currentFile?.state ||
-          ''
-        ).toUpperCase();
+        typeof videoFile.state === 'string'
+          ? videoFile.state
+          : videoFile.state?.name || '';
 
       console.log(
-        'Gemini video processing state:',
-        state || 'UNKNOWN',
-        'attempt:',
-        attempt + 1
+        `Gemini processing state: ${state || 'UNKNOWN'} (${attempt}/30)`
       );
 
-      if (
-        state === 'ACTIVE'
-      ) {
+      if (state === 'ACTIVE') {
         break;
       }
 
-      if (
-        state === 'FAILED'
-      ) {
-        return res.status(500).json({
-          success: false,
-          error:
-            'Gemini failed while processing the video.'
-        });
+      if (state === 'FAILED') {
+        throw new Error(
+          'Gemini failed while processing the video.'
+        );
       }
 
-      await new Promise(
-        (resolve) =>
-          setTimeout(
-            resolve,
-            2000
-          )
+      await new Promise((resolve) =>
+        setTimeout(resolve, 3000)
       );
 
-      currentFile =
-        await ai.files.get({
-          name:
-            videoFile.name
-        });
+      videoFile = await ai.files.get({
+        name: uploadedFile.name
+      });
     }
 
     const finalState =
-      String(
-        currentFile?.state ||
-        ''
-      ).toUpperCase();
+      typeof videoFile.state === 'string'
+        ? videoFile.state
+        : videoFile.state?.name || '';
 
-    if (
-      finalState !==
-      'ACTIVE'
-    ) {
-      return res.status(500).json({
-        success: false,
-        error:
-          'Gemini video processing timed out.'
-      });
+    console.log(
+      'Final Gemini file state:',
+      finalState
+    );
+
+    if (finalState !== 'ACTIVE') {
+      throw new Error(
+        'Gemini video processing timed out.'
+      );
     }
 
-    if (
-      !currentFile?.uri
-    ) {
-      return res.status(500).json({
-        success: false,
-        error:
-          'Gemini processed the video but returned no file URI.'
-      });
+    if (!videoFile.uri) {
+      throw new Error(
+        'Gemini processed the video but returned no URI.'
+      );
     }
 
     console.log(
-      'Gemini video ready:',
-      currentFile.uri
+      'Video is ready:',
+      videoFile.uri
     );
 
     /*
-     * This is the important part.
-     *
-     * Gemini is now receiving the ACTUAL VIDEO,
-     * not just the filename and file size.
+     * Ask Gemini to analyse the ACTUAL VIDEO.
      */
 
     const analysisPrompt = `
@@ -220,198 +164,59 @@ You are the AI Director for BIKEZTAGRAM AI.
 You are an elite professional motorcycle film editor,
 cinematographer and social-media trailer director.
 
-You have been given the ACTUAL VIDEO FILE.
+WATCH AND ANALYSE THE ACTUAL VIDEO FILE.
 
-WATCH AND ANALYSE THE VIDEO ITSELF.
+Do not rely on the filename.
 
-Do NOT rely on the filename.
+Do not invent anything that is not actually visible.
 
-Do NOT invent anything that is not visible or audible.
-
-Your job is to determine exactly how useful this footage
-would be inside a professional cinematic motorcycle reel.
+${prompt || 'Analyse this motorcycle footage for the strongest cinematic moments and editing opportunities.'}
 
 Analyse:
 
-1. SUBJECT
+1. What is actually visible in the footage.
+2. Motorcycle visibility and identifiable model.
+3. Rider visibility.
+4. Camera angle and camera movement.
+5. What action actually occurs.
+6. Composition and framing.
+7. Lighting and image quality.
+8. Strongest cinematic moments.
+9. Approximate timestamps for those moments.
+10. Whether the footage would work best as an opening,
+    reveal, action shot, transition or ending.
+11. Recommended speed.
+12. Recommended duration.
+13. Whether slow motion would improve it.
+14. Whether camera movement should be added.
+15. Whether text should be used.
+16. Whether there are repetitive moments or unwanted
+    on-screen text.
 
-Identify:
+Do not pretend to see anything that is not present.
 
-- motorcycle visibility
-- motorcycle model if recognisable
-- rider visibility
-- scenery
-- other important subjects
-- whether the motorcycle is the clear focus
-
-2. SHOT TYPE
-
-Identify the strongest description:
-
-- wide
-- medium
-- close-up
-- detail
-- riding
-- tracking
-- follow shot
-- stationary
-- reveal
-- action
-- scenery
-- other
-
-3. CAMERA
-
-Analyse:
-
-- camera movement
-- camera direction
-- camera angle
-- stability
-- whether the camera follows the motorcycle
-- whether the shot is handheld, mounted or stationary
-- whether there is natural camera movement worth preserving
-
-4. ACTION
-
-Describe what actually happens.
-
-Pay particular attention to:
-
-- acceleration
-- cornering
-- passing
-- approaching
-- riding away
-- riding towards camera
-- motorcycle reveal
-- close detail
-- rider movement
-- interesting background movement
-
-5. VISUAL QUALITY
-
-Assess:
-
-- composition
-- lighting
-- exposure
-- sharpness
-- subject visibility
-- visual interest
-- cinematic potential
-
-6. CINEMATIC SCORE
-
-Give the footage a score from 1 to 10.
-
-10 means exceptional footage that should probably be
-featured prominently.
-
-1 means footage that should probably be avoided.
-
-7. BEST MOMENTS
-
-Identify up to THREE strongest moments.
-
-Give approximate timestamps.
-
-For each moment provide:
-
-start
-end
-what happens
-why it is useful
-
-8. EDITING RECOMMENDATION
-
-Recommend:
-
-- best role in a trailer
-- suggested duration
-- suggested speed
-- whether slow motion would help
-- whether normal speed is better
-- whether faster speed would help
-- whether it should be an opening shot
-- whether it should be a reveal
-- whether it should be an action shot
-- whether it should be a hero ending
-
-9. TEXT
-
-Determine whether text should appear over this shot.
-
-Normally avoid text unless it genuinely improves the edit.
-
-10. TRANSITION
-
-Recommend the most suitable transition:
-
-hard-cut
-fade-in
-fade-out
-dip-black
-crossfade
-flash-cut
-whip-left
-whip-right
-
-11. CAMERA MOTION
-
-Recommend:
-
-static
-slow-push
-slow-pull
-pan-left
-pan-right
-tilt-up
-tilt-down
-
-Only recommend movement if it genuinely improves the footage.
-
-IMPORTANT:
-
-You are analysing the actual video.
-
-Do not pretend to see something that isn't there.
-
-If the footage contains text on screen, identify it.
-
-If the same visual event happens repeatedly, identify that.
-
-If there is a stronger moment later in the clip,
-identify its timestamp.
-
-The goal is to give our editing engine enough information
-to make intelligent editorial decisions.
+Give the footage a cinematic score from 1 to 10.
 
 Return ONLY valid JSON.
 
-Use exactly this structure:
+Use this structure:
 
 {
   "filename": "${filename}",
   "durationSeconds": 0,
-
   "subject": {
     "motorcycleVisible": false,
     "riderVisible": false,
     "motorcycleModel": "",
     "description": ""
   },
-
   "shot": {
     "type": "",
     "cameraMovement": "",
     "cameraAngle": "",
     "stability": ""
   },
-
   "action": "",
-
   "visualQuality": {
     "composition": "",
     "lighting": "",
@@ -419,9 +224,7 @@ Use exactly this structure:
     "subjectVisibility": "",
     "cinematicPotential": ""
   },
-
   "cinematicScore": 0,
-
   "bestMoments": [
     {
       "start": 0,
@@ -430,7 +233,6 @@ Use exactly this structure:
       "reason": ""
     }
   ],
-
   "editingRecommendation": {
     "role": "",
     "suggestedDuration": 0,
@@ -438,132 +240,93 @@ Use exactly this structure:
     "slowMotion": false,
     "reason": ""
   },
-
   "textRecommendation": {
     "useText": false,
     "text": "",
     "reason": ""
   },
-
-  "transitionRecommendation": "",
-
-  "motionRecommendation": "",
-
+  "transitionRecommendation": "hard-cut",
+  "motionRecommendation": "static",
   "editorialNotes": ""
 }
 `;
 
-    /*
-     * Ask Gemini to analyse the uploaded video.
-     *
-     * The video is supplied using its Gemini URI.
-     */
+    console.log(
+      'Sending actual video to Gemini...'
+    );
 
     const interaction =
       await ai.interactions.create({
-        model:
-          'gemini-3.6-flash',
+        model: 'gemini-3.6-flash',
 
         input: [
           {
             type: 'video',
-            uri:
-              currentFile.uri,
+            uri: videoFile.uri,
             mime_type:
-              currentFile.mimeType ||
+              videoFile.mimeType ||
               mimeType
           },
           {
             type: 'text',
-            text:
-              analysisPrompt
+            text: analysisPrompt
           }
         ]
       });
 
     console.log(
       'Gemini interaction completed:',
-      interaction?.id ||
-        'unknown'
+      interaction?.id || 'unknown'
     );
 
-    /*
-     * Extract Gemini's text response.
-     */
-
     let modelText =
-      interaction?.output_text ||
-      '';
+      interaction?.output_text || '';
+
+    /*
+     * Fallback extraction in case output_text
+     * isn't populated.
+     */
 
     if (
       !modelText &&
-      Array.isArray(
-        interaction?.outputs
-      )
+      Array.isArray(interaction?.outputs)
     ) {
-      for (
-        const output
-        of interaction.outputs
-      ) {
-        if (
-          Array.isArray(
-            output?.content
-          )
-        ) {
-          for (
-            const part
-            of output.content
-          ) {
-            if (
-              typeof part?.text ===
-              'string'
-            ) {
-              modelText +=
-                part.text;
-            }
+      for (const output of interaction.outputs) {
+        if (!Array.isArray(output?.content)) {
+          continue;
+        }
+
+        for (const part of output.content) {
+          if (typeof part?.text === 'string') {
+            modelText += part.text;
           }
         }
       }
     }
 
-    modelText =
-      String(modelText)
-        .replace(
-          /```json/gi,
-          ''
-        )
-        .replace(
-          /```/g,
-          ''
-        )
-        .trim();
+    modelText = String(modelText)
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
 
     if (!modelText) {
-      return res.status(500).json({
-        success: false,
-        error:
-          'Gemini returned no video analysis.'
-      });
+      throw new Error(
+        'Gemini returned no video analysis.'
+      );
     }
 
     console.log(
-      'Gemini analysis response:',
-      modelText.slice(
-        0,
-        3000
-      )
+      'Gemini response:',
+      modelText.slice(0, 3000)
     );
 
     let analysis;
 
     try {
-      analysis =
-        JSON.parse(
-          modelText
-        );
+      analysis = JSON.parse(modelText);
     } catch (error) {
       console.error(
-        'Gemini analysis JSON error:',
+        'Gemini JSON parsing error:',
         error
       );
 
@@ -571,11 +334,7 @@ Use exactly this structure:
         success: false,
         error:
           'Gemini returned invalid analysis JSON.',
-        raw:
-          modelText.slice(
-            0,
-            1000
-          )
+        raw: modelText.slice(0, 1500)
       });
     }
 
