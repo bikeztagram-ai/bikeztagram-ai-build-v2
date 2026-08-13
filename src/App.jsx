@@ -17,13 +17,10 @@ export default function App() {
 
     if (selectedFile) {
       const sizeMB =
-        selectedFile.size /
-        (1024 * 1024);
+        selectedFile.size / (1024 * 1024);
 
       setStatus(
-        `Loaded: ${selectedFile.name} (${sizeMB.toFixed(
-          1
-        )} MB)`
+        `Loaded: ${selectedFile.name} (${sizeMB.toFixed(1)} MB)`
       );
     } else {
       setStatus('');
@@ -32,16 +29,12 @@ export default function App() {
 
   const analyseVideo = async () => {
     if (!file) {
-      setStatus(
-        'Please select a video first.'
-      );
+      setStatus('Please select a video first.');
       return;
     }
 
     if (!file.type.startsWith('video/')) {
-      setStatus(
-        'For this test, please upload a video clip.'
-      );
+      setStatus('Please upload a video clip.');
       return;
     }
 
@@ -49,69 +42,48 @@ export default function App() {
     setAnalysis(null);
 
     try {
-      setStatus(
-        'Preparing your video for Gemini...'
+      setStatus('Preparing your video...');
+
+      /*
+       * IMPORTANT:
+       *
+       * We are NOT converting the video to base64.
+       *
+       * The video is sent as multipart/form-data.
+       * This avoids the Vercel FUNCTION_PAYLOAD_TOO_LARGE
+       * error caused by sending a huge base64 JSON request.
+       */
+
+      const formData = new FormData();
+
+      formData.append('video', file);
+      formData.append(
+        'prompt',
+        prompt ||
+          'Analyse this motorcycle footage for the strongest cinematic moments, camera movement, action, composition and best timestamps for an exciting social-media motorcycle trailer.'
       );
 
-      const arrayBuffer =
-        await file.arrayBuffer();
-
-      const bytes =
-        new Uint8Array(
-          arrayBuffer
-        );
-
-      let binary = '';
-
-      const chunkSize = 0x8000;
-
-      for (
-        let i = 0;
-        i < bytes.length;
-        i += chunkSize
-      ) {
-        binary += String.fromCharCode(
-          ...bytes.subarray(
-            i,
-            Math.min(
-              i + chunkSize,
-              bytes.length
-            )
-          )
-        );
-      }
-
-      const videoBase64 =
-        btoa(binary);
-
-      setStatus(
-        'Uploading the actual video to Gemini...'
+      formData.append(
+        'filename',
+        file.name
       );
 
-      const response =
-        await fetch(
-          '/api/analyse',
-          {
-            method: 'POST',
+      formData.append(
+        'mimeType',
+        file.type || 'video/mp4'
+      );
 
-            headers: {
-              'Content-Type':
-                'application/json'
-            },
+      setStatus(
+        'Uploading video for Gemini analysis...'
+      );
 
-            body: JSON.stringify({
-              videoBase64,
-              mimeType:
-                file.type ||
-                'video/mp4',
-              filename:
-                file.name,
-              prompt:
-                prompt ||
-                'Analyse this motorcycle footage for a cinematic social-media edit.'
-            })
-          }
-        );
+      const response = await fetch(
+        '/api/analyse',
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
 
       const responseText =
         await response.text();
@@ -119,17 +91,11 @@ export default function App() {
       let data;
 
       try {
-        data =
-          JSON.parse(
-            responseText
-          );
+        data = JSON.parse(responseText);
       } catch {
         throw new Error(
           `The analysis server returned an invalid response: ${
-            responseText.slice(
-              0,
-              300
-            ) ||
+            responseText.slice(0, 300) ||
             'Empty response'
           }`
         );
@@ -142,17 +108,13 @@ export default function App() {
         );
       }
 
-      if (
-        !data?.analysis
-      ) {
+      if (!data?.analysis) {
         throw new Error(
           'Gemini did not return an analysis.'
         );
       }
 
-      setAnalysis(
-        data.analysis
-      );
+      setAnalysis(data.analysis);
 
       setStatus(
         '✅ Gemini has analysed the actual video.'
@@ -185,9 +147,7 @@ export default function App() {
     <div className="app-container">
       <header className="app-header">
         <div>
-          <h1>
-            BIKEZTAGRAM AI
-          </h1>
+          <h1>BIKEZTAGRAM AI</h1>
 
           <p>
             AI-powered motorcycle video editor
@@ -205,12 +165,8 @@ export default function App() {
             id="media-upload"
             type="file"
             accept="video/*"
-            onChange={
-              handleFileChange
-            }
-            disabled={
-              isProcessing
-            }
+            onChange={handleFileChange}
+            disabled={isProcessing}
           />
 
           {file && (
@@ -230,25 +186,18 @@ export default function App() {
             rows={5}
             value={prompt}
             onChange={(event) =>
-              setPrompt(
-                event.target.value
-              )
+              setPrompt(event.target.value)
             }
-            disabled={
-              isProcessing
-            }
+            disabled={isProcessing}
             placeholder="Analyse this motorcycle footage for the strongest cinematic moments, camera movement, action, composition and best timestamps for an exciting social-media motorcycle trailer."
           />
         </section>
 
         <div className="button-row">
           <button
-            onClick={
-              analyseVideo
-            }
+            onClick={analyseVideo}
             disabled={
-              isProcessing ||
-              !file
+              isProcessing || !file
             }
             className="generate-btn"
           >
@@ -257,17 +206,14 @@ export default function App() {
               : '👁️ Analyse Actual Video'}
           </button>
 
-          {file &&
-            !isProcessing && (
-              <button
-                onClick={
-                  clearTest
-                }
-                className="clear-btn"
-              >
-                Clear
-              </button>
-            )}
+          {file && !isProcessing && (
+            <button
+              onClick={clearTest}
+              className="clear-btn"
+            >
+              Clear
+            </button>
+          )}
         </div>
 
         {status && (
@@ -287,25 +233,18 @@ export default function App() {
             <div
               className="status-panel"
               style={{
-                whiteSpace:
-                  'pre-wrap',
-                textAlign:
-                  'left',
-                wordBreak:
-                  'break-word'
+                whiteSpace: 'pre-wrap',
+                textAlign: 'left',
+                wordBreak: 'break-word'
               }}
             >
               <pre
                 style={{
-                  whiteSpace:
-                    'pre-wrap',
+                  whiteSpace: 'pre-wrap',
                   margin: 0,
-                  fontFamily:
-                    'inherit',
-                  fontSize:
-                    '14px',
-                  lineHeight:
-                    '1.5'
+                  fontFamily: 'inherit',
+                  fontSize: '14px',
+                  lineHeight: '1.5'
                 }}
               >
                 {typeof analysis ===
