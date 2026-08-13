@@ -53,11 +53,6 @@ export default function App() {
         'Preparing your video for Gemini...'
       );
 
-      /*
-       * Convert the video into base64 so it can
-       * be sent to our Vercel API endpoint.
-       */
-
       const arrayBuffer =
         await file.arrayBuffer();
 
@@ -162,7 +157,6 @@ export default function App() {
       setStatus(
         '✅ Gemini has analysed the actual video.'
       );
-
     } catch (error) {
       console.error(
         'Video analysis error:',
@@ -202,7 +196,6 @@ export default function App() {
       </header>
 
       <main>
-
         <section className="form-group">
           <label htmlFor="media-upload">
             Test motorcycle footage
@@ -249,7 +242,6 @@ export default function App() {
         </section>
 
         <div className="button-row">
-
           <button
             onClick={
               analyseVideo
@@ -276,7 +268,6 @@ export default function App() {
                 Clear
               </button>
             )}
-
         </div>
 
         {status && (
@@ -289,7 +280,6 @@ export default function App() {
 
         {analysis && (
           <section className="result-container">
-
             <h2>
               Gemini Video Analysis
             </h2>
@@ -310,3 +300,27 @@ export default function App() {
                   whiteSpace:
                     'pre-wrap',
                   margin: 0,
+                  fontFamily:
+                    'inherit',
+                  fontSize:
+                    '14px',
+                  lineHeight:
+                    '1.5'
+                }}
+              >
+                {typeof analysis ===
+                'string'
+                  ? analysis
+                  : JSON.stringify(
+                      analysis,
+                      null,
+                      2
+                    )}
+              </pre>
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+          }
