@@ -271,4 +271,330 @@ Analyse:
 - stability
 - whether the camera follows the motorcycle
 - whether the shot is handheld, mounted or stationary
-- whether
+- whether there is natural camera movement worth preserving
+
+4. ACTION
+
+Describe what actually happens.
+
+Pay particular attention to:
+
+- acceleration
+- cornering
+- passing
+- approaching
+- riding away
+- riding towards camera
+- motorcycle reveal
+- close detail
+- rider movement
+- interesting background movement
+
+5. VISUAL QUALITY
+
+Assess:
+
+- composition
+- lighting
+- exposure
+- sharpness
+- subject visibility
+- visual interest
+- cinematic potential
+
+6. CINEMATIC SCORE
+
+Give the footage a score from 1 to 10.
+
+10 means exceptional footage that should probably be
+featured prominently.
+
+1 means footage that should probably be avoided.
+
+7. BEST MOMENTS
+
+Identify up to THREE strongest moments.
+
+Give approximate timestamps.
+
+For each moment provide:
+
+start
+end
+what happens
+why it is useful
+
+8. EDITING RECOMMENDATION
+
+Recommend:
+
+- best role in a trailer
+- suggested duration
+- suggested speed
+- whether slow motion would help
+- whether normal speed is better
+- whether faster speed would help
+- whether it should be an opening shot
+- whether it should be a reveal
+- whether it should be an action shot
+- whether it should be a hero ending
+
+9. TEXT
+
+Determine whether text should appear over this shot.
+
+Normally avoid text unless it genuinely improves the edit.
+
+10. TRANSITION
+
+Recommend the most suitable transition:
+
+hard-cut
+fade-in
+fade-out
+dip-black
+crossfade
+flash-cut
+whip-left
+whip-right
+
+11. CAMERA MOTION
+
+Recommend:
+
+static
+slow-push
+slow-pull
+pan-left
+pan-right
+tilt-up
+tilt-down
+
+Only recommend movement if it genuinely improves the footage.
+
+IMPORTANT:
+
+You are analysing the actual video.
+
+Do not pretend to see something that isn't there.
+
+If the footage contains text on screen, identify it.
+
+If the same visual event happens repeatedly, identify that.
+
+If there is a stronger moment later in the clip,
+identify its timestamp.
+
+The goal is to give our editing engine enough information
+to make intelligent editorial decisions.
+
+Return ONLY valid JSON.
+
+Use exactly this structure:
+
+{
+  "filename": "${filename}",
+  "durationSeconds": 0,
+
+  "subject": {
+    "motorcycleVisible": false,
+    "riderVisible": false,
+    "motorcycleModel": "",
+    "description": ""
+  },
+
+  "shot": {
+    "type": "",
+    "cameraMovement": "",
+    "cameraAngle": "",
+    "stability": ""
+  },
+
+  "action": "",
+
+  "visualQuality": {
+    "composition": "",
+    "lighting": "",
+    "sharpness": "",
+    "subjectVisibility": "",
+    "cinematicPotential": ""
+  },
+
+  "cinematicScore": 0,
+
+  "bestMoments": [
+    {
+      "start": 0,
+      "end": 0,
+      "description": "",
+      "reason": ""
+    }
+  ],
+
+  "editingRecommendation": {
+    "role": "",
+    "suggestedDuration": 0,
+    "speed": 1,
+    "slowMotion": false,
+    "reason": ""
+  },
+
+  "textRecommendation": {
+    "useText": false,
+    "text": "",
+    "reason": ""
+  },
+
+  "transitionRecommendation": "",
+
+  "motionRecommendation": "",
+
+  "editorialNotes": ""
+}
+`;
+
+    /*
+     * Ask Gemini to analyse the uploaded video.
+     *
+     * The video is supplied using its Gemini URI.
+     */
+
+    const interaction =
+      await ai.interactions.create({
+        model:
+          'gemini-3.6-flash',
+
+        input: [
+          {
+            type: 'video',
+            uri:
+              currentFile.uri,
+            mime_type:
+              currentFile.mimeType ||
+              mimeType
+          },
+          {
+            type: 'text',
+            text:
+              analysisPrompt
+          }
+        ]
+      });
+
+    console.log(
+      'Gemini interaction completed:',
+      interaction?.id ||
+        'unknown'
+    );
+
+    /*
+     * Extract Gemini's text response.
+     */
+
+    let modelText =
+      interaction?.output_text ||
+      '';
+
+    if (
+      !modelText &&
+      Array.isArray(
+        interaction?.outputs
+      )
+    ) {
+      for (
+        const output
+        of interaction.outputs
+      ) {
+        if (
+          Array.isArray(
+            output?.content
+          )
+        ) {
+          for (
+            const part
+            of output.content
+          ) {
+            if (
+              typeof part?.text ===
+              'string'
+            ) {
+              modelText +=
+                part.text;
+            }
+          }
+        }
+      }
+    }
+
+    modelText =
+      String(modelText)
+        .replace(
+          /```json/gi,
+          ''
+        )
+        .replace(
+          /```/g,
+          ''
+        )
+        .trim();
+
+    if (!modelText) {
+      return res.status(500).json({
+        success: false,
+        error:
+          'Gemini returned no video analysis.'
+      });
+    }
+
+    console.log(
+      'Gemini analysis response:',
+      modelText.slice(
+        0,
+        3000
+      )
+    );
+
+    let analysis;
+
+    try {
+      analysis =
+        JSON.parse(
+          modelText
+        );
+    } catch (error) {
+      console.error(
+        'Gemini analysis JSON error:',
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          'Gemini returned invalid analysis JSON.',
+        raw:
+          modelText.slice(
+            0,
+            1000
+          )
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      analysis
+    });
+
+  } catch (error) {
+    console.error(
+      'Video analysis error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      error:
+        error?.message ||
+        'Unknown video analysis error.'
+    });
+  }
+}
