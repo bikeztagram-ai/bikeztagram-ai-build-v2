@@ -32,20 +32,18 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log(
-      'Receiving video:',
-      filename,
-      mimeType
-    );
-
     const videoBuffer = Buffer.from(
       videoBase64,
       'base64'
     );
 
     console.log(
-      'Video bytes:',
-      videoBuffer.length
+      'Video received:',
+      filename,
+      'bytes:',
+      videoBuffer.length,
+      'mime:',
+      mimeType
     );
 
     if (!videoBuffer.length) {
@@ -55,108 +53,17 @@ export default async function handler(req, res) {
       });
     }
 
+    /*
+     * Gemini supports inline video data for short videos.
+     *
+     * This avoids the separate Gemini Files API and
+     * therefore avoids the file-reference permission problem
+     * we were seeing.
+     */
+
     const ai = new GoogleGenAI({
       apiKey
     });
-
-    /*
-     * Upload the actual video to Gemini Files API.
-     */
-
-    console.log('Uploading video to Gemini...');
-
-    const uploadedFile = await ai.files.upload({
-      file: new Blob(
-        [videoBuffer],
-        {
-          type: mimeType
-        }
-      ),
-      config: {
-        mimeType,
-        displayName: filename
-      }
-    });
-
-    console.log(
-      'Gemini upload:',
-      uploadedFile?.name,
-      uploadedFile?.uri,
-      uploadedFile?.state
-    );
-
-    if (!uploadedFile?.name) {
-      throw new Error(
-        'Gemini did not return a file name after upload.'
-      );
-    }
-
-    /*
-     * Wait until Gemini has finished processing
-     * the uploaded video.
-     */
-
-    let videoFile = uploadedFile;
-
-    for (let attempt = 1; attempt <= 30; attempt++) {
-      const state =
-        typeof videoFile.state === 'string'
-          ? videoFile.state
-          : videoFile.state?.name || '';
-
-      console.log(
-        `Gemini processing state: ${state || 'UNKNOWN'} (${attempt}/30)`
-      );
-
-      if (state === 'ACTIVE') {
-        break;
-      }
-
-      if (state === 'FAILED') {
-        throw new Error(
-          'Gemini failed while processing the video.'
-        );
-      }
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, 3000)
-      );
-
-      videoFile = await ai.files.get({
-        name: uploadedFile.name
-      });
-    }
-
-    const finalState =
-      typeof videoFile.state === 'string'
-        ? videoFile.state
-        : videoFile.state?.name || '';
-
-    console.log(
-      'Final Gemini file state:',
-      finalState
-    );
-
-    if (finalState !== 'ACTIVE') {
-      throw new Error(
-        'Gemini video processing timed out.'
-      );
-    }
-
-    if (!videoFile.uri) {
-      throw new Error(
-        'Gemini processed the video but returned no URI.'
-      );
-    }
-
-    console.log(
-      'Video is ready:',
-      videoFile.uri
-    );
-
-    /*
-     * Ask Gemini to analyse the ACTUAL VIDEO.
-     */
 
     const analysisPrompt = `
 You are the AI Director for BIKEZTAGRAM AI.
@@ -164,42 +71,44 @@ You are the AI Director for BIKEZTAGRAM AI.
 You are an elite professional motorcycle film editor,
 cinematographer and social-media trailer director.
 
-WATCH AND ANALYSE THE ACTUAL VIDEO FILE.
+WATCH AND ANALYSE THE ACTUAL VIDEO.
 
-Do not rely on the filename.
+Do NOT rely on the filename.
 
-Do not invent anything that is not actually visible.
+Do NOT invent anything that is not actually visible.
 
 ${prompt || 'Analyse this motorcycle footage for the strongest cinematic moments and editing opportunities.'}
 
 Analyse:
 
-1. What is actually visible in the footage.
-2. Motorcycle visibility and identifiable model.
-3. Rider visibility.
-4. Camera angle and camera movement.
-5. What action actually occurs.
-6. Composition and framing.
-7. Lighting and image quality.
-8. Strongest cinematic moments.
-9. Approximate timestamps for those moments.
-10. Whether the footage would work best as an opening,
+1. Motorcycle visibility.
+2. Rider visibility.
+3. Motorcycle model if recognisable.
+4. What actually happens in the video.
+5. Camera angle.
+6. Camera movement.
+7. Camera stability.
+8. Composition.
+9. Lighting.
+10. Sharpness and image quality.
+11. Strongest cinematic moments.
+12. Approximate timestamps for those moments.
+13. Best use of the footage in a motorcycle trailer.
+14. Recommended duration.
+15. Recommended playback speed.
+16. Whether slow motion would help.
+17. Whether the footage should be an opening,
     reveal, action shot, transition or ending.
-11. Recommended speed.
-12. Recommended duration.
-13. Whether slow motion would improve it.
-14. Whether camera movement should be added.
-15. Whether text should be used.
-16. Whether there are repetitive moments or unwanted
-    on-screen text.
-
-Do not pretend to see anything that is not present.
+18. Whether there is text visible on screen.
+19. Whether anything repeats unnecessarily.
 
 Give the footage a cinematic score from 1 to 10.
 
+Do not pretend to see anything that is not present.
+
 Return ONLY valid JSON.
 
-Use this structure:
+Use exactly this structure:
 
 {
   "filename": "${filename}",
@@ -252,7 +161,7 @@ Use this structure:
 `;
 
     console.log(
-      'Sending actual video to Gemini...'
+      'Sending inline video directly to Gemini...'
     );
 
     const interaction =
@@ -262,13 +171,14 @@ Use this structure:
         input: [
           {
             type: 'video',
-            uri: videoFile.uri,
-            mime_type:
-              videoFile.mimeType ||
-              mimeType
+
+            data: videoBase64,
+
+            mime_type: mimeType
           },
           {
             type: 'text',
+
             text: analysisPrompt
           }
         ]
@@ -281,11 +191,6 @@ Use this structure:
 
     let modelText =
       interaction?.output_text || '';
-
-    /*
-     * Fallback extraction in case output_text
-     * isn't populated.
-     */
 
     if (
       !modelText &&
@@ -316,7 +221,7 @@ Use this structure:
     }
 
     console.log(
-      'Gemini response:',
+      'Gemini analysis:',
       modelText.slice(0, 3000)
     );
 
@@ -332,8 +237,7 @@ Use this structure:
 
       return res.status(500).json({
         success: false,
-        error:
-          'Gemini returned invalid analysis JSON.',
+        error: 'Gemini returned invalid analysis JSON.',
         raw: modelText.slice(0, 1500)
       });
     }
