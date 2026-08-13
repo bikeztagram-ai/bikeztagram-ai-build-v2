@@ -14,12 +14,21 @@ export default async function handler(req, res) {
 
     const apiKey =
       process.env.GEMINI_API_KEY;
+
     console.log(
-  'Gemini key detected:',
-  Boolean(apiKey),
-  'length:',
-  apiKey ? apiKey.length : 0
-);
+      'ENV CHECK:',
+      Object.keys(process.env)
+        .filter((key) =>
+          key.toUpperCase().includes('GEMINI')
+        )
+    );
+
+    console.log(
+      'Gemini key detected:',
+      Boolean(apiKey),
+      'length:',
+      apiKey ? apiKey.length : 0
+    );
 
     if (!apiKey) {
       return res.status(500).json({
