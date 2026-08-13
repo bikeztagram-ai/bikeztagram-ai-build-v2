@@ -16,14 +16,6 @@ export default async function handler(req, res) {
       process.env.GEMINI_API_KEY;
 
     console.log(
-      'ENV CHECK:',
-      Object.keys(process.env)
-        .filter((key) =>
-          key.toUpperCase().includes('GEMINI')
-        )
-    );
-
-    console.log(
       'Gemini key detected:',
       Boolean(apiKey),
       'length:',
@@ -314,22 +306,24 @@ Do not simply return MEDIA 0, MEDIA 1, MEDIA 2 etc.
 Actually rearrange them based on the best cinematic story.
 `;
 
-    const geminiUrl =
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-    console.log(
-      'Calling Gemini model: gemini-2.5-flash'
-    );
-
+    /*
+     * Gemini 3.5 Flash
+     *
+     * Use the current model ID and Google's
+     * X-goog-api-key authentication header.
+     */
     const geminiResponse =
       await fetch(
-        geminiUrl,
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent',
         {
           method: 'POST',
 
           headers: {
             'Content-Type':
-              'application/json'
+              'application/json',
+
+            'X-goog-api-key':
+              apiKey
           },
 
           body: JSON.stringify({
@@ -346,7 +340,6 @@ Actually rearrange them based on the best cinematic story.
             ],
 
             generationConfig: {
-              temperature: 0.8,
               responseMimeType:
                 'application/json'
             }
@@ -360,11 +353,6 @@ Actually rearrange them based on the best cinematic story.
     console.log(
       'Gemini HTTP status:',
       geminiResponse.status
-    );
-
-    console.log(
-      'Gemini response body:',
-      responseText.slice(0, 2000)
     );
 
     if (!geminiResponse.ok) {
@@ -387,6 +375,11 @@ Actually rearrange them based on the best cinematic story.
       geminiData =
         JSON.parse(responseText);
     } catch {
+      console.error(
+        'Gemini returned invalid response JSON:',
+        responseText.slice(0, 2000)
+      );
+
       return res.status(500).json({
         success: false,
         error:
@@ -424,7 +417,7 @@ Actually rearrange them based on the best cinematic story.
     } catch {
       console.error(
         'Invalid edit plan:',
-        modelText
+        modelText.slice(0, 2000)
       );
 
       return res.status(500).json({
@@ -536,10 +529,19 @@ Actually rearrange them based on the best cinematic story.
           };
         });
 
+    if (plan.cuts.length === 0) {
+      return res.status(500).json({
+        success: false,
+        error:
+          'Gemini returned no valid media cuts.'
+      });
+    }
+
     return res.status(200).json({
       success: true,
       plan
     });
+
   } catch (error) {
     console.error(
       'Render API error:',
@@ -553,4 +555,4 @@ Actually rearrange them based on the best cinematic story.
         'Unknown server error.'
     });
   }
-}
+                  }
