@@ -47,7 +47,7 @@ export default function App() {
         `videos/${Date.now()}-${file.name}`,
         file,
         {
-          access: 'private',
+          access: 'public',
           handleUploadUrl: '/api/upload',
           contentType: file.type || 'video/mp4'
         }
@@ -252,4 +252,4 @@ export default function App() {
       </main>
     </div>
   );
-}
+        }
