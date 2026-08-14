@@ -9,17 +9,13 @@ export default function App() {
   const [loading, setLoading] = useState(false);
 
   function handleFile(event) {
-    const selected =
-      event.target.files?.[0] || null;
+    const selected = event.target.files?.[0] || null;
 
     setFile(selected);
     setAnalysis(null);
 
     if (selected) {
-      const mb =
-        selected.size /
-        1024 /
-        1024;
+      const mb = selected.size / 1024 / 1024;
 
       setStatus(
         `Loaded: ${selected.name} (${mb.toFixed(1)} MB)`
@@ -31,16 +27,12 @@ export default function App() {
 
   async function analyseVideo() {
     if (!file) {
-      setStatus(
-        'Please select a video first.'
-      );
+      setStatus('Please select a video first.');
       return;
     }
 
     if (!file.type.startsWith('video/')) {
-      setStatus(
-        'Please upload a video file.'
-      );
+      setStatus('Please upload a video file.');
       return;
     }
 
@@ -51,35 +43,33 @@ export default function App() {
       /*
        * STEP 1
        * Ask our Vercel Function for a short-lived
-       * signed PUT URL.
+       * signed PUT URL for this specific video.
        */
       setStatus(
         'Preparing secure video upload...'
       );
 
-      const uploadResponse =
-        await fetch('/api/upload', {
+      const uploadResponse = await fetch(
+        '/api/upload',
+        {
           method: 'POST',
           headers: {
-            'Content-Type':
-              'application/json'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             filename: file.name,
-            contentType:
-              file.type || 'video/mp4',
+            contentType: file.type || 'video/mp4',
             size: file.size
           })
-        });
+        }
+      );
 
-      const uploadText =
-        await uploadResponse.text();
+      const uploadText = await uploadResponse.text();
 
       let uploadData;
 
       try {
-        uploadData =
-          JSON.parse(uploadText);
+        uploadData = JSON.parse(uploadText);
       } catch {
         throw new Error(
           `Upload server returned an invalid response: ${uploadText.slice(
@@ -107,75 +97,64 @@ export default function App() {
 
       /*
        * STEP 2
-       * Upload the actual video DIRECTLY to Blob.
+       * Upload the actual video DIRECTLY to Vercel Blob.
        *
-       * The video does not travel through the
-       * Vercel Function.
+       * IMPORTANT:
+       * Do not add a Content-Type header here.
+       * The signed URL is deliberately used as a simple
+       * browser PUT request.
        */
       setStatus(
-        'Uploading video directly to secure Blob storage...'
+        'Uploading video directly to Blob storage...'
       );
 
-      const blobResponse =
-        await fetch(
-          uploadData.uploadUrl,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type':
-                file.type ||
-                'video/mp4'
-            },
-            body: file
-          }
-        );
+      const blobResponse = await fetch(
+        uploadData.uploadUrl,
+        {
+          method: 'PUT',
+          body: file
+        }
+      );
 
       if (!blobResponse.ok) {
-        const blobError =
-          await blobResponse.text();
+        const blobError = await blobResponse.text();
 
         throw new Error(
           `Blob upload failed (${blobResponse.status}): ${blobError.slice(
             0,
-            300
+            500
           )}`
         );
       }
 
+      /*
+       * STEP 3
+       * The video is now stored.
+       * Give Gemini the temporary signed GET URL.
+       */
       setStatus(
         '✅ Video uploaded securely. Sending it to Gemini...'
       );
 
-      /*
-       * STEP 3
-       * Give Gemini the temporary signed GET URL.
-       */
-      const response =
-        await fetch(
-          '/api/analyse',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type':
-                'application/json'
-            },
-            body: JSON.stringify({
-              videoUrl:
-                uploadData.videoUrl,
-              filename:
-                file.name,
-              mimeType:
-                file.type ||
-                'video/mp4',
-              prompt:
-                prompt ||
-                'Analyse this motorcycle footage for the best cinematic moments, camera movement, action and editing opportunities.'
-            })
-          }
-        );
+      const response = await fetch(
+        '/api/analyse',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            videoUrl: uploadData.videoUrl,
+            filename: file.name,
+            mimeType: file.type || 'video/mp4',
+            prompt:
+              prompt ||
+              'Analyse this motorcycle footage for the best cinematic moments, camera movement, action and editing opportunities.'
+          })
+        }
+      );
 
-      const text =
-        await response.text();
+      const text = await response.text();
 
       let data;
 
@@ -203,14 +182,11 @@ export default function App() {
         );
       }
 
-      setAnalysis(
-        data.analysis
-      );
+      setAnalysis(data.analysis);
 
       setStatus(
         '✅ Gemini has analysed the actual video.'
       );
-
     } catch (error) {
       console.error(
         'Video analysis error:',
@@ -223,7 +199,6 @@ export default function App() {
           'Unknown error'
         }`
       );
-
     } finally {
       setLoading(false);
     }
@@ -240,9 +215,7 @@ export default function App() {
     <div className="app-container">
       <header className="app-header">
         <div>
-          <h1>
-            BIKEZTAGRAM AI
-          </h1>
+          <h1>BIKEZTAGRAM AI</h1>
 
           <p>
             AI-powered motorcycle video editor
@@ -281,9 +254,7 @@ export default function App() {
             rows="5"
             value={prompt}
             onChange={(event) =>
-              setPrompt(
-                event.target.value
-              )
+              setPrompt(event.target.value)
             }
             disabled={loading}
             placeholder="Analyse this motorcycle footage for the strongest cinematic moments, camera movement, action, composition and best timestamps for an exciting social-media motorcycle trailer."
@@ -294,9 +265,7 @@ export default function App() {
           <button
             className="generate-btn"
             onClick={analyseVideo}
-            disabled={
-              loading || !file
-            }
+            disabled={loading || !file}
           >
             {loading
               ? '🎬 Gemini Is Watching...'
@@ -330,17 +299,13 @@ export default function App() {
             <div className="status-panel">
               <pre
                 style={{
-                  whiteSpace:
-                    'pre-wrap',
+                  whiteSpace: 'pre-wrap',
                   margin: 0,
-                  textAlign:
-                    'left',
-                  wordBreak:
-                    'break-word'
+                  textAlign: 'left',
+                  wordBreak: 'break-word'
                 }}
               >
-                {typeof analysis ===
-                'string'
+                {typeof analysis === 'string'
                   ? analysis
                   : JSON.stringify(
                       analysis,
