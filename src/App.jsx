@@ -16,16 +16,24 @@ export default function App() {
 
   const [status, setStatus] = useState('');
   const [progress, setProgress] = useState(0);
+
   const [analysis, setAnalysis] = useState(null);
   const [plan, setPlan] = useState(null);
+
   const [loading, setLoading] = useState(false);
   const [rendering, setRendering] = useState(false);
 
-  const [renderProgress, setRenderProgress] = useState(0);
-  const [renderedVideoUrl, setRenderedVideoUrl] = useState('');
+  const [renderProgress, setRenderProgress] =
+    useState(0);
 
-  const [errorDetails, setErrorDetails] = useState(null);
-  const [currentStage, setCurrentStage] = useState('');
+  const [renderedVideoUrl, setRenderedVideoUrl] =
+    useState('');
+
+  const [errorDetails, setErrorDetails] =
+    useState(null);
+
+  const [currentStage, setCurrentStage] =
+    useState('');
 
   function handleFileChange(event) {
     const selectedFile =
@@ -45,16 +53,22 @@ export default function App() {
         selectedFile.size / 1024 / 1024;
 
       setStatus(
-        `Selected: ${selectedFile.name} (${sizeMB.toFixed(1)} MB)`
+        `Selected: ${selectedFile.name} (${sizeMB.toFixed(
+          1
+        )} MB)`
       );
     } else {
       setStatus('');
     }
   }
 
-  function makeErrorDetails(error, stage) {
+  function makeErrorDetails(
+    error,
+    stage
+  ) {
     const details = {
       time: new Date().toISOString(),
+
       stage,
 
       message:
@@ -86,36 +100,42 @@ export default function App() {
 
     try {
       if (error) {
-        Object.getOwnPropertyNames(error)
-          .forEach((property) => {
-            try {
-              const value =
-                error[property];
+        Object.getOwnPropertyNames(
+          error
+        ).forEach((property) => {
+          try {
+            const value =
+              error[property];
 
-              if (
-                typeof value === 'string' ||
-                typeof value === 'number' ||
-                typeof value === 'boolean' ||
-                value === null
-              ) {
-                details.errorProperties[property] =
-                  value;
-              } else {
-                try {
-                  details.errorProperties[property] =
-                    JSON.parse(
-                      JSON.stringify(value)
-                    );
-                } catch {
-                  details.errorProperties[property] =
-                    String(value);
-                }
+            if (
+              typeof value === 'string' ||
+              typeof value === 'number' ||
+              typeof value === 'boolean' ||
+              value === null
+            ) {
+              details.errorProperties[
+                property
+              ] = value;
+            } else {
+              try {
+                details.errorProperties[
+                  property
+                ] = JSON.parse(
+                  JSON.stringify(value)
+                );
+              } catch {
+                details.errorProperties[
+                  property
+                ] = String(value);
               }
-            } catch {
-              details.errorProperties[property] =
-                '[Unable to read property]';
             }
-          });
+          } catch {
+            details.errorProperties[
+              property
+            ] =
+              '[Unable to read property]';
+          }
+        });
       }
     } catch (propertyError) {
       details.errorPropertiesError =
@@ -127,12 +147,11 @@ export default function App() {
         name: file.name,
         type: file.type,
         sizeBytes: file.size,
-        sizeMB:
-          (
-            file.size /
-            1024 /
-            1024
-          ).toFixed(2)
+        sizeMB: (
+          file.size /
+          1024 /
+          1024
+        ).toFixed(2)
       };
     }
 
@@ -181,7 +200,8 @@ export default function App() {
 
   async function copyEverything() {
     const everything = {
-      bikeztagram: 'BIKEZTAGRAM AI',
+      bikeztagram:
+        'BIKEZTAGRAM AI',
 
       time:
         new Date().toISOString(),
@@ -195,12 +215,11 @@ export default function App() {
             name: file.name,
             type: file.type,
             sizeBytes: file.size,
-            sizeMB:
-              (
-                file.size /
-                1024 /
-                1024
-              ).toFixed(2)
+            sizeMB: (
+              file.size /
+              1024 /
+              1024
+            ).toFixed(2)
           }
         : null,
 
@@ -257,12 +276,14 @@ export default function App() {
   }
 
   /*
-   * =========================================================
-   * GEMINI ANALYSIS → AI EDIT PLANNER
-   * =========================================================
+   * =====================================================
+   * GEMINI ANALYSIS → AI EDIT PLAN
+   * =====================================================
    */
 
-  function buildPlannerInput(geminiAnalysis) {
+  function buildPlannerInput(
+    geminiAnalysis
+  ) {
     if (!geminiAnalysis) {
       return {
         cuts: []
@@ -305,7 +326,8 @@ export default function App() {
     const defaultText =
       textRecommendation.useText
         ? String(
-            textRecommendation.text || ''
+            textRecommendation.text ||
+              ''
           ).trim()
         : '';
 
@@ -325,12 +347,16 @@ export default function App() {
                   recommendation.suggestedDuration
                 ) || 2.5;
 
-          if (!Number.isFinite(start)) {
+          if (
+            !Number.isFinite(start)
+          ) {
             return null;
           }
 
           if (
-            !Number.isFinite(duration) ||
+            !Number.isFinite(
+              duration
+            ) ||
             duration <= 0
           ) {
             duration = 2.5;
@@ -426,9 +452,9 @@ export default function App() {
   }
 
   /*
-   * =========================================================
+   * =====================================================
    * ANALYSE ACTUAL VIDEO
-   * =========================================================
+   * =====================================================
    */
 
   async function analyseActualVideo() {
@@ -441,7 +467,9 @@ export default function App() {
 
     if (
       !file.type ||
-      !file.type.startsWith('video/')
+      !file.type.startsWith(
+        'video/'
+      )
     ) {
       setStatus(
         'Please select a valid video file.'
@@ -461,24 +489,78 @@ export default function App() {
     try {
       /*
        * =====================================================
-       * STEP 1A
-       * Prepare Blob upload
+       * STEP 1
+       * BROWSER → VERCEL BLOB
+       *
+       * IMPORTANT:
+       *
+       * We are deliberately testing this 24 MB file
+       * WITHOUT multipart.
+       *
+       * Vercel recommends multipart primarily for large
+       * files such as files over 100 MB.
+       *
+       * This lets us isolate whether multipart was the
+       * cause of the browser network error.
        * =====================================================
        */
 
       setCurrentStage(
-        'STEP 1 — Preparing secure Blob upload'
+        'STEP 1 — Preparing Blob upload'
       );
 
       setStatus(
-        'Preparing secure video upload...'
+        'Preparing direct Blob upload...'
       );
 
       const pathname =
         `videos/${Date.now()}-${crypto.randomUUID()}-${file.name}`;
 
       console.log(
-        '[APP] Starting Vercel Blob client upload.'
+        '========================================'
+      );
+
+      console.log(
+        '[APP] BIKEZTAGRAM BLOB UPLOAD TEST'
+      );
+
+      console.log(
+        '[APP] File name:',
+        file.name
+      );
+
+      console.log(
+        '[APP] File type:',
+        file.type
+      );
+
+      console.log(
+        '[APP] File size:',
+        file.size
+      );
+
+      console.log(
+        '[APP] File size MB:',
+        (
+          file.size /
+          1024 /
+          1024
+        ).toFixed(2)
+      );
+
+      console.log(
+        '[APP] Browser online:',
+        navigator.onLine
+      );
+
+      console.log(
+        '[APP] Upload URL:',
+        '/api/upload'
+      );
+
+      console.log(
+        '[APP] Multipart:',
+        false
       );
 
       console.log(
@@ -487,182 +569,188 @@ export default function App() {
       );
 
       console.log(
-        '[APP] Access mode:',
-        'public'
+        '========================================'
       );
-
-      console.log(
-        '[APP] Multipart mode:',
-        false
-      );
-
-      console.log(
-        '[APP] File:',
-        {
-          name: file.name,
-          type: file.type,
-          size: file.size
-        }
-      );
-
-      /*
-       * =====================================================
-       * STEP 1B
-       *
-       * IMPORTANT TEST:
-       *
-       * We are NOT forcing multipart for this 24 MB video.
-       *
-       * This lets us determine whether the previous
-       * multipart browser upload was the cause of the
-       * network error.
-       * =====================================================
-       */
 
       setCurrentStage(
-        'STEP 1 — Requesting Blob client upload token'
+        'STEP 1 — Uploading video directly to Blob'
       );
 
       setStatus(
-        'Requesting secure Blob upload token...'
+        'Uploading video to Blob storage... 0%'
       );
 
-      let blob;
+      /*
+       * IMPORTANT:
+       *
+       * multipart is intentionally FALSE here.
+       *
+       * Your test file is approximately 24 MB.
+       */
 
-      try {
-        blob =
-          await upload(
-            pathname,
-            file,
-            {
-              access: 'public',
+      const uploadStartedAt =
+        Date.now();
 
-              handleUploadUrl:
-                '/api/upload',
+      let lastProgress =
+        -1;
 
-              /*
-               * IMPORTANT:
-               *
-               * multipart is deliberately omitted.
-               *
-               * The Vercel Blob client will use the normal
-               * upload path for this 24 MB test.
-               */
+      const blob =
+        await upload(
+          pathname,
+          file,
+          {
+            access:
+              'public',
 
-              clientPayload:
-                JSON.stringify({
-                  source:
-                    'bikeztagram-ai',
+            handleUploadUrl:
+              '/api/upload',
 
-                  filename:
-                    file.name,
+            /*
+             * IMPORTANT TEST:
+             *
+             * Do NOT use multipart for this
+             * 24 MB diagnostic upload.
+             */
+            multipart:
+              false,
 
-                  mimeType:
-                    file.type ||
-                    'video/mp4',
+            contentType:
+              file.type ||
+              'video/mp4',
 
-                  size:
-                    file.size
-                }),
+            clientPayload:
+              JSON.stringify({
+                source:
+                  'bikeztagram-ai',
 
-              onUploadProgress:
-                (event) => {
+                filename:
+                  file.name,
+
+                mimeType:
+                  file.type ||
+                  'video/mp4',
+
+                size:
+                  file.size,
+
+                diagnostic:
+                  'blob-upload-test-v2'
+              }),
+
+            onUploadProgress:
+              (event) => {
+                const percentage =
+                  Number(
+                    event?.percentage
+                  );
+
+                const loaded =
+                  Number(
+                    event?.loaded
+                  ) || 0;
+
+                const total =
+                  Number(
+                    event?.total
+                  ) || file.size;
+
+                if (
+                  Number.isFinite(
+                    percentage
+                  )
+                ) {
+                  const safePercentage =
+                    Math.max(
+                      0,
+                      Math.min(
+                        100,
+                        Math.round(
+                          percentage
+                        )
+                      )
+                    );
+
+                  setProgress(
+                    safePercentage
+                  );
+
                   if (
-                    event.percentage !==
-                    undefined
+                    safePercentage !==
+                    lastProgress
                   ) {
-                    const percentage =
-                      Math.round(
-                        event.percentage
-                      );
+                    lastProgress =
+                      safePercentage;
 
-                    setCurrentStage(
-                      'STEP 1 — Uploading video to Blob storage'
-                    );
-
-                    setProgress(
-                      percentage
-                    );
-
-                    setStatus(
-                      `Uploading video to Blob storage... ${percentage}%`
+                    console.log(
+                      '[APP] Blob upload progress:',
+                      {
+                        percentage:
+                          safePercentage,
+                        loaded,
+                        total,
+                        elapsedMs:
+                          Date.now() -
+                          uploadStartedAt
+                      }
                     );
                   }
+
+                  setStatus(
+                    `Uploading video to Blob storage... ${safePercentage}%`
+                  );
                 }
-            }
-          );
-
-      } catch (uploadError) {
-        /*
-         * Capture the exact upload-stage failure.
-         */
-
-        console.error(
-          '[APP] Blob upload failed:',
-          uploadError
-        );
-
-        const uploadDetails =
-          makeErrorDetails(
-            uploadError,
-            'STEP 1 — Actual browser-to-Blob upload'
-          );
-
-        uploadDetails.uploadTest = {
-          multipart:
-            false,
-
-          pathname,
-
-          handleUploadUrl:
-            '/api/upload',
-
-          fileSizeBytes:
-            file.size,
-
-          fileSizeMB:
-            (
-              file.size /
-              1024 /
-              1024
-            ).toFixed(2),
-
-          online:
-            navigator.onLine,
-
-          note:
-            'The server generated the Blob client token successfully. This error occurred during the subsequent browser upload.'
-        };
-
-        console.error(
-          '[APP] FULL BLOB UPLOAD DIAGNOSTIC:',
-          uploadDetails
-        );
-
-        throw Object.assign(
-          new Error(
-            uploadError?.message ||
-              'Browser-to-Blob upload failed.'
-          ),
-          {
-            originalError:
-              uploadError,
-
-            bikeztagramDetails:
-              uploadDetails
+              }
           }
         );
-      }
 
       /*
        * =====================================================
        * STEP 2
-       * Blob upload completed
+       * BLOB UPLOAD COMPLETED
        * =====================================================
        */
 
       setCurrentStage(
         'STEP 2 — Blob upload completed'
+      );
+
+      console.log(
+        '========================================'
+      );
+
+      console.log(
+        '[APP] BLOB UPLOAD SUCCESS'
+      );
+
+      console.log(
+        '[APP] Blob result:',
+        blob
+      );
+
+      console.log(
+        '[APP] Blob pathname:',
+        blob?.pathname
+      );
+
+      console.log(
+        '[APP] Blob URL:',
+        blob?.url
+      );
+
+      console.log(
+        '[APP] Blob content type:',
+        blob?.contentType
+      );
+
+      console.log(
+        '[APP] Blob upload elapsed:',
+        Date.now() -
+          uploadStartedAt,
+        'ms'
+      );
+
+      console.log(
+        '========================================'
       );
 
       if (!blob) {
@@ -683,20 +771,6 @@ export default function App() {
         );
       }
 
-      console.log(
-        '[APP] Blob upload completed successfully.'
-      );
-
-      console.log(
-        '[APP] Actual Blob pathname:',
-        blob.pathname
-      );
-
-      console.log(
-        '[APP] Actual Blob URL:',
-        blob.url
-      );
-
       setProgress(100);
 
       setStatus(
@@ -706,7 +780,7 @@ export default function App() {
       /*
        * =====================================================
        * STEP 3
-       * Send Blob URL to analysis API
+       * SEND BLOB URL TO GEMINI ANALYSIS API
        * =====================================================
        */
 
@@ -728,29 +802,31 @@ export default function App() {
         await fetch(
           '/api/analyse',
           {
-            method: 'POST',
+            method:
+              'POST',
 
             headers: {
               'Content-Type':
                 'application/json'
             },
 
-            body: JSON.stringify({
-              videoUrl:
-                blob.url,
+            body:
+              JSON.stringify({
+                videoUrl:
+                  blob.url,
 
-              pathname:
-                blob.pathname,
+                pathname:
+                  blob.pathname,
 
-              filename:
-                file.name,
+                filename:
+                  file.name,
 
-              mimeType:
-                file.type ||
-                'video/mp4',
+                mimeType:
+                  file.type ||
+                  'video/mp4',
 
-              prompt
-            })
+                prompt
+              })
           }
         );
 
@@ -793,7 +869,7 @@ export default function App() {
       /*
        * =====================================================
        * STEP 4
-       * Gemini analysis completed
+       * GEMINI ANALYSIS COMPLETE
        * =====================================================
        */
 
@@ -808,7 +884,7 @@ export default function App() {
       /*
        * =====================================================
        * STEP 5
-       * Build AI edit plan
+       * BUILD AI EDIT PLAN
        * =====================================================
        */
 
@@ -831,30 +907,18 @@ export default function App() {
       );
 
       setStatus(
-        `✅ Gemini analysed the actual video. ${describeAIEditPlan(generatedPlan)}`
+        `✅ Gemini analysed the actual video. ${describeAIEditPlan(
+          generatedPlan
+        )}`
       );
 
     } catch (error) {
-      let details;
-
-      /*
-       * If the upload stage created its own detailed
-       * diagnostic object, preserve it.
-       */
-
-      if (
-        error?.bikeztagramDetails
-      ) {
-        details =
-          error.bikeztagramDetails;
-      } else {
-        details =
-          makeErrorDetails(
-            error,
-            currentStage ||
-              'Unknown stage'
-          );
-      }
+      const details =
+        makeErrorDetails(
+          error,
+          currentStage ||
+            'Unknown stage'
+        );
 
       console.error(
         '========================================'
@@ -873,7 +937,7 @@ export default function App() {
       );
 
       console.error(
-        'Original error:',
+        '[APP] Original error:',
         error
       );
 
@@ -895,9 +959,9 @@ export default function App() {
   }
 
   /*
-   * =========================================================
-   * BUILD FINAL VIDEO
-   * =========================================================
+   * =====================================================
+   * BUILD FINAL AI VIDEO
+   * =====================================================
    */
 
   async function buildAIEdit() {
@@ -910,7 +974,9 @@ export default function App() {
 
     if (
       !plan ||
-      !Array.isArray(plan.cuts) ||
+      !Array.isArray(
+        plan.cuts
+      ) ||
       plan.cuts.length === 0
     ) {
       setStatus(
@@ -934,9 +1000,14 @@ export default function App() {
 
       const mediaItems = [
         {
-          id: 'video-0',
+          id:
+            'video-0',
+
           file,
-          name: file.name,
+
+          name:
+            file.name,
+
           type:
             file.type ||
             'video/mp4'
@@ -1007,7 +1078,9 @@ export default function App() {
         videoUrl
       );
 
-      setRenderProgress(100);
+      setRenderProgress(
+        100
+      );
 
       setCurrentStage(
         'STEP 7 — AI edit completed'
@@ -1026,6 +1099,7 @@ export default function App() {
         {
           type:
             outputBlob.type,
+
           size:
             outputBlob.size
         }
@@ -1219,51 +1293,50 @@ export default function App() {
               </p>
             )}
 
-            {loading &&
-              progress > 0 && (
-                <>
+            {loading && (
+              <>
+                <div
+                  style={{
+                    width:
+                      '100%',
+                    height:
+                      '10px',
+                    background:
+                      '#333',
+                    borderRadius:
+                      '5px',
+                    overflow:
+                      'hidden',
+                    marginTop:
+                      '10px'
+                  }}
+                >
+
                   <div
                     style={{
                       width:
-                        '100%',
+                        `${progress}%`,
                       height:
-                        '10px',
+                        '100%',
                       background:
-                        '#333',
-                      borderRadius:
-                        '5px',
-                      overflow:
-                        'hidden',
-                      marginTop:
-                        '10px'
+                        '#4fd1c5',
+                      transition:
+                        'width 0.2s ease'
                     }}
-                  >
+                  />
 
-                    <div
-                      style={{
-                        width:
-                          `${progress}%`,
-                        height:
-                          '100%',
-                        background:
-                          '#4fd1c5',
-                        transition:
-                          'width 0.2s ease'
-                      }}
-                    />
+                </div>
 
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop:
-                        '6px'
-                    }}
-                  >
-                    Upload: {progress}%
-                  </div>
-                </>
-              )}
+                <div
+                  style={{
+                    marginTop:
+                      '6px'
+                  }}
+                >
+                  Blob upload: {progress}%
+                </div>
+              </>
+            )}
 
             {rendering && (
               <>
@@ -1362,7 +1435,9 @@ export default function App() {
             </p>
 
             <p>
-              You can either screenshot this or use the copy buttons below.
+              This version records the exact
+              upload stage and browser
+              information.
             </p>
 
             <div
@@ -1569,7 +1644,11 @@ export default function App() {
                     '12px'
                 }}
               >
-                Gemini selected the moments. The AI edit planner converted them into cuts, timing, speed, transitions and motion, and the existing browser renderer built the video.
+                Gemini selected the moments.
+                The AI edit planner converted
+                them into cuts, timing, speed,
+                transitions and motion, and the
+                browser renderer built the video.
               </p>
 
             </div>
@@ -1581,4 +1660,4 @@ export default function App() {
 
     </div>
   );
-             }
+      }
