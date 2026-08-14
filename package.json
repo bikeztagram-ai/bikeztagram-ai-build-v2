@@ -2,6 +2,7 @@
   "name": "bikeztagram-ai",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,7 +12,7 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@google/genai": "^1.16.0",
-    "@vercel/blob": "^2.4.0",
+    "@vercel/blob": "2.6.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
