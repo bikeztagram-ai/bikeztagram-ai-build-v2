@@ -1,13 +1,11 @@
 /*
  * BIKEZTAGRAM AI
- * AI Edit Plan Builder
+ * AI Edit Plan Builder — cinematic V2
  *
- * Converts Gemini's actual video analysis into the edit plan
- * understood by the existing Bikeztagram renderer.
+ * Converts Gemini's ACTUAL video analysis into the
+ * renderer-compatible plan.
  *
- * IMPORTANT:
- * This file does NOT call Gemini.
- * Gemini analysis has already happened before this function runs.
+ * This file does not call Gemini.
  */
 
 function clamp(value, min, max) {
@@ -21,70 +19,145 @@ function numberOr(value, fallback) {
 
 function firstDefined(...values) {
   return values.find(
-    (value) => value !== undefined && value !== null
+    (value) =>
+      value !== undefined &&
+      value !== null
   );
 }
 
-function normaliseTransition(value) {
-  const transition = String(value || "").toLowerCase();
+function normaliseTransition(value, index, total) {
+  const text =
+    String(value || "").toLowerCase();
+
+  if (index === 0) {
+    return "fade-in";
+  }
+
+  if (index === total - 1 && text.includes("fade")) {
+    return "fade-out";
+  }
 
   if (
-    transition.includes("fade") ||
-    transition.includes("dissolve")
+    text.includes("whip") &&
+    text.includes("left")
+  ) {
+    return "whip-left";
+  }
+
+  if (
+    text.includes("whip") &&
+    text.includes("right")
+  ) {
+    return "whip-right";
+  }
+
+  if (
+    text.includes("flash")
+  ) {
+    return "flash-cut";
+  }
+
+  if (
+    text.includes("dip") ||
+    text.includes("black")
+  ) {
+    return "dip-black";
+  }
+
+  if (
+    text.includes("cross") ||
+    text.includes("dissolve")
+  ) {
+    return "crossfade";
+  }
+
+  if (
+    text.includes("fade")
   ) {
     return "fade";
   }
 
-  if (
-    transition.includes("zoom") ||
-    transition.includes("push")
-  ) {
-    return "zoom";
-  }
-
-  if (
-    transition.includes("slide") ||
-    transition.includes("wipe")
-  ) {
-    return "slide";
-  }
-
-  if (
-    transition.includes("cut") ||
-    transition.includes("hard")
-  ) {
-    return "cut";
-  }
-
-  return "crossfade";
+  /*
+   * Hard cuts are preferred for action and when Gemini
+   * has not asked for a specific transition.
+   */
+  return "hard-cut";
 }
 
-function normaliseMotion(value) {
-  const motion = String(value || "").toLowerCase();
+function inferMotion(
+  value,
+  moment,
+  index
+) {
+  const text = [
+    value,
+    moment?.description,
+    moment?.reason
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 
   if (
-    motion.includes("zoom") ||
-    motion.includes("push")
+    text.includes("pan left") ||
+    text.includes("move left")
   ) {
-    return "zoom";
+    return "pan-left";
   }
 
   if (
-    motion.includes("pan") ||
-    motion.includes("move")
+    text.includes("pan right") ||
+    text.includes("move right")
   ) {
-    return "pan";
+    return "pan-right";
   }
 
   if (
-    motion.includes("tilt")
+    text.includes("tilt up") ||
+    text.includes("upward")
   ) {
-    return "tilt";
+    return "tilt-up";
   }
 
   if (
-    motion.includes("static") ||
-    motion.includes("still")
+    text.includes("tilt down") ||
+    text.includes("downward")
+  ) {
+    return "tilt-down";
+  }
+
+  if (
+    text.includes("pull back") ||
+    text.includes("pull-out") ||
+    text.includes("pull out")
+  ) {
+    return "slow-pull";
+  }
+
+  if (
+    text.includes("push in") ||
+    text.includes("push-in") ||
+    text.includes("push")
+  ) {
+    return "slow-push";
+  }
+
+  /*
+   * If Gemini sees an orbit/arc sweep, a subtle push is a
+   * safer enhancement than inventing a large pan.
+   */
+  if (
+    text.includes("orbit") ||
+    text.includes("arc")
+  ) {
+    return index % 2 === 0
+      ? "slow-push"
+      : "pan-right";
+  }
+
+  if (
+    text.includes("static") ||
+    text.includes("locked")
   ) {
     return "static";
   }
@@ -92,234 +165,523 @@ function normaliseMotion(value) {
   return "cinematic";
 }
 
-function getCuts(analysis) {
-  if (!analysis) return [];
+function inferPurpose(moment, index, total) {
+  const text = [
+    moment?.description,
+    moment?.reason
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 
-  if (Array.isArray(analysis.cuts)) {
+  if (index === 0) {
+    return "opening";
+  }
+
+  if (index === total - 1) {
+    return "hero-ending";
+  }
+
+  if (
+    text.includes("action") ||
+    text.includes("acceleration") ||
+    text.includes("corner") ||
+    text.includes("riding") ||
+    text.includes("passing")
+  ) {
+    return "action";
+  }
+
+  if (
+    text.includes("reveal") ||
+    text.includes("three-quarter") ||
+    text.includes("side profile")
+  ) {
+    return "reveal";
+  }
+
+  if (
+    text.includes("detail") ||
+    text.includes("exhaust") ||
+    text.includes("tank") ||
+    text.includes("front")
+  ) {
+    return "detail";
+  }
+
+  return "cinematic";
+}
+
+function inferSpeed(
+  recommendation,
+  moment,
+  purpose
+) {
+  const recommended =
+    numberOr(
+      recommendation?.speed,
+      1
+    );
+
+  let speed =
+    clamp(
+      recommended,
+      0.5,
+      1.5
+    );
+
+  const text = [
+    moment?.description,
+    moment?.reason
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (
+    recommendation?.slowMotion &&
+    speed >= 0.95
+  ) {
+    speed = 0.65;
+  }
+
+  if (
+    purpose === "action" ||
+    text.includes("fast") ||
+    text.includes("acceleration")
+  ) {
+    speed =
+      Math.max(
+        speed,
+        1.05
+      );
+  }
+
+  if (
+    purpose === "hero-ending" &&
+    recommendation?.slowMotion
+  ) {
+    speed =
+      Math.min(
+        speed,
+        0.72
+      );
+  }
+
+  return clamp(
+    speed,
+    0.5,
+    1.5
+  );
+}
+
+function getMoments(analysis) {
+  if (
+    Array.isArray(
+      analysis?.bestMoments
+    )
+  ) {
+    return analysis.bestMoments;
+  }
+
+  if (
+    Array.isArray(
+      analysis?.cuts
+    )
+  ) {
     return analysis.cuts;
   }
 
   if (
-    analysis.plan &&
-    Array.isArray(analysis.plan.cuts)
+    Array.isArray(
+      analysis?.plan?.cuts
+    )
   ) {
     return analysis.plan.cuts;
-  }
-
-  if (
-    analysis.editPlan &&
-    Array.isArray(analysis.editPlan.cuts)
-  ) {
-    return analysis.editPlan.cuts;
-  }
-
-  if (
-    analysis.analysis &&
-    Array.isArray(analysis.analysis.cuts)
-  ) {
-    return analysis.analysis.cuts;
   }
 
   return [];
 }
 
-function getMediaIndex(cut, fallbackIndex) {
-  const value = firstDefined(
-    cut.mediaIndex,
-    cut.media,
-    cut.clipIndex,
-    cut.sourceIndex,
-    cut.index
-  );
+function buildCutsFromMoments(
+  analysis,
+  options
+) {
+  const moments =
+    getMoments(analysis);
 
-  const index = Number(value);
-
-  if (Number.isInteger(index) && index >= 0) {
-    return index;
+  if (!moments.length) {
+    return [];
   }
 
-  return fallbackIndex;
-}
+  const recommendation =
+    analysis?.editingRecommendation ||
+    {};
 
-function getDuration(cut) {
-  return clamp(
-    numberOr(
-      firstDefined(
-        cut.duration,
-        cut.length,
-        cut.seconds
+  const textRecommendation =
+    analysis?.textRecommendation ||
+    {};
+
+  const transitionRecommendation =
+    analysis?.transitionRecommendation ||
+    "";
+
+  const motionRecommendation =
+    analysis?.motionRecommendation ||
+    "";
+
+  const total =
+    moments.length;
+
+  const maxCuts =
+    clamp(
+      numberOr(options.maxCuts, 8),
+      1,
+      30
+    );
+
+  const targetDuration =
+    clamp(
+      numberOr(
+        options.targetDuration,
+        15
       ),
-      2.5
-    ),
-    0.35,
-    8
-  );
-}
-
-function getStartTime(cut) {
-  return Math.max(
-    0,
-    numberOr(
-      firstDefined(
-        cut.startTime,
-        cut.start,
-        cut.offset
-      ),
-      0
-    )
-  );
-}
-
-function getSpeed(cut) {
-  return clamp(
-    numberOr(
-      firstDefined(
-        cut.speed,
-        cut.playbackRate,
-        cut.rate
-      ),
-      1
-    ),
-    0.25,
-    2.5
-  );
-}
-
-function getText(cut) {
-  const value = firstDefined(
-    cut.text,
-    cut.caption,
-    cut.overlay,
-    cut.title
-  );
-
-  if (!value) return "";
-
-  return String(value).trim();
-}
-
-/**
- * Convert Gemini's analysis into the renderer's plan format.
- *
- * @param {Object} analysis Gemini analysis result
- * @param {Object} options Optional settings
- * @returns {Object} Renderer-compatible edit plan
- */
-export function createAIEditPlan(
-  analysis,
-  options = {}
-) {
-  const sourceCuts = getCuts(analysis);
-
-  const maxCuts = clamp(
-    numberOr(options.maxCuts, 8),
-    1,
-    30
-  );
-
-  const targetDuration = clamp(
-    numberOr(options.targetDuration, 15),
-    5,
-    60
-  );
+      5,
+      60
+    );
 
   const cuts = [];
 
   let totalDuration = 0;
 
   for (
-    let i = 0;
-    i < sourceCuts.length && cuts.length < maxCuts;
-    i++
+    let index = 0;
+    index < moments.length &&
+    cuts.length < maxCuts;
+    index++
   ) {
-    const cut = sourceCuts[i] || {};
+    const moment =
+      moments[index] || {};
 
-    const duration = getDuration(cut);
+    const start =
+      Math.max(
+        0,
+        numberOr(
+          firstDefined(
+            moment.start,
+            moment.startTime
+          ),
+          0
+        )
+      );
+
+    const end =
+      numberOr(
+        firstDefined(
+          moment.end,
+          moment.endTime
+        ),
+        NaN
+      );
+
+    let duration =
+      Number.isFinite(end) &&
+      end > start
+        ? end - start
+        : numberOr(
+            recommendation.suggestedDuration,
+            2.5
+          );
+
+    duration =
+      clamp(
+        duration,
+        0.5,
+        8
+      );
+
+    const remaining =
+      targetDuration -
+      totalDuration;
 
     if (
-      totalDuration >= targetDuration &&
+      remaining <= 0 &&
       cuts.length >= 3
     ) {
       break;
     }
 
-    const remaining =
-      targetDuration - totalDuration;
-
-    const finalDuration =
+    if (
       remaining > 0
-        ? Math.min(duration, remaining)
-        : duration;
+    ) {
+      duration =
+        Math.min(
+          duration,
+          remaining
+        );
+    }
+
+    /*
+     * Avoid tiny accidental fragments.
+     */
+    if (
+      duration < 0.5 &&
+      cuts.length > 0
+    ) {
+      break;
+    }
+
+    const purpose =
+      inferPurpose(
+        moment,
+        index,
+        total
+      );
+
+    const motion =
+      inferMotion(
+        [
+          moment.motionStyle,
+          moment.motion,
+          motionRecommendation,
+          analysis?.shot?.cameraMovement
+        ]
+          .filter(Boolean)
+          .join(" "),
+        moment,
+        index
+      );
+
+    const speed =
+      inferSpeed(
+        recommendation,
+        moment,
+        purpose
+      );
+
+    const transition =
+      normaliseTransition(
+        firstDefined(
+          moment.transition,
+          transitionRecommendation
+        ),
+        index,
+        total
+      );
+
+    let text = "";
+
+    /*
+     * Keep text deliberately sparse. Gemini can override it
+     * on an individual moment, otherwise use its first-shot
+     * recommendation.
+     */
+    if (
+      moment.text
+    ) {
+      text =
+        String(
+          moment.text
+        ).trim();
+    } else if (
+      index === 0 &&
+      textRecommendation.useText
+    ) {
+      text =
+        String(
+          textRecommendation.text ||
+            ""
+        ).trim();
+    }
+
+    /*
+     * A strong hero ending can repeat no text by default.
+     */
+    if (
+      purpose === "hero-ending" &&
+      index > 0 &&
+      !moment.text
+    ) {
+      text = "";
+    }
+
+    const colorGrade =
+      firstDefined(
+        moment.colorGrade,
+        analysis?.colorGrade,
+        options.colorGrade,
+        "dark-cinematic"
+      );
+
+    const stabilization =
+      Boolean(
+        firstDefined(
+          moment.stabilization,
+          moment.stabilize,
+          recommendation.stabilization,
+          recommendation.stabilize,
+          true
+        )
+      );
 
     cuts.push({
-      mediaIndex: getMediaIndex(cut, i),
+      mediaIndex: 0,
+      mediaId: "video-0",
 
-      startTime: getStartTime(cut),
+      startTime: start,
 
-      duration: clamp(
-        finalDuration,
-        0.35,
-        8
-      ),
+      duration:
+        clamp(
+          duration,
+          0.5,
+          8
+        ),
 
-      speed: getSpeed(cut),
+      purpose,
 
-      transition: normaliseTransition(
-        firstDefined(
-          cut.transition,
-          cut.transitionType
-        )
-      ),
+      speed,
 
-      motionStyle: normaliseMotion(
-        firstDefined(
-          cut.motionStyle,
-          cut.motion,
-          cut.cameraMotion
-        )
-      ),
+      transition,
 
-      text: getText(cut)
+      motionStyle: motion,
+
+      motionIntensity:
+        purpose === "hero-ending"
+          ? 0.75
+          : 0.9,
+
+      stabilization,
+
+      colorGrade,
+
+      text,
+
+      textIn:
+        index === 0
+          ? 0.10
+          : 0.14,
+
+      textOut:
+        index === 0
+          ? 0.82
+          : 0.88,
+
+      textStyle: "cinematic"
     });
 
-    totalDuration += finalDuration;
+    totalDuration += duration;
   }
 
   /*
-   * Safety fallback:
-   * If Gemini returned no usable cuts, create a simple
-   * renderer-compatible plan rather than crashing.
+   * Prefer the footage's actual best moments. If Gemini
+   * returned only 11 seconds of usable footage, do not
+   * invent a 15-second timeline.
    */
-  if (cuts.length === 0) {
+  return cuts;
+}
+
+/**
+ * Convert Gemini's actual analysis into the renderer plan.
+ */
+export function createAIEditPlan(
+  analysis,
+  options = {}
+) {
+  const targetDuration =
+    clamp(
+      numberOr(
+        options.targetDuration,
+        15
+      ),
+      5,
+      60
+    );
+
+  const cuts =
+    buildCutsFromMoments(
+      analysis,
+      {
+        ...options,
+        targetDuration
+      }
+    );
+
+  /*
+   * Safety fallback.
+   */
+  if (!cuts.length) {
     cuts.push({
       mediaIndex: 0,
+      mediaId: "video-0",
       startTime: 0,
-      duration: Math.min(targetDuration, 3),
+      duration: Math.min(
+        targetDuration,
+        3
+      ),
+      purpose: "cinematic",
       speed: 1,
-      transition: "cut",
+      transition: "fade-in",
       motionStyle: "cinematic",
-      text: ""
+      motionIntensity: 0.8,
+      stabilization: true,
+      colorGrade:
+        options.colorGrade ||
+        "dark-cinematic",
+      text: "",
+      textIn: 0.1,
+      textOut: 0.9,
+      textStyle: "cinematic"
     });
   }
 
   return {
+    title:
+      analysis?.subject?.motorcycleModel
+        ? `${analysis.subject.motorcycleModel} — AI Cinematic Edit`
+        : "AI Cinematic Motorcycle Edit",
+
+    style:
+      "cinematic motorcycle trailer",
+
+    colorGrade:
+      analysis?.colorGrade ||
+      options.colorGrade ||
+      "dark-cinematic",
+
+    stabilization: true,
+
+    textOverlay:
+      analysis?.textRecommendation?.useText
+        ? String(
+            analysis.textRecommendation.text ||
+              ""
+          )
+        : "",
+
     cuts,
 
     duration: cuts.reduce(
-      (sum, cut) => sum + cut.duration,
+      (sum, cut) =>
+        sum +
+        numberOr(
+          cut.duration,
+          0
+        ),
       0
     ),
 
     targetDuration,
 
-    source: "gemini-analysis",
+    source:
+      "gemini-analysis",
 
-    generatedAt: new Date().toISOString()
+    generatedAt:
+      new Date().toISOString()
   };
 }
 
 /**
- * Human-readable description useful for the UI/debugging.
+ * Human-readable description for the UI.
  */
 export function describeAIEditPlan(plan) {
   if (
@@ -329,15 +691,30 @@ export function describeAIEditPlan(plan) {
     return "No AI edit plan available.";
   }
 
-  const duration = plan.cuts.reduce(
-    (sum, cut) =>
-      sum + numberOr(cut.duration, 0),
-    0
-  );
+  const duration =
+    plan.cuts.reduce(
+      (sum, cut) =>
+        sum +
+        numberOr(
+          cut.duration,
+          0
+        ),
+      0
+    );
+
+  const motionCount =
+    plan.cuts.filter(
+      (cut) =>
+        String(
+          cut.motionStyle || ""
+        ).toLowerCase() !==
+        "static"
+    ).length;
 
   return [
     `AI edit plan: ${plan.cuts.length} cuts`,
     `Total duration: ${duration.toFixed(1)}s`,
+    `${motionCount} cinematic motion shots`,
     `Source: ${plan.source || "AI"}`
   ].join(" • ");
-        }
+}
