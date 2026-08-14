@@ -1,3 +1,4 @@
+import { get } from '@vercel/blob';
 import { GoogleGenAI } from '@google/genai';
 
 export default async function handler(req, res) {
@@ -19,35 +20,78 @@ export default async function handler(req, res) {
     }
 
     const {
-      videoUrl = '',
+      pathname = '',
       filename = 'video.mp4',
       mimeType = 'video/mp4',
       prompt = ''
     } = req.body || {};
 
-    if (!videoUrl) {
+    if (!pathname) {
       return res.status(400).json({
         success: false,
-        error: 'No video URL was supplied.'
+        error: 'No Blob pathname was supplied.'
       });
     }
 
     console.log(
-      'Downloading video from Blob:',
-      filename
+      '[ANALYSE] Retrieving private Blob:',
+      pathname
     );
 
-    const videoResponse = await fetch(videoUrl);
+    /*
+     * Private Blob files cannot be fetched directly
+     * from their blob URL.
+     *
+     * The Vercel Function authenticates with OIDC
+     * automatically and retrieves the file through
+     * the Blob SDK.
+     */
+    const blobResult = await get(
+      pathname,
+      {
+        access: 'private'
+      }
+    );
 
-    if (!videoResponse.ok) {
+    if (!blobResult) {
       throw new Error(
-        `Could not download video from Blob. HTTP ${videoResponse.status}`
+        'The requested video was not found in Blob storage.'
       );
     }
 
-    const videoBuffer = Buffer.from(
-      await videoResponse.arrayBuffer()
+    if (blobResult.statusCode !== 200) {
+      throw new Error(
+        `Could not retrieve video from Blob. HTTP ${blobResult.statusCode}`
+      );
+    }
+
+    if (!blobResult.stream) {
+      throw new Error(
+        'Blob returned no video stream.'
+      );
+    }
+
+    console.log(
+      '[ANALYSE] Private Blob retrieved successfully.'
     );
+
+    /*
+     * Convert the Blob stream into a Buffer.
+     */
+    const chunks = [];
+
+    for await (
+      const chunk of blobResult.stream
+    ) {
+      chunks.push(
+        Buffer.isBuffer(chunk)
+          ? chunk
+          : Buffer.from(chunk)
+      );
+    }
+
+    const videoBuffer =
+      Buffer.concat(chunks);
 
     if (!videoBuffer.length) {
       throw new Error(
@@ -56,17 +100,18 @@ export default async function handler(req, res) {
     }
 
     console.log(
-      'Video downloaded:',
+      '[ANALYSE] Video downloaded:',
       videoBuffer.length,
       'bytes'
     );
 
-    const ai = new GoogleGenAI({
-      apiKey
-    });
+    const ai =
+      new GoogleGenAI({
+        apiKey
+      });
 
     console.log(
-      'Uploading video to Gemini...'
+      '[ANALYSE] Uploading video to Gemini...'
     );
 
     const videoFile =
@@ -90,23 +135,29 @@ export default async function handler(req, res) {
     }
 
     console.log(
-      'Gemini file uploaded:',
+      '[ANALYSE] Gemini file uploaded:',
       videoFile.name
     );
 
-    let currentFile = videoFile;
+    let currentFile =
+      videoFile;
 
+    /*
+     * Wait for Gemini to finish processing
+     * the uploaded video.
+     */
     for (
       let attempt = 0;
       attempt < 30;
       attempt++
     ) {
-      const state = String(
-        currentFile?.state || ''
-      ).toUpperCase();
+      const state =
+        String(
+          currentFile?.state || ''
+        ).toUpperCase();
 
       console.log(
-        'Gemini processing:',
+        '[ANALYSE] Gemini processing:',
         state,
         'attempt:',
         attempt + 1
@@ -124,20 +175,28 @@ export default async function handler(req, res) {
 
       await new Promise(
         (resolve) =>
-          setTimeout(resolve, 2000)
+          setTimeout(
+            resolve,
+            2000
+          )
       );
 
       currentFile =
         await ai.files.get({
-          name: videoFile.name
+          name:
+            videoFile.name
         });
     }
 
-    const finalState = String(
-      currentFile?.state || ''
-    ).toUpperCase();
+    const finalState =
+      String(
+        currentFile?.state || ''
+      ).toUpperCase();
 
-    if (finalState !== 'ACTIVE') {
+    if (
+      finalState !==
+      'ACTIVE'
+    ) {
       throw new Error(
         'Gemini video processing timed out.'
       );
@@ -150,7 +209,7 @@ export default async function handler(req, res) {
     }
 
     console.log(
-      'Video ready for Gemini analysis.'
+      '[ANALYSE] Video ready for Gemini analysis.'
     );
 
     const analysisPrompt = `
@@ -242,29 +301,34 @@ Use exactly this structure:
 `;
 
     console.log(
-      'Sending actual video to Gemini...'
+      '[ANALYSE] Sending actual video to Gemini...'
     );
 
     const interaction =
       await ai.interactions.create({
-        model: 'gemini-3.6-flash',
+        model:
+          'gemini-3.6-flash',
+
         input: [
           {
             type: 'video',
-            uri: currentFile.uri,
+            uri:
+              currentFile.uri,
             mime_type:
               currentFile.mimeType ||
               mimeType
           },
           {
             type: 'text',
-            text: analysisPrompt
+            text:
+              analysisPrompt
           }
         ]
       });
 
     let modelText =
-      interaction?.output_text || '';
+      interaction?.output_text ||
+      '';
 
     if (
       !modelText &&
@@ -273,7 +337,8 @@ Use exactly this structure:
       )
     ) {
       for (
-        const output of interaction.outputs
+        const output of
+        interaction.outputs
       ) {
         if (
           Array.isArray(
@@ -281,23 +346,32 @@ Use exactly this structure:
           )
         ) {
           for (
-            const part of output.content
+            const part of
+            output.content
           ) {
             if (
               typeof part?.text ===
               'string'
             ) {
-              modelText += part.text;
+              modelText +=
+                part.text;
             }
           }
         }
       }
     }
 
-    modelText = String(modelText)
-      .replace(/```json/gi, '')
-      .replace(/```/g, '')
-      .trim();
+    modelText =
+      String(modelText)
+        .replace(
+          /```json/gi,
+          ''
+        )
+        .replace(
+          /```/g,
+          ''
+        )
+        .trim();
 
     if (!modelText) {
       throw new Error(
@@ -308,12 +382,19 @@ Use exactly this structure:
     let analysis;
 
     try {
-      analysis = JSON.parse(modelText);
+      analysis =
+        JSON.parse(
+          modelText
+        );
     } catch {
       throw new Error(
         'Gemini returned invalid analysis JSON.'
       );
     }
+
+    console.log(
+      '[ANALYSE] Gemini analysis completed successfully.'
+    );
 
     return res.status(200).json({
       success: true,
@@ -322,7 +403,7 @@ Use exactly this structure:
 
   } catch (error) {
     console.error(
-      'Video analysis error:',
+      '[ANALYSE] Video analysis error:',
       error
     );
 
@@ -333,4 +414,4 @@ Use exactly this structure:
         'Unknown video analysis error.'
     });
   }
-      }
+}
