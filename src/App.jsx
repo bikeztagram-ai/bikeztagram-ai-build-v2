@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { upload } from '@vercel/blob/client';
 import './styles.css';
 
 export default function App() {
@@ -23,9 +24,7 @@ export default function App() {
 
     if (selectedFile) {
       const sizeMB =
-        selectedFile.size /
-        1024 /
-        1024;
+        selectedFile.size / 1024 / 1024;
 
       setStatus(
         `Selected: ${selectedFile.name} (${sizeMB.toFixed(1)} MB)`
@@ -33,105 +32,6 @@ export default function App() {
     } else {
       setStatus('');
     }
-  }
-
-  async function uploadDirectlyToBlob(
-    uploadUrl,
-    selectedFile
-  ) {
-    return new Promise(
-      (resolve, reject) => {
-        const xhr =
-          new XMLHttpRequest();
-
-        xhr.open(
-          'PUT',
-          uploadUrl,
-          true
-        );
-
-        /*
-         * IMPORTANT:
-         *
-         * Do NOT manually set Content-Type here.
-         *
-         * The Vercel signed-URL example performs
-         * the browser PUT without a custom header.
-         *
-         * Adding Content-Type can trigger a browser
-         * CORS preflight against the Blob endpoint.
-         */
-
-        xhr.upload.onprogress =
-          (event) => {
-            if (
-              !event.lengthComputable
-            ) {
-              return;
-            }
-
-            const percentage =
-              Math.round(
-                (event.loaded /
-                  event.total) *
-                  100
-              );
-
-            setProgress(
-              percentage
-            );
-
-            setStatus(
-              `Uploading video directly to secure Blob storage... ${percentage}%`
-            );
-          };
-
-        xhr.onload = () => {
-          console.log(
-            '[APP] Blob PUT response:',
-            xhr.status
-          );
-
-          if (
-            xhr.status >= 200 &&
-            xhr.status < 300
-          ) {
-            resolve(true);
-            return;
-          }
-
-          reject(
-            new Error(
-              `Blob upload failed. HTTP ${xhr.status}`
-            )
-          );
-        };
-
-        xhr.onerror = () => {
-          console.error(
-            '[APP] Browser/Blob PUT network error.'
-          );
-
-          reject(
-            new Error(
-              'The browser could not complete the direct Blob upload. This usually indicates a browser-to-Blob connection or CORS problem.'
-            )
-          );
-        };
-
-        xhr.onabort = () => {
-          reject(
-            new Error(
-              'The video upload was cancelled.'
-            )
-          );
-        };
-
-        xhr.send(
-          selectedFile
-        );
-      }
-    );
   }
 
   async function analyseActualVideo() {
@@ -144,9 +44,7 @@ export default function App() {
 
     if (
       !file.type ||
-      !file.type.startsWith(
-        'video/'
-      )
+      !file.type.startsWith('video/')
     ) {
       setStatus(
         'Please select a valid video file.'
@@ -160,11 +58,18 @@ export default function App() {
 
     try {
       /*
-       * ==========================================
+       * =====================================================
        * STEP 1
-       * Request a short-lived signed Blob PUT URL
-       * from our Vercel Function.
-       * ==========================================
+       *
+       * Upload the ACTUAL video directly to Vercel Blob.
+       *
+       * This uses Vercel's official client-upload system.
+       *
+       * /api/upload generates the short-lived client token.
+       * The browser then uploads the file directly to Blob.
+       *
+       * The returned object contains the ACTUAL Blob pathname.
+       * =====================================================
        */
 
       setStatus(
@@ -174,106 +79,126 @@ export default function App() {
       const pathname =
         `videos/${Date.now()}-${crypto.randomUUID()}-${file.name}`;
 
-      const uploadResponse =
-        await fetch(
-          '/api/upload',
-          {
-            method: 'POST',
+      console.log(
+        '[APP] Starting Vercel Blob client upload.'
+      );
 
-            headers: {
-              'Content-Type':
-                'application/json'
-            },
+      console.log(
+        '[APP] Requested pathname:',
+        pathname
+      );
 
-            body: JSON.stringify({
-              pathname,
-              contentType:
+      const blob = await upload(
+        pathname,
+        file,
+        {
+          access: 'private',
+
+          handleUploadUrl:
+            '/api/upload',
+
+          clientPayload:
+            JSON.stringify({
+              source:
+                'bikeztagram-ai',
+              filename:
+                file.name,
+              mimeType:
                 file.type ||
                 'video/mp4',
               size:
                 file.size
-            })
-          }
-        );
+            }),
 
-      const uploadText =
-        await uploadResponse.text();
+          onUploadProgress:
+            (event) => {
+              if (
+                event.percentage !==
+                undefined
+              ) {
+                const percentage =
+                  Math.round(
+                    event.percentage
+                  );
 
-      let uploadData;
+                setProgress(
+                  percentage
+                );
 
-      try {
-        uploadData =
-          JSON.parse(
-            uploadText
-          );
-      } catch {
-        throw new Error(
-          `Upload server returned invalid JSON: ${uploadText.slice(
-            0,
-            500
-          )}`
-        );
-      }
-
-      if (
-        !uploadResponse.ok
-      ) {
-        throw new Error(
-          uploadData?.error ||
-            `Upload server returned HTTP ${uploadResponse.status}`
-        );
-      }
-
-      if (
-        !uploadData?.uploadUrl
-      ) {
-        throw new Error(
-          'The server did not return a signed Blob upload URL.'
-        );
-      }
-
-      console.log(
-        '[APP] Signed Blob URL received.'
-      );
-
-      console.log(
-        '[APP] Blob pathname:',
-        uploadData.pathname
+                setStatus(
+                  `Uploading video directly to secure Blob storage... ${percentage}%`
+                );
+              }
+            }
+        }
       );
 
       /*
-       * ==========================================
+       * =====================================================
        * STEP 2
-       * PUT the actual video directly to Blob.
-       * ==========================================
+       *
+       * Blob upload has genuinely completed.
+       *
+       * IMPORTANT:
+       * Use the pathname returned by Blob.
+       * Do NOT assume it is the same as our requested pathname.
+       * =====================================================
        */
 
-      setStatus(
-        'Uploading video directly to secure Blob storage...'
+      if (!blob) {
+        throw new Error(
+          'Vercel Blob did not return an upload result.'
+        );
+      }
+
+      if (!blob.pathname) {
+        throw new Error(
+          'Vercel Blob upload completed but returned no pathname.'
+        );
+      }
+
+      console.log(
+        '[APP] Blob upload completed successfully.'
       );
 
-      await uploadDirectlyToBlob(
-        uploadData.uploadUrl,
-        file
+      console.log(
+        '[APP] Actual Blob pathname:',
+        blob.pathname
+      );
+
+      console.log(
+        '[APP] Blob URL:',
+        blob.url
       );
 
       setProgress(100);
 
-      console.log(
-        '[APP] Direct Blob upload completed.'
-      );
-
       setStatus(
-        '✅ Video stored successfully. Preparing Gemini analysis...'
+        '✅ Video successfully stored in Blob. Preparing Gemini analysis...'
       );
 
       /*
-       * ==========================================
+       * =====================================================
        * STEP 3
-       * Ask our server to retrieve the private
-       * Blob and send the actual video to Gemini.
-       * ==========================================
+       *
+       * Tell our server which ACTUAL Blob object to retrieve.
+       *
+       * The server will:
+       *
+       * Blob
+       * ↓
+       * video buffer
+       * ↓
+       * Gemini Files API
+       * ↓
+       * Gemini video analysis
+       * =====================================================
        */
+
+      console.log(
+        '[APP] Sending actual Blob pathname to /api/analyse:',
+        blob.pathname
+      );
 
       const analysisResponse =
         await fetch(
@@ -288,7 +213,7 @@ export default function App() {
 
             body: JSON.stringify({
               pathname:
-                uploadData.pathname,
+                blob.pathname,
 
               filename:
                 file.name,
@@ -338,12 +263,24 @@ export default function App() {
         );
       }
 
+      /*
+       * =====================================================
+       * STEP 4
+       *
+       * Analysis successfully returned.
+       * =====================================================
+       */
+
       setAnalysis(
         analysisData.analysis
       );
 
       setStatus(
-        '✅ Gemini has analysed the actual motorcycle video.'
+        '✅ Gemini has analysed the actual motorcycle video successfully.'
+      );
+
+      console.log(
+        '[APP] Gemini analysis completed successfully.'
       );
 
     } catch (error) {
@@ -494,6 +431,7 @@ export default function App() {
                       '10px'
                   }}
                 >
+
                   <div
                     style={{
                       width:
@@ -506,6 +444,7 @@ export default function App() {
                         'width 0.2s ease'
                     }}
                   />
+
                 </div>
 
                 <div
@@ -531,9 +470,11 @@ export default function App() {
                   '15px'
               }}
             >
+
               <p className="status-text">
                 {status}
               </p>
+
             </section>
           )}
 
@@ -584,4 +525,4 @@ export default function App() {
 
     </div>
   );
-}
+                }
