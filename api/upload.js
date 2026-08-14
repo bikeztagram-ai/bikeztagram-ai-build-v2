@@ -13,12 +13,6 @@ export default async function handler(req, res) {
   console.log('Method:', req.method);
   console.log('========================================');
 
-  /*
-   * ---------------------------------------------------------
-   * Only POST is valid for Blob client token requests.
-   * ---------------------------------------------------------
-   */
-
   if (req.method !== 'POST') {
     console.log(
       'BIKEZTAGRAM: rejected non-POST request'
@@ -34,46 +28,43 @@ export default async function handler(req, res) {
   try {
     /*
      * -------------------------------------------------------
-     * STEP 1
-     * Confirm the server has the Blob read/write token.
+     * USE THE NEW OIDC-CONNECTED PUBLIC BLOB STORE
+     *
+     * bikeztagram-media-live provides MEDIA_STORE_ID.
+     *
+     * We deliberately do NOT pass the old
+     * BLOB_READ_WRITE_TOKEN to handleUpload().
      * -------------------------------------------------------
      */
 
-    const token =
-      process.env.BLOB_READ_WRITE_TOKEN;
+    const mediaStoreId =
+      process.env.MEDIA_STORE_ID;
 
-    if (!token) {
-      console.error(
-        'BIKEZTAGRAM: BLOB_READ_WRITE_TOKEN is missing'
+    if (mediaStoreId) {
+      process.env.BLOB_STORE_ID =
+        mediaStoreId;
+
+      console.log(
+        'BIKEZTAGRAM: Using MEDIA_STORE_ID for Blob store:',
+        mediaStoreId
       );
-
-      return res.status(500).json({
-        success: false,
-        error:
-          'BLOB_READ_WRITE_TOKEN is missing from the Vercel environment.',
-      });
+    } else {
+      console.warn(
+        'BIKEZTAGRAM: MEDIA_STORE_ID is missing.'
+      );
     }
 
     console.log(
-      'BIKEZTAGRAM: Blob environment token found'
+      'BIKEZTAGRAM: Explicit legacy Blob token disabled for this route'
     );
 
     /*
      * -------------------------------------------------------
-     * STEP 2
-     * Get the JSON request body.
-     *
-     * The @vercel/blob/client upload() function sends a
-     * JSON token-generation request to this endpoint.
+     * GET REQUEST BODY
      * -------------------------------------------------------
      */
 
     let body = req.body;
-
-    /*
-     * Some Vercel/API configurations may provide req.body
-     * as a string rather than an already parsed object.
-     */
 
     if (typeof body === 'string') {
       try {
@@ -125,15 +116,12 @@ export default async function handler(req, res) {
 
     /*
      * -------------------------------------------------------
-     * STEP 3
-     * Ask Vercel Blob to generate the secure client token.
+     * GENERATE SECURE CLIENT TOKEN
      * -------------------------------------------------------
      */
 
     const jsonResponse =
       await handleUpload({
-        token,
-
         body,
 
         request: req,
@@ -170,20 +158,6 @@ export default async function handler(req, res) {
             '========================================'
           );
 
-          /*
-           * IMPORTANT:
-           *
-           * We explicitly return the multipart setting
-           * received from the browser.
-           *
-           * This keeps the server-generated client token
-           * aligned with:
-           *
-           * multipart: true
-           *
-           * in App.jsx.
-           */
-
           return {
             allowedContentTypes: [
               'video/mp4',
@@ -216,7 +190,7 @@ export default async function handler(req, res) {
 
         /*
          * ---------------------------------------------------
-         * This runs after Vercel Blob finishes the upload.
+         * UPLOAD COMPLETED
          * ---------------------------------------------------
          */
 
@@ -255,8 +229,7 @@ export default async function handler(req, res) {
 
     /*
      * -------------------------------------------------------
-     * STEP 4
-     * Confirm handleUpload produced a client token.
+     * CHECK CLIENT TOKEN
      * -------------------------------------------------------
      */
 
