@@ -14,6 +14,9 @@ export default function App() {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const [errorDetails, setErrorDetails] = useState(null);
+  const [currentStage, setCurrentStage] = useState('');
+
   function handleFileChange(event) {
     const selectedFile =
       event.target.files?.[0] || null;
@@ -21,6 +24,8 @@ export default function App() {
     setFile(selectedFile);
     setAnalysis(null);
     setProgress(0);
+    setErrorDetails(null);
+    setCurrentStage('');
 
     if (selectedFile) {
       const sizeMB =
@@ -32,6 +37,205 @@ export default function App() {
     } else {
       setStatus('');
     }
+  }
+
+  function makeErrorDetails(error, stage) {
+    const details = {
+      time: new Date().toISOString(),
+
+      stage,
+
+      message:
+        error?.message ||
+        'Unknown error',
+
+      name:
+        error?.name ||
+        'UnknownError',
+
+      stack:
+        error?.stack ||
+        'No stack trace available',
+
+      errorType:
+        typeof error,
+
+      errorConstructor:
+        error?.constructor?.name ||
+        'Unknown',
+
+      cause:
+        error?.cause
+          ? String(error.cause)
+          : null,
+
+      errorProperties: {}
+    };
+
+    try {
+      if (error) {
+        Object.getOwnPropertyNames(error)
+          .forEach((property) => {
+            try {
+              const value =
+                error[property];
+
+              if (
+                typeof value === 'string' ||
+                typeof value === 'number' ||
+                typeof value === 'boolean' ||
+                value === null
+              ) {
+                details.errorProperties[property] =
+                  value;
+              } else {
+                try {
+                  details.errorProperties[property] =
+                    JSON.parse(
+                      JSON.stringify(value)
+                    );
+                } catch {
+                  details.errorProperties[property] =
+                    String(value);
+                }
+              }
+            } catch {
+              details.errorProperties[property] =
+                '[Unable to read property]';
+            }
+          });
+      }
+    } catch (propertyError) {
+      details.errorPropertiesError =
+        String(propertyError);
+    }
+
+    if (file) {
+      details.file = {
+        name: file.name,
+        type: file.type,
+        sizeBytes: file.size,
+        sizeMB:
+          (
+            file.size /
+            1024 /
+            1024
+          ).toFixed(2)
+      };
+    }
+
+    return details;
+  }
+
+  function getErrorText() {
+    if (!errorDetails) {
+      return '';
+    }
+
+    return JSON.stringify(
+      errorDetails,
+      null,
+      2
+    );
+  }
+
+  async function copyErrorDetails() {
+    const text =
+      getErrorText();
+
+    if (!text) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        text
+      );
+
+      setStatus(
+        '✅ Full error details copied to clipboard.'
+      );
+    } catch (copyError) {
+      setStatus(
+        'Could not copy automatically. Long-press the error text and copy it manually.'
+      );
+
+      console.error(
+        '[APP] Clipboard copy failed:',
+        copyError
+      );
+    }
+  }
+
+  async function copyEverything() {
+    const everything = {
+      bikeztagram: 'BIKEZTAGRAM AI',
+      time: new Date().toISOString(),
+
+      currentStage,
+
+      status,
+
+      file: file
+        ? {
+            name: file.name,
+            type: file.type,
+            sizeBytes: file.size,
+            sizeMB:
+              (
+                file.size /
+                1024 /
+                1024
+              ).toFixed(2)
+          }
+        : null,
+
+      error:
+        errorDetails,
+
+      browser: {
+        userAgent:
+          navigator.userAgent,
+
+        url:
+          window.location.href,
+
+        online:
+          navigator.onLine
+      }
+    };
+
+    const text =
+      JSON.stringify(
+        everything,
+        null,
+        2
+      );
+
+    try {
+      await navigator.clipboard.writeText(
+        text
+      );
+
+      setStatus(
+        '✅ Complete diagnostic information copied to clipboard.'
+      );
+    } catch (copyError) {
+      setStatus(
+        'Could not copy automatically. Long-press the diagnostic text and copy it manually.'
+      );
+
+      console.error(
+        '[APP] Clipboard copy failed:',
+        copyError
+      );
+    }
+  }
+
+  function clearError() {
+    setErrorDetails(null);
+    setCurrentStage('');
+    setStatus('');
   }
 
   async function analyseActualVideo() {
@@ -55,22 +259,20 @@ export default function App() {
     setLoading(true);
     setAnalysis(null);
     setProgress(0);
+    setErrorDetails(null);
+    setCurrentStage('');
 
     try {
       /*
        * =====================================================
        * STEP 1
-       *
-       * Upload the ACTUAL video directly to Vercel Blob.
-       *
-       * This uses Vercel's official client-upload system.
-       *
-       * /api/upload generates the short-lived client token.
-       * The browser then uploads the file directly to Blob.
-       *
-       * The returned object contains the ACTUAL Blob pathname.
+       * Upload the actual video directly to Vercel Blob.
        * =====================================================
        */
+
+      setCurrentStage(
+        'STEP 1 — Preparing secure Blob upload'
+      );
 
       setStatus(
         'Preparing secure video upload...'
@@ -88,6 +290,20 @@ export default function App() {
         pathname
       );
 
+      console.log(
+        '[APP] Access mode:',
+        'private'
+      );
+
+      console.log(
+        '[APP] File:',
+        {
+          name: file.name,
+          type: file.type,
+          size: file.size
+        }
+      );
+
       const blob = await upload(
         pathname,
         file,
@@ -101,11 +317,14 @@ export default function App() {
             JSON.stringify({
               source:
                 'bikeztagram-ai',
+
               filename:
                 file.name,
+
               mimeType:
                 file.type ||
                 'video/mp4',
+
               size:
                 file.size
             }),
@@ -136,14 +355,13 @@ export default function App() {
       /*
        * =====================================================
        * STEP 2
-       *
-       * Blob upload has genuinely completed.
-       *
-       * IMPORTANT:
-       * Use the pathname returned by Blob.
-       * Do NOT assume it is the same as our requested pathname.
+       * Blob upload completed.
        * =====================================================
        */
+
+      setCurrentStage(
+        'STEP 2 — Blob upload completed'
+      );
 
       if (!blob) {
         throw new Error(
@@ -180,20 +398,13 @@ export default function App() {
       /*
        * =====================================================
        * STEP 3
-       *
-       * Tell our server which ACTUAL Blob object to retrieve.
-       *
-       * The server will:
-       *
-       * Blob
-       * ↓
-       * video buffer
-       * ↓
-       * Gemini Files API
-       * ↓
-       * Gemini video analysis
+       * Send actual Blob pathname to analysis API.
        * =====================================================
        */
+
+      setCurrentStage(
+        'STEP 3 — Sending Blob pathname to /api/analyse'
+      );
 
       console.log(
         '[APP] Sending actual Blob pathname to /api/analyse:',
@@ -241,7 +452,7 @@ export default function App() {
         throw new Error(
           `Analysis server returned invalid JSON: ${analysisText.slice(
             0,
-            500
+            1000
           )}`
         );
       }
@@ -266,10 +477,13 @@ export default function App() {
       /*
        * =====================================================
        * STEP 4
-       *
        * Analysis successfully returned.
        * =====================================================
        */
+
+      setCurrentStage(
+        'STEP 4 — Gemini analysis completed'
+      );
 
       setAnalysis(
         analysisData.analysis
@@ -284,16 +498,54 @@ export default function App() {
       );
 
     } catch (error) {
+      /*
+       * =====================================================
+       * FULL DIAGNOSTIC ERROR CAPTURE
+       *
+       * IMPORTANT:
+       * Do NOT clear this automatically.
+       * It remains on screen until the user clears it.
+       * =====================================================
+       */
+
+      const details =
+        makeErrorDetails(
+          error,
+          currentStage ||
+            'Unknown stage'
+        );
+
       console.error(
-        '[APP] Video processing failed:',
+        '========================================'
+      );
+
+      console.error(
+        '[APP] BIKEZTAGRAM FULL ERROR'
+      );
+
+      console.error(
+        JSON.stringify(
+          details,
+          null,
+          2
+        )
+      );
+
+      console.error(
+        'Original error:',
         error
       );
 
+      console.error(
+        '========================================'
+      );
+
+      setErrorDetails(
+        details
+      );
+
       setStatus(
-        `Something went wrong: ${
-          error?.message ||
-          'Unknown error'
-        }`
+        `❌ ERROR — ${details.message}`
       );
 
     } finally {
@@ -306,6 +558,8 @@ export default function App() {
     setAnalysis(null);
     setStatus('');
     setProgress(0);
+    setErrorDetails(null);
+    setCurrentStage('');
   }
 
   return (
@@ -413,6 +667,19 @@ export default function App() {
               {status}
             </p>
 
+            {currentStage && (
+              <p
+                style={{
+                  fontSize:
+                    '13px',
+                  opacity:
+                    0.8
+                }}
+              >
+                {currentStage}
+              </p>
+            )}
+
             {progress > 0 && (
               <>
                 <div
@@ -462,7 +729,8 @@ export default function App() {
         )}
 
         {!loading &&
-          status && (
+          status &&
+          !errorDetails && (
             <section
               className="status-panel"
               style={{
@@ -477,6 +745,112 @@ export default function App() {
 
             </section>
           )}
+
+        {errorDetails && (
+          <section
+            className="status-panel"
+            style={{
+              marginTop:
+                '20px',
+              border:
+                '2px solid #ff4d4d',
+              padding:
+                '15px',
+              borderRadius:
+                '8px'
+            }}
+          >
+
+            <h2
+              style={{
+                marginTop: 0
+              }}
+            >
+              ❌ FULL ERROR DETAILS
+            </h2>
+
+            <p>
+              <strong>
+                The error is being kept on screen.
+              </strong>
+            </p>
+
+            <p>
+              You can either screenshot this or use the copy buttons below.
+            </p>
+
+            <div
+              style={{
+                display:
+                  'flex',
+                gap:
+                  '10px',
+                flexWrap:
+                  'wrap',
+                marginBottom:
+                  '15px'
+              }}
+            >
+
+              <button
+                className="generate-btn"
+                onClick={
+                  copyErrorDetails
+                }
+              >
+                📋 Copy Error Details
+              </button>
+
+              <button
+                className="generate-btn"
+                onClick={
+                  copyEverything
+                }
+              >
+                📋 Copy Everything
+              </button>
+
+              <button
+                className="clear-btn"
+                onClick={
+                  clearError
+                }
+              >
+                Clear Error
+              </button>
+
+            </div>
+
+            <pre
+              style={{
+                whiteSpace:
+                  'pre-wrap',
+                wordBreak:
+                  'break-word',
+                overflowX:
+                  'auto',
+                textAlign:
+                  'left',
+                margin: 0,
+                padding:
+                  '12px',
+                background:
+                  '#111',
+                borderRadius:
+                  '6px',
+                fontSize:
+                  '12px',
+                lineHeight:
+                  '1.5',
+                color:
+                  '#fff'
+              }}
+            >
+              {getErrorText()}
+            </pre>
+
+          </section>
+        )}
 
         {analysis && (
           <section
@@ -525,4 +899,4 @@ export default function App() {
 
     </div>
   );
-                }
+    }
