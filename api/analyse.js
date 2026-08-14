@@ -1,4 +1,3 @@
-import { get } from '@vercel/blob';
 import { GoogleGenAI } from '@google/genai';
 
 export default async function handler(req, res) {
@@ -12,29 +11,17 @@ export default async function handler(req, res) {
   try {
     /*
      * =====================================================
-     * STEP 0 — CHECK ENVIRONMENT
+     * STEP 0 — CHECK GEMINI
      * =====================================================
      */
 
     const apiKey =
       process.env.GEMINI_API_KEY;
 
-    const blobToken =
-      process.env.BLOB_READ_WRITE_TOKEN;
-
     if (!apiKey) {
       return res.status(500).json({
         success: false,
-        error:
-          'GEMINI_API_KEY is missing.'
-      });
-    }
-
-    if (!blobToken) {
-      return res.status(500).json({
-        success: false,
-        error:
-          'BLOB_READ_WRITE_TOKEN is missing.'
+        error: 'GEMINI_API_KEY is missing.'
       });
     }
 
@@ -42,214 +29,91 @@ export default async function handler(req, res) {
      * =====================================================
      * STEP 1 — READ REQUEST
      * =====================================================
+     *
+     * Current App.jsx sends:
+     *
+     * videoUrl: blob.url
+     *
+     * We also accept blobUrl for compatibility.
      */
 
     const {
-      pathname = '',
+      videoUrl = '',
       blobUrl = '',
+      pathname = '',
       filename = 'video.mp4',
       mimeType = 'video/mp4',
       prompt = ''
     } = req.body || {};
 
-    if (!pathname && !blobUrl) {
+    const actualVideoUrl =
+      videoUrl ||
+      blobUrl;
+
+    if (!actualVideoUrl) {
       return res.status(400).json({
         success: false,
         error:
-          'No Blob pathname or Blob URL was supplied.'
+          'No public Blob video URL was supplied.'
       });
     }
 
     console.log(
-      '[ANALYSE] Blob store configured.'
+      '[ANALYSE] Public Blob video URL received.'
     );
 
     console.log(
-      '[ANALYSE] Requested pathname:',
+      '[ANALYSE] Blob pathname:',
       pathname
     );
 
     console.log(
-      '[ANALYSE] Blob URL supplied:',
-      blobUrl
-        ? 'YES'
-        : 'NO'
+      '[ANALYSE] Filename:',
+      filename
     );
+
+    /*
+     * =====================================================
+     * STEP 2 — DOWNLOAD PUBLIC BLOB VIDEO
+     * =====================================================
+     *
+     * The new bikeztagram-media-live store is PUBLIC.
+     *
+     * Therefore the Blob URL can be fetched directly.
+     *
+     * This deliberately avoids using @vercel/blob get()
+     * and avoids mixing credentials from the old stores.
+     */
 
     console.log(
-      '[ANALYSE] Blob token present:',
-      Boolean(blobToken)
+      '[ANALYSE] Downloading video from public Blob URL...'
     );
 
-    /*
-     * =====================================================
-     * STEP 2 — RETRIEVE THE ACTUAL VIDEO
-     * =====================================================
-     *
-     * IMPORTANT:
-     *
-     * We explicitly provide BLOB_READ_WRITE_TOKEN.
-     *
-     * This prevents the function from accidentally
-     * relying on a different/default Blob configuration.
-     *
-     * The new Blob store is public, so we first try
-     * PUBLIC access.
-     *
-     * If the upload is private, we then try PRIVATE.
-     * =====================================================
-     */
+    const blobResponse =
+      await fetch(actualVideoUrl);
 
-    let blobResult = null;
-
-    let blobAccess =
-      'public';
-
-    const blobIdentifier =
-      blobUrl ||
-      pathname;
-
-    console.log(
-      '[ANALYSE] Attempting Blob retrieval:',
-      blobIdentifier
-    );
-
-    /*
-     * First attempt: PUBLIC
-     */
-
-    try {
-      console.log(
-        '[ANALYSE] Trying Blob access: public'
-      );
-
-      blobResult =
-        await get(
-          blobIdentifier,
-          {
-            access: 'public',
-            token: blobToken
-          }
-        );
-
-      if (
-        blobResult?.statusCode ===
-        200
-      ) {
-        blobAccess =
-          'public';
-
-        console.log(
-          '[ANALYSE] Public Blob retrieved successfully.'
-        );
-      }
-    } catch (publicError) {
-      console.warn(
-        '[ANALYSE] Public Blob retrieval failed:',
-        publicError?.message ||
-          publicError
-      );
-    }
-
-    /*
-     * Second attempt: PRIVATE
-     */
-
-    if (
-      !blobResult ||
-      blobResult.statusCode !==
-        200
-    ) {
-      try {
-        console.log(
-          '[ANALYSE] Trying Blob access: private'
-        );
-
-        blobResult =
-          await get(
-            blobIdentifier,
-            {
-              access: 'private',
-              token: blobToken
-            }
-          );
-
-        if (
-          blobResult?.statusCode ===
-          200
-        ) {
-          blobAccess =
-            'private';
-
-          console.log(
-            '[ANALYSE] Private Blob retrieved successfully.'
-          );
-        }
-      } catch (privateError) {
-        console.warn(
-          '[ANALYSE] Private Blob retrieval failed:',
-          privateError?.message ||
-            privateError
-        );
-      }
-    }
-
-    /*
-     * Make sure the Blob actually exists.
-     */
-
-    if (
-      !blobResult ||
-      blobResult.statusCode !==
-        200
-    ) {
+    if (!blobResponse.ok) {
       throw new Error(
-        `The requested video was not found in the new Blob store. Checked public and private access. Identifier: ${blobIdentifier}`
+        `Could not download the uploaded Blob video. HTTP ${blobResponse.status}`
       );
     }
 
-    if (!blobResult.stream) {
-      throw new Error(
-        'Blob was found but returned no video stream.'
-      );
-    }
+    const contentType =
+      blobResponse.headers.get(
+        'content-type'
+      ) ||
+      mimeType ||
+      'video/mp4';
 
-    console.log(
-      '[ANALYSE] Blob access mode:',
-      blobAccess
-    );
-
-    console.log(
-      '[ANALYSE] Blob retrieved successfully.'
-    );
-
-    /*
-     * =====================================================
-     * STEP 3 — DOWNLOAD BLOB INTO MEMORY
-     * =====================================================
-     */
-
-    const chunks = [];
-
-    for await (
-      const chunk of
-      blobResult.stream
-    ) {
-      chunks.push(
-        Buffer.isBuffer(chunk)
-          ? chunk
-          : Buffer.from(chunk)
-      );
-    }
+    const videoArrayBuffer =
+      await blobResponse.arrayBuffer();
 
     const videoBuffer =
-      Buffer.concat(chunks);
+      Buffer.from(videoArrayBuffer);
 
-    if (
-      !videoBuffer.length
-    ) {
+    if (!videoBuffer.length) {
       throw new Error(
-        'Downloaded video was empty.'
+        'Downloaded Blob video was empty.'
       );
     }
 
@@ -261,7 +125,7 @@ export default async function handler(req, res) {
 
     /*
      * =====================================================
-     * STEP 4 — INITIALISE GEMINI
+     * STEP 3 — INITIALISE GEMINI
      * =====================================================
      */
 
@@ -272,7 +136,7 @@ export default async function handler(req, res) {
 
     /*
      * =====================================================
-     * STEP 5 — UPLOAD VIDEO TO GEMINI
+     * STEP 4 — UPLOAD VIDEO TO GEMINI
      * =====================================================
      */
 
@@ -285,18 +149,16 @@ export default async function handler(req, res) {
         file: new Blob(
           [videoBuffer],
           {
-            type: mimeType
+            type: contentType
           }
         ),
         config: {
-          mimeType,
+          mimeType: contentType,
           displayName: filename
         }
       });
 
-    if (
-      !videoFile?.name
-    ) {
+    if (!videoFile?.name) {
       throw new Error(
         'Gemini did not return a valid uploaded file.'
       );
@@ -309,7 +171,7 @@ export default async function handler(req, res) {
 
     /*
      * =====================================================
-     * STEP 6 — WAIT FOR GEMINI VIDEO PROCESSING
+     * STEP 5 — WAIT FOR GEMINI VIDEO PROCESSING
      * =====================================================
      */
 
@@ -377,9 +239,7 @@ export default async function handler(req, res) {
       );
     }
 
-    if (
-      !currentFile?.uri
-    ) {
+    if (!currentFile?.uri) {
       throw new Error(
         'Gemini returned no video URI.'
       );
@@ -391,7 +251,7 @@ export default async function handler(req, res) {
 
     /*
      * =====================================================
-     * STEP 7 — BUILD AI ANALYSIS PROMPT
+     * STEP 6 — BUILD AI ANALYSIS PROMPT
      * =====================================================
      */
 
@@ -496,7 +356,7 @@ Use exactly this structure:
 
     /*
      * =====================================================
-     * STEP 8 — SEND ACTUAL VIDEO TO GEMINI
+     * STEP 7 — SEND ACTUAL VIDEO TO GEMINI
      * =====================================================
      */
 
@@ -516,7 +376,7 @@ Use exactly this structure:
               currentFile.uri,
             mime_type:
               currentFile.mimeType ||
-              mimeType
+              contentType
           },
           {
             type: 'text',
@@ -528,7 +388,7 @@ Use exactly this structure:
 
     /*
      * =====================================================
-     * STEP 9 — EXTRACT GEMINI RESPONSE
+     * STEP 8 — EXTRACT GEMINI RESPONSE
      * =====================================================
      */
 
@@ -587,7 +447,7 @@ Use exactly this structure:
 
     /*
      * =====================================================
-     * STEP 10 — PARSE JSON
+     * STEP 9 — PARSE JSON
      * =====================================================
      */
 
@@ -625,12 +485,6 @@ Use exactly this structure:
     });
 
   } catch (error) {
-    /*
-     * =====================================================
-     * ERROR HANDLING
-     * =====================================================
-     */
-
     console.error(
       '========================================'
     );
@@ -662,4 +516,4 @@ Use exactly this structure:
         'Unknown video analysis error.'
     });
   }
-    }
+      }
