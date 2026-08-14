@@ -266,7 +266,7 @@ export default function App() {
       /*
        * =====================================================
        * STEP 1
-       * Upload the actual video directly to Vercel Blob.
+       * Upload the actual video directly to PUBLIC Vercel Blob.
        * =====================================================
        */
 
@@ -292,7 +292,12 @@ export default function App() {
 
       console.log(
         '[APP] Access mode:',
-        'private'
+        'public'
+      );
+
+      console.log(
+        '[APP] Multipart mode:',
+        true
       );
 
       console.log(
@@ -308,10 +313,22 @@ export default function App() {
         pathname,
         file,
         {
-          access: 'private',
+          /*
+           * IMPORTANT:
+           * The new bikeztagram-media-live Blob store
+           * is PUBLIC, so the client upload must also
+           * request public access.
+           */
+          access: 'public',
 
           handleUploadUrl:
             '/api/upload',
+
+          /*
+           * Use multipart upload for reliable
+           * large-video transfers.
+           */
+          multipart: true,
 
           clientPayload:
             JSON.stringify({
@@ -501,10 +518,6 @@ export default function App() {
       /*
        * =====================================================
        * FULL DIAGNOSTIC ERROR CAPTURE
-       *
-       * IMPORTANT:
-       * Do NOT clear this automatically.
-       * It remains on screen until the user clears it.
        * =====================================================
        */
 
@@ -899,4 +912,4 @@ export default function App() {
 
     </div>
   );
-    }
+}
