@@ -1,3 +1,18 @@
+/*
+ * BIKEZTAGRAM AI
+ * Cinematic browser renderer
+ *
+ * CURRENT BASELINE:
+ * - Keeps rendering entirely in the browser.
+ * - Uses the Gemini-generated edit plan.
+ * - Supports real motion, speed, transitions, colour grades,
+ *   stabilization-style crop, and timed text.
+ *
+ * IMPORTANT:
+ * This renderer does not upload files or call Gemini.
+ * It only renders the already-created AI edit plan.
+ */
+
 export async function renderProject(
   mediaItems,
   plan,
@@ -52,9 +67,10 @@ export async function renderProject(
       };
 
       recorder.onstop = () => {
-        const outputType = selectedType.includes('mp4')
-          ? 'video/mp4'
-          : 'video/webm';
+        const outputType =
+          selectedType.includes('mp4')
+            ? 'video/mp4'
+            : 'video/webm';
 
         resolve(
           new Blob(chunks, {
@@ -75,6 +91,22 @@ export async function renderProject(
       }
 
       let currentCutIndex = 0;
+
+      /*
+       * The final frame of the previous cut is copied here.
+       * This allows the renderer to perform a genuine short
+       * crossfade between cuts instead of merely fading to black.
+       */
+      const previousFrameCanvas =
+        document.createElement('canvas');
+
+      previousFrameCanvas.width = canvas.width;
+      previousFrameCanvas.height = canvas.height;
+
+      const previousFrameCtx =
+        previousFrameCanvas.getContext('2d');
+
+      let hasPreviousFrame = false;
 
       const findMedia = (cut) => {
         if (!cut) return null;
@@ -105,21 +137,70 @@ export async function renderProject(
         return null;
       };
 
+      const clamp = (value, min, max) =>
+        Math.max(min, Math.min(max, value));
+
       const easeInOut = (value) => {
-        return value < 0.5
-          ? 2 * value * value
+        const t = clamp(value, 0, 1);
+
+        return t < 0.5
+          ? 2 * t * t
           : 1 -
-              Math.pow(-2 * value + 2, 2) /
-                2;
+              Math.pow(-2 * t + 2, 2) / 2;
+      };
+
+      const easeOut = (value) => {
+        const t = clamp(value, 0, 1);
+        return 1 - Math.pow(1 - t, 3);
+      };
+
+      const getColourFilter = (grade) => {
+        const value =
+          String(
+            grade || 'dark-cinematic'
+          ).toLowerCase();
+
+        if (
+          value.includes('natural') ||
+          value.includes('neutral')
+        ) {
+          return 'brightness(0.98) contrast(1.08) saturate(1.08)';
+        }
+
+        if (
+          value.includes('warm') ||
+          value.includes('golden')
+        ) {
+          return 'brightness(0.94) contrast(1.15) saturate(1.12) sepia(0.08)';
+        }
+
+        if (
+          value.includes('high') ||
+          value.includes('contrast')
+        ) {
+          return 'brightness(0.90) contrast(1.28) saturate(1.16)';
+        }
+
+        if (
+          value.includes('moody') ||
+          value.includes('blue')
+        ) {
+          return 'brightness(0.88) contrast(1.20) saturate(1.14) hue-rotate(-6deg)';
+        }
+
+        return 'brightness(0.90) contrast(1.18) saturate(1.12)';
       };
 
       const drawCover = (
         element,
-        scale = 1,
-        offsetX = 0,
-        offsetY = 0,
-        opacity = 1,
-        brightness = 1
+        {
+          scale = 1,
+          offsetX = 0,
+          offsetY = 0,
+          opacity = 1,
+          brightness = 1,
+          colorGrade = 'dark-cinematic'
+        } = {}
       ) => {
         const sourceWidth =
           element.videoWidth ||
@@ -158,8 +239,18 @@ export async function renderProject(
 
         ctx.globalAlpha = opacity;
 
+        const baseFilter =
+          getColourFilter(colorGrade);
+
+        const finalBrightness =
+          clamp(
+            brightness,
+            0.65,
+            1.15
+          );
+
         ctx.filter =
-          `brightness(${brightness}) contrast(1.18) saturate(1.2)`;
+          `${baseFilter} brightness(${finalBrightness})`;
 
         ctx.drawImage(
           element,
@@ -172,30 +263,140 @@ export async function renderProject(
         ctx.restore();
       };
 
-      const drawTransition = (
-        type,
-        progress
-      ) => {
-        const transition = String(
-          type || 'hard-cut'
-        ).toLowerCase();
+      const drawGradeOverlay = (grade, progress) => {
+        const value =
+          String(
+            grade || ''
+          ).toLowerCase();
 
+        /*
+         * Very subtle cinematic tint. It is intentionally
+         * restrained so the motorcycle's real colour remains
+         * recognisable.
+         */
         if (
-          transition === 'fade-in' ||
-          transition === 'fade'
+          value.includes('moody') ||
+          value.includes('blue') ||
+          value.includes('dark')
         ) {
-          ctx.fillStyle = '#000';
+          const gradient =
+            ctx.createLinearGradient(
+              0,
+              0,
+              0,
+              canvas.height
+            );
 
-          ctx.globalAlpha = 1 - progress;
+          gradient.addColorStop(
+            0,
+            'rgba(8,18,32,0.12)'
+          );
 
+          gradient.addColorStop(
+            0.55,
+            'rgba(0,0,0,0)'
+          );
+
+          gradient.addColorStop(
+            1,
+            'rgba(0,0,0,0.22)'
+          );
+
+          ctx.save();
+          ctx.globalAlpha = 0.8;
+          ctx.fillStyle = gradient;
           ctx.fillRect(
             0,
             0,
             canvas.width,
             canvas.height
           );
+          ctx.restore();
+        }
 
-          ctx.globalAlpha = 1;
+        /*
+         * Subtle cinematic vignette.
+         */
+        const vignette =
+          ctx.createRadialGradient(
+            canvas.width / 2,
+            canvas.height / 2,
+            canvas.height * 0.18,
+            canvas.width / 2,
+            canvas.height / 2,
+            canvas.height * 0.82
+          );
+
+        vignette.addColorStop(
+          0,
+          'rgba(0,0,0,0)'
+        );
+
+        vignette.addColorStop(
+          0.68,
+          'rgba(0,0,0,0.06)'
+        );
+
+        vignette.addColorStop(
+          1,
+          'rgba(0,0,0,0.52)'
+        );
+
+        ctx.save();
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = vignette;
+        ctx.fillRect(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+        ctx.restore();
+      };
+
+      const drawTransition = (
+        type,
+        progress,
+        isFirstCut
+      ) => {
+        const transition =
+          String(
+            type || 'hard-cut'
+          ).toLowerCase();
+
+        const p = clamp(progress, 0, 1);
+
+        if (
+          transition === 'crossfade' &&
+          hasPreviousFrame
+        ) {
+          ctx.save();
+          ctx.globalAlpha = 1 - p;
+          ctx.drawImage(
+            previousFrameCanvas,
+            0,
+            0
+          );
+          ctx.restore();
+
+          return;
+        }
+
+        if (
+          transition === 'fade-in' ||
+          transition === 'fade' ||
+          (isFirstCut && transition === 'cinematic')
+        ) {
+          ctx.save();
+          ctx.fillStyle = '#000';
+          ctx.globalAlpha = 1 - p;
+          ctx.fillRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+          ctx.restore();
 
           return;
         }
@@ -203,18 +404,16 @@ export async function renderProject(
         if (
           transition === 'fade-out'
         ) {
+          ctx.save();
           ctx.fillStyle = '#000';
-
-          ctx.globalAlpha = progress;
-
+          ctx.globalAlpha = p;
           ctx.fillRect(
             0,
             0,
             canvas.width,
             canvas.height
           );
-
-          ctx.globalAlpha = 1;
+          ctx.restore();
 
           return;
         }
@@ -223,22 +422,20 @@ export async function renderProject(
           transition === 'dip-black'
         ) {
           const amount =
-            progress < 0.5
-              ? progress * 2
-              : (1 - progress) * 2;
+            p < 0.5
+              ? p * 2
+              : (1 - p) * 2;
 
+          ctx.save();
           ctx.fillStyle = '#000';
-
           ctx.globalAlpha = 1 - amount;
-
           ctx.fillRect(
             0,
             0,
             canvas.width,
             canvas.height
           );
-
-          ctx.globalAlpha = 1;
+          ctx.restore();
 
           return;
         }
@@ -251,26 +448,155 @@ export async function renderProject(
               0,
               1 -
                 Math.abs(
-                  progress - 0.5
-                ) *
-                  8
+                  p - 0.5
+                ) * 8
             );
 
+          ctx.save();
           ctx.fillStyle = '#fff';
-
-          ctx.globalAlpha = flash * 0.85;
-
+          ctx.globalAlpha = flash * 0.82;
           ctx.fillRect(
             0,
             0,
             canvas.width,
             canvas.height
           );
-
-          ctx.globalAlpha = 1;
+          ctx.restore();
 
           return;
         }
+
+        /*
+         * Whip/slide transitions are implemented as a short
+         * directional overlay. This keeps them safe and fast
+         * in a browser-only renderer.
+         */
+        if (
+          transition === 'whip-left' ||
+          transition === 'slide-left'
+        ) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(0,0,0,0.18)';
+          ctx.globalAlpha =
+            Math.sin(p * Math.PI) * 0.7;
+          ctx.fillRect(
+            (1 - p) * canvas.width * 0.55,
+            0,
+            canvas.width * 0.45,
+            canvas.height
+          );
+          ctx.restore();
+
+          return;
+        }
+
+        if (
+          transition === 'whip-right' ||
+          transition === 'slide-right'
+        ) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(0,0,0,0.18)';
+          ctx.globalAlpha =
+            Math.sin(p * Math.PI) * 0.7;
+          ctx.fillRect(
+            -canvas.width * 0.45 +
+              p * canvas.width * 0.55,
+            0,
+            canvas.width * 0.45,
+            canvas.height
+          );
+          ctx.restore();
+        }
+      };
+
+      const drawTextOverlay = (
+        text,
+        progress,
+        textIn,
+        textOut,
+        style
+      ) => {
+        const value =
+          String(text || '').trim();
+
+        if (!value) return;
+
+        const durationProgress =
+          clamp(progress, 0, 1);
+
+        const inPoint =
+          clamp(
+            Number(textIn) || 0.12,
+            0,
+            0.8
+          );
+
+        const outPoint =
+          clamp(
+            Number(textOut) || 0.88,
+            inPoint + 0.05,
+            1
+          );
+
+        let alpha = 1;
+
+        if (durationProgress < inPoint) {
+          alpha =
+            durationProgress / inPoint;
+        } else if (
+          durationProgress > outPoint
+        ) {
+          alpha =
+            1 -
+            (
+              durationProgress -
+              outPoint
+            ) /
+              Math.max(
+                0.05,
+                1 - outPoint
+              );
+        }
+
+        alpha =
+          clamp(alpha, 0, 1);
+
+        const rise =
+          (1 - easeOut(alpha)) * 24;
+
+        const textStyle =
+          String(
+            style || 'cinematic'
+          ).toLowerCase();
+
+        ctx.save();
+
+        ctx.globalAlpha = alpha;
+
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        ctx.font =
+          textStyle.includes('small')
+            ? '600 38px Arial, sans-serif'
+            : '700 54px Arial, sans-serif';
+
+        ctx.shadowColor =
+          'rgba(0,0,0,0.92)';
+
+        ctx.shadowBlur = 18;
+
+        ctx.shadowOffsetY = 4;
+
+        ctx.fillStyle = '#fff';
+
+        ctx.fillText(
+          value.toUpperCase(),
+          canvas.width / 2,
+          canvas.height - 210 + rise
+        );
+
+        ctx.restore();
       };
 
       const renderCut = async () => {
@@ -289,16 +615,14 @@ export async function renderProject(
         }
 
         const cut =
-          cuts[currentCutIndex];
+          cuts[currentCutIndex] || {};
 
         const media =
           findMedia(cut);
 
         if (!media || !media.file) {
           currentCutIndex++;
-
           renderCut();
-
           return;
         }
 
@@ -319,7 +643,7 @@ export async function renderProject(
           Math.max(
             0.5,
             Math.min(
-              6,
+              8,
               Number(cut.duration) || 2
             )
           );
@@ -345,11 +669,24 @@ export async function renderProject(
               'static'
           ).toLowerCase();
 
+        const colorGrade =
+          String(
+            cut.colorGrade ||
+              plan.colorGrade ||
+              'dark-cinematic'
+          );
+
+        const stabilization =
+          Boolean(
+            cut.stabilization ??
+              cut.stabilize ??
+              plan.stabilization
+          );
+
         try {
           /*
            * Load media.
            */
-
           if (isVideo) {
             element.src = fileUrl;
             element.muted = true;
@@ -364,40 +701,30 @@ export async function renderProject(
                   if (done) return;
 
                   done = true;
-
                   resolveLoad();
                 };
 
                 const timeout =
                   setTimeout(
                     finish,
-                    8000
+                    10000
                   );
 
                 element.onloadeddata =
                   () => {
-                    clearTimeout(
-                      timeout
-                    );
-
+                    clearTimeout(timeout);
                     finish();
                   };
 
                 element.oncanplay =
                   () => {
-                    clearTimeout(
-                      timeout
-                    );
-
+                    clearTimeout(timeout);
                     finish();
                   };
 
                 element.onerror =
                   () => {
-                    clearTimeout(
-                      timeout
-                    );
-
+                    clearTimeout(timeout);
                     finish();
                   };
 
@@ -405,36 +732,54 @@ export async function renderProject(
               }
             );
 
-            /*
-             * Start from the beginning
-             * unless AI later supplies
-             * an exact start time.
-             */
-
             const startTime =
-              Number(
-                cut.startTime
-              );
+              Number(cut.startTime);
 
             if (
-              Number.isFinite(
-                startTime
-              ) &&
-              startTime >= 0
+              Number.isFinite(startTime) &&
+              startTime >= 0 &&
+              Number.isFinite(element.duration)
             ) {
               element.currentTime =
                 Math.min(
                   startTime,
                   Math.max(
                     0,
-                    element.duration -
-                      0.05
+                    element.duration - 0.05
                   )
                 );
+
+              await new Promise(
+                (resolveSeek) => {
+                  const seekTimeout =
+                    setTimeout(
+                      resolveSeek,
+                      120
+                    );
+
+                  const finishSeek = () => {
+                    clearTimeout(
+                      seekTimeout
+                    );
+
+                    element.removeEventListener(
+                      'seeked',
+                      finishSeek
+                    );
+
+                    resolveSeek();
+                  };
+
+                  element.addEventListener(
+                    'seeked',
+                    finishSeek,
+                    { once: true }
+                  );
+                }
+              );
             }
 
-            element.playbackRate =
-              speed;
+            element.playbackRate = speed;
 
             await element
               .play()
@@ -450,31 +795,24 @@ export async function renderProject(
                   if (done) return;
 
                   done = true;
-
                   resolveLoad();
                 };
 
                 const timeout =
                   setTimeout(
                     finish,
-                    8000
+                    10000
                   );
 
                 element.onload =
                   () => {
-                    clearTimeout(
-                      timeout
-                    );
-
+                    clearTimeout(timeout);
                     finish();
                   };
 
                 element.onerror =
                   () => {
-                    clearTimeout(
-                      timeout
-                    );
-
+                    clearTimeout(timeout);
                     finish();
                   };
               }
@@ -483,6 +821,15 @@ export async function renderProject(
 
           const start =
             performance.now();
+
+          const transitionLength =
+            Math.min(
+              0.35,
+              Math.max(
+                0.12,
+                duration * 0.18
+              )
+            );
 
           const interval =
             setInterval(() => {
@@ -501,19 +848,14 @@ export async function renderProject(
                 easeInOut(progress);
 
               /*
-               * Clear.
+               * Clear and paint the cinematic black base.
                */
-
               ctx.clearRect(
                 0,
                 0,
                 canvas.width,
                 canvas.height
               );
-
-              /*
-               * Background.
-               */
 
               ctx.fillStyle = '#000';
 
@@ -525,227 +867,202 @@ export async function renderProject(
               );
 
               /*
-               * Cinematic motion.
+               * ------------------------------
+               * AI-DIRECTED CAMERA MOTION
+               * ------------------------------
                */
 
-              let scale = 1.03;
+              let scale =
+                stabilization
+                  ? 1.07
+                  : 1.035;
 
               let offsetX = 0;
               let offsetY = 0;
 
+              const intensity =
+                clamp(
+                  Number(
+                    cut.motionIntensity
+                  ) || 1,
+                  0.35,
+                  1.5
+                );
+
               if (
-                motion.includes(
-                  'slow-push'
-                ) ||
-                motion.includes(
-                  'push'
-                ) ||
-                transition.includes(
-                  'zoom'
-                )
+                motion.includes('slow-push') ||
+                motion.includes('push') ||
+                motion === 'zoom'
               ) {
-                scale =
-                  1.02 +
-                  eased * 0.12;
-              }
-
-              else if (
-                motion.includes(
-                  'slow-pull'
-                ) ||
-                motion.includes(
-                  'pull'
-                ) ||
-                transition.includes(
-                  'zoom-out'
-                )
+                scale +=
+                  eased *
+                  0.105 *
+                  intensity;
+              } else if (
+                motion.includes('slow-pull') ||
+                motion.includes('pull') ||
+                motion.includes('zoom-out')
               ) {
-                scale =
-                  1.14 -
-                  eased * 0.11;
-              }
-
-              else if (
-                motion.includes(
-                  'pan-right'
-                )
+                scale +=
+                  (1 - eased) *
+                  0.105 *
+                  intensity;
+              } else if (
+                motion.includes('pan-right')
               ) {
-                scale = 1.1;
+                scale = Math.max(
+                  scale,
+                  1.08
+                );
 
                 offsetX =
                   (eased - 0.5) *
                   canvas.width *
-                  0.16;
-              }
-
-              else if (
-                motion.includes(
-                  'pan-left'
-                )
+                  0.13 *
+                  intensity;
+              } else if (
+                motion.includes('pan-left')
               ) {
-                scale = 1.1;
+                scale = Math.max(
+                  scale,
+                  1.08
+                );
 
                 offsetX =
                   (0.5 - eased) *
                   canvas.width *
-                  0.16;
-              }
-
-              else if (
-                motion.includes(
-                  'tilt-up'
-                )
+                  0.13 *
+                  intensity;
+              } else if (
+                motion.includes('tilt-up')
               ) {
-                scale = 1.1;
+                scale = Math.max(
+                  scale,
+                  1.08
+                );
 
                 offsetY =
                   (0.5 - eased) *
                   canvas.height *
-                  0.1;
-              }
-
-              else if (
-                motion.includes(
-                  'tilt-down'
-                )
+                  0.08 *
+                  intensity;
+              } else if (
+                motion.includes('tilt-down')
               ) {
-                scale = 1.1;
+                scale = Math.max(
+                  scale,
+                  1.08
+                );
 
                 offsetY =
                   (eased - 0.5) *
                   canvas.height *
-                  0.1;
+                  0.08 *
+                  intensity;
+              } else if (
+                motion.includes('pan')
+              ) {
+                scale = Math.max(
+                  scale,
+                  1.06
+                );
+
+                offsetX =
+                  Math.sin(
+                    eased * Math.PI
+                  ) *
+                  canvas.width *
+                  0.035;
+              } else if (
+                motion.includes('cinematic')
+              ) {
+                scale +=
+                  eased *
+                  0.055 *
+                  intensity;
               }
 
               /*
-               * Draw footage.
+               * Keep the crop subtle. A motorcycle hero shot
+               * should still show the complete machine.
+               */
+              scale =
+                clamp(
+                  scale,
+                  1.01,
+                  1.22
+                );
+
+              /*
+               * ------------------------------
+               * DRAW SOURCE
+               * ------------------------------
                */
 
               if (
                 isVideo
-                  ? element.readyState >=
-                    2
+                  ? element.readyState >= 2
                   : element.complete
               ) {
                 drawCover(
                   element,
-                  scale,
-                  offsetX,
-                  offsetY,
-                  1,
-                  0.88
+                  {
+                    scale,
+                    offsetX,
+                    offsetY,
+                    opacity: 1,
+                    brightness: 1,
+                    colorGrade
+                  }
                 );
               }
 
               /*
-               * Vignette.
+               * ------------------------------
+               * CINEMATIC GRADE / VIGNETTE
+               * ------------------------------
                */
 
-              const vignette =
-                ctx.createRadialGradient(
-                  canvas.width / 2,
-                  canvas.height / 2,
-                  canvas.height *
-                    0.2,
-                  canvas.width / 2,
-                  canvas.height / 2,
-                  canvas.height *
-                    0.8
-                );
-
-              vignette.addColorStop(
-                0,
-                'rgba(0,0,0,0)'
-              );
-
-              vignette.addColorStop(
-                1,
-                'rgba(0,0,0,0.55)'
-              );
-
-              ctx.fillStyle =
-                vignette;
-
-              ctx.fillRect(
-                0,
-                0,
-                canvas.width,
-                canvas.height
+              drawGradeOverlay(
+                colorGrade,
+                progress
               );
 
               /*
-               * Transition.
+               * ------------------------------
+               * TRANSITION
+               * ------------------------------
                */
 
-              const transitionLength =
-                Math.min(
-                  0.25,
-                  duration / 3
-                );
-
               if (
-                transition !==
-                  'hard-cut' &&
+                transition !== 'hard-cut' &&
                 progress <
-                  transitionLength /
-                    duration
+                  transitionLength / duration
               ) {
                 drawTransition(
                   transition,
                   progress /
-                    (transitionLength /
-                      duration)
+                    (
+                      transitionLength /
+                      duration
+                    ),
+                  currentCutIndex === 0
                 );
               }
 
               /*
-               * Text.
+               * ------------------------------
+               * TEXT
+               * ------------------------------
                */
 
-              const text =
-                cut.text ||
-                '';
-
-              if (text) {
-                const textProgress =
-                  Math.min(
-                    1,
-                    progress * 4
-                  );
-
-                ctx.save();
-
-                ctx.globalAlpha =
-                  textProgress;
-
-                ctx.fillStyle =
-                  '#fff';
-
-                ctx.font =
-                  'bold 54px Arial, sans-serif';
-
-                ctx.textAlign =
-                  'center';
-
-                ctx.textBaseline =
-                  'middle';
-
-                ctx.shadowColor =
-                  'rgba(0,0,0,0.9)';
-
-                ctx.shadowBlur = 18;
-
-                ctx.fillText(
-                  String(
-                    text
-                  ).toUpperCase(),
-                  canvas.width / 2,
-                  canvas.height -
-                    210
-                );
-
-                ctx.restore();
-              }
+              drawTextOverlay(
+                cut.text || '',
+                progress,
+                cut.textIn,
+                cut.textOut,
+                cut.textStyle
+              );
 
               /*
                * Progress.
@@ -765,15 +1082,13 @@ export async function renderProject(
               }
 
               /*
-               * End shot.
+               * ------------------------------
+               * END OF CUT
+               * ------------------------------
                */
 
-              if (
-                progress >= 1
-              ) {
-                clearInterval(
-                  interval
-                );
+              if (progress >= 1) {
+                clearInterval(interval);
 
                 if (isVideo) {
                   try {
@@ -781,10 +1096,31 @@ export async function renderProject(
                   } catch {}
                 }
 
+                /*
+                 * Save the final rendered frame before moving
+                 * to the next cut.
+                 */
                 try {
-                  URL.revokeObjectURL(
-                    fileUrl
+                  previousFrameCtx.clearRect(
+                    0,
+                    0,
+                    previousFrameCanvas.width,
+                    previousFrameCanvas.height
                   );
+
+                  previousFrameCtx.drawImage(
+                    canvas,
+                    0,
+                    0
+                  );
+
+                  hasPreviousFrame = true;
+                } catch {
+                  hasPreviousFrame = false;
+                }
+
+                try {
+                  URL.revokeObjectURL(fileUrl);
                 } catch {}
 
                 currentCutIndex++;
@@ -799,9 +1135,7 @@ export async function renderProject(
           );
 
           try {
-            URL.revokeObjectURL(
-              fileUrl
-            );
+            URL.revokeObjectURL(fileUrl);
           } catch {}
 
           currentCutIndex++;
@@ -815,4 +1149,4 @@ export async function renderProject(
       reject(error);
     }
   });
-}
+          }
