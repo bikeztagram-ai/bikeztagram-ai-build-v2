@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { upload } from '@vercel/blob/client';
-import { createAIEditPlan, describeAIEditPlan } from './aiEditPlanner.js';
+import {
+  createAIEditPlan,
+  describeAIEditPlan
+} from './aiEditPlanner.js';
 import { renderProject } from './renderer.js';
 import './styles.css';
 
@@ -52,7 +55,6 @@ export default function App() {
   function makeErrorDetails(error, stage) {
     const details = {
       time: new Date().toISOString(),
-
       stage,
 
       message:
@@ -180,7 +182,9 @@ export default function App() {
   async function copyEverything() {
     const everything = {
       bikeztagram: 'BIKEZTAGRAM AI',
-      time: new Date().toISOString(),
+
+      time:
+        new Date().toISOString(),
 
       currentStage,
 
@@ -253,34 +257,11 @@ export default function App() {
   }
 
   /*
-   * Convert Gemini's actual analysis format into the
-   * "cuts" structure expected by aiEditPlanner.js.
-   *
-   * Gemini returns:
-   *
-   * bestMoments: [
-   *   {
-   *     start,
-   *     end,
-   *     description,
-   *     reason
-   *   }
-   * ]
-   *
-   * The renderer needs:
-   *
-   * cuts: [
-   *   {
-   *     mediaIndex,
-   *     startTime,
-   *     duration,
-   *     speed,
-   *     transition,
-   *     motionStyle,
-   *     text
-   *   }
-   * ]
+   * =========================================================
+   * GEMINI ANALYSIS → AI EDIT PLANNER
+   * =========================================================
    */
+
   function buildPlannerInput(geminiAnalysis) {
     if (!geminiAnalysis) {
       return {
@@ -355,10 +336,6 @@ export default function App() {
             duration = 2.5;
           }
 
-          /*
-           * Keep the duration within the safe range
-           * used by the planner/renderer.
-           */
           duration =
             Math.max(
               0.35,
@@ -375,11 +352,6 @@ export default function App() {
               ? defaultSpeed
               : 1;
 
-          /*
-           * If Gemini specifically recommends slow
-           * motion, make the shot slower unless it
-           * already supplied a slower speed.
-           */
           if (
             slowMotion &&
             speed >= 0.95
@@ -396,11 +368,6 @@ export default function App() {
               )
             );
 
-          /*
-           * Use the same cinematic text recommendation
-           * sparingly. Only the first suitable moment
-           * receives it.
-           */
           let text = '';
 
           if (
@@ -449,17 +416,20 @@ export default function App() {
         geminiAnalysis
       );
 
-    const generatedPlan =
-      createAIEditPlan(
-        plannerInput,
-        {
-          maxCuts: 8,
-          targetDuration: 15
-        }
-      );
-
-    return generatedPlan;
+    return createAIEditPlan(
+      plannerInput,
+      {
+        maxCuts: 8,
+        targetDuration: 15
+      }
+    );
   }
+
+  /*
+   * =========================================================
+   * ANALYSE ACTUAL VIDEO
+   * =========================================================
+   */
 
   async function analyseActualVideo() {
     if (!file) {
@@ -491,8 +461,8 @@ export default function App() {
     try {
       /*
        * =====================================================
-       * STEP 1
-       * Upload the actual video directly to Vercel Blob.
+       * STEP 1A
+       * Prepare Blob upload
        * =====================================================
        */
 
@@ -523,7 +493,7 @@ export default function App() {
 
       console.log(
         '[APP] Multipart mode:',
-        true
+        false
       );
 
       console.log(
@@ -535,60 +505,159 @@ export default function App() {
         }
       );
 
-      const blob = await upload(
-        pathname,
-        file,
-        {
-          access: 'public',
+      /*
+       * =====================================================
+       * STEP 1B
+       *
+       * IMPORTANT TEST:
+       *
+       * We are NOT forcing multipart for this 24 MB video.
+       *
+       * This lets us determine whether the previous
+       * multipart browser upload was the cause of the
+       * network error.
+       * =====================================================
+       */
+
+      setCurrentStage(
+        'STEP 1 — Requesting Blob client upload token'
+      );
+
+      setStatus(
+        'Requesting secure Blob upload token...'
+      );
+
+      let blob;
+
+      try {
+        blob =
+          await upload(
+            pathname,
+            file,
+            {
+              access: 'public',
+
+              handleUploadUrl:
+                '/api/upload',
+
+              /*
+               * IMPORTANT:
+               *
+               * multipart is deliberately omitted.
+               *
+               * The Vercel Blob client will use the normal
+               * upload path for this 24 MB test.
+               */
+
+              clientPayload:
+                JSON.stringify({
+                  source:
+                    'bikeztagram-ai',
+
+                  filename:
+                    file.name,
+
+                  mimeType:
+                    file.type ||
+                    'video/mp4',
+
+                  size:
+                    file.size
+                }),
+
+              onUploadProgress:
+                (event) => {
+                  if (
+                    event.percentage !==
+                    undefined
+                  ) {
+                    const percentage =
+                      Math.round(
+                        event.percentage
+                      );
+
+                    setCurrentStage(
+                      'STEP 1 — Uploading video to Blob storage'
+                    );
+
+                    setProgress(
+                      percentage
+                    );
+
+                    setStatus(
+                      `Uploading video to Blob storage... ${percentage}%`
+                    );
+                  }
+                }
+            }
+          );
+
+      } catch (uploadError) {
+        /*
+         * Capture the exact upload-stage failure.
+         */
+
+        console.error(
+          '[APP] Blob upload failed:',
+          uploadError
+        );
+
+        const uploadDetails =
+          makeErrorDetails(
+            uploadError,
+            'STEP 1 — Actual browser-to-Blob upload'
+          );
+
+        uploadDetails.uploadTest = {
+          multipart:
+            false,
+
+          pathname,
 
           handleUploadUrl:
             '/api/upload',
 
-          multipart: true,
+          fileSizeBytes:
+            file.size,
 
-          clientPayload:
-            JSON.stringify({
-              source:
-                'bikeztagram-ai',
+          fileSizeMB:
+            (
+              file.size /
+              1024 /
+              1024
+            ).toFixed(2),
 
-              filename:
-                file.name,
+          online:
+            navigator.onLine,
 
-              mimeType:
-                file.type ||
-                'video/mp4',
+          note:
+            'The server generated the Blob client token successfully. This error occurred during the subsequent browser upload.'
+        };
 
-              size:
-                file.size
-            }),
+        console.error(
+          '[APP] FULL BLOB UPLOAD DIAGNOSTIC:',
+          uploadDetails
+        );
 
-          onUploadProgress:
-            (event) => {
-              if (
-                event.percentage !==
-                undefined
-              ) {
-                const percentage =
-                  Math.round(
-                    event.percentage
-                  );
+        throw Object.assign(
+          new Error(
+            uploadError?.message ||
+              'Browser-to-Blob upload failed.'
+          ),
+          {
+            originalError:
+              uploadError,
 
-                setProgress(
-                  percentage
-                );
-
-                setStatus(
-                  `Uploading video directly to secure Blob storage... ${percentage}%`
-                );
-              }
-            }
-        }
-      );
+            bikeztagramDetails:
+              uploadDetails
+          }
+        );
+      }
 
       /*
        * =====================================================
        * STEP 2
-       * Blob upload completed.
+       * Blob upload completed
        * =====================================================
        */
 
@@ -637,7 +706,7 @@ export default function App() {
       /*
        * =====================================================
        * STEP 3
-       * Send Blob URL to /api/analyse.
+       * Send Blob URL to analysis API
        * =====================================================
        */
 
@@ -724,7 +793,7 @@ export default function App() {
       /*
        * =====================================================
        * STEP 4
-       * Gemini analysis successfully returned.
+       * Gemini analysis completed
        * =====================================================
        */
 
@@ -739,7 +808,7 @@ export default function App() {
       /*
        * =====================================================
        * STEP 5
-       * Convert Gemini analysis into an AI edit plan.
+       * Build AI edit plan
        * =====================================================
        */
 
@@ -766,12 +835,26 @@ export default function App() {
       );
 
     } catch (error) {
-      const details =
-        makeErrorDetails(
-          error,
-          currentStage ||
-            'Unknown stage'
-        );
+      let details;
+
+      /*
+       * If the upload stage created its own detailed
+       * diagnostic object, preserve it.
+       */
+
+      if (
+        error?.bikeztagramDetails
+      ) {
+        details =
+          error.bikeztagramDetails;
+      } else {
+        details =
+          makeErrorDetails(
+            error,
+            currentStage ||
+              'Unknown stage'
+          );
+      }
 
       console.error(
         '========================================'
@@ -812,9 +895,9 @@ export default function App() {
   }
 
   /*
-   * =====================================================
-   * BUILD THE FINAL VIDEO
-   * =====================================================
+   * =========================================================
+   * BUILD FINAL VIDEO
+   * =========================================================
    */
 
   async function buildAIEdit() {
@@ -849,10 +932,6 @@ export default function App() {
         '🎬 Building your AI-directed cinematic edit...'
       );
 
-      /*
-       * The existing renderer expects mediaItems
-       * containing the original File object.
-       */
       const mediaItems = [
         {
           id: 'video-0',
@@ -1502,4 +1581,4 @@ export default function App() {
 
     </div>
   );
-  }
+             }
