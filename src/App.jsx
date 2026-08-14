@@ -1,21 +1,28 @@
 import React, { useState } from 'react';
+import { upload } from '@vercel/blob/client';
 import './styles.css';
 
 export default function App() {
   const [file, setFile] = useState(null);
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState('');
+  const [progress, setProgress] = useState(0);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
 
   function handleFile(event) {
-    const selected = event.target.files?.[0] || null;
+    const selected =
+      event.target.files?.[0] || null;
 
     setFile(selected);
     setAnalysis(null);
+    setProgress(0);
 
     if (selected) {
-      const mb = selected.size / 1024 / 1024;
+      const mb =
+        selected.size /
+        1024 /
+        1024;
 
       setStatus(
         `Loaded: ${selected.name} (${mb.toFixed(1)} MB)`
@@ -27,144 +34,142 @@ export default function App() {
 
   async function analyseVideo() {
     if (!file) {
-      setStatus('Please select a video first.');
+      setStatus(
+        'Please select a video first.'
+      );
       return;
     }
 
     if (!file.type.startsWith('video/')) {
-      setStatus('Please upload a video file.');
+      setStatus(
+        'Please select a video file.'
+      );
       return;
     }
 
     setLoading(true);
     setAnalysis(null);
+    setProgress(0);
 
     try {
       /*
        * STEP 1
-       * Ask our Vercel Function for a short-lived
-       * signed PUT URL for this specific video.
+       * Upload directly from the browser to the
+       * private Vercel Blob store using Vercel's
+       * official client-upload system.
        */
       setStatus(
         'Preparing secure video upload...'
       );
 
-      const uploadResponse = await fetch(
-        '/api/upload',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            filename: file.name,
-            contentType: file.type || 'video/mp4',
-            size: file.size
-          })
-        }
+      const useMultipart =
+        file.size >
+        100 * 1024 * 1024;
+
+      const blob =
+        await upload(
+          `videos/${Date.now()}-${file.name}`,
+          file,
+          {
+            access: 'private',
+
+            handleUploadUrl:
+              '/api/upload',
+
+            contentType:
+              file.type ||
+              'video/mp4',
+
+            multipart:
+              useMultipart,
+
+            onUploadProgress:
+              (event) => {
+                const percentage =
+                  Number(
+                    event?.percentage
+                  ) || 0;
+
+                setProgress(
+                  Math.round(
+                    percentage
+                  )
+                );
+
+                setStatus(
+                  `Uploading video directly to secure Blob storage... ${Math.round(
+                    percentage
+                  )}%`
+                );
+              }
+          }
+        );
+
+      console.log(
+        '[APP] Blob upload complete:',
+        blob
       );
 
-      const uploadText = await uploadResponse.text();
+      setProgress(100);
 
-      let uploadData;
-
-      try {
-        uploadData = JSON.parse(uploadText);
-      } catch {
-        throw new Error(
-          `Upload server returned an invalid response: ${uploadText.slice(
-            0,
-            300
-          )}`
-        );
-      }
-
-      if (!uploadResponse.ok) {
-        throw new Error(
-          uploadData?.error ||
-            `Upload server error ${uploadResponse.status}`
-        );
-      }
-
-      if (
-        !uploadData?.uploadUrl ||
-        !uploadData?.videoUrl
-      ) {
-        throw new Error(
-          'Upload server did not return secure Blob URLs.'
-        );
-      }
+      setStatus(
+        '✅ Video uploaded securely. Preparing Gemini analysis...'
+      );
 
       /*
        * STEP 2
-       * Upload the actual video DIRECTLY to Vercel Blob.
        *
-       * IMPORTANT:
-       * Do not add a Content-Type header here.
-       * The signed URL is deliberately used as a simple
-       * browser PUT request.
+       * Send the Blob pathname to our server.
+       *
+       * The server can then authenticate to the private
+       * Blob store using OIDC and obtain the actual video
+       * for Gemini without exposing Blob credentials.
        */
-      setStatus(
-        'Uploading video directly to Blob storage...'
-      );
+      const response =
+        await fetch(
+          '/api/analyse',
+          {
+            method: 'POST',
 
-      const blobResponse = await fetch(
-        uploadData.uploadUrl,
-        {
-          method: 'PUT',
-          body: file
-        }
-      );
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
 
-      if (!blobResponse.ok) {
-        const blobError = await blobResponse.text();
+            body: JSON.stringify({
+              videoUrl:
+                blob.url,
 
-        throw new Error(
-          `Blob upload failed (${blobResponse.status}): ${blobError.slice(
-            0,
-            500
-          )}`
+              pathname:
+                blob.pathname,
+
+              filename:
+                file.name,
+
+              mimeType:
+                file.type ||
+                'video/mp4',
+
+              prompt:
+                prompt ||
+                'Analyse this motorcycle footage for the best cinematic moments, camera movement, action, composition, strongest shots, useful timestamps and editing opportunities for an exciting social-media motorcycle video.'
+            })
+          }
         );
-      }
 
-      /*
-       * STEP 3
-       * The video is now stored.
-       * Give Gemini the temporary signed GET URL.
-       */
-      setStatus(
-        '✅ Video uploaded securely. Sending it to Gemini...'
-      );
-
-      const response = await fetch(
-        '/api/analyse',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            videoUrl: uploadData.videoUrl,
-            filename: file.name,
-            mimeType: file.type || 'video/mp4',
-            prompt:
-              prompt ||
-              'Analyse this motorcycle footage for the best cinematic moments, camera movement, action and editing opportunities.'
-          })
-        }
-      );
-
-      const text = await response.text();
+      const text =
+        await response.text();
 
       let data;
 
       try {
-        data = JSON.parse(text);
+        data =
+          JSON.parse(text);
       } catch {
         throw new Error(
-          `Server returned an invalid response: ${text.slice(
+          `Analysis server returned an invalid response: ${text.slice(
             0,
-            300
+            500
           )}`
         );
       }
@@ -172,7 +177,7 @@ export default function App() {
       if (!response.ok) {
         throw new Error(
           data?.error ||
-            `Server error ${response.status}`
+            `Analysis server returned ${response.status}`
         );
       }
 
@@ -182,14 +187,17 @@ export default function App() {
         );
       }
 
-      setAnalysis(data.analysis);
+      setAnalysis(
+        data.analysis
+      );
 
       setStatus(
-        '✅ Gemini has analysed the actual video.'
+        '✅ Gemini has analysed the actual motorcycle video.'
       );
+
     } catch (error) {
       console.error(
-        'Video analysis error:',
+        '[APP] Video processing failed:',
         error
       );
 
@@ -199,6 +207,7 @@ export default function App() {
           'Unknown error'
         }`
       );
+
     } finally {
       setLoading(false);
     }
@@ -208,14 +217,18 @@ export default function App() {
     setFile(null);
     setPrompt('');
     setStatus('');
+    setProgress(0);
     setAnalysis(null);
   }
 
   return (
     <div className="app-container">
+
       <header className="app-header">
         <div>
-          <h1>BIKEZTAGRAM AI</h1>
+          <h1>
+            BIKEZTAGRAM AI
+          </h1>
 
           <p>
             AI-powered motorcycle video editor
@@ -224,7 +237,9 @@ export default function App() {
       </header>
 
       <main>
+
         <section className="form-group">
+
           <label htmlFor="video">
             Test motorcycle footage
           </label>
@@ -242,9 +257,11 @@ export default function App() {
               {file.name}
             </p>
           )}
+
         </section>
 
         <section className="form-group">
+
           <label htmlFor="prompt">
             Tell Gemini what to look for
           </label>
@@ -254,58 +271,132 @@ export default function App() {
             rows="5"
             value={prompt}
             onChange={(event) =>
-              setPrompt(event.target.value)
+              setPrompt(
+                event.target.value
+              )
             }
             disabled={loading}
             placeholder="Analyse this motorcycle footage for the strongest cinematic moments, camera movement, action, composition and best timestamps for an exciting social-media motorcycle trailer."
           />
+
         </section>
 
         <div className="button-row">
+
           <button
             className="generate-btn"
             onClick={analyseVideo}
-            disabled={loading || !file}
+            disabled={
+              loading ||
+              !file
+            }
           >
             {loading
-              ? '🎬 Gemini Is Watching...'
+              ? '🎬 Processing Video...'
               : '👁️ Analyse Actual Video'}
           </button>
 
-          {file && !loading && (
-            <button
-              className="clear-btn"
-              onClick={clearAll}
-            >
-              Clear
-            </button>
-          )}
+          {file &&
+            !loading && (
+              <button
+                className="clear-btn"
+                onClick={clearAll}
+              >
+                Clear
+              </button>
+            )}
+
         </div>
 
+        {loading &&
+          progress > 0 && (
+            <div
+              className="status-panel"
+              style={{
+                marginTop: '15px'
+              }}
+            >
+
+              <div>
+                Upload progress:
+                {' '}
+                {progress}%
+              </div>
+
+              <div
+                style={{
+                  width: '100%',
+                  height: '10px',
+                  background:
+                    '#333',
+                  borderRadius:
+                    '5px',
+                  marginTop:
+                    '8px',
+                  overflow:
+                    'hidden'
+                }}
+              >
+
+                <div
+                  style={{
+                    width:
+                      `${progress}%`,
+                    height:
+                      '100%',
+                    background:
+                      '#4fd1c5',
+                    transition:
+                      'width 0.2s ease'
+                  }}
+                />
+
+              </div>
+
+            </div>
+          )}
+
         {status && (
-          <div className="status-panel">
+          <div
+            className="status-panel"
+            style={{
+              marginTop: '15px'
+            }}
+          >
+
             <p className="status-text">
               {status}
             </p>
+
           </div>
         )}
 
         {analysis && (
-          <section className="result-container">
+          <section
+            className="result-container"
+          >
+
             <h2>
               Gemini Video Analysis
             </h2>
 
-            <div className="status-panel">
+            <div
+              className="status-panel"
+            >
+
               <pre
                 style={{
-                  whiteSpace: 'pre-wrap',
+                  whiteSpace:
+                    'pre-wrap',
                   margin: 0,
-                  textAlign: 'left',
-                  wordBreak: 'break-word'
+                  textAlign:
+                    'left',
+                  wordBreak:
+                    'break-word'
                 }}
               >
-                {typeof analysis === 'string'
+                {typeof analysis ===
+                'string'
                   ? analysis
                   : JSON.stringify(
                       analysis,
@@ -313,10 +404,14 @@ export default function App() {
                       2
                     )}
               </pre>
+
             </div>
+
           </section>
         )}
+
       </main>
+
     </div>
   );
-}
+              }
