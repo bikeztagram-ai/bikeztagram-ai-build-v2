@@ -266,7 +266,7 @@ export default function App() {
       /*
        * =====================================================
        * STEP 1
-       * Upload the actual video directly to PUBLIC Vercel Blob.
+       * Upload the actual video directly to Vercel Blob.
        * =====================================================
        */
 
@@ -314,10 +314,8 @@ export default function App() {
         file,
         {
           /*
-           * IMPORTANT:
            * The new bikeztagram-media-live Blob store
-           * is PUBLIC, so the client upload must also
-           * request public access.
+           * is PUBLIC.
            */
           access: 'public',
 
@@ -325,8 +323,7 @@ export default function App() {
             '/api/upload',
 
           /*
-           * Use multipart upload for reliable
-           * large-video transfers.
+           * Use multipart upload for video files.
            */
           multipart: true,
 
@@ -392,6 +389,12 @@ export default function App() {
         );
       }
 
+      if (!blob.url) {
+        throw new Error(
+          'Vercel Blob upload completed but returned no URL.'
+        );
+      }
+
       console.log(
         '[APP] Blob upload completed successfully.'
       );
@@ -402,7 +405,7 @@ export default function App() {
       );
 
       console.log(
-        '[APP] Blob URL:',
+        '[APP] Actual Blob URL:',
         blob.url
       );
 
@@ -415,16 +418,25 @@ export default function App() {
       /*
        * =====================================================
        * STEP 3
-       * Send actual Blob pathname to analysis API.
+       * Send BOTH the Blob URL and pathname to /api/analyse.
+       *
+       * IMPORTANT:
+       * api/analyse.js expects videoUrl to retrieve the
+       * actual uploaded video.
        * =====================================================
        */
 
       setCurrentStage(
-        'STEP 3 — Sending Blob pathname to /api/analyse'
+        'STEP 3 — Sending Blob video URL to /api/analyse'
       );
 
       console.log(
-        '[APP] Sending actual Blob pathname to /api/analyse:',
+        '[APP] Sending Blob URL to /api/analyse:',
+        blob.url
+      );
+
+      console.log(
+        '[APP] Sending Blob pathname to /api/analyse:',
         blob.pathname
       );
 
@@ -440,6 +452,18 @@ export default function App() {
             },
 
             body: JSON.stringify({
+              /*
+               * THIS IS THE IMPORTANT FIX.
+               *
+               * The analysis API can use the public
+               * Blob URL to retrieve the uploaded video.
+               */
+              videoUrl:
+                blob.url,
+
+              /*
+               * Keep pathname as well for tracking/debugging.
+               */
               pathname:
                 blob.pathname,
 
@@ -912,4 +936,4 @@ export default function App() {
 
     </div>
   );
-}
+        }
