@@ -1,57 +1,46 @@
-import { put } from "@vercel/blob";
+import { handleUpload } from "@vercel/blob/client";
 
-export default async function handler(req, res) {
+export default async function handler(request, response) {
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({
-        error: "Method not allowed",
-      });
-    }
+    // The browser sends a JSON request here when it needs
+    // a temporary Vercel Blob client token.
+    const body = await request.json();
 
-    const url = new URL(
-      req.url,
-      `https://${req.headers.host || "localhost"}`
-    );
+    const jsonResponse = await handleUpload({
+      body,
+      request,
 
-    let filename = url.searchParams.get("filename");
+      onBeforeGenerateToken: async (pathname, clientPayload, multipart) => {
+        return {
+          allowedContentTypes: ["video/mp4", "video/quicktime", "video/webm"],
+          addRandomSuffix: true,
+          multipart: true,
+          tokenPayload: JSON.stringify({
+            pathname,
+            clientPayload: clientPayload || null,
+          }),
+        };
+      },
 
-    const contentType = req.headers["content-type"] || "";
-
-    let body = req;
-
-    // If the existing Bikeztagram frontend sends a raw video body,
-    // keep using the request stream directly.
-    if (!filename) {
-      filename = `video-${Date.now()}.mp4`;
-    }
-
-    const safeFilename = filename
-      .replace(/[^\w.\-/]/g, "_")
-      .replace(/^\/+/, "");
-
-    const blob = await put(`videos/${safeFilename}`, body, {
-      access: "public",
-      storeId: process.env.BLOB_PUBLIC_STORE_ID,
-      addRandomSuffix: true,
+      onUploadCompleted: async ({ blob, tokenPayload }) => {
+        console.log("Bikeztagram Blob upload completed:", {
+          url: blob.url,
+          pathname: blob.pathname,
+          tokenPayload,
+        });
+      },
     });
 
-    return res.status(200).json({
-      success: true,
-      url: blob.url,
-      pathname: blob.pathname,
-      downloadUrl: blob.downloadUrl,
-      contentType: blob.contentType,
-      size: blob.size,
-    });
+    return response.status(200).json(jsonResponse);
   } catch (error) {
-    console.error("Bikeztagram upload error:", error);
+    console.error("Bikeztagram Blob client upload error:", error);
 
-    return res.status(500).json({
+    return response.status(400).json({
       success: false,
       error:
         error instanceof Error
           ? error.message
-          : "Failed to upload video.",
+          : "Failed to generate Blob client token.",
     });
   }
 }
