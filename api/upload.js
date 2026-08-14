@@ -5,6 +5,13 @@ export default async function handler(req, res) {
    * =========================================================
    * BIKEZTAGRAM AI
    * Vercel Blob client-upload token route
+   *
+   * IMPORTANT:
+   * handleUpload uses BLOB_READ_WRITE_TOKEN to determine
+   * which Blob store it operates against.
+   *
+   * We deliberately do NOT try to select a store using
+   * MEDIA_STORE_ID or BLOB_STORE_ID.
    * =========================================================
    */
 
@@ -14,10 +21,6 @@ export default async function handler(req, res) {
   console.log('========================================');
 
   if (req.method !== 'POST') {
-    console.log(
-      'BIKEZTAGRAM: rejected non-POST request'
-    );
-
     return res.status(405).json({
       success: false,
       error: 'Method not allowed',
@@ -25,103 +28,110 @@ export default async function handler(req, res) {
     });
   }
 
-  try {
-    /*
-     * -------------------------------------------------------
-     * USE THE NEW OIDC-CONNECTED PUBLIC BLOB STORE
-     *
-     * bikeztagram-media-live provides MEDIA_STORE_ID.
-     *
-     * We deliberately do NOT pass the old
-     * BLOB_READ_WRITE_TOKEN to handleUpload().
-     * -------------------------------------------------------
-     */
+  /*
+   * ---------------------------------------------------------
+   * VERIFY THE SERVER HAS THE BLOB TOKEN
+   *
+   * NEVER send this token to the browser.
+   * ---------------------------------------------------------
+   */
 
-    const mediaStoreId =
-      process.env.MEDIA_STORE_ID;
+  const blobToken =
+    process.env.BLOB_READ_WRITE_TOKEN;
 
-    if (mediaStoreId) {
-      process.env.BLOB_STORE_ID =
-        mediaStoreId;
-
-      console.log(
-        'BIKEZTAGRAM: Using MEDIA_STORE_ID for Blob store:',
-        mediaStoreId
-      );
-    } else {
-      console.warn(
-        'BIKEZTAGRAM: MEDIA_STORE_ID is missing.'
-      );
-    }
-
-    console.log(
-      'BIKEZTAGRAM: Explicit legacy Blob token disabled for this route'
+  if (!blobToken) {
+    console.error(
+      'BIKEZTAGRAM: BLOB_READ_WRITE_TOKEN is missing'
     );
 
-    /*
-     * -------------------------------------------------------
-     * GET REQUEST BODY
-     * -------------------------------------------------------
-     */
+    return res.status(500).json({
+      success: false,
+      error:
+        'BLOB_READ_WRITE_TOKEN is missing from Vercel environment variables.',
+    });
+  }
 
-    let body = req.body;
+  console.log(
+    'BIKEZTAGRAM: BLOB_READ_WRITE_TOKEN is present'
+  );
 
-    if (typeof body === 'string') {
-      try {
-        body = JSON.parse(body);
-      } catch (parseError) {
-        console.error(
-          'BIKEZTAGRAM: Could not parse request body',
-          parseError
-        );
+  /*
+   * ---------------------------------------------------------
+   * READ REQUEST BODY
+   *
+   * Vercel Pages API parses JSON request bodies for us.
+   * The @vercel/blob/client upload() call sends a JSON
+   * HandleUploadBody here.
+   * ---------------------------------------------------------
+   */
 
-        return res.status(400).json({
-          success: false,
-          error:
-            'Blob upload request body contained invalid JSON.',
-        });
-      }
-    }
+  let body = req.body;
 
-    if (!body) {
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch (error) {
       console.error(
-        'BIKEZTAGRAM: request body is missing'
+        'BIKEZTAGRAM: Invalid JSON request body',
+        error
       );
 
       return res.status(400).json({
         success: false,
         error:
-          'Missing Blob upload request body.',
+          'Blob upload request body contained invalid JSON.',
       });
     }
+  }
 
-    console.log(
-      'BIKEZTAGRAM: Blob request body received'
+  if (!body) {
+    console.error(
+      'BIKEZTAGRAM: request body is missing'
     );
 
-    console.log(
-      'BIKEZTAGRAM: Blob request type:',
-      body?.type
-    );
+    return res.status(400).json({
+      success: false,
+      error:
+        'Missing Blob upload request body.',
+    });
+  }
 
-    console.log(
-      'BIKEZTAGRAM: Blob pathname:',
-      body?.payload?.pathname
-    );
+  console.log(
+    'BIKEZTAGRAM: Blob request received'
+  );
 
-    console.log(
-      'BIKEZTAGRAM: Blob multipart:',
-      body?.payload?.multipart
-    );
+  console.log(
+    'BIKEZTAGRAM: Request type:',
+    body?.type
+  );
 
-    /*
-     * -------------------------------------------------------
-     * GENERATE SECURE CLIENT TOKEN
-     * -------------------------------------------------------
-     */
+  console.log(
+    'BIKEZTAGRAM: Pathname:',
+    body?.payload?.pathname
+  );
 
+  console.log(
+    'BIKEZTAGRAM: Multipart:',
+    body?.payload?.multipart
+  );
+
+  /*
+   * ---------------------------------------------------------
+   * GENERATE CLIENT TOKEN
+   *
+   * Explicitly pass BLOB_READ_WRITE_TOKEN.
+   *
+   * This removes any ambiguity about which Blob store
+   * handleUpload is using.
+   * ---------------------------------------------------------
+   */
+
+  try {
     const jsonResponse =
       await handleUpload({
+        token:
+          blobToken,
+
         body,
 
         request: req,
@@ -146,17 +156,22 @@ export default async function handler(req, res) {
 
           console.log(
             'Multipart:',
-            multipart
+            Boolean(multipart)
           );
 
           console.log(
             'Client payload:',
-            clientPayload
+            clientPayload || null
           );
 
           console.log(
             '========================================'
           );
+
+          /*
+           * Only allow the video formats that Bikeztagram
+           * currently accepts.
+           */
 
           return {
             allowedContentTypes: [
@@ -165,12 +180,32 @@ export default async function handler(req, res) {
               'video/webm',
             ],
 
+            /*
+             * 500 MB maximum upload.
+             */
+
             maximumSizeInBytes:
               500 * 1024 * 1024,
 
-            addRandomSuffix: true,
+            /*
+             * Let Vercel generate a unique pathname.
+             */
 
-            multipart: Boolean(multipart),
+            addRandomSuffix:
+              true,
+
+            /*
+             * Match whatever upload mode the browser
+             * requested.
+             */
+
+            multipart:
+              Boolean(multipart),
+
+            /*
+             * Keep useful non-secret information with
+             * the token.
+             */
 
             tokenPayload:
               JSON.stringify({
@@ -189,9 +224,9 @@ export default async function handler(req, res) {
         },
 
         /*
-         * ---------------------------------------------------
+         * -----------------------------------------------------
          * UPLOAD COMPLETED
-         * ---------------------------------------------------
+         * -----------------------------------------------------
          */
 
         onUploadCompleted: async ({
@@ -229,7 +264,7 @@ export default async function handler(req, res) {
 
     /*
      * -------------------------------------------------------
-     * CHECK CLIENT TOKEN
+     * VERIFY RESPONSE
      * -------------------------------------------------------
      */
 
@@ -238,24 +273,33 @@ export default async function handler(req, res) {
     );
 
     console.log(
-      'BIKEZTAGRAM: response type:',
+      'BIKEZTAGRAM: Response type:',
       jsonResponse?.type
     );
 
     console.log(
-      'BIKEZTAGRAM: client token generated:',
+      'BIKEZTAGRAM: Client token present:',
       Boolean(
         jsonResponse?.clientToken
       )
     );
 
+    /*
+     * A normal client-token response should contain:
+     *
+     * {
+     *   type: "blob.generate-client-token",
+     *   clientToken: "..."
+     * }
+     */
+
     if (
-      !jsonResponse?.clientToken &&
       jsonResponse?.type ===
-        'blob.generate-client-token'
+        'blob.generate-client-token' &&
+      !jsonResponse?.clientToken
     ) {
       console.error(
-        'BIKEZTAGRAM: Blob response contained no client token'
+        'BIKEZTAGRAM: Blob response requested a client token but no token was returned.'
       );
 
       return res.status(500).json({
@@ -267,7 +311,7 @@ export default async function handler(req, res) {
 
     /*
      * -------------------------------------------------------
-     * SUCCESS
+     * RETURN VERCEL'S RESPONSE TO THE BROWSER
      * -------------------------------------------------------
      */
 
@@ -276,12 +320,6 @@ export default async function handler(req, res) {
     );
 
   } catch (error) {
-    /*
-     * -------------------------------------------------------
-     * FULL SERVER ERROR
-     * -------------------------------------------------------
-     */
-
     console.error(
       '========================================'
     );
@@ -291,22 +329,17 @@ export default async function handler(req, res) {
     );
 
     console.error(
-      'Error:',
-      error
-    );
-
-    console.error(
-      'Message:',
-      error?.message
-    );
-
-    console.error(
-      'Name:',
+      'Error name:',
       error?.name
     );
 
     console.error(
-      'Stack:',
+      'Error message:',
+      error?.message
+    );
+
+    console.error(
+      'Error stack:',
       error?.stack
     );
 
