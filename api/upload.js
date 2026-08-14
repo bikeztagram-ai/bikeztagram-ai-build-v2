@@ -1,125 +1,71 @@
-import {
-  issueSignedToken,
-  presignUrl
-} from '@vercel/blob';
+import { handleUpload } from '@vercel/blob/client';
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({
-      success: false,
-      error: 'Method not allowed'
-    });
-  }
-
+export default async function handler(request, response) {
   try {
-    let body = req.body;
+    const body = await request.json();
 
-    if (typeof body === 'string') {
-      body = JSON.parse(body);
-    }
+    const jsonResponse = await handleUpload({
+      body,
+      request,
 
-    const filename =
-      typeof body?.filename === 'string'
-        ? body.filename
-        : 'video.mp4';
+      onBeforeGenerateToken: async (pathname, clientPayload, multipart) => {
+        console.log('[UPLOAD] Generating client upload token');
+        console.log('[UPLOAD] Pathname:', pathname);
+        console.log('[UPLOAD] Multipart:', multipart);
 
-    const contentType =
-      typeof body?.contentType === 'string'
-        ? body.contentType
-        : 'video/mp4';
+        return {
+          allowedContentTypes: [
+            'video/mp4',
+            'video/quicktime',
+            'video/webm',
+            'video/x-msvideo',
+            'video/mpeg',
+            'video/3gpp'
+          ],
 
-    const size =
-      Number(body?.size) || 0;
+          maximumSizeInBytes:
+            5 * 1024 * 1024 * 1024,
 
-    if (!contentType.startsWith('video/')) {
-      return res.status(400).json({
-        success: false,
-        error: 'Only video files are allowed.'
-      });
-    }
+          addRandomSuffix: true,
 
-    if (!size) {
-      return res.status(400).json({
-        success: false,
-        error: 'Video size was not supplied.'
-      });
-    }
+          tokenPayload: JSON.stringify({
+            source: 'bikeztagram-ai',
+            clientPayload:
+              clientPayload || null
+          })
+        };
+      },
 
-    const maximumSizeInBytes =
-      100 * 1024 * 1024;
+      onUploadCompleted: async ({
+        blob,
+        tokenPayload
+      }) => {
+        console.log(
+          '[UPLOAD] Blob upload completed successfully'
+        );
 
-    if (size > maximumSizeInBytes) {
-      return res.status(400).json({
-        success: false,
-        error:
-          'This version currently supports videos up to 100 MB.'
-      });
-    }
+        console.log(
+          '[UPLOAD] Blob pathname:',
+          blob.pathname
+        );
 
-    const extension =
-      filename.match(/\.[a-z0-9]+$/i)?.[0]?.toLowerCase() ||
-      '.mp4';
+        console.log(
+          '[UPLOAD] Blob URL:',
+          blob.url
+        );
 
-    const pathname =
-      `videos/${Date.now()}-${crypto.randomUUID()}${extension}`;
-
-    console.log(
-      '[UPLOAD] Creating private OIDC signed upload URL:',
-      pathname
-    );
-
-    const uploadToken =
-      await issueSignedToken({
-        pathname,
-        operations: ['put'],
-        allowedContentTypes: [contentType],
-        maximumSizeInBytes,
-        validUntil:
-          Date.now() + 15 * 60 * 1000
-      });
-
-    const upload =
-      await presignUrl(
-        uploadToken,
-        {
-          pathname,
-          operation: 'put',
-          access: 'private',
-          validUntil:
-            Date.now() + 15 * 60 * 1000
-        }
-      );
-
-    const readToken =
-      await issueSignedToken({
-        pathname,
-        operations: ['get'],
-        validUntil:
-          Date.now() + 60 * 60 * 1000
-      });
-
-    const read =
-      await presignUrl(
-        readToken,
-        {
-          pathname,
-          operation: 'get',
-          access: 'private',
-          validUntil:
-            Date.now() + 60 * 60 * 1000
-        }
-      );
-
-    console.log(
-      '[UPLOAD] Private signed URLs created successfully'
-    );
-
-    return res.status(200).json({
-      success: true,
-      pathname,
-      uploadUrl: upload.presignedUrl,
-      videoUrl: read.presignedUrl
+        console.log(
+          '[UPLOAD] Token payload:',
+          tokenPayload
+        );
+      }
     });
+
+    console.log(
+      '[UPLOAD] Client token response created successfully'
+    );
+
+    return response.status(200).json(jsonResponse);
 
   } catch (error) {
     console.error(
@@ -127,11 +73,10 @@ export default async function handler(req, res) {
       error
     );
 
-    return res.status(500).json({
-      success: false,
+    return response.status(400).json({
       error:
         error?.message ||
-        'Failed to create signed Blob upload URL.'
+        'Failed to create Blob client upload token.'
     });
   }
 }
