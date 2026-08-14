@@ -64,14 +64,10 @@ export default async function handler(req, res) {
       `videos/${Date.now()}-${crypto.randomUUID()}${extension}`;
 
     console.log(
-      '[UPLOAD] Creating OIDC signed upload URL:',
+      '[UPLOAD] Creating private OIDC signed upload URL:',
       pathname
     );
 
-    /*
-     * Short-lived permission for the browser to PUT
-     * exactly this video into exactly this pathname.
-     */
     const uploadToken =
       await issueSignedToken({
         pathname,
@@ -88,15 +84,12 @@ export default async function handler(req, res) {
         {
           pathname,
           operation: 'put',
+          access: 'private',
           validUntil:
             Date.now() + 15 * 60 * 1000
         }
       );
 
-    /*
-     * Create a separate short-lived GET URL for the
-     * Gemini analysis request.
-     */
     const readToken =
       await issueSignedToken({
         pathname,
@@ -111,13 +104,14 @@ export default async function handler(req, res) {
         {
           pathname,
           operation: 'get',
+          access: 'private',
           validUntil:
             Date.now() + 60 * 60 * 1000
         }
       );
 
     console.log(
-      '[UPLOAD] Signed URLs created successfully'
+      '[UPLOAD] Private signed URLs created successfully'
     );
 
     return res.status(200).json({
