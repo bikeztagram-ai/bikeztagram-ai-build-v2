@@ -3,6 +3,7 @@ import './styles.css';
 
 export default function App() {
   const [file, setFile] = useState(null);
+
   const [prompt, setPrompt] = useState(
     'Analyse this motorcycle footage for the strongest cinematic moments, camera movement, action, composition and best timestamps for an exciting social-media motorcycle video.'
   );
@@ -22,7 +23,9 @@ export default function App() {
 
     if (selectedFile) {
       const sizeMB =
-        selectedFile.size / 1024 / 1024;
+        selectedFile.size /
+        1024 /
+        1024;
 
       setStatus(
         `Selected: ${selectedFile.name} (${sizeMB.toFixed(1)} MB)`
@@ -32,91 +35,103 @@ export default function App() {
     }
   }
 
-  function uploadFileWithProgress(
+  async function uploadDirectlyToBlob(
     uploadUrl,
-    selectedFile,
-    contentType
+    selectedFile
   ) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
+    return new Promise(
+      (resolve, reject) => {
+        const xhr =
+          new XMLHttpRequest();
 
-      xhr.open('PUT', uploadUrl, true);
-
-      xhr.setRequestHeader(
-        'Content-Type',
-        contentType
-      );
-
-      xhr.upload.onprogress = (event) => {
-        if (!event.lengthComputable) {
-          return;
-        }
-
-        const percentage = Math.round(
-          (event.loaded / event.total) * 100
+        xhr.open(
+          'PUT',
+          uploadUrl,
+          true
         );
 
-        setProgress(percentage);
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT manually set Content-Type here.
+         *
+         * The Vercel signed-URL example performs
+         * the browser PUT without a custom header.
+         *
+         * Adding Content-Type can trigger a browser
+         * CORS preflight against the Blob endpoint.
+         */
 
-        setStatus(
-          `Uploading video directly to secure Blob storage... ${percentage}%`
-        );
-      };
+        xhr.upload.onprogress =
+          (event) => {
+            if (
+              !event.lengthComputable
+            ) {
+              return;
+            }
 
-      xhr.onload = () => {
-        if (
-          xhr.status >= 200 &&
-          xhr.status < 300
-        ) {
-          let responseData = null;
+            const percentage =
+              Math.round(
+                (event.loaded /
+                  event.total) *
+                  100
+              );
 
-          try {
-            responseData =
-              xhr.responseText
-                ? JSON.parse(
-                    xhr.responseText
-                  )
-                : null;
-          } catch {
-            responseData = null;
+            setProgress(
+              percentage
+            );
+
+            setStatus(
+              `Uploading video directly to secure Blob storage... ${percentage}%`
+            );
+          };
+
+        xhr.onload = () => {
+          console.log(
+            '[APP] Blob PUT response:',
+            xhr.status
+          );
+
+          if (
+            xhr.status >= 200 &&
+            xhr.status < 300
+          ) {
+            resolve(true);
+            return;
           }
 
-          resolve(responseData);
-          return;
-        }
+          reject(
+            new Error(
+              `Blob upload failed. HTTP ${xhr.status}`
+            )
+          );
+        };
 
-        reject(
-          new Error(
-            `Blob upload failed. HTTP ${xhr.status}${
-              xhr.responseText
-                ? `: ${xhr.responseText.slice(
-                    0,
-                    300
-                  )}`
-                : ''
-            }`
-          )
+        xhr.onerror = () => {
+          console.error(
+            '[APP] Browser/Blob PUT network error.'
+          );
+
+          reject(
+            new Error(
+              'The browser could not complete the direct Blob upload. This usually indicates a browser-to-Blob connection or CORS problem.'
+            )
+          );
+        };
+
+        xhr.onabort = () => {
+          reject(
+            new Error(
+              'The video upload was cancelled.'
+            )
+          );
+        };
+
+        xhr.send(
+          selectedFile
         );
-      };
-
-      xhr.onerror = () => {
-        reject(
-          new Error(
-            'The browser could not connect to the Blob upload server.'
-          )
-        );
-      };
-
-      xhr.onabort = () => {
-        reject(
-          new Error(
-            'The video upload was cancelled.'
-          )
-        );
-      };
-
-      xhr.send(selectedFile);
-    });
+      }
+    );
   }
 
   async function analyseActualVideo() {
@@ -129,7 +144,9 @@ export default function App() {
 
     if (
       !file.type ||
-      !file.type.startsWith('video/')
+      !file.type.startsWith(
+        'video/'
+      )
     ) {
       setStatus(
         'Please select a valid video file.'
@@ -143,11 +160,11 @@ export default function App() {
 
     try {
       /*
-       * --------------------------------------------------
+       * ==========================================
        * STEP 1
-       * Ask our Vercel Function for a short-lived,
-       * private Blob PUT URL.
-       * --------------------------------------------------
+       * Request a short-lived signed Blob PUT URL
+       * from our Vercel Function.
+       * ==========================================
        */
 
       setStatus(
@@ -157,55 +174,66 @@ export default function App() {
       const pathname =
         `videos/${Date.now()}-${crypto.randomUUID()}-${file.name}`;
 
-      const uploadRequest =
-        await fetch('/api/upload', {
-          method: 'POST',
+      const uploadResponse =
+        await fetch(
+          '/api/upload',
+          {
+            method: 'POST',
 
-          headers: {
-            'Content-Type':
-              'application/json'
-          },
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
 
-          body: JSON.stringify({
-            pathname,
-            contentType:
-              file.type || 'video/mp4',
-            size: file.size
-          })
-        });
+            body: JSON.stringify({
+              pathname,
+              contentType:
+                file.type ||
+                'video/mp4',
+              size:
+                file.size
+            })
+          }
+        );
 
       const uploadText =
-        await uploadRequest.text();
+        await uploadResponse.text();
 
       let uploadData;
 
       try {
         uploadData =
-          JSON.parse(uploadText);
+          JSON.parse(
+            uploadText
+          );
       } catch {
         throw new Error(
-          `Upload server returned an invalid response: ${uploadText.slice(
+          `Upload server returned invalid JSON: ${uploadText.slice(
             0,
             500
           )}`
         );
       }
 
-      if (!uploadRequest.ok) {
+      if (
+        !uploadResponse.ok
+      ) {
         throw new Error(
           uploadData?.error ||
-            `Upload server returned HTTP ${uploadRequest.status}`
+            `Upload server returned HTTP ${uploadResponse.status}`
         );
       }
 
-      if (!uploadData?.uploadUrl) {
+      if (
+        !uploadData?.uploadUrl
+      ) {
         throw new Error(
-          'The server did not return a Blob upload URL.'
+          'The server did not return a signed Blob upload URL.'
         );
       }
 
       console.log(
-        '[APP] Signed Blob upload URL received.'
+        '[APP] Signed Blob URL received.'
       );
 
       console.log(
@@ -214,91 +242,97 @@ export default function App() {
       );
 
       /*
-       * --------------------------------------------------
+       * ==========================================
        * STEP 2
-       * Upload the actual video DIRECTLY from the phone
-       * to Vercel Blob.
-       *
-       * The video does NOT pass through /api/upload.
-       * --------------------------------------------------
+       * PUT the actual video directly to Blob.
+       * ==========================================
        */
 
       setStatus(
         'Uploading video directly to secure Blob storage...'
       );
 
-      await uploadFileWithProgress(
+      await uploadDirectlyToBlob(
         uploadData.uploadUrl,
-        file,
-        file.type || 'video/mp4'
+        file
       );
 
       setProgress(100);
 
       console.log(
-        '[APP] Direct Blob upload completed successfully.'
+        '[APP] Direct Blob upload completed.'
       );
 
       setStatus(
-        '✅ Video safely stored. Preparing Gemini analysis...'
+        '✅ Video stored successfully. Preparing Gemini analysis...'
       );
 
       /*
-       * --------------------------------------------------
+       * ==========================================
        * STEP 3
-       * Tell our analysis Function which private Blob
-       * object to retrieve.
-       * --------------------------------------------------
+       * Ask our server to retrieve the private
+       * Blob and send the actual video to Gemini.
+       * ==========================================
        */
 
-      const analysisRequest =
-        await fetch('/api/analyse', {
-          method: 'POST',
+      const analysisResponse =
+        await fetch(
+          '/api/analyse',
+          {
+            method: 'POST',
 
-          headers: {
-            'Content-Type':
-              'application/json'
-          },
+            headers: {
+              'Content-Type':
+                'application/json'
+            },
 
-          body: JSON.stringify({
-            pathname:
-              uploadData.pathname,
+            body: JSON.stringify({
+              pathname:
+                uploadData.pathname,
 
-            filename:
-              file.name,
+              filename:
+                file.name,
 
-            mimeType:
-              file.type || 'video/mp4',
+              mimeType:
+                file.type ||
+                'video/mp4',
 
-            prompt
-          })
-        });
+              prompt
+            })
+          }
+        );
 
       const analysisText =
-        await analysisRequest.text();
+        await analysisResponse.text();
 
       let analysisData;
 
       try {
         analysisData =
-          JSON.parse(analysisText);
+          JSON.parse(
+            analysisText
+          );
       } catch {
         throw new Error(
-          `Analysis server returned an invalid response: ${analysisText.slice(
+          `Analysis server returned invalid JSON: ${analysisText.slice(
             0,
             500
           )}`
         );
       }
 
-      if (!analysisRequest.ok) {
+      if (
+        !analysisResponse.ok
+      ) {
         throw new Error(
           analysisData?.error ||
-            `Analysis server returned HTTP ${analysisRequest.status}`
+            `Analysis server returned HTTP ${analysisResponse.status}`
         );
       }
 
-      if (!analysisData?.analysis) {
+      if (
+        !analysisData?.analysis
+      ) {
         throw new Error(
           'Gemini returned no analysis.'
         );
@@ -415,14 +449,17 @@ export default function App() {
               : '👁️ Analyse Actual Video'}
           </button>
 
-          {!loading && file && (
-            <button
-              className="clear-btn"
-              onClick={clearVideo}
-            >
-              Clear
-            </button>
-          )}
+          {!loading &&
+            file && (
+              <button
+                className="clear-btn"
+                onClick={
+                  clearVideo
+                }
+              >
+                Clear
+              </button>
+            )}
 
         </div>
 
@@ -430,7 +467,8 @@ export default function App() {
           <section
             className="status-panel"
             style={{
-              marginTop: '15px'
+              marginTop:
+                '15px'
             }}
           >
 
@@ -442,8 +480,10 @@ export default function App() {
               <>
                 <div
                   style={{
-                    width: '100%',
-                    height: '10px',
+                    width:
+                      '100%',
+                    height:
+                      '10px',
                     background:
                       '#333',
                     borderRadius:
@@ -482,24 +522,27 @@ export default function App() {
           </section>
         )}
 
-        {!loading && status && (
-          <section
-            className="status-panel"
-            style={{
-              marginTop: '15px'
-            }}
-          >
-            <p className="status-text">
-              {status}
-            </p>
-          </section>
-        )}
+        {!loading &&
+          status && (
+            <section
+              className="status-panel"
+              style={{
+                marginTop:
+                  '15px'
+              }}
+            >
+              <p className="status-text">
+                {status}
+              </p>
+            </section>
+          )}
 
         {analysis && (
           <section
             className="result-container"
             style={{
-              marginTop: '20px'
+              marginTop:
+                '20px'
             }}
           >
 
