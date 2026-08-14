@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -9,14 +9,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    /*
-     * =====================================================
-     * STEP 0 — CHECK GEMINI
-     * =====================================================
-     */
-
-    const apiKey =
-      process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       return res.status(500).json({
@@ -24,18 +17,6 @@ export default async function handler(req, res) {
         error: 'GEMINI_API_KEY is missing.'
       });
     }
-
-    /*
-     * =====================================================
-     * STEP 1 — READ REQUEST
-     * =====================================================
-     *
-     * Current App.jsx sends:
-     *
-     * videoUrl: blob.url
-     *
-     * We also accept blobUrl for compatibility.
-     */
 
     const {
       videoUrl = '',
@@ -47,14 +28,12 @@ export default async function handler(req, res) {
     } = req.body || {};
 
     const actualVideoUrl =
-      videoUrl ||
-      blobUrl;
+      videoUrl || blobUrl;
 
     if (!actualVideoUrl) {
       return res.status(400).json({
         success: false,
-        error:
-          'No public Blob video URL was supplied.'
+        error: 'No public Blob video URL was supplied.'
       });
     }
 
@@ -68,26 +47,14 @@ export default async function handler(req, res) {
     );
 
     console.log(
-      '[ANALYSE] Filename:',
-      filename
+      '[ANALYSE] Downloading video from Blob...'
     );
 
     /*
      * =====================================================
-     * STEP 2 — DOWNLOAD PUBLIC BLOB VIDEO
+     * STEP 1 — DOWNLOAD VIDEO FROM PUBLIC BLOB
      * =====================================================
-     *
-     * The new bikeztagram-media-live store is PUBLIC.
-     *
-     * Therefore the Blob URL can be fetched directly.
-     *
-     * This deliberately avoids using @vercel/blob get()
-     * and avoids mixing credentials from the old stores.
      */
-
-    console.log(
-      '[ANALYSE] Downloading video from public Blob URL...'
-    );
 
     const blobResponse =
       await fetch(actualVideoUrl);
@@ -99,9 +66,7 @@ export default async function handler(req, res) {
     }
 
     const contentType =
-      blobResponse.headers.get(
-        'content-type'
-      ) ||
+      blobResponse.headers.get('content-type') ||
       mimeType ||
       'video/mp4';
 
@@ -125,7 +90,7 @@ export default async function handler(req, res) {
 
     /*
      * =====================================================
-     * STEP 3 — INITIALISE GEMINI
+     * STEP 2 — INITIALISE GEMINI
      * =====================================================
      */
 
@@ -136,7 +101,7 @@ export default async function handler(req, res) {
 
     /*
      * =====================================================
-     * STEP 4 — UPLOAD VIDEO TO GEMINI
+     * STEP 3 — UPLOAD VIDEO TO GEMINI FILE API
      * =====================================================
      */
 
@@ -144,7 +109,7 @@ export default async function handler(req, res) {
       '[ANALYSE] Uploading video to Gemini...'
     );
 
-    const videoFile =
+    let videoFile =
       await ai.files.upload({
         file: new Blob(
           [videoBuffer],
@@ -171,15 +136,9 @@ export default async function handler(req, res) {
 
     /*
      * =====================================================
-     * STEP 5 — WAIT FOR GEMINI VIDEO PROCESSING
+     * STEP 4 — WAIT FOR VIDEO PROCESSING
      * =====================================================
      */
-
-    let currentFile =
-      videoFile;
-
-    let videoReady =
-      false;
 
     for (
       let attempt = 0;
@@ -188,8 +147,7 @@ export default async function handler(req, res) {
     ) {
       const state =
         String(
-          currentFile?.state ||
-            ''
+          videoFile?.state || ''
         ).toUpperCase();
 
       console.log(
@@ -200,18 +158,13 @@ export default async function handler(req, res) {
       );
 
       if (
-        state ===
-        'ACTIVE'
+        state === 'ACTIVE'
       ) {
-        videoReady =
-          true;
-
         break;
       }
 
       if (
-        state ===
-        'FAILED'
+        state === 'FAILED'
       ) {
         throw new Error(
           'Gemini failed while processing the video.'
@@ -219,39 +172,45 @@ export default async function handler(req, res) {
       }
 
       await new Promise(
-        (resolve) =>
+        resolve =>
           setTimeout(
             resolve,
             2000
           )
       );
 
-      currentFile =
+      videoFile =
         await ai.files.get({
-          name:
-            videoFile.name
+          name: videoFile.name
         });
     }
 
-    if (!videoReady) {
+    const finalState =
+      String(
+        videoFile?.state || ''
+      ).toUpperCase();
+
+    if (
+      finalState !== 'ACTIVE'
+    ) {
       throw new Error(
         'Gemini video processing timed out.'
       );
     }
 
-    if (!currentFile?.uri) {
+    if (!videoFile?.uri) {
       throw new Error(
         'Gemini returned no video URI.'
       );
     }
 
     console.log(
-      '[ANALYSE] Video is ready for Gemini analysis.'
+      '[ANALYSE] Gemini video is ACTIVE and ready.'
     );
 
     /*
      * =====================================================
-     * STEP 6 — BUILD AI ANALYSIS PROMPT
+     * STEP 5 — ANALYSIS PROMPT
      * =====================================================
      */
 
@@ -356,76 +315,41 @@ Use exactly this structure:
 
     /*
      * =====================================================
-     * STEP 7 — SEND ACTUAL VIDEO TO GEMINI
+     * STEP 6 — CURRENT GEMINI GENERATE CONTENT API
      * =====================================================
+     *
+     * We deliberately use models.generateContent()
+     * instead of the legacy Interactions API.
      */
 
     console.log(
-      '[ANALYSE] Sending actual video to Gemini...'
+      '[ANALYSE] Sending actual video to Gemini generateContent...'
     );
 
-    const interaction =
-      await ai.interactions.create({
+    const response =
+      await ai.models.generateContent({
         model:
           'gemini-3.6-flash',
 
-        input: [
-          {
-            type: 'video',
-            uri:
-              currentFile.uri,
-            mime_type:
-              currentFile.mimeType ||
-              contentType
-          },
-          {
-            type: 'text',
-            text:
-              analysisPrompt
-          }
-        ]
+        contents:
+          createUserContent([
+            createPartFromUri(
+              videoFile.uri,
+              videoFile.mimeType ||
+                contentType
+            ),
+
+            analysisPrompt
+          ])
       });
 
     /*
      * =====================================================
-     * STEP 8 — EXTRACT GEMINI RESPONSE
-     * =====================================================
-     */
+     * STEP 7 — READ GEMINI RESPONSE
+     * ===================================================== */
 
     let modelText =
-      interaction?.output_text ||
-      '';
-
-    if (
-      !modelText &&
-      Array.isArray(
-        interaction?.outputs
-      )
-    ) {
-      for (
-        const output of
-        interaction.outputs
-      ) {
-        if (
-          Array.isArray(
-            output?.content
-          )
-        ) {
-          for (
-            const part of
-            output.content
-          ) {
-            if (
-              typeof part?.text ===
-              'string'
-            ) {
-              modelText +=
-                part.text;
-            }
-          }
-        }
-      }
-    }
+      response?.text || '';
 
     modelText =
       String(modelText)
@@ -445,11 +369,14 @@ Use exactly this structure:
       );
     }
 
+    console.log(
+      '[ANALYSE] Gemini raw response received.'
+    );
+
     /*
      * =====================================================
-     * STEP 9 — PARSE JSON
-     * =====================================================
-     */
+     * STEP 8 — PARSE JSON
+     * ===================================================== */
 
     let analysis;
 
@@ -458,9 +385,9 @@ Use exactly this structure:
         JSON.parse(
           modelText
         );
-    } catch {
+    } catch (parseError) {
       console.error(
-        '[ANALYSE] Gemini raw response:',
+        '[ANALYSE] Gemini returned:',
         modelText
       );
 
@@ -472,8 +399,7 @@ Use exactly this structure:
     /*
      * =====================================================
      * SUCCESS
-     * =====================================================
-     */
+     * ===================================================== */
 
     console.log(
       '[ANALYSE] Gemini analysis completed successfully.'
@@ -516,4 +442,4 @@ Use exactly this structure:
         'Unknown video analysis error.'
     });
   }
-      }
+}
