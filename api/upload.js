@@ -8,16 +8,33 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = req.body || {};
+    // Vercel's client upload sends a JSON token-generation request.
+    // Handle both parsed and string request bodies safely.
+    let body = req.body;
 
-    const token = await handleUpload({
+    if (typeof body === 'string') {
+      body = JSON.parse(body);
+    }
+
+    if (!body) {
+      throw new Error('No upload request body received.');
+    }
+
+    console.log('[UPLOAD] Client token request received');
+    console.log('[UPLOAD] Request type:', body?.type || 'unknown');
+
+    const jsonResponse = await handleUpload({
       body,
       request: req,
 
-      onBeforeGenerateToken: async (
-        pathname
-      ) => {
+      onBeforeGenerateToken: async (pathname) => {
+        console.log(
+          '[UPLOAD] Generating client token for:',
+          pathname
+        );
+
         return {
+          // Our Blob store is configured for public video access.
           access: 'public',
 
           allowedContentTypes: [
@@ -34,10 +51,7 @@ export default async function handler(req, res) {
         };
       },
 
-      onUploadCompleted: async ({
-        blob,
-        tokenPayload
-      }) => {
+      onUploadCompleted: async ({ blob }) => {
         console.log(
           '[UPLOAD] Blob upload completed:',
           blob?.pathname
@@ -45,20 +59,20 @@ export default async function handler(req, res) {
       }
     });
 
-    console.log('[UPLOAD] Upload token created successfully');
+    console.log('[UPLOAD] Client token generated successfully');
 
-    return res.status(200).json(token);
+    return res.status(200).json(jsonResponse);
 
   } catch (error) {
     console.error(
-      '[UPLOAD] Blob upload token error:',
-      error
+      '[UPLOAD] FAILED:',
+      error?.message || error
     );
 
-    return res.status(500).json({
+    return res.status(400).json({
       error:
         error?.message ||
-        'Could not create Blob upload token.'
+        'Failed to generate Vercel Blob client token.'
     });
   }
 }
