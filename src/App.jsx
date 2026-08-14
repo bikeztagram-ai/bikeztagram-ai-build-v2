@@ -276,6 +276,52 @@ export default function App() {
     setStatus('');
   }
 
+  function buildPlannerInput(geminiAnalysis) {
+    const moments =
+      Array.isArray(
+        geminiAnalysis?.bestMoments
+      )
+        ? geminiAnalysis.bestMoments
+        : [];
+
+    const recommendation =
+      geminiAnalysis?.editingRecommendation ||
+      {};
+
+    const textRecommendation =
+      geminiAnalysis?.textRecommendation ||
+      {};
+
+    const transitionRecommendation =
+      geminiAnalysis?.transitionRecommendation ||
+      '';
+
+    const motionRecommendation =
+      geminiAnalysis?.motionRecommendation ||
+      '';
+
+    const plannerInput = {
+      ...geminiAnalysis,
+
+      bestMoments:
+        moments,
+
+      editingRecommendation:
+        recommendation,
+
+      textRecommendation:
+        textRecommendation,
+
+      transitionRecommendation:
+        transitionRecommendation,
+
+      motionRecommendation:
+        motionRecommendation
+    };
+
+    return plannerInput;
+  }
+
   /*
    * =====================================================
    * GEMINI -> AI EDIT PLAN
@@ -285,18 +331,13 @@ export default function App() {
   function createPlanFromAnalysis(
     geminiAnalysis
   ) {
-    /*
-     * The Gemini analysis is now passed directly into the
-     * cinematic planner. The planner reads the actual
-     * timestamps, descriptions, recommendations and model
-     * observations itself.
-     *
-     * This is important because the previous adapter forced
-     * every moment to use the same transition, motion and
-     * speed recommendation.
-     */
+    const plannerInput =
+      buildPlannerInput(
+        geminiAnalysis
+      );
+
     return createAIEditPlan(
-      geminiAnalysis,
+      plannerInput,
       {
         maxCuts: 8,
         targetDuration: 15,
@@ -426,24 +467,63 @@ export default function App() {
         );
 
         /*
-         * IMPORTANT:
+         * =====================================================
+         * DIAGNOSTIC BLOB UPLOAD
          *
-         * Keep this FALSE.
-         *
-         * This is the exact upload configuration
-         * that successfully uploaded 8518.mp4 earlier.
-         *
-         * Vercel recommends multipart mainly for
-         * substantially larger files (100 MB+).
+         * The server-side token generation is already known to
+         * work. This diagnostic keeps the proven upload options
+         * unchanged and only adds timing/progress information
+         * around the browser -> Blob transfer.
+         * =====================================================
          */
 
+        const uploadStartedAt =
+          Date.now();
+
+        let uploadProgressEvents = 0;
+
         console.log(
-          '[APP] Blob multipart:',
+          '[APP] ========================================'
+        );
+
+        console.log(
+          '[APP] BLOB DIRECT UPLOAD STARTING'
+        );
+
+        console.log(
+          '[APP] File bytes:',
+          file.size
+        );
+
+        console.log(
+          '[APP] File MB:',
+          (
+            file.size /
+            1024 /
+            1024
+          ).toFixed(2)
+        );
+
+        console.log(
+          '[APP] Multipart:',
           false
         );
 
-        blob =
-          await upload(
+        console.log(
+          '[APP] handleUploadUrl:',
+          '/api/upload'
+        );
+
+        console.log(
+          '[APP] Waiting for browser -> Blob transfer...'
+        );
+
+        console.log(
+          '[APP] ========================================'
+        );
+
+        const uploadPromise =
+          upload(
             pathname,
             file,
             {
@@ -472,19 +552,34 @@ export default function App() {
                     file.size,
 
                   diagnostic:
-                    'blob-upload-test-v3'
+                    'blob-upload-diagnostic-v4'
                 }),
 
               onUploadProgress:
                 (event) => {
+                  uploadProgressEvents++;
+
                   const percentage =
                     Number(
                       event?.percentage
                     );
 
+                  const elapsed =
+                    (
+                      Date.now() -
+                      uploadStartedAt
+                    ) / 1000;
+
                   console.log(
-                    '[APP] Blob upload progress:',
-                    event
+                    '[APP] Blob progress event:',
+                    {
+                      eventNumber:
+                        uploadProgressEvents,
+                      percentage,
+                      elapsedSeconds:
+                        elapsed,
+                      event
+                    }
                   );
 
                   if (
@@ -510,14 +605,142 @@ export default function App() {
                     setStatus(
                       `Uploading video to Blob storage... ${safePercentage}%`
                     );
+                  } else {
+                    console.warn(
+                      '[APP] Blob progress event contained no numeric percentage.'
+                    );
                   }
                 }
             }
           );
 
+        const uploadTimeoutPromise =
+          new Promise((_, reject) => {
+            setTimeout(() => {
+              const elapsed =
+                (
+                  Date.now() -
+                  uploadStartedAt
+                ) / 1000;
+
+              console.error(
+                '[APP] BLOB UPLOAD TIMEOUT'
+              );
+
+              console.error(
+                '[APP] Elapsed seconds:',
+                elapsed
+              );
+
+              console.error(
+                '[APP] Progress events received:',
+                uploadProgressEvents
+              );
+
+              reject(
+                new Error(
+                  `Browser -> Vercel Blob upload timed out after ${Math.round(
+                    elapsed
+                  )} seconds. Progress events received: ${uploadProgressEvents}.`
+                )
+              );
+            }, 60000);
+          });
+
+        try {
+          blob =
+            await Promise.race([
+              uploadPromise,
+              uploadTimeoutPromise
+            ]);
+        } catch (uploadError) {
+          const uploadElapsed =
+            (
+              Date.now() -
+              uploadStartedAt
+            ) / 1000;
+
+          console.error(
+            '[APP] ========================================'
+          );
+
+          console.error(
+            '[APP] BLOB DIRECT UPLOAD FAILED'
+          );
+
+          console.error(
+            '[APP] Elapsed seconds:',
+            uploadElapsed
+          );
+
+          console.error(
+            '[APP] Progress events received:',
+            uploadProgressEvents
+          );
+
+          console.error(
+            '[APP] Error name:',
+            uploadError?.name
+          );
+
+          console.error(
+            '[APP] Error message:',
+            uploadError?.message
+          );
+
+          console.error(
+            '[APP] Error cause:',
+            uploadError?.cause
+          );
+
+          console.error(
+            '[APP] Error stack:',
+            uploadError?.stack
+          );
+
+          console.error(
+            '[APP] Error object:',
+            uploadError
+          );
+
+          console.error(
+            '[APP] ========================================'
+          );
+
+          throw uploadError;
+        }
+
+        const uploadElapsed =
+          (
+            Date.now() -
+            uploadStartedAt
+          ) / 1000;
+
         console.log(
-          '[APP] Blob upload promise completed:',
+          '[APP] ========================================'
+        );
+
+        console.log(
+          '[APP] BLOB DIRECT UPLOAD COMPLETED'
+        );
+
+        console.log(
+          '[APP] Elapsed seconds:',
+          uploadElapsed
+        );
+
+        console.log(
+          '[APP] Progress events received:',
+          uploadProgressEvents
+        );
+
+        console.log(
+          '[APP] Blob result:',
           blob
+        );
+
+        console.log(
+          '[APP] ========================================'
         );
 
       } catch (uploadError) {
@@ -1481,4 +1704,4 @@ export default function App() {
 
     </div>
   );
-        }
+      }
