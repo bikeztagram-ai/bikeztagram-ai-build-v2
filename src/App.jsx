@@ -1,261 +1,285 @@
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react';
-
+import React, { useState } from 'react';
+import { upload } from '@vercel/blob/client';
 import {
-  createAIEditPlan
-} from './director';
-
-import {
-  renderVideo
-} from './renderer';
-
-import {
-  generateOriginalPulseMusic
-} from './musicProvider';
-
+  createAIEditPlan,
+  describeAIEditPlan
+} from './aiEditPlanner.js';
+import { renderProject } from './renderer.js';
 import './styles.css';
 
-/*
- * =========================================================
- * BIKEZTAGRAM AI
- * APP
- * =========================================================
- *
- * This file controls:
- *
- * - Video selection
- * - Vercel Blob client upload
- * - Gemini video analysis
- * - AI edit-plan generation
- * - Timeline preview
- * - Browser rendering
- * - Final video download
- *
- * IMPORTANT:
- * The upload system uses the secure /api/upload route.
- *
- * The AI analysis happens after the video has been uploaded
- * to Blob so that the server can safely process the media
- * without sending the entire video through a Vercel function
- * request.
- */
-
 export default function App() {
-  /*
-   * =====================================================
-   * STATE
-   * =====================================================
-   */
+  const [file, setFile] = useState(null);
 
-  const [file, setFile] =
-    useState(null);
+  const [prompt, setPrompt] = useState(
+    'Analyse this motorcycle footage for the strongest cinematic moments, camera movement, action, composition and best timestamps for an exciting social-media motorcycle video.'
+  );
 
-  const [previewUrl, setPreviewUrl] =
-    useState('');
+  const [status, setStatus] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [analysis, setAnalysis] = useState(null);
+  const [plan, setPlan] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [rendering, setRendering] = useState(false);
 
-  const [analysis, setAnalysis] =
-    useState(null);
+  const [renderProgress, setRenderProgress] = useState(0);
+  const [renderedVideoUrl, setRenderedVideoUrl] = useState('');
 
-  const [plan, setPlan] =
-    useState(null);
-
-  const [renderedVideoUrl, setRenderedVideoUrl] =
-    useState('');
-
-  const [status, setStatus] =
-    useState(
-      'Choose a motorcycle video to begin.'
-    );
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [progress, setProgress] =
-    useState(0);
-
-  const [renderProgress, setRenderProgress] =
-    useState(0);
-
-  const [currentStage, setCurrentStage] =
-    useState(
-      'STEP 0 — Waiting for video'
-    );
-
-  const [errorDetails, setErrorDetails] =
-    useState(null);
-
-  const [directorPrompt, setDirectorPrompt] =
-    useState(
-      'Create a cinematic motorcycle trailer with mystery, anticipation, reveal, action and a strong hero ending.'
-    );
-
-  const videoRef =
-    useRef(null);
-
-  /*
-   * =====================================================
-   * CLEAN UP OBJECT URL
-   * =====================================================
-   */
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(
-          previewUrl
-        );
-      }
-    };
-  }, [previewUrl]);
-
-  /*
-   * =====================================================
-   * CLEAN UP RENDERED URL
-   * =====================================================
-   */
-
-  useEffect(() => {
-    return () => {
-      if (renderedVideoUrl) {
-        URL.revokeObjectURL(
-          renderedVideoUrl
-        );
-      }
-    };
-  }, [renderedVideoUrl]);
-
-  /*
-   * =====================================================
-   * FILE SELECTION
-   * =====================================================
-   */
+  const [errorDetails, setErrorDetails] = useState(null);
+  const [currentStage, setCurrentStage] = useState('');
 
   function handleFileChange(event) {
     const selectedFile =
-      event.target.files?.[0];
+      event.target.files?.[0] || null;
 
-    if (!selectedFile) {
-      return;
-    }
-
-    if (
-      !selectedFile.type ||
-      !selectedFile.type.startsWith(
-        'video/'
-      )
-    ) {
-      setStatus(
-        'Please select a valid video file.'
-      );
-
-      return;
-    }
-
-    if (previewUrl) {
-      URL.revokeObjectURL(
-        previewUrl
-      );
-    }
-
-    const nextPreviewUrl =
-      URL.createObjectURL(
-        selectedFile
-      );
-
-    setFile(
-      selectedFile
-    );
-
-    setPreviewUrl(
-      nextPreviewUrl
-    );
-
+    setFile(selectedFile);
     setAnalysis(null);
     setPlan(null);
     setRenderedVideoUrl('');
     setProgress(0);
     setRenderProgress(0);
     setErrorDetails(null);
+    setCurrentStage('');
 
-    setCurrentStage(
-      'STEP 0 — Video selected'
-    );
+    if (selectedFile) {
+      const sizeMB =
+        selectedFile.size / 1024 / 1024;
 
-    setStatus(
-      `Ready: ${selectedFile.name}`
-    );
+      setStatus(
+        `Selected: ${selectedFile.name} (${sizeMB.toFixed(2)} MB)`
+      );
+    } else {
+      setStatus('');
+    }
+  }
 
-    console.log(
-      '========================================'
-    );
+  function makeErrorDetails(error, stage) {
+    const details = {
+      time: new Date().toISOString(),
 
-    console.log(
-      '[BIKEZTAGRAM] VIDEO SELECTED'
-    );
+      stage,
 
-    console.log(
-      '[APP] File:',
-      {
-        name:
-          selectedFile.name,
+      message:
+        error?.message ||
+        String(error) ||
+        'Unknown error',
 
-        type:
-          selectedFile.type,
+      name:
+        error?.name ||
+        'UnknownError',
 
-        size:
-          selectedFile.size,
+      stack:
+        error?.stack ||
+        'No stack trace available',
 
+      errorType:
+        typeof error,
+
+      errorConstructor:
+        error?.constructor?.name ||
+        'Unknown',
+
+      cause:
+        error?.cause
+          ? String(error.cause)
+          : null,
+
+      errorProperties: {},
+
+      browser: {
+        online:
+          typeof navigator !== 'undefined'
+            ? navigator.onLine
+            : null,
+
+        userAgent:
+          typeof navigator !== 'undefined'
+            ? navigator.userAgent
+            : null,
+
+        url:
+          typeof window !== 'undefined'
+            ? window.location.href
+            : null
+      }
+    };
+
+    try {
+      if (error) {
+        Object.getOwnPropertyNames(error)
+          .forEach((property) => {
+            try {
+              const value =
+                error[property];
+
+              if (
+                typeof value === 'string' ||
+                typeof value === 'number' ||
+                typeof value === 'boolean' ||
+                value === null
+              ) {
+                details.errorProperties[property] =
+                  value;
+              } else {
+                try {
+                  details.errorProperties[property] =
+                    JSON.parse(
+                      JSON.stringify(value)
+                    );
+                } catch {
+                  details.errorProperties[property] =
+                    String(value);
+                }
+              }
+            } catch {
+              details.errorProperties[property] =
+                '[Unable to read property]';
+            }
+          });
+      }
+    } catch (propertyError) {
+      details.errorPropertiesError =
+        String(propertyError);
+    }
+
+    if (file) {
+      details.file = {
+        name: file.name,
+        type: file.type,
+        sizeBytes: file.size,
         sizeMB:
           (
-            selectedFile.size /
+            file.size /
             1024 /
             1024
           ).toFixed(2)
+      };
+    }
+
+    return details;
+  }
+
+  function getErrorText() {
+    if (!errorDetails) {
+      return '';
+    }
+
+    return JSON.stringify(
+      errorDetails,
+      null,
+      2
+    );
+  }
+
+  async function copyErrorDetails() {
+    const text =
+      getErrorText();
+
+    if (!text) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        text
+      );
+
+      setStatus(
+        '✅ Full error details copied to clipboard.'
+      );
+    } catch (copyError) {
+      setStatus(
+        'Could not copy automatically. Long-press the error text and copy it manually.'
+      );
+
+      console.error(
+        '[APP] Clipboard copy failed:',
+        copyError
+      );
+    }
+  }
+
+  async function copyEverything() {
+    const everything = {
+      bikeztagram:
+        'BIKEZTAGRAM AI',
+
+      time:
+        new Date().toISOString(),
+
+      currentStage,
+
+      status,
+
+      file: file
+        ? {
+            name: file.name,
+            type: file.type,
+            sizeBytes: file.size,
+            sizeMB:
+              (
+                file.size /
+                1024 /
+                1024
+              ).toFixed(2)
+          }
+        : null,
+
+      analysis,
+
+      plan,
+
+      error:
+        errorDetails,
+
+      browser: {
+        userAgent:
+          navigator.userAgent,
+
+        url:
+          window.location.href,
+
+        online:
+          navigator.onLine
       }
-    );
+    };
 
-    console.log(
-      '========================================'
-    );
+    const text =
+      JSON.stringify(
+        everything,
+        null,
+        2
+      );
+
+    try {
+      await navigator.clipboard.writeText(
+        text
+      );
+
+      setStatus(
+        '✅ Complete diagnostic information copied to clipboard.'
+      );
+    } catch (copyError) {
+      setStatus(
+        'Could not copy automatically. Long-press the diagnostic text and copy it manually.'
+      );
+
+      console.error(
+        '[APP] Clipboard copy failed:',
+        copyError
+      );
+    }
+  }
+
+  function clearError() {
+    setErrorDetails(null);
+    setCurrentStage('');
+    setStatus('');
   }
 
   /*
    * =====================================================
-   * DIRECTOR INPUT
+   * GEMINI -> AI EDIT PLAN
    * =====================================================
-   */
-
-  function getDirectorPrompt() {
-    return String(
-      directorPrompt || ''
-    ).trim();
-  }
-
-  /*
-   * =====================================================
-   * AI PLAN INPUT
-   * =====================================================
-   *
-   * IMPORTANT FIX:
-   *
-   * The old version attempted to read:
-   *
-   *     cuts.length
-   *
-   * from inside the .map() which was creating `cuts`.
-   *
-   * That caused the production JavaScript error:
-   *
-   *     Cannot access 'Ge' before initialization
-   *
-   * `Ge` was simply the minified variable name generated
-   * by Vite.
-   *
-   * We now use the map index instead.
    */
 
   function buildPlannerInput(geminiAnalysis) {
@@ -304,6 +328,20 @@ export default function App() {
             textRecommendation.text || ''
           ).trim()
         : '';
+
+    /*
+     * IMPORTANT FIX:
+     *
+     * The old code tried to access cuts.length
+     * from inside the .map() which was creating
+     * the cuts array.
+     *
+     * That caused:
+     *
+     * Cannot access 'Ge' before initialization
+     *
+     * We now use the map index instead.
+     */
 
     const cuts =
       moments
@@ -364,19 +402,16 @@ export default function App() {
               )
             );
 
-          /*
-           * IMPORTANT:
-           *
-           * Do NOT read cuts.length here.
-           *
-           * The cuts array is still being created by
-           * this .map() call.
-           *
-           * The first Gemini moment gets the recommended
-           * title overlay instead.
-           */
-
           let text = '';
+
+          /*
+           * First selected moment gets the
+           * recommended text overlay.
+           *
+           * We use index === 0 instead of
+           * cuts.length because cuts is still
+           * being constructed here.
+           */
 
           if (
             defaultText &&
@@ -416,12 +451,6 @@ export default function App() {
     };
   }
 
-  /*
-   * =====================================================
-   * CREATE AI EDIT PLAN
-   * =====================================================
-   */
-
   function createPlanFromAnalysis(
     geminiAnalysis
   ) {
@@ -441,47 +470,30 @@ export default function App() {
 
   /*
    * =====================================================
-   * ANALYSE VIDEO
+   * ANALYSE ACTUAL VIDEO
    * =====================================================
    */
 
   async function analyseActualVideo() {
     if (!file) {
       setStatus(
-        'Please choose a motorcycle video first.'
+        'Please choose a video first.'
       );
-
-      return;
-    }
-
-    if (
-      !file.type ||
-      !file.type.startsWith('video/')
-    ) {
-      setStatus(
-        'Please select a valid video file.'
-      );
-
       return;
     }
 
     setLoading(true);
+    setProgress(0);
+    setErrorDetails(null);
     setAnalysis(null);
     setPlan(null);
     setRenderedVideoUrl('');
-    setProgress(0);
-    setRenderProgress(0);
-    setErrorDetails(null);
-
-    setCurrentStage(
-      'STEP 1 — Preparing secure Blob upload'
-    );
 
     try {
       /*
        * =====================================================
        * STEP 1
-       * PREPARE VERCEL BLOB CLIENT UPLOAD
+       * Preparing secure Blob upload
        * =====================================================
        */
 
@@ -490,64 +502,48 @@ export default function App() {
       );
 
       setStatus(
-        'Preparing secure video upload...'
+        'Preparing secure Blob upload...'
       );
-
-      const safeFileName =
-        file.name.replace(
-          /[^a-zA-Z0-9._-]/g,
-          '_'
-        );
-
-      const pathname =
-        `videos/${Date.now()}-${crypto.randomUUID()}-${safeFileName}`;
 
       console.log(
         '========================================'
       );
 
       console.log(
-        '[BIKEZTAGRAM] STARTING BLOB UPLOAD'
+        '[APP] BIKEZTAGRAM UPLOAD START'
       );
 
       console.log(
-        '[APP] Browser:',
-        navigator.userAgent
+        '[APP] File name:',
+        file.name
       );
 
       console.log(
-        '[APP] Online:',
+        '[APP] File type:',
+        file.type
+      );
+
+      console.log(
+        '[APP] File size:',
+        file.size
+      );
+
+      console.log(
+        '[APP] File size MB:',
+        (
+          file.size /
+          1024 /
+          1024
+        ).toFixed(2)
+      );
+
+      console.log(
+        '[APP] Browser online:',
         navigator.onLine
       );
 
       console.log(
-        '[APP] Blob pathname:',
-        pathname
-      );
-
-      console.log(
-        '[APP] File:',
-        {
-          name:
-            file.name,
-
-          type:
-            file.type,
-
-          size:
-            file.size,
-
-          sizeMB:
-            (
-              file.size /
-              1024 /
-              1024
-            ).toFixed(2)
-        }
-      );
-
-      console.log(
-        '[APP] Blob handleUploadUrl:',
+        '[APP] Upload endpoint:',
         '/api/upload'
       );
 
@@ -556,123 +552,206 @@ export default function App() {
       );
 
       /*
-       * Dynamic import keeps the initial application
-       * bundle smaller and ensures the upload SDK is
-       * loaded only when needed.
+       * =====================================================
+       * STEP 1B
+       * Upload video to Vercel Blob
+       * =====================================================
        */
 
-      const {
-        upload
-      } = await import(
-        '@vercel/blob/client'
-      );
+      let blob;
+
+      try {
+        setCurrentStage(
+          'STEP 1 — Uploading video to Vercel Blob'
+        );
+
+        setStatus(
+          'Uploading video to Blob storage...'
+        );
+
+        const safeName =
+          file.name
+            .replace(
+              /[^a-zA-Z0-9._-]/g,
+              '_'
+            );
+
+        const pathname =
+          `videos/${Date.now()}-${safeName}`;
+
+        console.log(
+          '[APP] Blob pathname:',
+          pathname
+        );
+
+        blob =
+          await upload(
+            pathname,
+            file,
+            {
+              access:
+                'public',
+
+              handleUploadUrl:
+                '/api/upload',
+
+              multipart:
+                file.size >
+                4.5 *
+                  1024 *
+                  1024,
+
+              onUploadProgress:
+                (event) => {
+                  const percentage =
+                    Number(
+                      event?.percentage
+                    ) || 0;
+
+                  const safePercentage =
+                    Math.max(
+                      0,
+                      Math.min(
+                        100,
+                        Math.round(
+                          percentage
+                        )
+                      )
+                    );
+
+                  setProgress(
+                    safePercentage
+                  );
+
+                  setStatus(
+                    `Uploading video to Blob storage... ${safePercentage}%`
+                  );
+                }
+            }
+          );
+
+        console.log(
+          '[APP] Blob upload promise completed:',
+          blob
+        );
+
+      } catch (uploadError) {
+        console.error(
+          '========================================'
+        );
+
+        console.error(
+          '[APP] BLOB CLIENT UPLOAD FAILED'
+        );
+
+        console.error(
+          '[APP] Error object:',
+          uploadError
+        );
+
+        console.error(
+          '[APP] Error name:',
+          uploadError?.name
+        );
+
+        console.error(
+          '[APP] Error message:',
+          uploadError?.message
+        );
+
+        console.error(
+          '[APP] Error stack:',
+          uploadError?.stack
+        );
+
+        console.error(
+          '[APP] Error cause:',
+          uploadError?.cause
+        );
+
+        console.error(
+          '[APP] Navigator online:',
+          navigator.onLine
+        );
+
+        console.error(
+          '========================================'
+        );
+
+        throw uploadError;
+      }
 
       /*
        * =====================================================
-       * STEP 1B
-       * UPLOAD TO PUBLIC BLOB STORE
+       * STEP 2
+       * Confirm Blob upload
        * =====================================================
        */
 
-      setStatus(
-        'Uploading video securely...'
-      );
-
       setCurrentStage(
-        'STEP 2 — Uploading video to secure Blob storage'
+        'STEP 2 — Blob upload completed'
       );
 
-      const blob =
-        await upload(
-          pathname,
-          file,
-          {
-            access:
-              'public',
-
-            handleUploadUrl:
-              '/api/upload',
-
-            multipart:
-              file.size >
-              5 *
-                1024 *
-                1024,
-
-            onUploadProgress:
-              (event) => {
-                const percentage =
-                  Number(
-                    event?.percentage
-                  );
-
-                if (
-                  Number.isFinite(
-                    percentage
-                  )
-                ) {
-                  setProgress(
-                    Math.round(
-                      percentage
-                    )
-                  );
-                }
-              }
-          }
+      if (!blob) {
+        throw new Error(
+          'Vercel Blob did not return an upload result.'
         );
+      }
+
+      if (!blob.pathname) {
+        throw new Error(
+          'Vercel Blob upload completed but returned no pathname.'
+        );
+      }
+
+      if (!blob.url) {
+        throw new Error(
+          'Vercel Blob upload completed but returned no URL.'
+        );
+      }
 
       console.log(
-        '========================================'
+        '[APP] ========================================'
       );
 
       console.log(
-        '[BIKEZTAGRAM] BLOB UPLOAD COMPLETE'
-      );
-
-      console.log(
-        '[APP] Blob:',
-        blob
-      );
-
-      console.log(
-        '[APP] Blob URL:',
-        blob?.url
+        '[APP] BLOB UPLOAD SUCCESSFUL'
       );
 
       console.log(
         '[APP] Blob pathname:',
-        blob?.pathname
+        blob.pathname
       );
 
       console.log(
-        '========================================'
+        '[APP] Blob URL:',
+        blob.url
       );
 
-      if (!blob?.url) {
-        throw new Error(
-          'Vercel Blob upload completed but returned no Blob URL.'
-        );
-      }
+      console.log(
+        '[APP] ========================================'
+      );
 
       setProgress(100);
+
+      setStatus(
+        '✅ Video successfully stored in Blob. Preparing Gemini analysis...'
+      );
 
       /*
        * =====================================================
        * STEP 3
-       * SEND BLOB URL TO ANALYSIS API
+       * Send Blob URL to Gemini analysis API
        * =====================================================
        */
 
       setCurrentStage(
-        'STEP 3 — Sending video to AI analysis'
-      );
-
-      setStatus(
-        'Video uploaded. Preparing AI analysis...'
+        'STEP 3 — Sending Blob video URL to /api/analyse'
       );
 
       console.log(
-        '[BIKEZTAGRAM] Sending Blob URL to /api/analyse'
+        '[APP] Sending Blob URL to /api/analyse:',
+        blob.url
       );
 
       const analysisResponse =
@@ -689,7 +768,7 @@ export default function App() {
 
             body:
               JSON.stringify({
-                url:
+                videoUrl:
                   blob.url,
 
                 pathname:
@@ -698,14 +777,11 @@ export default function App() {
                 filename:
                   file.name,
 
-                fileType:
-                  file.type,
+                mimeType:
+                  file.type ||
+                  'video/mp4',
 
-                fileSize:
-                  file.size,
-
-                directorPrompt:
-                  getDirectorPrompt()
+                prompt
               })
           }
         );
@@ -713,81 +789,58 @@ export default function App() {
       const analysisText =
         await analysisResponse.text();
 
-      let analysisData = null;
+      let analysisData;
 
       try {
         analysisData =
-          analysisText
-            ? JSON.parse(
-                analysisText
-              )
-            : null;
-      } catch {
-        analysisData = {
-          raw:
+          JSON.parse(
             analysisText
-        };
+          );
+      } catch {
+        throw new Error(
+          `Analysis server returned invalid JSON: ${analysisText.slice(
+            0,
+            1000
+          )}`
+        );
       }
-
-      console.log(
-        '[BIKEZTAGRAM] /api/analyse status:',
-        analysisResponse.status
-      );
-
-      console.log(
-        '[BIKEZTAGRAM] /api/analyse response:',
-        analysisData
-      );
 
       if (
         !analysisResponse.ok
       ) {
         throw new Error(
           analysisData?.error ||
-          analysisData?.message ||
-          `AI analysis failed with status ${analysisResponse.status}`
+            `Analysis server returned HTTP ${analysisResponse.status}`
+        );
+      }
+
+      if (
+        !analysisData?.analysis
+      ) {
+        throw new Error(
+          'Gemini returned no analysis.'
         );
       }
 
       /*
        * =====================================================
        * STEP 4
-       * STORE GEMINI ANALYSIS
+       * Gemini analysis
        * =====================================================
        */
 
       setCurrentStage(
-        'STEP 4 — Reading AI video analysis'
+        'STEP 4 — Gemini analysis completed'
       );
-
-      setStatus(
-        'AI analysis complete. Building edit plan...'
-      );
-
-      const geminiAnalysis =
-        analysisData?.analysis ||
-        analysisData?.result ||
-        analysisData;
-
-      if (!geminiAnalysis) {
-        throw new Error(
-          'AI analysis returned no usable analysis data.'
-        );
-      }
 
       setAnalysis(
-        geminiAnalysis
-      );
-
-      console.log(
-        '[BIKEZTAGRAM] Gemini analysis:',
-        geminiAnalysis
+        analysisData.analysis
       );
 
       /*
        * =====================================================
        * STEP 5
-       * BUILD AI EDIT PLAN
+       * Build AI edit plan
        * =====================================================
        */
 
@@ -796,38 +849,27 @@ export default function App() {
       );
 
       setStatus(
-        'Building cinematic AI edit plan...'
+        'Gemini analysis complete. Building AI edit plan...'
       );
-
-      /*
-       * The previous crash occurred here because
-       * buildPlannerInput() referenced cuts.length
-       * while cuts itself was still being constructed.
-       *
-       * That bug has now been fixed.
-       */
 
       const generatedPlan =
         createPlanFromAnalysis(
-          geminiAnalysis
+          analysisData.analysis
         );
 
-      if (
-        !generatedPlan
-      ) {
+      if (!generatedPlan) {
         throw new Error(
-          'AI edit-plan engine returned no plan.'
+          'AI edit planner returned no plan.'
         );
       }
 
       if (
         !Array.isArray(
           generatedPlan.cuts
-        ) ||
-        generatedPlan.cuts.length === 0
+        )
       ) {
         throw new Error(
-          'AI edit-plan engine returned no usable cuts.'
+          'AI edit planner returned an invalid cuts array.'
         );
       }
 
@@ -836,208 +878,68 @@ export default function App() {
       );
 
       console.log(
-        '========================================'
-      );
-
-      console.log(
-        '[BIKEZTAGRAM] AI EDIT PLAN CREATED'
-      );
-
-      console.log(
-        '[APP] Plan:',
+        '[APP] AI edit plan:',
         generatedPlan
       );
 
-      console.log(
-        '[APP] Cut count:',
-        generatedPlan.cuts.length
-      );
-
-      console.log(
-        '========================================'
-      );
-
-      /*
-       * =====================================================
-       * STEP 6
-       * READY FOR RENDER
-       * =====================================================
-       */
-
-      setCurrentStage(
-        'STEP 6 — AI edit plan ready'
-      );
-
       setStatus(
-        `AI edit plan ready — ${generatedPlan.cuts.length} cinematic cut${generatedPlan.cuts.length === 1 ? '' : 's'} selected.`
+        `✅ Gemini analysed the actual video. ${describeAIEditPlan(
+          generatedPlan
+        )}`
       );
 
     } catch (error) {
-      console.error(
-        '========================================'
-      );
-
-      console.error(
-        '[BIKEZTAGRAM] VIDEO WORKFLOW ERROR'
-      );
-
-      console.error(
-        'Error:',
-        error
-      );
-
-      console.error(
-        'Message:',
-        error?.message
-      );
-
-      console.error(
-        'Name:',
-        error?.name
-      );
-
-      console.error(
-        'Stack:',
-        error?.stack
-      );
+      const details =
+        makeErrorDetails(
+          error,
+          currentStage ||
+            'Unknown stage'
+        );
 
       console.error(
         '========================================'
       );
 
-      const details = {
-        bikeztagram:
-          'BIKEZTAGRAM AI',
+      console.error(
+        '[APP] BIKEZTAGRAM FULL ERROR'
+      );
 
-        time:
-          new Date().toISOString(),
+      console.error(
+        JSON.stringify(
+          details,
+          null,
+          2
+        )
+      );
 
-        currentStage,
-
-        status:
-          `❌ ERROR — ${
-            error?.message ||
-            'Unknown error'
-          }`,
-
-        file: {
-          name:
-            file?.name ||
-            null,
-
-          type:
-            file?.type ||
-            null,
-
-          sizeBytes:
-            file?.size ||
-            null,
-
-          sizeMB:
-            file?.size
-              ? (
-                  file.size /
-                  1024 /
-                  1024
-                ).toFixed(2)
-              : null
-        },
-
-        analysis:
-          analysis,
-
-        plan:
-          plan,
-
-        error: {
-          time:
-            new Date().toISOString(),
-
-          stage:
-            currentStage,
-
-          message:
-            error?.message ||
-            String(error),
-
-          name:
-            error?.name ||
-            'Error',
-
-          stack:
-            error?.stack ||
-            null
-        },
-
-        browser: {
-          userAgent:
-            navigator.userAgent,
-
-          online:
-            navigator.onLine,
-
-          url:
-            window.location.href
-        },
-
-        file: {
-          name:
-            file?.name ||
-            null,
-
-          type:
-            file?.type ||
-            null,
-
-          sizeBytes:
-            file?.size ||
-            null,
-
-          sizeMB:
-            file?.size
-              ? (
-                  file.size /
-                  1024 /
-                  1024
-                ).toFixed(2)
-              : null
-        }
-      };
+      console.error(
+        '========================================'
+      );
 
       setErrorDetails(
         details
       );
 
       setStatus(
-        `❌ ERROR — ${
-          error?.message ||
-          'Something went wrong.'
-        }`
-      );
-
-      setCurrentStage(
-        'ERROR — Workflow stopped'
+        `❌ ERROR — ${details.message}`
       );
 
     } finally {
-      setLoading(
-        false
-      );
+      setLoading(false);
     }
   }
 
   /*
    * =====================================================
-   * RENDER VIDEO
+   * BUILD FINAL VIDEO
    * =====================================================
    */
 
-  async function handleRender() {
+  async function buildAIEdit() {
     if (!file) {
       setStatus(
-        'Choose a video first.'
+        'Please choose a video first.'
       );
-
       return;
     }
 
@@ -1051,120 +953,63 @@ export default function App() {
       setStatus(
         'No AI edit plan is available yet. Analyse the video first.'
       );
-
       return;
     }
 
-    setLoading(true);
+    setRendering(true);
     setRenderProgress(0);
     setErrorDetails(null);
 
-    setCurrentStage(
-      'STEP 7 — Rendering cinematic video'
-    );
-
-    setStatus(
-      'Rendering cinematic edit...'
-    );
-
     try {
-      console.log(
-        '========================================'
+      setCurrentStage(
+        'STEP 6 — Rendering AI-directed video'
       );
 
-      console.log(
-        '[BIKEZTAGRAM] STARTING RENDER'
+      setStatus(
+        '🎬 Building your AI-directed cinematic edit...'
       );
 
-      console.log(
-        '[APP] Plan:',
-        plan
-      );
+      const mediaItems = [
+        {
+          id:
+            'video-0',
 
-      console.log(
-        '========================================'
-      );
-
-      /*
-       * Generate an original procedural music bed.
-       *
-       * No copyrighted music is downloaded.
-       */
-
-      let musicBlob =
-        null;
-
-      try {
-        setStatus(
-          'Creating original cinematic pulse...'
-        );
-
-        musicBlob =
-          await generateOriginalPulseMusic(
-            15
-          );
-
-        console.log(
-          '[APP] Original music generated:',
-          musicBlob
-        );
-
-      } catch (musicError) {
-        console.warn(
-          '[APP] Music generation failed; continuing without music:',
-          musicError
-        );
-      }
-
-      /*
-       * =====================================================
-       * RENDER
-       * =====================================================
-       */
-
-      const result =
-        await renderVideo(
           file,
-          plan,
-          {
-            musicBlob,
 
-            onProgress:
-              (value) => {
-                const percentage =
-                  Number(
-                    value
-                  );
+          name:
+            file.name,
 
-                if (
-                  Number.isFinite(
-                    percentage
-                  )
-                ) {
-                  setRenderProgress(
-                    Math.max(
-                      0,
-                      Math.min(
-                        100,
-                        Math.round(
-                          percentage
-                        )
-                      )
-                    )
-                  );
-                }
-              }
-          }
-        );
-
-      console.log(
-        '[BIKEZTAGRAM] RENDER RESULT:',
-        result
-      );
+          type:
+            file.type ||
+            'video/mp4'
+        }
+      ];
 
       const outputBlob =
-        result?.blob ||
-        result;
+        await renderProject(
+          mediaItems,
+          plan,
+          (percentage) => {
+            const safePercentage =
+              Math.max(
+                0,
+                Math.min(
+                  100,
+                  Number(
+                    percentage
+                  ) || 0
+                )
+              );
+
+            setRenderProgress(
+              safePercentage
+            );
+
+            setStatus(
+              `🎬 Rendering AI edit... ${safePercentage}%`
+            );
+          }
+        );
 
       if (!outputBlob) {
         throw new Error(
@@ -1172,832 +1017,583 @@ export default function App() {
         );
       }
 
-      const outputUrl =
+      if (
+        !(outputBlob instanceof Blob) ||
+        outputBlob.size === 0
+      ) {
+        throw new Error(
+          'Renderer completed but produced an empty video file.'
+        );
+      }
+
+      const videoUrl =
         URL.createObjectURL(
           outputBlob
         );
 
       setRenderedVideoUrl(
-        outputUrl
+        videoUrl
       );
 
-      setRenderProgress(
-        100
-      );
+      setRenderProgress(100);
 
       setCurrentStage(
-        'STEP 8 — Render complete'
+        'STEP 7 — AI edit completed'
       );
 
       setStatus(
-        '✅ Cinematic video rendered successfully.'
+        `✅ AI edit completed successfully — ${(
+          outputBlob.size /
+          1024 /
+          1024
+        ).toFixed(2)} MB`
       );
 
     } catch (error) {
-      console.error(
-        '========================================'
-      );
+      const details =
+        makeErrorDetails(
+          error,
+          currentStage ||
+            'AI render error'
+        );
 
       console.error(
-        '[BIKEZTAGRAM] RENDER ERROR'
+        '[APP] AI RENDER ERROR:',
+        details
       );
-
-      console.error(
-        error
-      );
-
-      console.error(
-        '========================================'
-      );
-
-      const details = {
-        bikeztagram:
-          'BIKEZTAGRAM AI',
-
-        time:
-          new Date().toISOString(),
-
-        currentStage,
-
-        status:
-          `❌ ERROR — ${
-            error?.message ||
-            'Render failed'
-          }`,
-
-        file: {
-          name:
-            file?.name ||
-            null,
-
-          type:
-            file?.type ||
-            null,
-
-          sizeBytes:
-            file?.size ||
-            null,
-
-          sizeMB:
-            file?.size
-              ? (
-                  file.size /
-                  1024 /
-                  1024
-                ).toFixed(2)
-              : null
-        },
-
-        analysis,
-
-        plan,
-
-        error: {
-          time:
-            new Date().toISOString(),
-
-          stage:
-            currentStage,
-
-          message:
-            error?.message ||
-            String(error),
-
-          name:
-            error?.name ||
-            'Error',
-
-          stack:
-            error?.stack ||
-            null
-        },
-
-        browser: {
-          userAgent:
-            navigator.userAgent,
-
-          online:
-            navigator.onLine,
-
-          url:
-            window.location.href
-        }
-      };
 
       setErrorDetails(
         details
       );
 
       setStatus(
-        `❌ ERROR — ${
-          error?.message ||
-          'Render failed.'
-        }`
-      );
-
-      setCurrentStage(
-        'ERROR — Render stopped'
+        `❌ RENDER ERROR — ${details.message}`
       );
 
     } finally {
-      setLoading(
-        false
-      );
+      setRendering(false);
     }
   }
 
-  /*
-   * =====================================================
-   * DOWNLOAD RENDERED VIDEO
-   * =====================================================
-   */
-
-  function downloadRenderedVideo() {
-    if (!renderedVideoUrl) {
-      return;
+  function clearVideo() {
+    if (
+      renderedVideoUrl
+    ) {
+      try {
+        URL.revokeObjectURL(
+          renderedVideoUrl
+        );
+      } catch {}
     }
 
-    const anchor =
-      document.createElement(
-        'a'
-      );
-
-    anchor.href =
-      renderedVideoUrl;
-
-    anchor.download =
-      'bikeztagram-cinematic-edit.webm';
-
-    document.body.appendChild(
-      anchor
-    );
-
-    anchor.click();
-
-    anchor.remove();
+    setFile(null);
+    setAnalysis(null);
+    setPlan(null);
+    setStatus('');
+    setProgress(0);
+    setRenderProgress(0);
+    setRenderedVideoUrl('');
+    setErrorDetails(null);
+    setCurrentStage('');
   }
-
-  /*
-   * =====================================================
-   * COPY DIAGNOSTICS
-   * =====================================================
-   */
-
-  async function copyDiagnostics() {
-    if (!errorDetails) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(
-        JSON.stringify(
-          errorDetails,
-          null,
-          2
-        )
-      );
-
-      setStatus(
-        '✅ Complete diagnostic information copied to clipboard.'
-      );
-
-    } catch (error) {
-      console.error(
-        'Could not copy diagnostics:',
-        error
-      );
-
-      setStatus(
-        'Could not copy diagnostics automatically.'
-      );
-    }
-  }
-
-  /*
-   * =====================================================
-   * ANALYSIS SUMMARY
-   * =====================================================
-   */
-
-  const analysisSummary =
-    useMemo(() => {
-      if (!analysis) {
-        return null;
-      }
-
-      return {
-        filename:
-          analysis.filename ||
-          file?.name ||
-          'Unknown',
-
-        duration:
-          analysis.durationSeconds,
-
-        model:
-          analysis.subject
-            ?.motorcycleModel ||
-          'Motorcycle',
-
-        shot:
-          analysis.shot
-            ?.type ||
-          'Unknown',
-
-        movement:
-          analysis.shot
-            ?.cameraMovement ||
-          'Unknown',
-
-        score:
-          analysis.cinematicScore,
-
-        action:
-          analysis.action,
-
-        recommendation:
-          analysis.editingRecommendation
-      };
-    }, [
-      analysis,
-      file
-    ]);
-
-  /*
-   * =====================================================
-   * RENDER
-   * =====================================================
-   */
 
   return (
-    <main className="app-shell">
+    <div className="app-container">
 
-      <section className="hero">
+      <header className="app-header">
 
-        <div className="hero-copy">
-
-          <div className="eyebrow">
-            BIKEZTAGRAM AI
-          </div>
+        <div>
 
           <h1>
-            Turn motorcycle footage
-            into cinematic edits.
+            BIKEZTAGRAM AI
           </h1>
 
           <p>
-            Upload your footage and let
-            the AI director analyse the
-            strongest moments, build a
-            story and prepare a cinematic
-            edit.
+            AI-powered motorcycle video editor
           </p>
 
         </div>
 
-      </section>
+      </header>
 
-      <section className="panel">
+      <main>
 
-        <div className="panel-heading">
+        <section className="form-group">
 
-          <div>
-
-            <div className="eyebrow">
-              VIDEO INPUT
-            </div>
-
-            <h2>
-              Choose your footage
-            </h2>
-
-          </div>
-
-        </div>
-
-        <label
-          className="upload-box"
-        >
+          <label htmlFor="video-file">
+            Test motorcycle footage
+          </label>
 
           <input
+            id="video-file"
             type="file"
             accept="video/*"
             onChange={
               handleFileChange
             }
             disabled={
-              loading
+              loading ||
+              rendering
             }
           />
 
-          <span>
-            Choose motorcycle video
-          </span>
-
-          <small>
-            MP4, MOV or WebM
-          </small>
-
-        </label>
-
-        {file && (
-          <div className="file-card">
-
-            <strong>
+          {file && (
+            <p className="status-text">
               {file.name}
-            </strong>
+            </p>
+          )}
 
-            <span>
-              {(
-                file.size /
-                1024 /
-                1024
-              ).toFixed(2)}
-              {' '}
-              MB
-            </span>
+        </section>
 
-          </div>
-        )}
+        <section className="form-group">
 
-      </section>
+          <label htmlFor="analysis-prompt">
+            Tell Gemini what to look for
+          </label>
 
-      <section className="panel">
-
-        <div className="panel-heading">
-
-          <div>
-
-            <div className="eyebrow">
-              AI DIRECTOR
-            </div>
-
-            <h2>
-              Tell the director what
-              you want
-            </h2>
-
-          </div>
-
-        </div>
-
-        <textarea
-          value={
-            directorPrompt
-          }
-          onChange={
-            (event) =>
-              setDirectorPrompt(
+          <textarea
+            id="analysis-prompt"
+            rows="6"
+            value={prompt}
+            onChange={(event) =>
+              setPrompt(
                 event.target.value
               )
-          }
-          disabled={
-            loading
-          }
-          rows={5}
-          placeholder="Describe the cinematic edit you want..."
-        />
-
-      </section>
-
-      {previewUrl && (
-        <section className="panel">
-
-          <div className="panel-heading">
-
-            <div>
-
-              <div className="eyebrow">
-                SOURCE
-              </div>
-
-              <h2>
-                Original footage
-              </h2>
-
-            </div>
-
-          </div>
-
-          <video
-            ref={
-              videoRef
             }
-            src={
-              previewUrl
+            disabled={
+              loading ||
+              rendering
             }
-            controls
-            playsInline
-            className="video-preview"
           />
 
         </section>
-      )}
 
-      <section className="panel">
+        <div className="button-row">
 
-        <div className="stage-card">
+          <button
+            className="generate-btn"
+            onClick={
+              analyseActualVideo
+            }
+            disabled={
+              loading ||
+              rendering ||
+              !file
+            }
+          >
+            {loading
+              ? '👁️ Analysing Video...'
+              : '👁️ Analyse Actual Video'}
+          </button>
 
-          <div className="stage-label">
-            CURRENT STAGE
-          </div>
-
-          <div className="stage-title">
-            {currentStage}
-          </div>
-
-          <div className="status">
-            {status}
-          </div>
-
-          {progress > 0 &&
-            progress < 100 && (
-              <div className="progress-wrap">
-
-                <div className="progress-label">
-                  Upload:
-                  {' '}
-                  {progress}%
-                </div>
-
-                <div className="progress-track">
-
-                  <div
-                    className="progress-fill"
-                    style={{
-                      width:
-                        `${progress}%`
-                    }}
-                  />
-
-                </div>
-
-              </div>
+          {plan &&
+            !loading &&
+            !rendering && (
+              <button
+                className="generate-btn"
+                onClick={
+                  buildAIEdit
+                }
+              >
+                🎬 Build AI Edit
+              </button>
             )}
 
-          {renderProgress > 0 &&
-            renderProgress < 100 && (
-              <div className="progress-wrap">
-
-                <div className="progress-label">
-                  Render:
-                  {' '}
-                  {renderProgress}%
-                </div>
-
-                <div className="progress-track">
-
-                  <div
-                    className="progress-fill"
-                    style={{
-                      width:
-                        `${renderProgress}%`
-                    }}
-                  />
-
-                </div>
-
-              </div>
+          {!loading &&
+            !rendering &&
+            file && (
+              <button
+                className="clear-btn"
+                onClick={
+                  clearVideo
+                }
+              >
+                Clear
+              </button>
             )}
 
         </div>
 
-      </section>
+        {(loading ||
+          rendering) && (
+          <section
+            className="status-panel"
+            style={{
+              marginTop:
+                '15px'
+            }}
+          >
 
-      <section className="actions">
+            <p className="status-text">
+              {status}
+            </p>
 
-        <button
-          type="button"
-          className="primary-button"
-          onClick={
-            analyseActualVideo
-          }
-          disabled={
-            loading ||
-            !file
-          }
-        >
-          {loading
-            ? 'Working...'
-            : 'ANALYSE & BUILD AI EDIT'}
-        </button>
-
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={
-            handleRender
-          }
-          disabled={
-            loading ||
-            !plan
-          }
-        >
-          RENDER CINEMATIC VIDEO
-        </button>
-
-      </section>
-
-      {analysisSummary && (
-        <section className="panel">
-
-          <div className="panel-heading">
-
-            <div>
-
-              <div className="eyebrow">
-                AI ANALYSIS
-              </div>
-
-              <h2>
-                What the director saw
-              </h2>
-
-            </div>
-
-          </div>
-
-          <div className="analysis-grid">
-
-            <div className="analysis-card">
-
-              <span>
-                Motorcycle
-              </span>
-
-              <strong>
-                {analysisSummary.model}
-              </strong>
-
-            </div>
-
-            <div className="analysis-card">
-
-              <span>
-                Duration
-              </span>
-
-              <strong>
-                {analysisSummary.duration}
-                s
-              </strong>
-
-            </div>
-
-            <div className="analysis-card">
-
-              <span>
-                Cinematic score
-              </span>
-
-              <strong>
-                {analysisSummary.score ??
-                  '—'}
-              </strong>
-
-            </div>
-
-            <div className="analysis-card">
-
-              <span>
-                Shot
-              </span>
-
-              <strong>
-                {analysisSummary.shot}
-              </strong>
-
-            </div>
-
-          </div>
-
-          {analysisSummary.action && (
-            <div className="analysis-description">
-
-              <strong>
-                Action
-              </strong>
-
-              <p>
-                {analysisSummary.action}
+            {currentStage && (
+              <p
+                style={{
+                  fontSize:
+                    '13px',
+                  opacity:
+                    0.8
+                }}
+              >
+                {currentStage}
               </p>
+            )}
 
-            </div>
-          )}
-
-          {analysisSummary.recommendation
-            ?.reason && (
-            <div className="analysis-description">
-
-              <strong>
-                AI recommendation
-              </strong>
-
-              <p>
-                {
-                  analysisSummary
-                    .recommendation
-                    .reason
-                }
-              </p>
-
-            </div>
-          )}
-
-        </section>
-      )}
-
-      {plan && (
-        <section className="panel">
-
-          <div className="panel-heading">
-
-            <div>
-
-              <div className="eyebrow">
-                EDIT PLAN
-              </div>
-
-              <h2>
-                Cinematic sequence
-              </h2>
-
-            </div>
-
-          </div>
-
-          <div className="timeline">
-
-            {plan.cuts.map(
-              (cut, index) => (
+            {loading && (
+              <>
                 <div
-                  className="timeline-card"
-                  key={
-                    `${index}-${cut.startTime}-${cut.duration}`
-                  }
+                  style={{
+                    width:
+                      '100%',
+                    height:
+                      '10px',
+                    background:
+                      '#333',
+                    borderRadius:
+                      '5px',
+                    overflow:
+                      'hidden',
+                    marginTop:
+                      '10px'
+                  }}
                 >
 
-                  <div className="timeline-number">
-                    {String(
-                      index + 1
-                    ).padStart(
-                      2,
-                      '0'
-                    )}
-                  </div>
-
-                  <div className="timeline-content">
-
-                    <strong>
-                      Shot {index + 1}
-                    </strong>
-
-                    <span>
-                      Start:
-                      {' '}
-                      {Number(
-                        cut.startTime ||
-                        0
-                      ).toFixed(2)}
-                      s
-                    </span>
-
-                    <span>
-                      Duration:
-                      {' '}
-                      {Number(
-                        cut.duration ||
-                        0
-                      ).toFixed(2)}
-                      s
-                    </span>
-
-                    <span>
-                      Speed:
-                      {' '}
-                      {Number(
-                        cut.speed ||
-                        1
-                      ).toFixed(2)}
-                      x
-                    </span>
-
-                    {cut.transition && (
-                      <span>
-                        Transition:
-                        {' '}
-                        {cut.transition}
-                      </span>
-                    )}
-
-                    {cut.motionStyle && (
-                      <span>
-                        Motion:
-                        {' '}
-                        {cut.motionStyle}
-                      </span>
-                    )}
-
-                    {cut.text && (
-                      <span>
-                        Text:
-                        {' '}
-                        {cut.text}
-                      </span>
-                    )}
-
-                  </div>
+                  <div
+                    style={{
+                      width:
+                        `${progress}%`,
+                      height:
+                        '100%',
+                      background:
+                        '#4fd1c5',
+                      transition:
+                        'width 0.2s ease'
+                    }}
+                  />
 
                 </div>
-              )
+
+                <div
+                  style={{
+                    marginTop:
+                      '6px'
+                  }}
+                >
+                  Blob upload: {progress}%
+                </div>
+              </>
             )}
 
-          </div>
+            {rendering && (
+              <>
+                <div
+                  style={{
+                    width:
+                      '100%',
+                    height:
+                      '10px',
+                    background:
+                      '#333',
+                    borderRadius:
+                      '5px',
+                    overflow:
+                      'hidden',
+                    marginTop:
+                      '10px'
+                  }}
+                >
 
-        </section>
-      )}
+                  <div
+                    style={{
+                      width:
+                        `${renderProgress}%`,
+                      height:
+                        '100%',
+                      background:
+                        '#4fd1c5',
+                      transition:
+                        'width 0.2s ease'
+                    }}
+                  />
 
-      {renderedVideoUrl && (
-        <section className="panel">
+                </div>
 
-          <div className="panel-heading">
+                <div
+                  style={{
+                    marginTop:
+                      '6px'
+                  }}
+                >
+                  Render: {renderProgress}%
+                </div>
+              </>
+            )}
 
-            <div>
+          </section>
+        )}
 
-              <div className="eyebrow">
-                FINISHED EDIT
-              </div>
+        {!loading &&
+          !rendering &&
+          status &&
+          !errorDetails && (
+            <section
+              className="status-panel"
+              style={{
+                marginTop:
+                  '15px'
+              }}
+            >
 
-              <h2>
-                Your cinematic video
-              </h2>
+              <p className="status-text">
+                {status}
+              </p>
+
+            </section>
+          )}
+
+        {errorDetails && (
+          <section
+            className="status-panel"
+            style={{
+              marginTop:
+                '20px',
+              border:
+                '2px solid #ff4d4d',
+              padding:
+                '15px',
+              borderRadius:
+                '8px'
+            }}
+          >
+
+            <h2
+              style={{
+                marginTop: 0
+              }}
+            >
+              ❌ FULL ERROR DETAILS
+            </h2>
+
+            <p>
+              <strong>
+                The exact browser upload error is being kept on screen.
+              </strong>
+            </p>
+
+            <p>
+              This diagnostic includes the browser/network state and the exact Blob upload stage.
+            </p>
+
+            <div
+              style={{
+                display:
+                  'flex',
+                gap:
+                  '10px',
+                flexWrap:
+                  'wrap',
+                marginBottom:
+                  '15px'
+              }}
+            >
+
+              <button
+                className="generate-btn"
+                onClick={
+                  copyErrorDetails
+                }
+              >
+                📋 Copy Error Details
+              </button>
+
+              <button
+                className="generate-btn"
+                onClick={
+                  copyEverything
+                }
+              >
+                📋 Copy Everything
+              </button>
+
+              <button
+                className="clear-btn"
+                onClick={
+                  clearError
+                }
+              >
+                Clear Error
+              </button>
 
             </div>
 
-          </div>
+            <pre
+              style={{
+                whiteSpace:
+                  'pre-wrap',
+                wordBreak:
+                  'break-word',
+                overflowX:
+                  'auto',
+                textAlign:
+                  'left',
+                margin: 0,
+                padding:
+                  '12px',
+                background:
+                  '#111',
+                borderRadius:
+                  '6px',
+                fontSize:
+                  '12px',
+                lineHeight:
+                  '1.5',
+                color:
+                  '#fff'
+              }}
+            >
+              {getErrorText()}
+            </pre>
 
-          <video
-            src={
-              renderedVideoUrl
-            }
-            controls
-            playsInline
-            className="video-preview"
-          />
+          </section>
+        )}
 
-          <button
-            type="button"
-            className="primary-button"
-            onClick={
-              downloadRenderedVideo
-            }
+        {analysis && (
+          <section
+            className="result-container"
+            style={{
+              marginTop:
+                '20px'
+            }}
           >
-            DOWNLOAD VIDEO
-          </button>
 
-        </section>
-      )}
+            <h2>
+              Gemini Video Analysis
+            </h2>
 
-      {errorDetails && (
-        <section className="panel error-panel">
+            <div className="status-panel">
 
-          <div className="panel-heading">
-
-            <div>
-
-              <div className="eyebrow">
-                DIAGNOSTICS
-              </div>
-
-              <h2>
-                Something went wrong
-              </h2>
+              <pre
+                style={{
+                  whiteSpace:
+                    'pre-wrap',
+                  wordBreak:
+                    'break-word',
+                  textAlign:
+                    'left',
+                  margin: 0
+                }}
+              >
+                {JSON.stringify(
+                  analysis,
+                  null,
+                  2
+                )}
+              </pre>
 
             </div>
 
-          </div>
+          </section>
+        )}
 
-          <pre className="diagnostic-output">
-            {JSON.stringify(
-              errorDetails,
-              null,
-              2
-            )}
-          </pre>
-
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={
-              copyDiagnostics
-            }
+        {plan && (
+          <section
+            className="result-container"
+            style={{
+              marginTop:
+                '20px'
+            }}
           >
-            COPY DIAGNOSTICS
-          </button>
 
-        </section>
-      )}
+            <h2>
+              🎬 AI Edit Plan
+            </h2>
 
-    </main>
+            <div className="status-panel">
+
+              <p>
+                {describeAIEditPlan(
+                  plan
+                )}
+              </p>
+
+              <pre
+                style={{
+                  whiteSpace:
+                    'pre-wrap',
+                  wordBreak:
+                    'break-word',
+                  textAlign:
+                    'left',
+                  margin: 0
+                }}
+              >
+                {JSON.stringify(
+                  plan,
+                  null,
+                  2
+                )}
+              </pre>
+
+            </div>
+
+          </section>
+        )}
+
+        {renderedVideoUrl && (
+          <section
+            className="result-container"
+            style={{
+              marginTop:
+                '20px'
+            }}
+          >
+
+            <h2>
+              🏍️ AI Cinematic Edit
+            </h2>
+
+            <div className="status-panel">
+
+              <video
+                src={
+                  renderedVideoUrl
+                }
+                controls
+                playsInline
+                style={{
+                  width:
+                    '100%',
+                  maxWidth:
+                    '420px',
+                  display:
+                    'block',
+                  margin:
+                    '0 auto',
+                  borderRadius:
+                    '10px',
+                  background:
+                    '#000'
+                }}
+              />
+
+              <p
+                style={{
+                  marginTop:
+                    '12px'
+                }}
+              >
+                Gemini selected the moments. The AI edit planner converted them into cuts, timing, speed, transitions and motion, and the existing browser renderer built the video.
+              </p>
+
+            </div>
+
+          </section>
+        )}
+
+      </main>
+
+    </div>
   );
-}
+          }
