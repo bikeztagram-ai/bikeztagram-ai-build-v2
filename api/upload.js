@@ -1,158 +1,278 @@
-import {
-  issueSignedToken,
-  presignUrl
-} from '@vercel/blob';
+import { handleUpload } from '@vercel/blob/client';
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({
-      success: false,
-      error: 'Method not allowed'
-    });
-  }
+export default async function handler(request, response) {
+  console.log('========================================');
+  console.log('[UPLOAD DIAGNOSTIC] /api/upload START');
+  console.log('========================================');
 
   try {
-    const {
-      pathname = '',
-      contentType = 'video/mp4',
-      size = 0
-    } = req.body || {};
+    /*
+     * Check request method
+     */
+    console.log(
+      '[UPLOAD DIAGNOSTIC] Method:',
+      request.method
+    );
 
-    if (!pathname) {
-      return res.status(400).json({
+    if (request.method !== 'POST') {
+      return response.status(405).json({
         success: false,
-        error: 'No pathname supplied.'
+        error: 'Method not allowed',
+        diagnostic: 'The upload endpoint requires POST.'
       });
     }
 
-    const safePathname =
-      pathname.startsWith('videos/')
-        ? pathname
-        : `videos/${pathname}`;
+    /*
+     * Check Blob environment variable without
+     * exposing its secret value.
+     */
+    const blobToken =
+      process.env.BLOB_READ_WRITE_TOKEN;
 
-    const maximumSizeInBytes =
-      5 * 1024 * 1024 * 1024;
+    console.log(
+      '[UPLOAD DIAGNOSTIC] BLOB_READ_WRITE_TOKEN exists:',
+      Boolean(blobToken)
+    );
 
-    if (
-      Number(size) > maximumSizeInBytes
-    ) {
-      return res.status(400).json({
+    if (!blobToken) {
+      return response.status(500).json({
         success: false,
         error:
-          'Video is larger than the 5 GB upload limit.'
+          'BLOB_READ_WRITE_TOKEN is missing from the Vercel production environment.',
+        diagnostic:
+          'The Blob Store is connected to the project, but the Blob token is not available to this deployment.'
       });
     }
 
-    const allowedContentTypes = [
-      'video/mp4',
-      'video/quicktime',
-      'video/webm',
-      'video/x-msvideo',
-      'video/mpeg',
-      'video/3gpp'
-    ];
-
-    const safeContentType =
-      allowedContentTypes.includes(
-        contentType
-      )
-        ? contentType
-        : 'video/mp4';
-
-    const validUntil =
-      Date.now() +
-      30 * 60 * 1000;
-
-    console.log(
-      '[UPLOAD] Creating OIDC signed upload token:',
-      safePathname
-    );
-
     /*
-     * The token is scoped to this exact video
-     * pathname and expires after 30 minutes.
-     *
-     * Vercel authenticates this Function to the
-     * private Blob store using OIDC.
+     * Read the request body.
      */
-    const token =
-      await issueSignedToken({
-        pathname:
-          safePathname,
+    let body;
 
-        operations: [
-          'put'
-        ],
+    try {
+      body = await request.json();
 
-        validUntil,
-
-        allowedContentTypes:
-          allowedContentTypes,
-
-        maximumSizeInBytes
-      });
-
-    console.log(
-      '[UPLOAD] OIDC signed token created successfully.'
-    );
-
-    /*
-     * Turn the signed token into the actual
-     * browser PUT URL.
-     */
-    const {
-      presignedUrl
-    } = await presignUrl(
-      token,
-      {
-        pathname:
-          safePathname,
-
-        operation:
-          'put',
-
-        validUntil
-      }
-    );
-
-    if (!presignedUrl) {
-      throw new Error(
-        'Vercel did not return a presigned upload URL.'
+      console.log(
+        '[UPLOAD DIAGNOSTIC] Request body received:',
+        JSON.stringify(body)
       );
+    } catch (bodyError) {
+      console.error(
+        '[UPLOAD DIAGNOSTIC] Could not read JSON body:',
+        bodyError
+      );
+
+      return response.status(400).json({
+        success: false,
+        error:
+          'The upload endpoint could not read the JSON request body.',
+        diagnostic:
+          bodyError?.message ||
+          String(bodyError)
+      });
     }
 
+    /*
+     * Check the values being sent by the browser.
+     */
     console.log(
-      '[UPLOAD] Signed PUT URL created successfully.'
+      '[UPLOAD DIAGNOSTIC] pathname:',
+      body?.pathname
     );
 
-    return res.status(200).json({
-      success: true,
+    console.log(
+      '[UPLOAD DIAGNOSTIC] contentType:',
+      body?.contentType
+    );
 
-      uploadUrl:
-        presignedUrl,
+    console.log(
+      '[UPLOAD DIAGNOSTIC] size:',
+      body?.size
+    );
 
-      pathname:
-        safePathname,
+    if (!body?.pathname) {
+      return response.status(400).json({
+        success: false,
+        error:
+          'No pathname was supplied by the browser.',
+        diagnostic:
+          'The browser reached /api/upload but did not send a Blob pathname.'
+      });
+    }
 
-      contentType:
-        safeContentType,
+    /*
+     * Ask Vercel Blob to generate the client upload token.
+     */
+    console.log(
+      '[UPLOAD DIAGNOSTIC] Calling handleUpload...'
+    );
 
-      expiresAt:
-        validUntil
-    });
+    const jsonResponse =
+      await handleUpload({
+        body,
+        request,
+
+        onBeforeGenerateToken: async (
+          pathname,
+          clientPayload,
+          multipart
+        ) => {
+          console.log(
+            '----------------------------------------'
+          );
+
+          console.log(
+            '[UPLOAD DIAGNOSTIC] onBeforeGenerateToken'
+          );
+
+          console.log(
+            '[UPLOAD DIAGNOSTIC] pathname:',
+            pathname
+          );
+
+          console.log(
+            '[UPLOAD DIAGNOSTIC] multipart:',
+            multipart
+          );
+
+          console.log(
+            '[UPLOAD DIAGNOSTIC] clientPayload:',
+            clientPayload
+          );
+
+          console.log(
+            '----------------------------------------'
+          );
+
+          return {
+            allowedContentTypes: [
+              'video/mp4',
+              'video/quicktime',
+              'video/webm',
+              'video/x-msvideo',
+              'video/mpeg',
+              'video/3gpp'
+            ],
+
+            maximumSizeInBytes:
+              5 * 1024 * 1024 * 1024,
+
+            addRandomSuffix: true,
+
+            tokenPayload: JSON.stringify({
+              source:
+                'bikeztagram-ai',
+              clientPayload:
+                clientPayload || null
+            })
+          };
+        },
+
+        onUploadCompleted: async ({
+          blob,
+          tokenPayload
+        }) => {
+          console.log(
+            '========================================'
+          );
+
+          console.log(
+            '[UPLOAD DIAGNOSTIC] BLOB UPLOAD COMPLETED'
+          );
+
+          console.log(
+            '[UPLOAD DIAGNOSTIC] pathname:',
+            blob?.pathname
+          );
+
+          console.log(
+            '[UPLOAD DIAGNOSTIC] URL:',
+            blob?.url
+          );
+
+          console.log(
+            '[UPLOAD DIAGNOSTIC] token payload:',
+            tokenPayload
+          );
+
+          console.log(
+            '========================================'
+          );
+        }
+      });
+
+    console.log(
+      '[UPLOAD DIAGNOSTIC] handleUpload succeeded.'
+    );
+
+    console.log(
+      '[UPLOAD DIAGNOSTIC] Response:',
+      JSON.stringify(jsonResponse)
+    );
+
+    return response.status(200).json(
+      jsonResponse
+    );
 
   } catch (error) {
+    /*
+     * This is the important part.
+     *
+     * We return the complete diagnostic information
+     * to the browser so we can see the actual failure.
+     */
     console.error(
-      '[UPLOAD] FAILED:',
+      '========================================'
+    );
+
+    console.error(
+      '[UPLOAD DIAGNOSTIC] HANDLE UPLOAD FAILED'
+    );
+
+    console.error(
+      '[UPLOAD DIAGNOSTIC] Error name:',
+      error?.name
+    );
+
+    console.error(
+      '[UPLOAD DIAGNOSTIC] Error message:',
+      error?.message
+    );
+
+    console.error(
+      '[UPLOAD DIAGNOSTIC] Error stack:',
+      error?.stack
+    );
+
+    console.error(
+      '[UPLOAD DIAGNOSTIC] Full error:',
       error
     );
 
-    return res.status(500).json({
+    console.error(
+      '========================================'
+    );
+
+    return response.status(400).json({
       success: false,
 
       error:
         error?.message ||
-        'Failed to create signed Blob upload URL.'
+        'Vercel Blob upload token generation failed.',
+
+      diagnostic: {
+        name:
+          error?.name ||
+          'UnknownError',
+
+        message:
+          error?.message ||
+          String(error),
+
+        stack:
+          error?.stack ||
+          'No stack trace available'
+      }
     });
   }
 }
