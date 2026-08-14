@@ -329,20 +329,6 @@ export default function App() {
           ).trim()
         : '';
 
-    /*
-     * IMPORTANT FIX:
-     *
-     * The old code tried to access cuts.length
-     * from inside the .map() which was creating
-     * the cuts array.
-     *
-     * That caused:
-     *
-     * Cannot access 'Ge' before initialization
-     *
-     * We now use the map index instead.
-     */
-
     const cuts =
       moments
         .map((moment, index) => {
@@ -405,12 +391,11 @@ export default function App() {
           let text = '';
 
           /*
-           * First selected moment gets the
-           * recommended text overlay.
+           * FIX:
+           * The old code used cuts.length here while
+           * cuts was still being created.
            *
-           * We use index === 0 instead of
-           * cuts.length because cuts is still
-           * being constructed here.
+           * Use the map index instead.
            */
 
           if (
@@ -470,7 +455,7 @@ export default function App() {
 
   /*
    * =====================================================
-   * ANALYSE ACTUAL VIDEO
+   * ANALYSE VIDEO
    * =====================================================
    */
 
@@ -566,22 +551,43 @@ export default function App() {
         );
 
         setStatus(
-          'Uploading video to Blob storage...'
+          'Requesting secure Blob upload token...'
         );
 
         const safeName =
-          file.name
-            .replace(
-              /[^a-zA-Z0-9._-]/g,
-              '_'
-            );
+          file.name.replace(
+            /[^a-zA-Z0-9._-]/g,
+            '_'
+          );
 
         const pathname =
-          `videos/${Date.now()}-${safeName}`;
+          `videos/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
 
         console.log(
           '[APP] Blob pathname:',
           pathname
+        );
+
+        console.log(
+          '[APP] Blob access:',
+          'public'
+        );
+
+        /*
+         * IMPORTANT:
+         *
+         * Keep this FALSE.
+         *
+         * This is the exact upload configuration
+         * that successfully uploaded 8518.mp4 earlier.
+         *
+         * Vercel recommends multipart mainly for
+         * substantially larger files (100 MB+).
+         */
+
+        console.log(
+          '[APP] Blob multipart:',
+          false
         );
 
         blob =
@@ -596,36 +602,63 @@ export default function App() {
                 '/api/upload',
 
               multipart:
-                file.size >
-                4.5 *
-                  1024 *
-                  1024,
+                false,
+
+              clientPayload:
+                JSON.stringify({
+                  source:
+                    'bikeztagram-ai',
+
+                  filename:
+                    file.name,
+
+                  mimeType:
+                    file.type ||
+                    'video/mp4',
+
+                  size:
+                    file.size,
+
+                  diagnostic:
+                    'blob-upload-test-v3'
+                }),
 
               onUploadProgress:
                 (event) => {
                   const percentage =
                     Number(
                       event?.percentage
-                    ) || 0;
-
-                  const safePercentage =
-                    Math.max(
-                      0,
-                      Math.min(
-                        100,
-                        Math.round(
-                          percentage
-                        )
-                      )
                     );
 
-                  setProgress(
-                    safePercentage
+                  console.log(
+                    '[APP] Blob upload progress:',
+                    event
                   );
 
-                  setStatus(
-                    `Uploading video to Blob storage... ${safePercentage}%`
-                  );
+                  if (
+                    Number.isFinite(
+                      percentage
+                    )
+                  ) {
+                    const safePercentage =
+                      Math.max(
+                        0,
+                        Math.min(
+                          100,
+                          Math.round(
+                            percentage
+                          )
+                        )
+                      );
+
+                    setProgress(
+                      safePercentage
+                    );
+
+                    setStatus(
+                      `Uploading video to Blob storage... ${safePercentage}%`
+                    );
+                  }
                 }
             }
           );
@@ -1596,4 +1629,4 @@ export default function App() {
 
     </div>
   );
-          }
+    }
