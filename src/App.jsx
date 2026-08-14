@@ -282,173 +282,25 @@ export default function App() {
    * =====================================================
    */
 
-  function buildPlannerInput(geminiAnalysis) {
-    if (!geminiAnalysis) {
-      return {
-        cuts: []
-      };
-    }
-
-    const moments =
-      Array.isArray(
-        geminiAnalysis.bestMoments
-      )
-        ? geminiAnalysis.bestMoments
-        : [];
-
-    const recommendation =
-      geminiAnalysis.editingRecommendation ||
-      {};
-
-    const textRecommendation =
-      geminiAnalysis.textRecommendation ||
-      {};
-
-    const transitionRecommendation =
-      geminiAnalysis.transitionRecommendation ||
-      'cut';
-
-    const motionRecommendation =
-      geminiAnalysis.motionRecommendation ||
-      'cinematic';
-
-    const defaultSpeed =
-      Number(
-        recommendation.speed
-      ) || 1;
-
-    const slowMotion =
-      Boolean(
-        recommendation.slowMotion
-      );
-
-    const defaultText =
-      textRecommendation.useText
-        ? String(
-            textRecommendation.text || ''
-          ).trim()
-        : '';
-
-    const cuts =
-      moments
-        .map((moment, index) => {
-          const start =
-            Number(moment.start);
-
-          const end =
-            Number(moment.end);
-
-          if (!Number.isFinite(start)) {
-            return null;
-          }
-
-          let duration =
-            end > start
-              ? end - start
-              : Number(
-                  recommendation.suggestedDuration
-                ) || 2.5;
-
-          if (
-            !Number.isFinite(duration) ||
-            duration <= 0
-          ) {
-            duration = 2.5;
-          }
-
-          duration =
-            Math.max(
-              0.35,
-              Math.min(
-                8,
-                duration
-              )
-            );
-
-          let speed =
-            Number.isFinite(
-              defaultSpeed
-            )
-              ? defaultSpeed
-              : 1;
-
-          if (
-            slowMotion &&
-            speed >= 0.95
-          ) {
-            speed = 0.6;
-          }
-
-          speed =
-            Math.max(
-              0.25,
-              Math.min(
-                2.5,
-                speed
-              )
-            );
-
-          let text = '';
-
-          /*
-           * FIX:
-           * The old code used cuts.length here while
-           * cuts was still being created.
-           *
-           * Use the map index instead.
-           */
-
-          if (
-            defaultText &&
-            index === 0
-          ) {
-            text =
-              defaultText;
-          }
-
-          return {
-            mediaIndex: 0,
-
-            startTime:
-              Math.max(
-                0,
-                start
-              ),
-
-            duration,
-
-            speed,
-
-            transition:
-              transitionRecommendation,
-
-            motionStyle:
-              motionRecommendation,
-
-            text
-          };
-        })
-        .filter(Boolean);
-
-    return {
-      ...geminiAnalysis,
-      cuts
-    };
-  }
-
   function createPlanFromAnalysis(
     geminiAnalysis
   ) {
-    const plannerInput =
-      buildPlannerInput(
-        geminiAnalysis
-      );
-
+    /*
+     * The Gemini analysis is now passed directly into the
+     * cinematic planner. The planner reads the actual
+     * timestamps, descriptions, recommendations and model
+     * observations itself.
+     *
+     * This is important because the previous adapter forced
+     * every moment to use the same transition, motion and
+     * speed recommendation.
+     */
     return createAIEditPlan(
-      plannerInput,
+      geminiAnalysis,
       {
         maxCuts: 8,
-        targetDuration: 15
+        targetDuration: 15,
+        colorGrade: 'dark-cinematic'
       }
     );
   }
@@ -1629,4 +1481,4 @@ export default function App() {
 
     </div>
   );
-    }
+        }
