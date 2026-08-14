@@ -25,23 +25,11 @@ export default async function handler(req, res) {
       });
     }
 
-    /*
-     * Keep the upload inside the videos folder.
-     * This prevents a client from requesting a
-     * signed URL for an arbitrary Blob pathname.
-     */
     const safePathname =
       pathname.startsWith('videos/')
         ? pathname
         : `videos/${pathname}`;
 
-    /*
-     * Maximum individual video size:
-     * 5 GB.
-     *
-     * This is deliberately large enough for
-     * genuine motorcycle / GoPro footage.
-     */
     const maximumSizeInBytes =
       5 * 1024 * 1024 * 1024;
 
@@ -64,9 +52,6 @@ export default async function handler(req, res) {
       'video/3gpp'
     ];
 
-    /*
-     * Normalise the browser MIME type.
-     */
     const safeContentType =
       allowedContentTypes.includes(
         contentType
@@ -74,24 +59,21 @@ export default async function handler(req, res) {
         ? contentType
         : 'video/mp4';
 
+    const validUntil =
+      Date.now() +
+      30 * 60 * 1000;
+
     console.log(
       '[UPLOAD] Creating OIDC signed upload token:',
       safePathname
     );
 
     /*
-     * Vercel's current signed-URL system works
-     * with OIDC automatically on Vercel.
+     * The token is scoped to this exact video
+     * pathname and expires after 30 minutes.
      *
-     * The token is restricted to:
-     *
-     * - PUT only
-     * - this pathname
-     * - approved video MIME types
-     * - maximum 5 GB
-     *
-     * No BLOB_READ_WRITE_TOKEN is exposed to
-     * the browser.
+     * Vercel authenticates this Function to the
+     * private Blob store using OIDC.
      */
     const token =
       await issueSignedToken({
@@ -102,6 +84,8 @@ export default async function handler(req, res) {
           'put'
         ],
 
+        validUntil,
+
         allowedContentTypes:
           allowedContentTypes,
 
@@ -109,15 +93,12 @@ export default async function handler(req, res) {
       });
 
     console.log(
-      '[UPLOAD] OIDC signed token created.'
+      '[UPLOAD] OIDC signed token created successfully.'
     );
 
     /*
-     * Create a short-lived PUT URL.
-     *
-     * 30 minutes gives a phone enough time to
-     * upload a large motorcycle video over a
-     * slower mobile connection.
+     * Turn the signed token into the actual
+     * browser PUT URL.
      */
     const {
       presignedUrl
@@ -130,14 +111,15 @@ export default async function handler(req, res) {
         operation:
           'put',
 
-        validUntil:
-          Date.now() +
-          30 * 60 * 1000,
-
-        access:
-          'private'
+        validUntil
       }
     );
+
+    if (!presignedUrl) {
+      throw new Error(
+        'Vercel did not return a presigned upload URL.'
+      );
+    }
 
     console.log(
       '[UPLOAD] Signed PUT URL created successfully.'
@@ -156,8 +138,7 @@ export default async function handler(req, res) {
         safeContentType,
 
       expiresAt:
-        Date.now() +
-        30 * 60 * 1000
+        validUntil
     });
 
   } catch (error) {
