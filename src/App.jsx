@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { upload } from '@vercel/blob/client';
+import { createAIEditPlan, describeAIEditPlan } from './aiEditPlanner.js';
+import { renderProject } from './renderer.js';
 import './styles.css';
 
 export default function App() {
@@ -12,7 +14,12 @@ export default function App() {
   const [status, setStatus] = useState('');
   const [progress, setProgress] = useState(0);
   const [analysis, setAnalysis] = useState(null);
+  const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [rendering, setRendering] = useState(false);
+
+  const [renderProgress, setRenderProgress] = useState(0);
+  const [renderedVideoUrl, setRenderedVideoUrl] = useState('');
 
   const [errorDetails, setErrorDetails] = useState(null);
   const [currentStage, setCurrentStage] = useState('');
@@ -23,7 +30,10 @@ export default function App() {
 
     setFile(selectedFile);
     setAnalysis(null);
+    setPlan(null);
+    setRenderedVideoUrl('');
     setProgress(0);
+    setRenderProgress(0);
     setErrorDetails(null);
     setCurrentStage('');
 
@@ -190,6 +200,10 @@ export default function App() {
           }
         : null,
 
+      analysis,
+
+      plan,
+
       error:
         errorDetails,
 
@@ -238,6 +252,215 @@ export default function App() {
     setStatus('');
   }
 
+  /*
+   * Convert Gemini's actual analysis format into the
+   * "cuts" structure expected by aiEditPlanner.js.
+   *
+   * Gemini returns:
+   *
+   * bestMoments: [
+   *   {
+   *     start,
+   *     end,
+   *     description,
+   *     reason
+   *   }
+   * ]
+   *
+   * The renderer needs:
+   *
+   * cuts: [
+   *   {
+   *     mediaIndex,
+   *     startTime,
+   *     duration,
+   *     speed,
+   *     transition,
+   *     motionStyle,
+   *     text
+   *   }
+   * ]
+   */
+  function buildPlannerInput(geminiAnalysis) {
+    if (!geminiAnalysis) {
+      return {
+        cuts: []
+      };
+    }
+
+    const moments =
+      Array.isArray(
+        geminiAnalysis.bestMoments
+      )
+        ? geminiAnalysis.bestMoments
+        : [];
+
+    const recommendation =
+      geminiAnalysis.editingRecommendation ||
+      {};
+
+    const textRecommendation =
+      geminiAnalysis.textRecommendation ||
+      {};
+
+    const transitionRecommendation =
+      geminiAnalysis.transitionRecommendation ||
+      'cut';
+
+    const motionRecommendation =
+      geminiAnalysis.motionRecommendation ||
+      'cinematic';
+
+    const defaultSpeed =
+      Number(
+        recommendation.speed
+      ) || 1;
+
+    const slowMotion =
+      Boolean(
+        recommendation.slowMotion
+      );
+
+    const defaultText =
+      textRecommendation.useText
+        ? String(
+            textRecommendation.text || ''
+          ).trim()
+        : '';
+
+    const cuts =
+      moments
+        .map((moment) => {
+          const start =
+            Number(moment.start);
+
+          const end =
+            Number(moment.end);
+
+          let duration =
+            end > start
+              ? end - start
+              : Number(
+                  recommendation.suggestedDuration
+                ) || 2.5;
+
+          if (!Number.isFinite(start)) {
+            return null;
+          }
+
+          if (
+            !Number.isFinite(duration) ||
+            duration <= 0
+          ) {
+            duration = 2.5;
+          }
+
+          /*
+           * Keep the duration within the safe range
+           * used by the planner/renderer.
+           */
+          duration =
+            Math.max(
+              0.35,
+              Math.min(
+                8,
+                duration
+              )
+            );
+
+          let speed =
+            Number.isFinite(
+              defaultSpeed
+            )
+              ? defaultSpeed
+              : 1;
+
+          /*
+           * If Gemini specifically recommends slow
+           * motion, make the shot slower unless it
+           * already supplied a slower speed.
+           */
+          if (
+            slowMotion &&
+            speed >= 0.95
+          ) {
+            speed = 0.6;
+          }
+
+          speed =
+            Math.max(
+              0.25,
+              Math.min(
+                2.5,
+                speed
+              )
+            );
+
+          /*
+           * Use the same cinematic text recommendation
+           * sparingly. Only the first suitable moment
+           * receives it.
+           */
+          let text = '';
+
+          if (
+            defaultText &&
+            cuts.length === 0
+          ) {
+            text =
+              defaultText;
+          }
+
+          return {
+            mediaIndex: 0,
+
+            startTime:
+              Math.max(
+                0,
+                start
+              ),
+
+            duration,
+
+            speed,
+
+            transition:
+              transitionRecommendation,
+
+            motionStyle:
+              motionRecommendation,
+
+            text
+          };
+        })
+        .filter(Boolean);
+
+    return {
+      ...geminiAnalysis,
+      cuts
+    };
+  }
+
+  function createPlanFromAnalysis(
+    geminiAnalysis
+  ) {
+    const plannerInput =
+      buildPlannerInput(
+        geminiAnalysis
+      );
+
+    const generatedPlan =
+      createAIEditPlan(
+        plannerInput,
+        {
+          maxCuts: 8,
+          targetDuration: 15
+        }
+      );
+
+    return generatedPlan;
+  }
+
   async function analyseActualVideo() {
     if (!file) {
       setStatus(
@@ -258,7 +481,10 @@ export default function App() {
 
     setLoading(true);
     setAnalysis(null);
+    setPlan(null);
+    setRenderedVideoUrl('');
     setProgress(0);
+    setRenderProgress(0);
     setErrorDetails(null);
     setCurrentStage('');
 
@@ -313,18 +539,11 @@ export default function App() {
         pathname,
         file,
         {
-          /*
-           * The new bikeztagram-media-live Blob store
-           * is PUBLIC.
-           */
           access: 'public',
 
           handleUploadUrl:
             '/api/upload',
 
-          /*
-           * Use multipart upload for video files.
-           */
           multipart: true,
 
           clientPayload:
@@ -418,11 +637,7 @@ export default function App() {
       /*
        * =====================================================
        * STEP 3
-       * Send BOTH the Blob URL and pathname to /api/analyse.
-       *
-       * IMPORTANT:
-       * api/analyse.js expects videoUrl to retrieve the
-       * actual uploaded video.
+       * Send Blob URL to /api/analyse.
        * =====================================================
        */
 
@@ -452,18 +667,9 @@ export default function App() {
             },
 
             body: JSON.stringify({
-              /*
-               * THIS IS THE IMPORTANT FIX.
-               *
-               * The analysis API can use the public
-               * Blob URL to retrieve the uploaded video.
-               */
               videoUrl:
                 blob.url,
 
-              /*
-               * Keep pathname as well for tracking/debugging.
-               */
               pathname:
                 blob.pathname,
 
@@ -518,7 +724,7 @@ export default function App() {
       /*
        * =====================================================
        * STEP 4
-       * Analysis successfully returned.
+       * Gemini analysis successfully returned.
        * =====================================================
        */
 
@@ -530,21 +736,36 @@ export default function App() {
         analysisData.analysis
       );
 
-      setStatus(
-        '✅ Gemini has analysed the actual motorcycle video successfully.'
-      );
-
-      console.log(
-        '[APP] Gemini analysis completed successfully.'
-      );
-
-    } catch (error) {
       /*
        * =====================================================
-       * FULL DIAGNOSTIC ERROR CAPTURE
+       * STEP 5
+       * Convert Gemini analysis into an AI edit plan.
        * =====================================================
        */
 
+      setCurrentStage(
+        'STEP 5 — Building AI edit plan'
+      );
+
+      const generatedPlan =
+        createPlanFromAnalysis(
+          analysisData.analysis
+        );
+
+      setPlan(
+        generatedPlan
+      );
+
+      console.log(
+        '[APP] AI edit plan created:',
+        generatedPlan
+      );
+
+      setStatus(
+        `✅ Gemini analysed the actual video. ${describeAIEditPlan(generatedPlan)}`
+      );
+
+    } catch (error) {
       const details =
         makeErrorDetails(
           error,
@@ -590,11 +811,191 @@ export default function App() {
     }
   }
 
+  /*
+   * =====================================================
+   * BUILD THE FINAL VIDEO
+   * =====================================================
+   */
+
+  async function buildAIEdit() {
+    if (!file) {
+      setStatus(
+        'Please choose a video first.'
+      );
+      return;
+    }
+
+    if (
+      !plan ||
+      !Array.isArray(plan.cuts) ||
+      plan.cuts.length === 0
+    ) {
+      setStatus(
+        'No AI edit plan is available yet. Analyse the video first.'
+      );
+      return;
+    }
+
+    setRendering(true);
+    setRenderProgress(0);
+    setErrorDetails(null);
+
+    try {
+      setCurrentStage(
+        'STEP 6 — Rendering AI-directed video'
+      );
+
+      setStatus(
+        '🎬 Building your AI-directed cinematic edit...'
+      );
+
+      /*
+       * The existing renderer expects mediaItems
+       * containing the original File object.
+       */
+      const mediaItems = [
+        {
+          id: 'video-0',
+          file,
+          name: file.name,
+          type:
+            file.type ||
+            'video/mp4'
+        }
+      ];
+
+      console.log(
+        '[APP] Starting renderer.'
+      );
+
+      console.log(
+        '[APP] Media items:',
+        mediaItems
+      );
+
+      console.log(
+        '[APP] AI plan:',
+        plan
+      );
+
+      const outputBlob =
+        await renderProject(
+          mediaItems,
+          plan,
+          (percentage) => {
+            const safePercentage =
+              Math.max(
+                0,
+                Math.min(
+                  100,
+                  Number(
+                    percentage
+                  ) || 0
+                )
+              );
+
+            setRenderProgress(
+              safePercentage
+            );
+
+            setStatus(
+              `🎬 Rendering AI edit... ${safePercentage}%`
+            );
+          }
+        );
+
+      if (!outputBlob) {
+        throw new Error(
+          'Renderer returned no video.'
+        );
+      }
+
+      if (
+        !(outputBlob instanceof Blob) ||
+        outputBlob.size === 0
+      ) {
+        throw new Error(
+          'Renderer completed but produced an empty video file.'
+        );
+      }
+
+      const videoUrl =
+        URL.createObjectURL(
+          outputBlob
+        );
+
+      setRenderedVideoUrl(
+        videoUrl
+      );
+
+      setRenderProgress(100);
+
+      setCurrentStage(
+        'STEP 7 — AI edit completed'
+      );
+
+      setStatus(
+        `✅ AI edit completed successfully — ${(
+          outputBlob.size /
+          1024 /
+          1024
+        ).toFixed(2)} MB`
+      );
+
+      console.log(
+        '[APP] Final rendered video:',
+        {
+          type:
+            outputBlob.type,
+          size:
+            outputBlob.size
+        }
+      );
+
+    } catch (error) {
+      const details =
+        makeErrorDetails(
+          error,
+          currentStage ||
+            'AI render error'
+        );
+
+      console.error(
+        '[APP] AI RENDER ERROR:',
+        details
+      );
+
+      setErrorDetails(
+        details
+      );
+
+      setStatus(
+        `❌ RENDER ERROR — ${details.message}`
+      );
+
+    } finally {
+      setRendering(false);
+    }
+  }
+
   function clearVideo() {
+    if (
+      renderedVideoUrl
+    ) {
+      try {
+        URL.revokeObjectURL(
+          renderedVideoUrl
+        );
+      } catch {}
+    }
+
     setFile(null);
     setAnalysis(null);
+    setPlan(null);
     setStatus('');
     setProgress(0);
+    setRenderProgress(0);
+    setRenderedVideoUrl('');
     setErrorDetails(null);
     setCurrentStage('');
   }
@@ -629,7 +1030,10 @@ export default function App() {
             onChange={
               handleFileChange
             }
-            disabled={loading}
+            disabled={
+              loading ||
+              rendering
+            }
           />
 
           {file && (
@@ -655,7 +1059,10 @@ export default function App() {
                 event.target.value
               )
             }
-            disabled={loading}
+            disabled={
+              loading ||
+              rendering
+            }
           />
 
         </section>
@@ -669,15 +1076,30 @@ export default function App() {
             }
             disabled={
               loading ||
+              rendering ||
               !file
             }
           >
             {loading
-              ? '🎬 Processing Video...'
+              ? '👁️ Analysing Video...'
               : '👁️ Analyse Actual Video'}
           </button>
 
+          {plan &&
+            !loading &&
+            !rendering && (
+              <button
+                className="generate-btn"
+                onClick={
+                  buildAIEdit
+                }
+              >
+                🎬 Build AI Edit
+              </button>
+            )}
+
           {!loading &&
+            !rendering &&
             file && (
               <button
                 className="clear-btn"
@@ -691,7 +1113,8 @@ export default function App() {
 
         </div>
 
-        {loading && (
+        {(loading ||
+          rendering) && (
           <section
             className="status-panel"
             style={{
@@ -717,7 +1140,53 @@ export default function App() {
               </p>
             )}
 
-            {progress > 0 && (
+            {loading &&
+              progress > 0 && (
+                <>
+                  <div
+                    style={{
+                      width:
+                        '100%',
+                      height:
+                        '10px',
+                      background:
+                        '#333',
+                      borderRadius:
+                        '5px',
+                      overflow:
+                        'hidden',
+                      marginTop:
+                        '10px'
+                    }}
+                  >
+
+                    <div
+                      style={{
+                        width:
+                          `${progress}%`,
+                        height:
+                          '100%',
+                        background:
+                          '#4fd1c5',
+                        transition:
+                          'width 0.2s ease'
+                      }}
+                    />
+
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop:
+                        '6px'
+                    }}
+                  >
+                    Upload: {progress}%
+                  </div>
+                </>
+              )}
+
+            {rendering && (
               <>
                 <div
                   style={{
@@ -739,7 +1208,7 @@ export default function App() {
                   <div
                     style={{
                       width:
-                        `${progress}%`,
+                        `${renderProgress}%`,
                       height:
                         '100%',
                       background:
@@ -757,7 +1226,7 @@ export default function App() {
                       '6px'
                   }}
                 >
-                  {progress}%
+                  Render: {renderProgress}%
                 </div>
               </>
             )}
@@ -766,6 +1235,7 @@ export default function App() {
         )}
 
         {!loading &&
+          !rendering &&
           status &&
           !errorDetails && (
             <section
@@ -917,15 +1387,111 @@ export default function App() {
                   margin: 0
                 }}
               >
-                {typeof analysis ===
-                'string'
-                  ? analysis
-                  : JSON.stringify(
-                      analysis,
-                      null,
-                      2
-                    )}
+                {JSON.stringify(
+                  analysis,
+                  null,
+                  2
+                )}
               </pre>
+
+            </div>
+
+          </section>
+        )}
+
+        {plan && (
+          <section
+            className="result-container"
+            style={{
+              marginTop:
+                '20px'
+            }}
+          >
+
+            <h2>
+              🎬 AI Edit Plan
+            </h2>
+
+            <div
+              className="status-panel"
+            >
+
+              <p>
+                {describeAIEditPlan(
+                  plan
+                )}
+              </p>
+
+              <pre
+                style={{
+                  whiteSpace:
+                    'pre-wrap',
+                  wordBreak:
+                    'break-word',
+                  textAlign:
+                    'left',
+                  margin: 0
+                }}
+              >
+                {JSON.stringify(
+                  plan,
+                  null,
+                  2
+                )}
+              </pre>
+
+            </div>
+
+          </section>
+        )}
+
+        {renderedVideoUrl && (
+          <section
+            className="result-container"
+            style={{
+              marginTop:
+                '20px'
+            }}
+          >
+
+            <h2>
+              🏍️ AI Cinematic Edit
+            </h2>
+
+            <div
+              className="status-panel"
+            >
+
+              <video
+                src={
+                  renderedVideoUrl
+                }
+                controls
+                playsInline
+                style={{
+                  width:
+                    '100%',
+                  maxWidth:
+                    '420px',
+                  display:
+                    'block',
+                  margin:
+                    '0 auto',
+                  borderRadius:
+                    '10px',
+                  background:
+                    '#000'
+                }}
+              />
+
+              <p
+                style={{
+                  marginTop:
+                    '12px'
+                }}
+              >
+                Gemini selected the moments. The AI edit planner converted them into cuts, timing, speed, transitions and motion, and the existing browser renderer built the video.
+              </p>
 
             </div>
 
@@ -936,4 +1502,4 @@ export default function App() {
 
     </div>
   );
-        }
+  }
