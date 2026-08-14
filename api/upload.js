@@ -1,11 +1,5 @@
 import { handleUpload } from "@vercel/blob/client";
 
-export const config = {
-  api: {
-    bodyParser: true,
-  },
-};
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({
@@ -14,7 +8,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Vercel Pages API routes provide the parsed JSON as req.body.
     const body =
       typeof req.body === "string"
         ? JSON.parse(req.body)
@@ -29,14 +22,14 @@ export default async function handler(req, res) {
     const token = process.env.BLOB_READ_WRITE_TOKEN;
 
     if (!token) {
-      console.error(
-        "Bikeztagram: BLOB_READ_WRITE_TOKEN is missing"
-      );
+      console.error("Bikeztagram: BLOB_READ_WRITE_TOKEN is missing");
 
       return res.status(500).json({
         error: "BLOB_READ_WRITE_TOKEN is missing",
       });
     }
+
+    console.log("Bikeztagram: Blob token request received");
 
     const jsonResponse = await handleUpload({
       token,
@@ -64,8 +57,6 @@ export default async function handler(req, res) {
 
           addRandomSuffix: true,
 
-          multipart: multipart === true,
-
           tokenPayload: JSON.stringify({
             pathname,
             clientPayload: clientPayload || null,
@@ -74,24 +65,26 @@ export default async function handler(req, res) {
       },
 
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        console.log(
-          "Bikeztagram Blob upload completed:",
-          blob.url
-        );
+        console.log("Bikeztagram: Blob upload completed", {
+          url: blob.url,
+          pathname: blob.pathname,
+        });
 
         console.log(
-          "Bikeztagram Blob token payload:",
+          "Bikeztagram: Blob token payload",
           tokenPayload
         );
       },
     });
 
+    console.log("Bikeztagram: handleUpload response", {
+      type: jsonResponse?.type,
+      hasClientToken: Boolean(jsonResponse?.clientToken),
+    });
+
     return res.status(200).json(jsonResponse);
   } catch (error) {
-    console.error(
-      "Bikeztagram Blob client upload error:",
-      error
-    );
+    console.error("Bikeztagram Blob client upload error:", error);
 
     return res.status(500).json({
       success: false,
