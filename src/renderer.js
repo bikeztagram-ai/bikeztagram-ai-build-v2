@@ -1,604 +1,165 @@
-/*
- * BIKEZTAGRAM AI
- * Cinematic browser renderer
- *
- * WORKING PIPELINE BASELINE:
- * - Blob upload is handled elsewhere.
- * - Gemini analysis is handled elsewhere.
- * - This renderer only receives the already-created
- *   mediaItems and Gemini edit plan.
- *
- * IMPORTANT:
- * This renderer is deliberately defensive about video loading.
- * A failed/empty video element must never silently produce
- * a black render.
- */
-
 export async function renderProject(
   mediaItems,
   plan,
   onProgress
 ) {
   return new Promise((resolve, reject) => {
-    let finished = false;
-
-    const fail = (error) => {
-      if (finished) return;
-
-      finished = true;
-
-      console.error(
-        'BIKEZTAGRAM renderer failed:',
-        error
-      );
-
-      reject(
-        error instanceof Error
-          ? error
-          : new Error(String(error))
-      );
-    };
-
     try {
-      /*
-       * -----------------------------------------------------
-       * CANVAS
-       * -----------------------------------------------------
-       */
-
-      const canvas =
-        document.createElement('canvas');
-
+      const canvas = document.createElement('canvas');
       canvas.width = 1080;
       canvas.height = 1920;
 
-      const ctx =
-        canvas.getContext('2d', {
-          alpha: false
-        });
+      const ctx = canvas.getContext('2d');
 
       if (!ctx) {
-        fail(
-          new Error(
-            'Could not create canvas context.'
-          )
-        );
-
+        reject(new Error('Could not create canvas context.'));
         return;
       }
 
-      /*
-       * -----------------------------------------------------
-       * MEDIA RECORDER
-       * -----------------------------------------------------
-       */
-
-      const stream =
-        canvas.captureStream(30);
+      const stream = canvas.captureStream(30);
 
       const mimeTypes = [
-        'video/webm;codecs=vp9',
+        'video/mp4;codecs=h264',
+        'video/mp4',
         'video/webm;codecs=vp8',
         'video/webm'
       ];
 
       const selectedType =
-        mimeTypes.find(
-          (type) =>
-            typeof MediaRecorder !==
-              'undefined' &&
-            MediaRecorder.isTypeSupported(
-              type
-            )
+        mimeTypes.find((type) =>
+          MediaRecorder.isTypeSupported(type)
         ) || '';
 
-      let recorder;
-
-      try {
-        recorder = selectedType
-          ? new MediaRecorder(
-              stream,
-              {
-                mimeType:
-                  selectedType
-              }
-            )
-          : new MediaRecorder(
-              stream
-            );
-      } catch (error) {
-        fail(
-          new Error(
-            `Could not start video recorder: ${
-              error?.message ||
-              String(error)
-            }`
-          )
-        );
-
-        return;
-      }
+      const recorder = selectedType
+        ? new MediaRecorder(stream, {
+            mimeType: selectedType
+          })
+        : new MediaRecorder(stream);
 
       const chunks = [];
 
-      recorder.ondataavailable = (
-        event
-      ) => {
-        if (
-          event.data &&
-          event.data.size > 0
-        ) {
-          chunks.push(
-            event.data
-          );
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          chunks.push(event.data);
         }
       };
 
-      recorder.onerror = (
-        event
-      ) => {
-        fail(
-          event?.error ||
-            new Error(
-              'Video recording failed.'
-            )
+      recorder.onerror = (event) => {
+        reject(
+          event.error ||
+            new Error('Video recording failed.')
         );
       };
 
       recorder.onstop = () => {
-        if (finished) return;
-
-        finished = true;
-
-        const outputType =
-          selectedType ||
-          'video/webm';
+        const outputType = selectedType.includes('mp4')
+          ? 'video/mp4'
+          : 'video/webm';
 
         resolve(
-          new Blob(
-            chunks,
-            {
-              type:
-                outputType
-            }
-          )
+          new Blob(chunks, {
+            type: outputType
+          })
         );
       };
 
-      /*
-       * -----------------------------------------------------
-       * PLAN
-       * -----------------------------------------------------
-       */
+      recorder.start();
 
-      const cuts =
-        Array.isArray(
-          plan?.cuts
-        )
-          ? plan.cuts
-          : [];
+      const cuts = Array.isArray(plan?.cuts)
+        ? plan.cuts
+        : [];
 
-      if (
-        cuts.length === 0
-      ) {
-        fail(
-          new Error(
-            'The AI edit plan contains no cuts.'
-          )
-        );
-
+      if (cuts.length === 0) {
+        recorder.stop();
         return;
       }
 
-      /*
-       * -----------------------------------------------------
-       * HELPERS
-       * -----------------------------------------------------
-       */
+      let currentCutIndex = 0;
 
-      const clamp = (
-        value,
-        min,
-        max
-      ) =>
-        Math.max(
-          min,
-          Math.min(
-            max,
-            value
-          )
-        );
+      const findMedia = (cut) => {
+        if (!cut) return null;
 
-      const easeInOut = (
-        value
-      ) => {
-        const t =
-          clamp(
-            value,
-            0,
-            1
+        if (
+          cut.mediaId !== undefined &&
+          cut.mediaId !== null
+        ) {
+          const found = mediaItems.find(
+            (item) =>
+              String(item.id) === String(cut.mediaId)
           );
 
-        return t < 0.5
-          ? 2 *
-              t *
-              t
+          if (found) return found;
+        }
+
+        if (
+          cut.mediaIndex !== undefined &&
+          cut.mediaIndex !== null
+        ) {
+          const index = Number(cut.mediaIndex);
+
+          if (mediaItems[index]) {
+            return mediaItems[index];
+          }
+        }
+
+        return null;
+      };
+
+      const easeInOut = (value) => {
+        return value < 0.5
+          ? 2 * value * value
           : 1 -
-              Math.pow(
-                -2 *
-                    t +
-                  2,
-                2
-              ) /
+              Math.pow(-2 * value + 2, 2) /
                 2;
       };
 
-      const easeOut = (
-        value
-      ) => {
-        const t =
-          clamp(
-            value,
-            0,
-            1
-          );
-
-        return (
-          1 -
-          Math.pow(
-            1 - t,
-            3
-          )
-        );
-      };
-
-      /*
-       * -----------------------------------------------------
-       * FIND MEDIA
-       * -----------------------------------------------------
-       */
-
-      const findMedia = (
-        cut
-      ) => {
-        if (!cut) {
-          return null;
-        }
-
-        if (
-          cut.mediaId !==
-            undefined &&
-          cut.mediaId !==
-            null
-        ) {
-          const found =
-            mediaItems.find(
-              (item) =>
-                String(
-                  item?.id
-                ) ===
-                String(
-                  cut.mediaId
-                )
-            );
-
-          if (found) {
-            return found;
-          }
-        }
-
-        if (
-          cut.mediaIndex !==
-            undefined &&
-          cut.mediaIndex !==
-            null
-        ) {
-          const index =
-            Number(
-              cut.mediaIndex
-            );
-
-          if (
-            mediaItems[index]
-          ) {
-            return mediaItems[
-              index
-            ];
-          }
-        }
-
-        /*
-         * Fallback:
-         * Gemini sometimes returns video-0/video-1 style IDs.
-         */
-
-        if (
-          typeof cut.mediaId ===
-          'string'
-        ) {
-          const match =
-            cut.mediaId.match(
-              /(\d+)$/
-            );
-
-          if (match) {
-            const index =
-              Number(
-                match[1]
-              );
-
-            if (
-              mediaItems[index]
-            ) {
-              return mediaItems[
-                index
-              ];
-            }
-          }
-        }
-
-        return null;
-      };
-
-      /*
-       * -----------------------------------------------------
-       * SOURCE RESOLUTION
-       *
-       * Supports:
-       * - media.file
-       * - media.blob
-       * - media.url
-       * - media.src
-       * -----------------------------------------------------
-       */
-
-      const getSource = (
-        media
-      ) => {
-        if (!media) {
-          return null;
-        }
-
-        if (
-          media.file instanceof
-          Blob
-        ) {
-          return {
-            src:
-              URL.createObjectURL(
-                media.file
-              ),
-            revoke: true
-          };
-        }
-
-        if (
-          media.blob instanceof
-          Blob
-        ) {
-          return {
-            src:
-              URL.createObjectURL(
-                media.blob
-              ),
-            revoke: true
-          };
-        }
-
-        if (
-          typeof media.url ===
-          'string' &&
-          media.url
-        ) {
-          return {
-            src:
-              media.url,
-            revoke: false
-          };
-        }
-
-        if (
-          typeof media.src ===
-          'string' &&
-          media.src
-        ) {
-          return {
-            src:
-              media.src,
-            revoke: false
-          };
-        }
-
-        return null;
-      };
-
-      /*
-       * -----------------------------------------------------
-       * COLOUR
-       * -----------------------------------------------------
-       */
-
-      const getColourFilter = (
-        grade
-      ) => {
-        const value =
-          String(
-            grade ||
-              'dark-cinematic'
-          ).toLowerCase();
-
-        if (
-          value.includes(
-            'natural'
-          ) ||
-          value.includes(
-            'neutral'
-          )
-        ) {
-          return (
-            'brightness(0.98) ' +
-            'contrast(1.08) ' +
-            'saturate(1.08)'
-          );
-        }
-
-        if (
-          value.includes(
-            'warm'
-          ) ||
-          value.includes(
-            'golden'
-          )
-        ) {
-          return (
-            'brightness(0.94) ' +
-            'contrast(1.15) ' +
-            'saturate(1.12) ' +
-            'sepia(0.08)'
-          );
-        }
-
-        if (
-          value.includes(
-            'high'
-          ) ||
-          value.includes(
-            'contrast'
-          )
-        ) {
-          return (
-            'brightness(0.90) ' +
-            'contrast(1.28) ' +
-            'saturate(1.16)'
-          );
-        }
-
-        if (
-          value.includes(
-            'moody'
-          ) ||
-          value.includes(
-            'blue'
-          )
-        ) {
-          return (
-            'brightness(0.88) ' +
-            'contrast(1.20) ' +
-            'saturate(1.14) ' +
-            'hue-rotate(-6deg)'
-          );
-        }
-
-        return (
-          'brightness(0.90) ' +
-          'contrast(1.18) ' +
-          'saturate(1.12)'
-        );
-      };
-
-      /*
-       * -----------------------------------------------------
-       * DRAW COVER
-       * -----------------------------------------------------
-       */
-
       const drawCover = (
         element,
-        options = {}
+        scale = 1,
+        offsetX = 0,
+        offsetY = 0,
+        opacity = 1,
+        brightness = 1
       ) => {
-        const {
-          scale = 1,
-          offsetX = 0,
-          offsetY = 0,
-          opacity = 1,
-          brightness = 1,
-          colorGrade =
-            'dark-cinematic'
-        } = options;
-
         const sourceWidth =
           element.videoWidth ||
           element.naturalWidth ||
-          canvas.width;
+          1080;
 
         const sourceHeight =
           element.videoHeight ||
           element.naturalHeight ||
-          canvas.height;
-
-        if (
-          !sourceWidth ||
-          !sourceHeight
-        ) {
-          throw new Error(
-            'Source media has no usable dimensions.'
-          );
-        }
+          1920;
 
         const sourceRatio =
-          sourceWidth /
-          sourceHeight;
+          sourceWidth / sourceHeight;
 
         const canvasRatio =
-          canvas.width /
-          canvas.height;
+          canvas.width / canvas.height;
 
         let width;
         let height;
 
-        if (
-          sourceRatio >
-          canvasRatio
-        ) {
-          height =
-            canvas.height *
-            scale;
-
-          width =
-            height *
-            sourceRatio;
+        if (sourceRatio > canvasRatio) {
+          height = canvas.height * scale;
+          width = height * sourceRatio;
         } else {
-          width =
-            canvas.width *
-            scale;
-
-          height =
-            width /
-            sourceRatio;
+          width = canvas.width * scale;
+          height = width / sourceRatio;
         }
 
         const x =
-          (
-            canvas.width -
-            width
-          ) /
-            2 +
-          offsetX;
+          (canvas.width - width) / 2 + offsetX;
 
         const y =
-          (
-            canvas.height -
-            height
-          ) /
-            2 +
-          offsetY;
+          (canvas.height - height) / 2 + offsetY;
 
         ctx.save();
 
-        ctx.globalAlpha =
-          opacity;
-
-        const finalBrightness =
-          clamp(
-            brightness,
-            0.65,
-            1.15
-          );
+        ctx.globalAlpha = opacity;
 
         ctx.filter =
-          `${getColourFilter(
-            colorGrade
-          )} brightness(${finalBrightness})`;
+          `brightness(${brightness}) contrast(1.18) saturate(1.2)`;
 
         ctx.drawImage(
           element,
@@ -611,307 +172,21 @@ export async function renderProject(
         ctx.restore();
       };
 
-      /*
-       * -----------------------------------------------------
-       * GRADE OVERLAY
-       * -----------------------------------------------------
-       */
-
-      const drawGradeOverlay = (
-        grade
-      ) => {
-        const value =
-          String(
-            grade || ''
-          ).toLowerCase();
-
-        if (
-          value.includes(
-            'moody'
-          ) ||
-          value.includes(
-            'blue'
-          ) ||
-          value.includes(
-            'dark'
-          )
-        ) {
-          const gradient =
-            ctx.createLinearGradient(
-              0,
-              0,
-              0,
-              canvas.height
-            );
-
-          gradient.addColorStop(
-            0,
-            'rgba(8,18,32,0.12)'
-          );
-
-          gradient.addColorStop(
-            0.55,
-            'rgba(0,0,0,0)'
-          );
-
-          gradient.addColorStop(
-            1,
-            'rgba(0,0,0,0.22)'
-          );
-
-          ctx.save();
-
-          ctx.fillStyle =
-            gradient;
-
-          ctx.fillRect(
-            0,
-            0,
-            canvas.width,
-            canvas.height
-          );
-
-          ctx.restore();
-        }
-
-        const vignette =
-          ctx.createRadialGradient(
-            canvas.width / 2,
-            canvas.height / 2,
-            canvas.height *
-              0.18,
-            canvas.width / 2,
-            canvas.height / 2,
-            canvas.height *
-              0.82
-          );
-
-        vignette.addColorStop(
-          0,
-          'rgba(0,0,0,0)'
-        );
-
-        vignette.addColorStop(
-          0.68,
-          'rgba(0,0,0,0.06)'
-        );
-
-        vignette.addColorStop(
-          1,
-          'rgba(0,0,0,0.52)'
-        );
-
-        ctx.save();
-
-        ctx.fillStyle =
-          vignette;
-
-        ctx.fillRect(
-          0,
-          0,
-          canvas.width,
-          canvas.height
-        );
-
-        ctx.restore();
-      };
-
-      /*
-       * -----------------------------------------------------
-       * TEXT
-       * -----------------------------------------------------
-       */
-
-      const drawTextOverlay = (
-        text,
-        progress,
-        textIn,
-        textOut,
-        style
-      ) => {
-        const value =
-          String(
-            text || ''
-          ).trim();
-
-        if (!value) {
-          return;
-        }
-
-        const inPoint =
-          clamp(
-            Number(
-              textIn
-            ) || 0.12,
-            0,
-            0.8
-          );
-
-        const outPoint =
-          clamp(
-            Number(
-              textOut
-            ) || 0.88,
-            inPoint +
-              0.05,
-            1
-          );
-
-        let alpha = 1;
-
-        if (
-          progress <
-          inPoint
-        ) {
-          alpha =
-            progress /
-            Math.max(
-              0.01,
-              inPoint
-            );
-        } else if (
-          progress >
-          outPoint
-        ) {
-          alpha =
-            1 -
-            (
-              progress -
-              outPoint
-            ) /
-              Math.max(
-                0.05,
-                1 - outPoint
-              );
-        }
-
-        alpha =
-          clamp(
-            alpha,
-            0,
-            1
-          );
-
-        const rise =
-          (
-            1 -
-            easeOut(alpha)
-          ) *
-          24;
-
-        const textStyle =
-          String(
-            style ||
-              'cinematic'
-          ).toLowerCase();
-
-        ctx.save();
-
-        ctx.globalAlpha =
-          alpha;
-
-        ctx.textAlign =
-          'center';
-
-        ctx.textBaseline =
-          'middle';
-
-        ctx.font =
-          textStyle.includes(
-            'small'
-          )
-            ? '600 38px Arial, sans-serif'
-            : '700 54px Arial, sans-serif';
-
-        ctx.shadowColor =
-          'rgba(0,0,0,0.92)';
-
-        ctx.shadowBlur =
-          18;
-
-        ctx.shadowOffsetY =
-          4;
-
-        ctx.fillStyle =
-          '#fff';
-
-        ctx.fillText(
-          value.toUpperCase(),
-          canvas.width / 2,
-          canvas.height -
-            210 +
-            rise
-        );
-
-        ctx.restore();
-      };
-
-      /*
-       * -----------------------------------------------------
-       * TRANSITION
-       * -----------------------------------------------------
-       */
-
-      let previousFrame =
-        null;
-
       const drawTransition = (
         type,
-        progress,
-        isFirstCut
+        progress
       ) => {
-        const transition =
-          String(
-            type ||
-              'hard-cut'
-          ).toLowerCase();
-
-        const p =
-          clamp(
-            progress,
-            0,
-            1
-          );
+        const transition = String(
+          type || 'hard-cut'
+        ).toLowerCase();
 
         if (
-          transition ===
-            'crossfade' &&
-          previousFrame
+          transition === 'fade-in' ||
+          transition === 'fade'
         ) {
-          ctx.save();
+          ctx.fillStyle = '#000';
 
-          ctx.globalAlpha =
-            1 - p;
-
-          ctx.drawImage(
-            previousFrame,
-            0,
-            0
-          );
-
-          ctx.restore();
-
-          return;
-        }
-
-        if (
-          transition ===
-            'fade-in' ||
-          transition ===
-            'fade' ||
-          (
-            isFirstCut &&
-            transition ===
-              'cinematic'
-          )
-        ) {
-          ctx.save();
-
-          ctx.fillStyle =
-            '#000';
-
-          ctx.globalAlpha =
-            1 - p;
+          ctx.globalAlpha = 1 - progress;
 
           ctx.fillRect(
             0,
@@ -920,22 +195,17 @@ export async function renderProject(
             canvas.height
           );
 
-          ctx.restore();
+          ctx.globalAlpha = 1;
 
           return;
         }
 
         if (
-          transition ===
-          'fade-out'
+          transition === 'fade-out'
         ) {
-          ctx.save();
+          ctx.fillStyle = '#000';
 
-          ctx.fillStyle =
-            '#000';
-
-          ctx.globalAlpha =
-            p;
+          ctx.globalAlpha = progress;
 
           ctx.fillRect(
             0,
@@ -944,33 +214,51 @@ export async function renderProject(
             canvas.height
           );
 
-          ctx.restore();
+          ctx.globalAlpha = 1;
 
           return;
         }
 
         if (
-          transition ===
-          'flash-cut'
+          transition === 'dip-black'
+        ) {
+          const amount =
+            progress < 0.5
+              ? progress * 2
+              : (1 - progress) * 2;
+
+          ctx.fillStyle = '#000';
+
+          ctx.globalAlpha = 1 - amount;
+
+          ctx.fillRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+
+          ctx.globalAlpha = 1;
+
+          return;
+        }
+
+        if (
+          transition === 'flash-cut'
         ) {
           const flash =
             Math.max(
               0,
               1 -
                 Math.abs(
-                  p - 0.5
+                  progress - 0.5
                 ) *
                   8
             );
 
-          ctx.save();
+          ctx.fillStyle = '#fff';
 
-          ctx.fillStyle =
-            '#fff';
-
-          ctx.globalAlpha =
-            flash *
-            0.82;
+          ctx.globalAlpha = flash * 0.85;
 
           ctx.fillRect(
             0,
@@ -979,634 +267,241 @@ export async function renderProject(
             canvas.height
           );
 
-          ctx.restore();
+          ctx.globalAlpha = 1;
+
+          return;
         }
       };
 
-      /*
-       * -----------------------------------------------------
-       * VIDEO LOADER
-       *
-       * This is the major fix.
-       *
-       * We no longer treat onerror as successful loading.
-       * We wait for real video data.
-       * -----------------------------------------------------
-       */
-
-      const loadVideo = (
-        src
-      ) =>
-        new Promise(
-          (
-            resolveLoad,
-            rejectLoad
-          ) => {
-            const video =
-              document.createElement(
-                'video'
-              );
-
-            video.muted =
-              true;
-
-            video.defaultMuted =
-              true;
-
-            video.playsInline =
-              true;
-
-            video.setAttribute(
-              'playsinline',
-              ''
-            );
-
-            video.setAttribute(
-              'webkit-playsinline',
-              ''
-            );
-
-            video.preload =
-              'auto';
-
-            /*
-             * CORS is required when a public remote Blob URL
-             * is used as the source for canvas rendering.
-             */
-            video.crossOrigin =
-              'anonymous';
-
-            let settled =
-              false;
-
-            const timeout =
-              setTimeout(
-                () => {
-                  finishError(
-                    new Error(
-                      'Video loading timed out after 15 seconds.'
-                    )
-                  );
-                },
-                15000
-              );
-
-            const cleanup =
-              () => {
-                clearTimeout(
-                  timeout
-                );
-
-                video.removeEventListener(
-                  'loadedmetadata',
-                  onMetadata
-                );
-
-                video.removeEventListener(
-                  'loadeddata',
-                  onLoadedData
-                );
-
-                video.removeEventListener(
-                  'canplay',
-                  onCanPlay
-                );
-
-                video.removeEventListener(
-                  'error',
-                  onError
-                );
-              };
-
-            const finish =
-              () => {
-                if (
-                  settled
-                ) {
-                  return;
-                }
-
-                settled =
-                  true;
-
-                cleanup();
-
-                resolveLoad(
-                  video
-                );
-              };
-
-            const finishError =
-              (error) => {
-                if (
-                  settled
-                ) {
-                  return;
-                }
-
-                settled =
-                  true;
-
-                cleanup();
-
-                rejectLoad(
-                  error
-                );
-              };
-
-            const onMetadata =
-              () => {
-                console.log(
-                  'BIKEZTAGRAM renderer: video metadata loaded',
-                  {
-                    width:
-                      video.videoWidth,
-                    height:
-                      video.videoHeight,
-                    duration:
-                      video.duration
-                  }
-                );
-              };
-
-            const onLoadedData =
-              () => {
-                if (
-                  video.readyState >=
-                  2
-                ) {
-                  finish();
-                }
-              };
-
-            const onCanPlay =
-              () => {
-                if (
-                  video.readyState >=
-                  2
-                ) {
-                  finish();
-                }
-              };
-
-            const onError =
-              () => {
-                const mediaError =
-                  video.error;
-
-                finishError(
-                  new Error(
-                    `Video could not be loaded${
-                      mediaError?.code
-                        ? ` (media error ${mediaError.code})`
-                        : ''
-                    }.`
-                  )
-                );
-              };
-
-            video.addEventListener(
-              'loadedmetadata',
-              onMetadata
-            );
-
-            video.addEventListener(
-              'loadeddata',
-              onLoadedData
-            );
-
-            video.addEventListener(
-              'canplay',
-              onCanPlay
-            );
-
-            video.addEventListener(
-              'error',
-              onError
-            );
-
-            video.src =
-              src;
-
-            video.load();
-          }
-        );
-
-      /*
-       * -----------------------------------------------------
-       * WAIT FOR A REAL VIDEO FRAME
-       * -----------------------------------------------------
-       */
-
-      const waitForVideoFrame =
-        async (
-          video
-        ) => {
+      const renderCut = async () => {
+        if (
+          currentCutIndex >=
+          cuts.length
+        ) {
           if (
-            video.readyState <
-            2
+            recorder.state !==
+            'inactive'
           ) {
-            await new Promise(
-              (
-                resolveFrame
-              ) => {
-                const timeout =
-                  setTimeout(
-                    resolveFrame,
-                    2000
-                  );
-
-                const check =
-                  () => {
-                    if (
-                      video.readyState >=
-                      2
-                    ) {
-                      clearTimeout(
-                        timeout
-                      );
-
-                      video.removeEventListener(
-                        'loadeddata',
-                        check
-                      );
-
-                      video.removeEventListener(
-                        'canplay',
-                        check
-                      );
-
-                      resolveFrame();
-                    }
-                  };
-
-                video.addEventListener(
-                  'loadeddata',
-                  check
-                );
-
-                video.addEventListener(
-                  'canplay',
-                  check
-                );
-
-                check();
-              }
-            );
+            recorder.stop();
           }
 
+          return;
+        }
+
+        const cut =
+          cuts[currentCutIndex];
+
+        const media =
+          findMedia(cut);
+
+        if (!media || !media.file) {
+          currentCutIndex++;
+
+          renderCut();
+
+          return;
+        }
+
+        const isVideo =
+          typeof media.type === 'string' &&
+          media.type.startsWith('video');
+
+        const element = isVideo
+          ? document.createElement('video')
+          : new Image();
+
+        const fileUrl =
+          URL.createObjectURL(
+            media.file
+          );
+
+        const duration =
+          Math.max(
+            0.5,
+            Math.min(
+              6,
+              Number(cut.duration) || 2
+            )
+          );
+
+        const speed =
+          Math.max(
+            0.5,
+            Math.min(
+              1.5,
+              Number(cut.speed) || 1
+            )
+          );
+
+        const transition =
+          String(
+            cut.transition ||
+              'hard-cut'
+          ).toLowerCase();
+
+        const motion =
+          String(
+            cut.motionStyle ||
+              'static'
+          ).toLowerCase();
+
+        try {
           /*
-           * Give the browser a frame opportunity.
+           * Load media.
            */
 
-          if (
-            typeof video.requestVideoFrameCallback ===
-            'function'
-          ) {
+          if (isVideo) {
+            element.src = fileUrl;
+            element.muted = true;
+            element.playsInline = true;
+            element.preload = 'auto';
+
             await new Promise(
-              (
-                resolveFrame
-              ) => {
-                video.requestVideoFrameCallback(
-                  () =>
-                    resolveFrame()
-                );
+              (resolveLoad) => {
+                let done = false;
+
+                const finish = () => {
+                  if (done) return;
+
+                  done = true;
+
+                  resolveLoad();
+                };
+
+                const timeout =
+                  setTimeout(
+                    finish,
+                    8000
+                  );
+
+                element.onloadeddata =
+                  () => {
+                    clearTimeout(
+                      timeout
+                    );
+
+                    finish();
+                  };
+
+                element.oncanplay =
+                  () => {
+                    clearTimeout(
+                      timeout
+                    );
+
+                    finish();
+                  };
+
+                element.onerror =
+                  () => {
+                    clearTimeout(
+                      timeout
+                    );
+
+                    finish();
+                  };
+
+                element.load();
               }
             );
-          } else {
-            await new Promise(
-              (
-                resolveFrame
-              ) =>
-                requestAnimationFrame(
-                  () =>
-                    resolveFrame()
-                )
-            );
-          }
-        };
 
-      /*
-       * -----------------------------------------------------
-       * START RECORDING
-       * -----------------------------------------------------
-       */
-
-      try {
-        recorder.start(
-          1000
-        );
-      } catch (error) {
-        fail(
-          new Error(
-            `Could not start recording: ${
-              error?.message ||
-              String(error)
-            }`
-          )
-        );
-
-        return;
-      }
-
-      /*
-       * -----------------------------------------------------
-       * RENDER CUTS
-       * -----------------------------------------------------
-       */
-
-      let currentCutIndex =
-        0;
-
-      const renderCut =
-        async () => {
-          if (finished) {
-            return;
-          }
-
-          if (
-            currentCutIndex >=
-            cuts.length
-          ) {
-            if (
-              recorder.state !==
-              'inactive'
-            ) {
-              recorder.stop();
-            }
-
-            return;
-          }
-
-          const cut =
-            cuts[
-              currentCutIndex
-            ] || {};
-
-          const media =
-            findMedia(cut);
-
-          if (!media) {
-            fail(
-              new Error(
-                `AI edit plan references media that was not found. Cut ${currentCutIndex + 1}, mediaId: ${cut.mediaId}, mediaIndex: ${cut.mediaIndex}`
-              )
-            );
-
-            return;
-          }
-
-          const source =
-            getSource(media);
-
-          if (!source) {
-            fail(
-              new Error(
-                `Media item ${
-                  currentCutIndex + 1
-                } does not contain a usable file, blob, URL or source.`
-              )
-            );
-
-            return;
-          }
-
-          const mediaType =
-            String(
-              media.type ||
-                ''
-            ).toLowerCase();
-
-          const isVideo =
-            mediaType.startsWith(
-              'video'
-            ) ||
-            media.file instanceof
-              Blob ||
-            media.blob instanceof
-              Blob;
-
-          const duration =
-            clamp(
-              Number(
-                cut.duration
-              ) || 2,
-              0.5,
-              30
-            );
-
-          const speed =
-            clamp(
-              Number(
-                cut.speed
-              ) || 1,
-              0.25,
-              2
-            );
-
-          const transition =
-            String(
-              cut.transition ||
-                'hard-cut'
-            ).toLowerCase();
-
-          const motion =
-            String(
-              cut.motionStyle ||
-                'static'
-            ).toLowerCase();
-
-          const colorGrade =
-            String(
-              cut.colorGrade ||
-                plan.colorGrade ||
-                'dark-cinematic'
-            );
-
-          const stabilization =
-            Boolean(
-              cut.stabilization ??
-                cut.stabilize ??
-                plan.stabilization
-            );
-
-          let video =
-            null;
-
-          let image =
-            null;
-
-          let sourceUrl =
-            source.src;
-
-          try {
             /*
-             * -------------------------------------------------
-             * LOAD VIDEO
-             * -------------------------------------------------
+             * Start from the beginning
+             * unless AI later supplies
+             * an exact start time.
              */
 
+            const startTime =
+              Number(
+                cut.startTime
+              );
+
             if (
-              isVideo
+              Number.isFinite(
+                startTime
+              ) &&
+              startTime >= 0
             ) {
-              video =
-                await loadVideo(
-                  sourceUrl
+              element.currentTime =
+                Math.min(
+                  startTime,
+                  Math.max(
+                    0,
+                    element.duration -
+                      0.05
+                  )
                 );
+            }
 
-              console.log(
-                'BIKEZTAGRAM renderer: video ready',
-                {
-                  width:
-                    video.videoWidth,
-                  height:
-                    video.videoHeight,
-                  duration:
-                    video.duration,
-                  readyState:
-                    video.readyState
-                }
-              );
+            element.playbackRate =
+              speed;
 
-              if (
-                video.videoWidth <=
-                  0 ||
-                video.videoHeight <=
-                  0
-              ) {
-                throw new Error(
-                  'Video loaded but has invalid dimensions.'
-                );
-              }
+            await element
+              .play()
+              .catch(() => {});
+          } else {
+            element.src = fileUrl;
 
-              /*
-               * Seek to the AI-selected start time.
-               */
+            await new Promise(
+              (resolveLoad) => {
+                let done = false;
 
-              const requestedStart =
-                Number(
-                  cut.startTime
-                );
+                const finish = () => {
+                  if (done) return;
 
-              if (
-                Number.isFinite(
-                  requestedStart
-                ) &&
-                requestedStart >=
-                  0 &&
-                Number.isFinite(
-                  video.duration
-                )
-              ) {
-                const safeStart =
-                  Math.min(
-                    requestedStart,
-                    Math.max(
-                      0,
-                      video.duration -
-                        0.05
-                    )
+                  done = true;
+
+                  resolveLoad();
+                };
+
+                const timeout =
+                  setTimeout(
+                    finish,
+                    8000
                   );
 
-                if (
-                  Math.abs(
-                    video.currentTime -
-                      safeStart
-                  ) >
-                  0.01
-                ) {
-                  await new Promise(
-                    (
-                      resolveSeek,
-                      rejectSeek
-                    ) => {
-                      let done =
-                        false;
+                element.onload =
+                  () => {
+                    clearTimeout(
+                      timeout
+                    );
 
-                      const timeout =
-                        setTimeout(
-                          () => {
-                            if (
-                              done
-                            ) {
-                              return;
-                            }
+                    finish();
+                  };
 
-                            done =
-                              true;
+                element.onerror =
+                  () => {
+                    clearTimeout(
+                      timeout
+                    );
 
-                            video.removeEventListener(
-                              'seeked',
-                              onSeeked
-                            );
-
-                            rejectSeek(
-                              new Error(
-                                'Video seek timed out.'
-                              )
-                            );
-                          },
-                          5000
-                        );
-
-                      const onSeeked =
-                        () => {
-                          if (
-                            done
-                          ) {
-                            return;
-                          }
-
-                          done =
-                            true;
-
-                          clearTimeout(
-                            timeout
-                          );
-
-                          video.removeEventListener(
-                            'seeked',
-                            onSeeked
-                          );
-
-                          resolveSeek();
-                        };
-
-                      video.addEventListener(
-                        'seeked',
-                        onSeeked
-                      );
-
-                      video.currentTime =
-                        safeStart;
-                    }
-                  );
-                }
+                    finish();
+                  };
               }
+            );
+          }
 
-              video.playbackRate =
-                speed;
+          const start =
+            performance.now();
 
-              /*
-               * Start playback and actually verify that it
-               * starts rather than silently ignoring an error.
-               */
+          const interval =
+            setInterval(() => {
+              const elapsed =
+                performance.now() -
+                start;
 
-              try {
-                await video.play();
-              } catch (playError) {
-                console.warn(
-                  'BIKEZTAGRAM renderer: video.play() warning:',
-                  playError
+              const progress =
+                Math.min(
+                  1,
+                  elapsed /
+                    (duration * 1000)
                 );
-              }
 
-              await waitForVideoFrame(
-                video
-              );
+              const eased =
+                easeInOut(progress);
 
               /*
-               * Make sure at least one frame can be drawn.
+               * Clear.
                */
 
               ctx.clearRect(
@@ -1616,8 +511,11 @@ export async function renderProject(
                 canvas.height
               );
 
-              ctx.fillStyle =
-                '#000';
+              /*
+               * Background.
+               */
+
+              ctx.fillStyle = '#000';
 
               ctx.fillRect(
                 0,
@@ -1626,553 +524,295 @@ export async function renderProject(
                 canvas.height
               );
 
-              drawCover(
-                video,
-                {
-                  scale: 1.03,
-                  colorGrade
-                }
-              );
-
               /*
-               * If the canvas is still completely untouched by
-               * the source this will be caught as a renderer
-               * problem instead of silently creating a black
-               * video.
-               */
-            } else {
-              /*
-               * ------------------------------------------------
-               * IMAGE SUPPORT
-               * ------------------------------------------------
+               * Cinematic motion.
                */
 
-              image =
-                new Image();
+              let scale = 1.03;
 
-              image.src =
-                sourceUrl;
+              let offsetX = 0;
+              let offsetY = 0;
 
-              await new Promise(
-                (
-                  resolveImage,
-                  rejectImage
-                ) => {
-                  const timeout =
-                    setTimeout(
-                      () =>
-                        rejectImage(
-                          new Error(
-                            'Image loading timed out.'
-                          )
-                        ),
-                      10000
-                    );
-
-                  image.onload =
-                    () => {
-                      clearTimeout(
-                        timeout
-                      );
-
-                      resolveImage();
-                    };
-
-                  image.onerror =
-                    () => {
-                      clearTimeout(
-                        timeout
-                      );
-
-                      rejectImage(
-                        new Error(
-                          'Image could not be loaded.'
-                        )
-                      );
-                    };
-                }
-              );
-            }
-
-            /*
-             * -------------------------------------------------
-             * FRAME LOOP
-             * -------------------------------------------------
-             */
-
-            const start =
-              performance.now();
-
-            const transitionLength =
-              Math.min(
-                0.4,
-                Math.max(
-                  0.12,
-                  duration *
-                    0.18
+              if (
+                motion.includes(
+                  'slow-push'
+                ) ||
+                motion.includes(
+                  'push'
+                ) ||
+                transition.includes(
+                  'zoom'
                 )
+              ) {
+                scale =
+                  1.02 +
+                  eased * 0.12;
+              }
+
+              else if (
+                motion.includes(
+                  'slow-pull'
+                ) ||
+                motion.includes(
+                  'pull'
+                ) ||
+                transition.includes(
+                  'zoom-out'
+                )
+              ) {
+                scale =
+                  1.14 -
+                  eased * 0.11;
+              }
+
+              else if (
+                motion.includes(
+                  'pan-right'
+                )
+              ) {
+                scale = 1.1;
+
+                offsetX =
+                  (eased - 0.5) *
+                  canvas.width *
+                  0.16;
+              }
+
+              else if (
+                motion.includes(
+                  'pan-left'
+                )
+              ) {
+                scale = 1.1;
+
+                offsetX =
+                  (0.5 - eased) *
+                  canvas.width *
+                  0.16;
+              }
+
+              else if (
+                motion.includes(
+                  'tilt-up'
+                )
+              ) {
+                scale = 1.1;
+
+                offsetY =
+                  (0.5 - eased) *
+                  canvas.height *
+                  0.1;
+              }
+
+              else if (
+                motion.includes(
+                  'tilt-down'
+                )
+              ) {
+                scale = 1.1;
+
+                offsetY =
+                  (eased - 0.5) *
+                  canvas.height *
+                  0.1;
+              }
+
+              /*
+               * Draw footage.
+               */
+
+              if (
+                isVideo
+                  ? element.readyState >=
+                    2
+                  : element.complete
+              ) {
+                drawCover(
+                  element,
+                  scale,
+                  offsetX,
+                  offsetY,
+                  1,
+                  0.88
+                );
+              }
+
+              /*
+               * Vignette.
+               */
+
+              const vignette =
+                ctx.createRadialGradient(
+                  canvas.width / 2,
+                  canvas.height / 2,
+                  canvas.height *
+                    0.2,
+                  canvas.width / 2,
+                  canvas.height / 2,
+                  canvas.height *
+                    0.8
+                );
+
+              vignette.addColorStop(
+                0,
+                'rgba(0,0,0,0)'
               );
 
-            let animationFrame =
-              null;
+              vignette.addColorStop(
+                1,
+                'rgba(0,0,0,0.55)'
+              );
 
-            const drawFrame =
-              () => {
-                if (
-                  finished
-                ) {
-                  return;
-                }
+              ctx.fillStyle =
+                vignette;
 
-                const elapsed =
-                  performance.now() -
-                  start;
+              ctx.fillRect(
+                0,
+                0,
+                canvas.width,
+                canvas.height
+              );
 
-                const progress =
-                  clamp(
-                    elapsed /
-                      (
-                        duration *
-                        1000
-                      ),
-                    0,
-                    1
-                  );
+              /*
+               * Transition.
+               */
 
-                const eased =
-                  easeInOut(
-                    progress
-                  );
-
-                /*
-                 * ------------------------------------------------
-                 * BASE
-                 * ------------------------------------------------
-                 */
-
-                ctx.clearRect(
-                  0,
-                  0,
-                  canvas.width,
-                  canvas.height
+              const transitionLength =
+                Math.min(
+                  0.25,
+                  duration / 3
                 );
+
+              if (
+                transition !==
+                  'hard-cut' &&
+                progress <
+                  transitionLength /
+                    duration
+              ) {
+                drawTransition(
+                  transition,
+                  progress /
+                    (transitionLength /
+                      duration)
+                );
+              }
+
+              /*
+               * Text.
+               */
+
+              const text =
+                cut.text ||
+                '';
+
+              if (text) {
+                const textProgress =
+                  Math.min(
+                    1,
+                    progress * 4
+                  );
+
+                ctx.save();
+
+                ctx.globalAlpha =
+                  textProgress;
 
                 ctx.fillStyle =
-                  '#000';
+                  '#fff';
 
-                ctx.fillRect(
-                  0,
-                  0,
-                  canvas.width,
-                  canvas.height
+                ctx.font =
+                  'bold 54px Arial, sans-serif';
+
+                ctx.textAlign =
+                  'center';
+
+                ctx.textBaseline =
+                  'middle';
+
+                ctx.shadowColor =
+                  'rgba(0,0,0,0.9)';
+
+                ctx.shadowBlur = 18;
+
+                ctx.fillText(
+                  String(
+                    text
+                  ).toUpperCase(),
+                  canvas.width / 2,
+                  canvas.height -
+                    210
                 );
 
-                /*
-                 * ------------------------------------------------
-                 * MOTION
-                 * ------------------------------------------------
-                 */
+                ctx.restore();
+              }
 
-                let scale =
-                  stabilization
-                    ? 1.07
-                    : 1.035;
+              /*
+               * Progress.
+               */
 
-                let offsetX =
-                  0;
-
-                let offsetY =
-                  0;
-
-                const intensity =
-                  clamp(
-                    Number(
-                      cut.motionIntensity
-                    ) || 1,
-                    0.35,
-                    1.5
-                  );
-
-                if (
-                  motion.includes(
-                    'slow-push'
-                  ) ||
-                  motion.includes(
-                    'push'
-                  ) ||
-                  motion ===
-                    'zoom'
-                ) {
-                  scale +=
-                    eased *
-                    0.105 *
-                    intensity;
-                } else if (
-                  motion.includes(
-                    'slow-pull'
-                  ) ||
-                  motion.includes(
-                    'pull'
-                  ) ||
-                  motion.includes(
-                    'zoom-out'
-                  )
-                ) {
-                  scale +=
-                    (1 - eased) *
-                    0.105 *
-                    intensity;
-                } else if (
-                  motion.includes(
-                    'pan-right'
-                  )
-                ) {
-                  scale =
-                    Math.max(
-                      scale,
-                      1.08
-                    );
-
-                  offsetX =
+              if (onProgress) {
+                onProgress(
+                  Math.round(
                     (
-                      eased -
-                      0.5
+                      (currentCutIndex +
+                        progress) /
+                      cuts.length
                     ) *
-                    canvas.width *
-                    0.13 *
-                    intensity;
-                } else if (
-                  motion.includes(
-                    'pan-left'
+                      100
                   )
-                ) {
-                  scale =
-                    Math.max(
-                      scale,
-                      1.08
-                    );
+                );
+              }
 
-                  offsetX =
-                    (
-                      0.5 -
-                      eased
-                    ) *
-                    canvas.width *
-                    0.13 *
-                    intensity;
-                } else if (
-                  motion.includes(
-                    'tilt-up'
-                  )
-                ) {
-                  scale =
-                    Math.max(
-                      scale,
-                      1.08
-                    );
+              /*
+               * End shot.
+               */
 
-                  offsetY =
-                    (
-                      0.5 -
-                      eased
-                    ) *
-                    canvas.height *
-                    0.08 *
-                    intensity;
-                } else if (
-                  motion.includes(
-                    'tilt-down'
-                  )
-                ) {
-                  scale =
-                    Math.max(
-                      scale,
-                      1.08
-                    );
-
-                  offsetY =
-                    (
-                      eased -
-                      0.5
-                    ) *
-                    canvas.height *
-                    0.08 *
-                    intensity;
-                } else if (
-                  motion.includes(
-                    'pan'
-                  )
-                ) {
-                  scale =
-                    Math.max(
-                      scale,
-                      1.06
-                    );
-
-                  offsetX =
-                    Math.sin(
-                      eased *
-                        Math.PI
-                    ) *
-                    canvas.width *
-                    0.035;
-                } else if (
-                  motion.includes(
-                    'cinematic'
-                  )
-                ) {
-                  scale +=
-                    eased *
-                    0.055 *
-                    intensity;
-                }
-
-                scale =
-                  clamp(
-                    scale,
-                    1.01,
-                    1.22
-                  );
-
-                /*
-                 * ------------------------------------------------
-                 * SOURCE FRAME
-                 * ------------------------------------------------
-                 */
-
-                if (
-                  video
-                ) {
-                  if (
-                    video.readyState >=
-                    2
-                  ) {
-                    drawCover(
-                      video,
-                      {
-                        scale,
-                        offsetX,
-                        offsetY,
-                        opacity:
-                          1,
-                        brightness:
-                          1,
-                        colorGrade
-                      }
-                    );
-                  }
-                } else if (
-                  image &&
-                  image.complete
-                ) {
-                  drawCover(
-                    image,
-                    {
-                      scale,
-                      offsetX,
-                      offsetY,
-                      opacity:
-                        1,
-                      brightness:
-                        1,
-                      colorGrade
-                    }
-                  );
-                }
-
-                /*
-                 * ------------------------------------------------
-                 * CINEMATIC GRADE
-                 * ------------------------------------------------
-                 */
-
-                drawGradeOverlay(
-                  colorGrade
+              if (
+                progress >= 1
+              ) {
+                clearInterval(
+                  interval
                 );
 
-                /*
-                 * ------------------------------------------------
-                 * TRANSITION
-                 * ------------------------------------------------
-                 */
-
-                if (
-                  transition !==
-                    'hard-cut' &&
-                  progress <
-                    transitionLength /
-                      duration
-                ) {
-                  drawTransition(
-                    transition,
-                    progress /
-                      (
-                        transitionLength /
-                        duration
-                      ),
-                    currentCutIndex ===
-                      0
-                  );
-                }
-
-                /*
-                 * ------------------------------------------------
-                 * TEXT
-                 * ------------------------------------------------
-                 */
-
-                drawTextOverlay(
-                  cut.text ||
-                    '',
-                  progress,
-                  cut.textIn,
-                  cut.textOut,
-                  cut.textStyle
-                );
-
-                /*
-                 * ------------------------------------------------
-                 * PROGRESS
-                 * ------------------------------------------------
-                 */
-
-                if (
-                  onProgress
-                ) {
-                  onProgress(
-                    Math.round(
-                      (
-                        (
-                          currentCutIndex +
-                          progress
-                        ) /
-                        cuts.length
-                      ) *
-                        100
-                    )
-                  );
-                }
-
-                /*
-                 * ------------------------------------------------
-                 * NEXT FRAME / NEXT CUT
-                 * ------------------------------------------------
-                 */
-
-                if (
-                  progress >=
-                  1
-                ) {
-                  if (
-                    animationFrame
-                  ) {
-                    cancelAnimationFrame(
-                      animationFrame
-                    );
-                  }
-
-                  if (
-                    video
-                  ) {
-                    try {
-                      video.pause();
-                    } catch {}
-                  }
-
-                  /*
-                   * Store final rendered frame.
-                   */
-
+                if (isVideo) {
                   try {
-                    previousFrame =
-                      document.createElement(
-                        'canvas'
-                      );
-
-                    previousFrame.width =
-                      canvas.width;
-
-                    previousFrame.height =
-                      canvas.height;
-
-                    const previousCtx =
-                      previousFrame.getContext(
-                        '2d'
-                      );
-
-                    previousCtx.drawImage(
-                      canvas,
-                      0,
-                      0
-                    );
-                  } catch {
-                    previousFrame =
-                      null;
-                  }
-
-                  /*
-                   * Clean up object URLs.
-                   */
-
-                  if (
-                    source.revoke
-                  ) {
-                    try {
-                      URL.revokeObjectURL(
-                        sourceUrl
-                      );
-                    } catch {}
-                  }
-
-                  currentCutIndex++;
-
-                  renderCut();
-
-                  return;
+                    element.pause();
+                  } catch {}
                 }
 
-                animationFrame =
-                  requestAnimationFrame(
-                    drawFrame
+                try {
+                  URL.revokeObjectURL(
+                    fileUrl
                   );
-              };
+                } catch {}
 
-            animationFrame =
-              requestAnimationFrame(
-                drawFrame
-              );
-          } catch (error) {
-            console.error(
-              'BIKEZTAGRAM renderer cut failed:',
-              error
+                currentCutIndex++;
+
+                renderCut();
+              }
+            }, 33);
+        } catch (error) {
+          console.error(
+            'Render cut error:',
+            error
+          );
+
+          try {
+            URL.revokeObjectURL(
+              fileUrl
             );
+          } catch {}
 
-            if (
-              source.revoke
-            ) {
-              try {
-                URL.revokeObjectURL(
-                  sourceUrl
-                );
-              } catch {}
-            }
+          currentCutIndex++;
 
-            fail(
-              new Error(
-                `Render failed on cut ${
-                  currentCutIndex + 1
-                }: ${
-                  error?.message ||
-                  String(error)
-                }`
-              )
-            );
-          }
-        };
+          renderCut();
+        }
+      };
 
       renderCut();
     } catch (error) {
-      fail(error);
+      reject(error);
     }
   });
-              }
+          }
