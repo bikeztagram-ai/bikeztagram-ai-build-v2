@@ -283,67 +283,164 @@ export default function App() {
    */
 
   function buildPlannerInput(geminiAnalysis) {
+    if (!geminiAnalysis) {
+      return {
+        cuts: []
+      };
+    }
+
     const moments =
       Array.isArray(
-        geminiAnalysis?.bestMoments
+        geminiAnalysis.bestMoments
       )
         ? geminiAnalysis.bestMoments
         : [];
 
     const recommendation =
-      geminiAnalysis?.editingRecommendation ||
+      geminiAnalysis.editingRecommendation ||
       {};
 
     const textRecommendation =
-      geminiAnalysis?.textRecommendation ||
+      geminiAnalysis.textRecommendation ||
       {};
 
     const transitionRecommendation =
-      geminiAnalysis?.transitionRecommendation ||
-      '';
+      geminiAnalysis.transitionRecommendation ||
+      'cut';
 
     const motionRecommendation =
-      geminiAnalysis?.motionRecommendation ||
-      '';
+      geminiAnalysis.motionRecommendation ||
+      'cinematic';
 
-    const plannerInput = {
+    const defaultSpeed =
+      Number(
+        recommendation.speed
+      ) || 1;
+
+    const slowMotion =
+      Boolean(
+        recommendation.slowMotion
+      );
+
+    const defaultText =
+      textRecommendation.useText
+        ? String(
+            textRecommendation.text || ''
+          ).trim()
+        : '';
+
+    const cuts =
+      moments
+        .map((moment, index) => {
+          const start =
+            Number(moment.start);
+
+          const end =
+            Number(moment.end);
+
+          if (!Number.isFinite(start)) {
+            return null;
+          }
+
+          let duration =
+            end > start
+              ? end - start
+              : Number(
+                  recommendation.suggestedDuration
+                ) || 2.5;
+
+          if (
+            !Number.isFinite(duration) ||
+            duration <= 0
+          ) {
+            duration = 2.5;
+          }
+
+          duration =
+            Math.max(
+              0.35,
+              Math.min(
+                8,
+                duration
+              )
+            );
+
+          let speed =
+            Number.isFinite(
+              defaultSpeed
+            )
+              ? defaultSpeed
+              : 1;
+
+          if (
+            slowMotion &&
+            speed >= 0.95
+          ) {
+            speed = 0.6;
+          }
+
+          speed =
+            Math.max(
+              0.25,
+              Math.min(
+                2.5,
+                speed
+              )
+            );
+
+          let text = '';
+
+          /*
+           * FIX:
+           * The old code used cuts.length here while
+           * cuts was still being created.
+           *
+           * Use the map index instead.
+           */
+
+          if (
+            defaultText &&
+            index === 0
+          ) {
+            text =
+              defaultText;
+          }
+
+          return {
+            mediaIndex: 0,
+
+            startTime:
+              Math.max(
+                0,
+                start
+              ),
+
+            duration,
+
+            speed,
+
+            transition:
+              transitionRecommendation,
+
+            motionStyle:
+              motionRecommendation,
+
+            text
+          };
+        })
+        .filter(Boolean);
+
+    return {
       ...geminiAnalysis,
-
-      bestMoments:
-        moments,
-
-      editingRecommendation:
-        recommendation,
-
-      textRecommendation:
-        textRecommendation,
-
-      transitionRecommendation:
-        transitionRecommendation,
-
-      motionRecommendation:
-        motionRecommendation
+      cuts
     };
-
-    return plannerInput;
   }
-
-  /*
-   * =====================================================
-   * AI EDIT PLAN
-   * =====================================================
-   */
 
   function createPlanFromAnalysis(
     geminiAnalysis
   ) {
-    const plannerInput =
-      buildPlannerInput(
-        geminiAnalysis
-      );
-
     return createAIEditPlan(
-      plannerInput,
+      geminiAnalysis,
       {
         maxCuts: 8,
         targetDuration: 15,
@@ -443,6 +540,7 @@ export default function App() {
        */
 
       let blob;
+      let uploadNetworkTrace = null;
 
       try {
         setCurrentStage(
@@ -473,63 +571,262 @@ export default function App() {
         );
 
         /*
-         * =====================================================
-         * DIAGNOSTIC BLOB UPLOAD
+         * IMPORTANT:
          *
-         * This version intentionally uses multipart:true.
-         * The server-side handleUpload route receives the same
-         * multipart setting and generates the corresponding
-         * client token.
-         * =====================================================
+         * Keep this FALSE.
+         *
+         * This is the exact upload configuration
+         * that successfully uploaded 8518.mp4 earlier.
+         *
+         * Vercel recommends multipart mainly for
+         * substantially larger files (100 MB+).
          */
+
+        console.log(
+          '[APP] Blob multipart:',
+          false
+        );
+
+        const uploadController =
+          new AbortController();
+
+        /*
+         * -----------------------------------------------------
+         * MOBILE-SAFE BLOB NETWORK TRACE
+         *
+         * We cannot use desktop DevTools on the phone, so for
+         * this diagnostic build we temporarily observe browser
+         * fetch/XHR requests made during the Blob upload.
+         * This does NOT change the request or expose the Blob
+         * client token. It only records URL, status and network
+         * errors so we can identify where the direct transfer
+         * fails.
+         * -----------------------------------------------------
+         */
+
+        uploadNetworkTrace = {
+          startedAt:
+            new Date().toISOString(),
+          fetch: [],
+          xhr: []
+        };
+
+        const originalFetch =
+          window.fetch.bind(window);
+
+        const originalXhrOpen =
+          XMLHttpRequest.prototype.open;
+
+        const originalXhrSend =
+          XMLHttpRequest.prototype.send;
+
+        const originalXhrAbort =
+          XMLHttpRequest.prototype.abort;
+
+        const tracedXhrs =
+          new WeakMap();
+
+        window.fetch = async (...args) => {
+          const input = args[0];
+          const url =
+            typeof input === 'string'
+              ? input
+              : input?.url || String(input);
+
+          const started = Date.now();
+
+          try {
+            const response =
+              await originalFetch(...args);
+
+            uploadNetworkTrace.fetch.push({
+              url,
+              status:
+                response.status,
+              ok:
+                response.ok,
+              elapsedMs:
+                Date.now() - started
+            });
+
+            return response;
+          } catch (networkError) {
+            uploadNetworkTrace.fetch.push({
+              url,
+              error:
+                networkError?.message ||
+                String(networkError),
+              name:
+                networkError?.name ||
+                'UnknownError',
+              elapsedMs:
+                Date.now() - started
+            });
+
+            throw networkError;
+          }
+        };
+
+        XMLHttpRequest.prototype.open =
+          function(method, url, ...rest) {
+            tracedXhrs.set(this, {
+              method,
+              url:
+                String(url),
+              started:
+                Date.now()
+            });
+
+            return originalXhrOpen.call(
+              this,
+              method,
+              url,
+              ...rest
+            );
+          };
+
+        XMLHttpRequest.prototype.send =
+          function(...args) {
+            const xhr = this;
+            const trace =
+              tracedXhrs.get(xhr);
+
+            if (trace) {
+              const record = {
+                method:
+                  trace.method,
+                url:
+                  trace.url
+              };
+
+              const finish =
+                (extra = {}) => {
+                  Object.assign(
+                    record,
+                    extra,
+                    {
+                      elapsedMs:
+                        Date.now() -
+                        trace.started
+                    }
+                  );
+
+                  uploadNetworkTrace.xhr.push(
+                    record
+                  );
+                };
+
+              xhr.addEventListener(
+                'load',
+                () => {
+                  finish({
+                    status:
+                      xhr.status,
+                    statusText:
+                      xhr.statusText
+                  });
+                },
+                { once: true }
+              );
+
+              xhr.addEventListener(
+                'error',
+                () => {
+                  finish({
+                    error:
+                      'XMLHttpRequest network error',
+                    status:
+                      xhr.status
+                  });
+                },
+                { once: true }
+              );
+
+              xhr.addEventListener(
+                'abort',
+                () => {
+                  finish({
+                    error:
+                      'XMLHttpRequest aborted',
+                    status:
+                      xhr.status
+                  });
+                },
+                { once: true }
+              );
+
+              xhr.addEventListener(
+                'timeout',
+                () => {
+                  finish({
+                    error:
+                      'XMLHttpRequest timeout',
+                    status:
+                      xhr.status
+                  });
+                },
+                { once: true }
+              );
+            }
+
+            return originalXhrSend.apply(
+              this,
+              args
+            );
+          };
+
+        const restoreUploadNetworkTrace =
+          () => {
+            window.fetch =
+              originalFetch;
+
+            XMLHttpRequest.prototype.open =
+              originalXhrOpen;
+
+            XMLHttpRequest.prototype.send =
+              originalXhrSend;
+
+            XMLHttpRequest.prototype.abort =
+              originalXhrAbort;
+          };
 
         const uploadStartedAt =
           Date.now();
 
-        let uploadProgressEvents = 0;
+        let uploadProgressSeen = false;
+
+        const uploadTimeout =
+          setTimeout(() => {
+            console.error(
+              '[APP] BLOB UPLOAD TIMEOUT — no completed upload after 60 seconds',
+              {
+                elapsedMs: Date.now() - uploadStartedAt,
+                progressSeen: uploadProgressSeen,
+                currentProgress: progress
+              }
+            );
+
+            setStatus(
+              '❌ Blob upload timed out after 60 seconds. The client token was generated, but the actual file transfer did not complete.'
+            );
+
+            uploadController.abort();
+          }, 60000);
 
         console.log(
-          '[APP] ========================================'
+          '[APP] Starting actual browser → Blob upload',
+          {
+            startedAt: new Date(uploadStartedAt).toISOString(),
+            fileName: file.name,
+            fileSizeBytes: file.size,
+            fileSizeMB: (file.size / 1024 / 1024).toFixed(2),
+            multipart: false,
+            note: 'Token generation already succeeded; this measures the direct Blob transfer.'
+          }
         );
 
-        console.log(
-          '[APP] BLOB DIRECT UPLOAD STARTING'
-        );
-
-        console.log(
-          '[APP] File bytes:',
-          file.size
-        );
-
-        console.log(
-          '[APP] File MB:',
-          (
-            file.size /
-            1024 /
-            1024
-          ).toFixed(2)
-        );
-
-        console.log(
-          '[APP] Multipart:',
-          true
-        );
-
-        console.log(
-          '[APP] handleUploadUrl:',
-          '/api/upload'
-        );
-
-        console.log(
-          '[APP] Waiting for browser -> Blob transfer...'
-        );
-
-        console.log(
-          '[APP] ========================================'
-        );
-
-        const uploadPromise =
-          upload(
+        blob =
+          await upload(
             pathname,
             file,
             {
@@ -540,7 +837,10 @@ export default function App() {
                 '/api/upload',
 
               multipart:
-                true,
+                false,
+
+              abortSignal:
+                uploadController.signal,
 
               clientPayload:
                 JSON.stringify({
@@ -558,33 +858,23 @@ export default function App() {
                     file.size,
 
                   diagnostic:
-                    'blob-upload-diagnostic-v4'
+                    'blob-upload-test-v3'
                 }),
 
               onUploadProgress:
                 (event) => {
-                  uploadProgressEvents++;
-
                   const percentage =
                     Number(
                       event?.percentage
                     );
 
-                  const elapsed =
-                    (
-                      Date.now() -
-                      uploadStartedAt
-                    ) / 1000;
+                  uploadProgressSeen = true;
 
                   console.log(
-                    '[APP] Blob progress event:',
+                    '[APP] Blob upload progress:',
                     {
-                      eventNumber:
-                        uploadProgressEvents,
-                      percentage,
-                      elapsedSeconds:
-                        elapsed,
-                      event
+                      ...event,
+                      elapsedMs: Date.now() - uploadStartedAt
                     }
                   );
 
@@ -611,145 +901,39 @@ export default function App() {
                     setStatus(
                       `Uploading video to Blob storage... ${safePercentage}%`
                     );
-                  } else {
-                    console.warn(
-                      '[APP] Blob progress event contained no numeric percentage.'
-                    );
                   }
                 }
             }
           );
 
-        const uploadTimeoutPromise =
-          new Promise((_, reject) => {
-            setTimeout(() => {
-              const elapsed =
-                (
-                  Date.now() -
-                  uploadStartedAt
-                ) / 1000;
-
-              console.error(
-                '[APP] BLOB UPLOAD TIMEOUT'
-              );
-
-              console.error(
-                '[APP] Elapsed seconds:',
-                elapsed
-              );
-
-              console.error(
-                '[APP] Progress events received:',
-                uploadProgressEvents
-              );
-
-              reject(
-                new Error(
-                  `Browser -> Vercel Blob upload timed out after ${Math.round(
-                    elapsed
-                  )} seconds. Progress events received: ${uploadProgressEvents}.`
-                )
-              );
-            }, 60000);
-          });
-
-        try {
-          blob =
-            await Promise.race([
-              uploadPromise,
-              uploadTimeoutPromise
-            ]);
-        } catch (uploadError) {
-          const uploadElapsed =
-            (
-              Date.now() -
-              uploadStartedAt
-            ) / 1000;
-
-          console.error(
-            '[APP] ========================================'
-          );
-
-          console.error(
-            '[APP] BLOB DIRECT UPLOAD FAILED'
-          );
-
-          console.error(
-            '[APP] Elapsed seconds:',
-            uploadElapsed
-          );
-
-          console.error(
-            '[APP] Progress events received:',
-            uploadProgressEvents
-          );
-
-          console.error(
-            '[APP] Error name:',
-            uploadError?.name
-          );
-
-          console.error(
-            '[APP] Error message:',
-            uploadError?.message
-          );
-
-          console.error(
-            '[APP] Error cause:',
-            uploadError?.cause
-          );
-
-          console.error(
-            '[APP] Error stack:',
-            uploadError?.stack
-          );
-
-          console.error(
-            '[APP] Error object:',
-            uploadError
-          );
-
-          console.error(
-            '[APP] ========================================'
-          );
-
-          throw uploadError;
-        }
-
-        const uploadElapsed =
-          (
-            Date.now() -
-            uploadStartedAt
-          ) / 1000;
+        clearTimeout(uploadTimeout);
+        restoreUploadNetworkTrace();
 
         console.log(
-          '[APP] ========================================'
-        );
-
-        console.log(
-          '[APP] BLOB DIRECT UPLOAD COMPLETED'
-        );
-
-        console.log(
-          '[APP] Elapsed seconds:',
-          uploadElapsed
-        );
-
-        console.log(
-          '[APP] Progress events received:',
-          uploadProgressEvents
-        );
-
-        console.log(
-          '[APP] Blob result:',
-          blob
-        );
-
-        console.log(
-          '[APP] ========================================'
+          '[APP] Blob upload promise completed:',
+          {
+            blob,
+            elapsedMs: Date.now() - uploadStartedAt,
+            progressSeen: uploadProgressSeen
+          }
         );
 
       } catch (uploadError) {
+        if (typeof restoreUploadNetworkTrace === 'function') {
+          try {
+            restoreUploadNetworkTrace();
+          } catch (restoreError) {
+            console.warn(
+              '[APP] Could not restore network diagnostics:',
+              restoreError
+            );
+          }
+        }
+
+        if (typeof uploadTimeout !== 'undefined') {
+          clearTimeout(uploadTimeout);
+        }
+
         console.error(
           '========================================'
         );
@@ -1029,6 +1213,11 @@ export default function App() {
       console.error(
         '========================================'
       );
+
+      if (uploadNetworkTrace) {
+        details.blobNetworkTrace =
+          uploadNetworkTrace;
+      }
 
       setErrorDetails(
         details
@@ -1710,4 +1899,4 @@ export default function App() {
 
     </div>
   );
-  }
+    }
