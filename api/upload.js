@@ -6,21 +6,46 @@ export default async function handler(req, res) {
    * BIKEZTAGRAM AI
    * Vercel Blob client-upload token route
    *
-   * IMPORTANT:
-   * handleUpload uses BLOB_READ_WRITE_TOKEN to determine
-   * which Blob store it operates against.
+   * This version uses the OIDC-connected public Blob store.
+   * The store is connected through MEDIA_STORE_ID.
    *
-   * We deliberately do NOT try to select a store using
-   * MEDIA_STORE_ID or BLOB_STORE_ID.
+   * IMPORTANT:
+   * We deliberately do NOT pass BLOB_READ_WRITE_TOKEN
+   * directly to handleUpload().
+   *
+   * This allows the current Vercel OIDC-connected Blob store
+   * configuration to be used.
    * =========================================================
    */
 
-  console.log('========================================');
-  console.log('BIKEZTAGRAM /api/upload');
-  console.log('Method:', req.method);
-  console.log('========================================');
+  console.log(
+    '========================================'
+  );
+
+  console.log(
+    'BIKEZTAGRAM /api/upload'
+  );
+
+  console.log(
+    'Method:',
+    req.method
+  );
+
+  console.log(
+    '========================================'
+  );
+
+  /*
+   * ---------------------------------------------------------
+   * Only POST is valid for Blob client-token requests.
+   * ---------------------------------------------------------
+   */
 
   if (req.method !== 'POST') {
+    console.log(
+      'BIKEZTAGRAM: rejected non-POST request'
+    );
+
     return res.status(405).json({
       success: false,
       error: 'Method not allowed',
@@ -28,110 +53,127 @@ export default async function handler(req, res) {
     });
   }
 
-  /*
-   * ---------------------------------------------------------
-   * VERIFY THE SERVER HAS THE BLOB TOKEN
-   *
-   * NEVER send this token to the browser.
-   * ---------------------------------------------------------
-   */
+  try {
+    /*
+     * -------------------------------------------------------
+     * STEP 1
+     *
+     * Use the OIDC-connected public Blob store.
+     *
+     * The Vercel storage connection provides MEDIA_STORE_ID.
+     *
+     * @vercel/blob resolves the connected store through the
+     * BLOB_STORE_ID environment variable.
+     *
+     * We deliberately do NOT pass BLOB_READ_WRITE_TOKEN to
+     * handleUpload().
+     * -------------------------------------------------------
+     */
 
-  const blobToken =
-    process.env.BLOB_READ_WRITE_TOKEN;
+    const mediaStoreId =
+      process.env.MEDIA_STORE_ID;
 
-  if (!blobToken) {
-    console.error(
-      'BIKEZTAGRAM: BLOB_READ_WRITE_TOKEN is missing'
+    if (mediaStoreId) {
+      process.env.BLOB_STORE_ID =
+        mediaStoreId;
+
+      console.log(
+        'BIKEZTAGRAM: Using MEDIA_STORE_ID for Blob store:',
+        mediaStoreId
+      );
+    } else {
+      console.warn(
+        'BIKEZTAGRAM: MEDIA_STORE_ID is missing; Blob SDK will use its default store configuration.'
+      );
+    }
+
+    console.log(
+      'BIKEZTAGRAM: Explicit legacy Blob token disabled for this route'
     );
 
-    return res.status(500).json({
-      success: false,
-      error:
-        'BLOB_READ_WRITE_TOKEN is missing from Vercel environment variables.',
-    });
-  }
+    /*
+     * -------------------------------------------------------
+     * STEP 2
+     *
+     * Get the JSON request body.
+     *
+     * @vercel/blob/client upload() sends a JSON token-
+     * generation request to this endpoint.
+     * -------------------------------------------------------
+     */
 
-  console.log(
-    'BIKEZTAGRAM: BLOB_READ_WRITE_TOKEN is present'
-  );
+    let body =
+      req.body;
 
-  /*
-   * ---------------------------------------------------------
-   * READ REQUEST BODY
-   *
-   * Vercel Pages API parses JSON request bodies for us.
-   * The @vercel/blob/client upload() call sends a JSON
-   * HandleUploadBody here.
-   * ---------------------------------------------------------
-   */
+    /*
+     * Some Vercel/API configurations may provide req.body
+     * as a string rather than an already parsed object.
+     */
 
-  let body = req.body;
+    if (
+      typeof body === 'string'
+    ) {
+      try {
+        body =
+          JSON.parse(body);
+      } catch (parseError) {
+        console.error(
+          'BIKEZTAGRAM: Could not parse request body',
+          parseError
+        );
 
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch (error) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'Blob upload request body contained invalid JSON.',
+        });
+      }
+    }
+
+    if (!body) {
       console.error(
-        'BIKEZTAGRAM: Invalid JSON request body',
-        error
+        'BIKEZTAGRAM: request body is missing'
       );
 
       return res.status(400).json({
         success: false,
         error:
-          'Blob upload request body contained invalid JSON.',
+          'Missing Blob upload request body.',
       });
     }
-  }
 
-  if (!body) {
-    console.error(
-      'BIKEZTAGRAM: request body is missing'
+    console.log(
+      'BIKEZTAGRAM: Blob request body received'
     );
 
-    return res.status(400).json({
-      success: false,
-      error:
-        'Missing Blob upload request body.',
-    });
-  }
+    console.log(
+      'BIKEZTAGRAM: Blob request type:',
+      body?.type
+    );
 
-  console.log(
-    'BIKEZTAGRAM: Blob request received'
-  );
+    console.log(
+      'BIKEZTAGRAM: Blob pathname:',
+      body?.payload?.pathname
+    );
 
-  console.log(
-    'BIKEZTAGRAM: Request type:',
-    body?.type
-  );
+    console.log(
+      'BIKEZTAGRAM: Blob multipart:',
+      body?.payload?.multipart
+    );
 
-  console.log(
-    'BIKEZTAGRAM: Pathname:',
-    body?.payload?.pathname
-  );
+    /*
+     * -------------------------------------------------------
+     * STEP 3
+     *
+     * Ask Vercel Blob to generate the secure client token.
+     *
+     * IMPORTANT:
+     * No explicit legacy token is supplied here.
+     * -------------------------------------------------------
+     */
 
-  console.log(
-    'BIKEZTAGRAM: Multipart:',
-    body?.payload?.multipart
-  );
-
-  /*
-   * ---------------------------------------------------------
-   * GENERATE CLIENT TOKEN
-   *
-   * Explicitly pass BLOB_READ_WRITE_TOKEN.
-   *
-   * This removes any ambiguity about which Blob store
-   * handleUpload is using.
-   * ---------------------------------------------------------
-   */
-
-  try {
     const jsonResponse =
       await handleUpload({
-        token:
-          blobToken,
-
         body,
 
         request: req,
@@ -156,17 +198,25 @@ export default async function handler(req, res) {
 
           console.log(
             'Multipart:',
-            Boolean(multipart)
+            multipart
           );
 
           console.log(
             'Client payload:',
-            clientPayload || null
+            clientPayload
           );
 
           console.log(
             '========================================'
           );
+
+          /*
+           * IMPORTANT:
+           *
+           * Return the multipart setting supplied by the
+           * browser so the generated client token matches
+           * the client upload configuration.
+           */
 
           return {
             allowedContentTypes: [
@@ -176,13 +226,17 @@ export default async function handler(req, res) {
             ],
 
             maximumSizeInBytes:
-              500 * 1024 * 1024,
+              500 *
+              1024 *
+              1024,
 
             addRandomSuffix:
               true,
 
             multipart:
-              Boolean(multipart),
+              Boolean(
+                multipart
+              ),
 
             tokenPayload:
               JSON.stringify({
@@ -192,18 +246,21 @@ export default async function handler(req, res) {
                 pathname,
 
                 clientPayload:
-                  clientPayload || null,
+                  clientPayload ||
+                  null,
 
                 multipart:
-                  Boolean(multipart),
+                  Boolean(
+                    multipart
+                  ),
               }),
           };
         },
 
         /*
-         * -----------------------------------------------------
+         * ---------------------------------------------------
          * UPLOAD COMPLETED
-         * -----------------------------------------------------
+         * ---------------------------------------------------
          */
 
         onUploadCompleted: async ({
@@ -241,7 +298,9 @@ export default async function handler(req, res) {
 
     /*
      * -------------------------------------------------------
-     * VERIFY RESPONSE
+     * STEP 4
+     *
+     * Confirm handleUpload produced a client token.
      * -------------------------------------------------------
      */
 
@@ -250,24 +309,24 @@ export default async function handler(req, res) {
     );
 
     console.log(
-      'BIKEZTAGRAM: Response type:',
+      'BIKEZTAGRAM: response type:',
       jsonResponse?.type
     );
 
     console.log(
-      'BIKEZTAGRAM: Client token present:',
+      'BIKEZTAGRAM: client token generated:',
       Boolean(
         jsonResponse?.clientToken
       )
     );
 
     if (
+      !jsonResponse?.clientToken &&
       jsonResponse?.type ===
-        'blob.generate-client-token' &&
-      !jsonResponse?.clientToken
+        'blob.generate-client-token'
     ) {
       console.error(
-        'BIKEZTAGRAM: Blob response requested a client token but no token was returned.'
+        'BIKEZTAGRAM: Blob response contained no client token'
       );
 
       return res.status(500).json({
@@ -279,7 +338,7 @@ export default async function handler(req, res) {
 
     /*
      * -------------------------------------------------------
-     * RETURN VERCEL'S RESPONSE TO THE BROWSER
+     * SUCCESS
      * -------------------------------------------------------
      */
 
@@ -288,6 +347,12 @@ export default async function handler(req, res) {
     );
 
   } catch (error) {
+    /*
+     * -------------------------------------------------------
+     * FULL SERVER ERROR
+     * -------------------------------------------------------
+     */
+
     console.error(
       '========================================'
     );
@@ -297,17 +362,22 @@ export default async function handler(req, res) {
     );
 
     console.error(
-      'Error name:',
-      error?.name
+      'Error:',
+      error
     );
 
     console.error(
-      'Error message:',
+      'Message:',
       error?.message
     );
 
     console.error(
-      'Error stack:',
+      'Name:',
+      error?.name
+    );
+
+    console.error(
+      'Stack:',
       error?.stack
     );
 
