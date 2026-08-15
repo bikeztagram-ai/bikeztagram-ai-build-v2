@@ -276,6 +276,12 @@ export default function App() {
     setStatus('');
   }
 
+  /*
+   * =====================================================
+   * GEMINI -> AI EDIT PLAN
+   * =====================================================
+   */
+
   function buildPlannerInput(geminiAnalysis) {
     const moments =
       Array.isArray(
@@ -324,7 +330,7 @@ export default function App() {
 
   /*
    * =====================================================
-   * GEMINI -> AI EDIT PLAN
+   * AI EDIT PLAN
    * =====================================================
    */
 
@@ -470,10 +476,10 @@ export default function App() {
          * =====================================================
          * DIAGNOSTIC BLOB UPLOAD
          *
-         * The server-side token generation is already known to
-         * work. This diagnostic keeps the proven upload options
-         * unchanged and only adds timing/progress information
-         * around the browser -> Blob transfer.
+         * This version intentionally uses multipart:true.
+         * The server-side handleUpload route receives the same
+         * multipart setting and generates the corresponding
+         * client token.
          * =====================================================
          */
 
@@ -506,7 +512,7 @@ export default function App() {
 
         console.log(
           '[APP] Multipart:',
-          false
+          true
         );
 
         console.log(
@@ -534,7 +540,7 @@ export default function App() {
                 '/api/upload',
 
               multipart:
-                false,
+                true,
 
               clientPayload:
                 JSON.stringify({
@@ -1704,4 +1710,4 @@ export default function App() {
 
     </div>
   );
-      }
+  }
