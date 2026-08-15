@@ -168,11 +168,6 @@ export default async function handler(req, res) {
             '========================================'
           );
 
-          /*
-           * Only allow the video formats that Bikeztagram
-           * currently accepts.
-           */
-
           return {
             allowedContentTypes: [
               'video/mp4',
@@ -180,32 +175,14 @@ export default async function handler(req, res) {
               'video/webm',
             ],
 
-            /*
-             * 500 MB maximum upload.
-             */
-
             maximumSizeInBytes:
               500 * 1024 * 1024,
-
-            /*
-             * Let Vercel generate a unique pathname.
-             */
 
             addRandomSuffix:
               true,
 
-            /*
-             * Match whatever upload mode the browser
-             * requested.
-             */
-
             multipart:
               Boolean(multipart),
-
-            /*
-             * Keep useful non-secret information with
-             * the token.
-             */
 
             tokenPayload:
               JSON.stringify({
@@ -283,15 +260,6 @@ export default async function handler(req, res) {
         jsonResponse?.clientToken
       )
     );
-
-    /*
-     * A normal client-token response should contain:
-     *
-     * {
-     *   type: "blob.generate-client-token",
-     *   clientToken: "..."
-     * }
-     */
 
     if (
       jsonResponse?.type ===
