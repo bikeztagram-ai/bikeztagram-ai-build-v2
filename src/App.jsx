@@ -48,7 +48,8 @@ export default function App() {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const pathname = `videos/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
       const blob = await upload(pathname, file, {
-        access: 'public', handleUploadUrl: '/api/upload', multipart: false,
+        access: 'public', handleUploadUrl: '/api/upload',
+        multipart: true,
         clientPayload: JSON.stringify({ source: 'bikeztagram-ai', filename: file.name, mimeType: file.type || 'video/mp4', size: file.size }),
         onUploadProgress: (event) => {
           const value = Number(event?.percentage);
