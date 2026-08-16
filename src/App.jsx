@@ -97,7 +97,7 @@ export default function App() {
       const blob = await upload(pathname, file, {
         access: 'public',
         handleUploadUrl: '/api/upload',
-        multipart: true,
+        multipart: false,
         clientPayload: JSON.stringify({ source: 'bikeztagram-ai', filename: file.name, mimeType: file.type || 'video/mp4', size: file.size }),
         onUploadProgress: (event) => {
           const value = Number(event?.percentage);
