@@ -8,20 +8,41 @@ export async function renderProject(mediaItems, plan, onProgress) {
       if (!ctx) throw new Error('Could not create canvas context.');
 
       const stream = canvas.captureStream(30);
-      const mimeTypes = ['video/mp4;codecs=h264','video/mp4','video/webm;codecs=vp8','video/webm'];
+      // On Android/Chrome, WebM is considerably more reliable than asking
+      // MediaRecorder for MP4 first. MP4 can report support but emit no data.
+      const mimeTypes = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm',
+        'video/mp4;codecs=h264',
+        'video/mp4'
+      ];
       const selectedType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
-      const recorder = selectedType ? new MediaRecorder(stream, { mimeType: selectedType }) : new MediaRecorder(stream);
+      const recorder = selectedType
+        ? new MediaRecorder(stream, { mimeType: selectedType })
+        : new MediaRecorder(stream);
       const chunks = [];
 
       recorder.ondataavailable = (event) => {
-        if (event.data && event.data.size) chunks.push(event.data);
+        if (event.data && event.data.size > 0) chunks.push(event.data);
       };
-      recorder.onerror = (event) => reject(event.error || new Error('Video recording failed.'));
-      recorder.onstop = () => resolve(new Blob(chunks, { type: selectedType.includes('mp4') ? 'video/mp4' : 'video/webm' }));
+
+      recorder.onerror = (event) => {
+        reject(event.error || new Error('Video recording failed.'));
+      };
+
+      recorder.onstop = () => {
+        if (!chunks.length) {
+          reject(new Error(`MediaRecorder produced no video data. Codec selected: ${selectedType || 'browser default'}.`));
+          return;
+        }
+        const type = chunks[0]?.type || selectedType || 'video/webm';
+        resolve(new Blob(chunks, { type }));
+      };
 
       const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
       if (!cuts.length) {
-        resolve(new Blob([], { type: selectedType.includes('mp4') ? 'video/mp4' : 'video/webm' }));
+        reject(new Error('AI edit plan contains no cuts.'));
         return;
       }
 
@@ -86,12 +107,12 @@ export async function renderProject(mediaItems, plan, onProgress) {
         const t = clamp(p / (length / Math.max(0.5, Number(cut.duration) || 2)), 0, 1);
 
         if (transition === 'fade-in' || transition === 'fade' || (first && transition === 'cinematic')) {
-          ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 1 - t; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
+          ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 1 - t; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
         } else if (transition === 'fade-out') {
-          ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = t; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
+          ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = t; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
         } else if (transition === 'flash-cut') {
           const flash = Math.max(0, 1 - Math.abs(t - 0.5) * 8);
-          ctx.save(); ctx.fillStyle = '#fff'; ctx.globalAlpha = flash * 0.82; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
+          ctx.save(); ctx.fillStyle = '#fff'; ctx.globalAlpha = flash * 0.82; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
         }
 
         const text = String(cut.text || '').trim();
@@ -99,11 +120,13 @@ export async function renderProject(mediaItems, plan, onProgress) {
           const tin = clamp(Number(cut.textIn) || 0.12, 0, 0.8);
           const tout = clamp(Number(cut.textOut) || 0.88, tin + 0.05, 1);
           let alpha = p < tin ? p / tin : p > tout ? 1 - (p - tout) / Math.max(0.05, 1 - tout) : 1;
-          ctx.save(); ctx.globalAlpha = clamp(alpha,0,1); ctx.fillStyle = '#fff'; ctx.font = '700 54px Arial, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.shadowColor='rgba(0,0,0,0.92)'; ctx.shadowBlur=18; ctx.fillText(text.toUpperCase(), canvas.width/2, canvas.height-210); ctx.restore();
+          ctx.save(); ctx.globalAlpha = clamp(alpha, 0, 1); ctx.fillStyle = '#fff'; ctx.font = '700 54px Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.shadowColor = 'rgba(0,0,0,0.92)'; ctx.shadowBlur = 18; ctx.fillText(text.toUpperCase(), canvas.width / 2, canvas.height - 210); ctx.restore();
         }
       };
 
-      recorder.start();
+      // Emit data chunks periodically. This is important on mobile Chrome;
+      // waiting until stop can otherwise produce an empty recording.
+      recorder.start(1000);
 
       const renderCut = async (index) => {
         if (index >= cuts.length) {
@@ -113,11 +136,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
 
         const cut = cuts[index] || {};
         const media = findMedia(cut);
-        if (!media?.file) {
-          console.warn('[RENDERER] Skipping cut with missing media', index, cut);
-          await renderCut(index + 1);
-          return;
-        }
+        if (!media?.file) throw new Error(`Cut ${index + 1} references missing media.`);
 
         const isVideo = String(media.type || '').startsWith('video');
         const element = isVideo ? document.createElement('video') : new Image();
@@ -145,7 +164,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
               await new Promise((resolveSeek) => {
                 let finished = false;
                 const finish = () => { if (finished) return; finished = true; clearTimeout(timer); element.removeEventListener('seeked', finish); resolveSeek(); };
-                const timer = setTimeout(finish, 1000);
+                const timer = setTimeout(finish, 1500);
                 element.addEventListener('seeked', finish, { once: true });
               });
             }
@@ -164,16 +183,16 @@ export async function renderProject(mediaItems, plan, onProgress) {
           await new Promise((resolveCut) => {
             const tick = () => {
               const progress = clamp((performance.now() - started) / (duration * 1000), 0, 1);
-              ctx.clearRect(0,0,canvas.width,canvas.height);
-              ctx.fillStyle = '#000'; ctx.fillRect(0,0,canvas.width,canvas.height);
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
               const effects = drawEffects(cut, progress);
               drawCover(element, effects.scale, effects.offsetX, effects.offsetY, cut.colorGrade || plan.colorGrade);
 
               const grade = String(cut.colorGrade || plan.colorGrade || 'dark-cinematic').toLowerCase();
               if (grade.includes('dark') || grade.includes('moody') || grade.includes('blue')) {
-                const v = ctx.createRadialGradient(canvas.width/2,canvas.height/2,canvas.height*0.18,canvas.width/2,canvas.height/2,canvas.height*0.82);
-                v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,0.48)');
-                ctx.fillStyle=v; ctx.fillRect(0,0,canvas.width,canvas.height);
+                const v = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.height * 0.18, canvas.width / 2, canvas.height / 2, canvas.height * 0.82);
+                v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.48)');
+                ctx.fillStyle = v; ctx.fillRect(0, 0, canvas.width, canvas.height);
               }
 
               drawOverlay(cut, progress, index === 0);
@@ -188,9 +207,8 @@ export async function renderProject(mediaItems, plan, onProgress) {
           URL.revokeObjectURL(url);
           await renderCut(index + 1);
         } catch (error) {
-          console.error('[RENDERER] Cut failed:', index, error);
           try { URL.revokeObjectURL(url); } catch {}
-          await renderCut(index + 1);
+          throw new Error(`Cut ${index + 1} failed: ${error?.message || String(error)}`);
         }
       };
 
