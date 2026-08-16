@@ -21,25 +21,40 @@ function momentsFrom(analysis) {
 function creativeMode(prompt) {
   const p = text(prompt).toLowerCase();
   return {
-    action: /action|chase|aggressive|fast|race|speed|pursuit/.test(p),
-    trailer: /trailer|cinematic|film|movie|teaser/.test(p),
-    reveal: /reveal|launch|introduction|introduce/.test(p),
-    dark: /dark|moody|night|dramatic|gritty/.test(p),
-    epic: /epic|huge|massive|blockbuster/.test(p),
-    game: /game|open world|gta|grand theft/.test(p),
-    horror: /horror|scary|creepy|eerie/.test(p)
+    action: /action|chase|aggressive|fast|race|speed|pursuit|fight|battle|adventure/.test(p),
+    trailer: /trailer|cinematic|film|movie|teaser|commercial|advert|promo/.test(p),
+    reveal: /reveal|launch|introduction|introduce|unveil|showcase/.test(p),
+    dark: /dark|moody|night|dramatic|gritty|noir|mysterious/.test(p),
+    epic: /epic|huge|massive|blockbuster|monumental|spectacular/.test(p),
+    game: /game|open world|gta|grand theft|gaming/.test(p),
+    horror: /horror|scary|creepy|eerie|terrifying|suspense/.test(p),
+    funny: /funny|comedy|comic|humorous|meme/.test(p),
+    emotional: /emotional|romantic|beautiful|heartfelt|nostalgic|sentimental/.test(p),
+    energetic: /energetic|punchy|viral|tiktok|reel|shorts|high energy/.test(p)
   };
+}
+
+function subjectLabel(analysis) {
+  const subject = analysis?.subject || {};
+  return text(subject.description)
+    || text(subject.primarySubject)
+    || text(subject.motorcycleModel)
+    || text(analysis?.subjectDescription)
+    || text(analysis?.contentType)
+    || 'the uploaded media';
 }
 
 function purposeFor(moment, index, total, mode) {
   const explicit = text(moment?.purpose);
   if (explicit) return explicit;
-  const s = [moment?.description, moment?.reason].filter(Boolean).join(' ').toLowerCase();
+  const s = [moment?.description, moment?.reason, moment?.action, moment?.event].filter(Boolean).join(' ').toLowerCase();
   if (index === 0) return 'opening';
   if (index === total - 1) return 'hero-ending';
-  if (mode.action || /action|accelerat|riding|corner|passing|speed/.test(s)) return 'action';
-  if (mode.reveal || /reveal|profile|three-quarter/.test(s)) return 'reveal';
-  if (/detail|tank|exhaust|front|wheel|engine/.test(s)) return 'detail';
+  if (mode.funny && /reaction|expression|unexpected|fail|surprise/.test(s)) return 'payoff';
+  if (mode.action || /action|accelerat|riding|corner|passing|speed|movement|chase|fight|impact/.test(s)) return 'action';
+  if (mode.reveal || /reveal|profile|three-quarter|show|unveil|detail/.test(s)) return 'reveal';
+  if (/detail|close-up|macro|texture|face|eyes|object|product/.test(s)) return 'detail';
+  if (mode.emotional || /emotion|smile|laugh|sad|beautiful|sunset|landscape/.test(s)) return 'emotional-beat';
   return 'cinematic-build';
 }
 
@@ -51,25 +66,38 @@ function motionFor(moment, purpose, index, mode) {
   if (/tilt down|downward/.test(s)) return 'tilt-down';
   if (/pull back|pull out|zoom out/.test(s)) return 'slow-pull';
   if (/push in|push-in|zoom in/.test(s)) return 'slow-push';
-  if (purpose === 'action' || mode.action) return index % 2 ? 'pan-right' : 'slow-push';
+  if (purpose === 'action' || mode.action || mode.energetic) return index % 2 ? 'pan-right' : 'slow-push';
   if (purpose === 'hero-ending') return 'slow-push';
+  if (purpose === 'detail') return index % 2 ? 'slow-push' : 'slow-pull';
   return index % 3 === 1 ? 'pan-right' : 'slow-push';
 }
 
 function transitionFor(index, total, mode) {
   if (index === 0) return 'fade-in';
   if (index === total - 1) return 'fade-out';
-  if (mode.action) return index % 2 ? 'whip-right' : 'flash-cut';
+  if (mode.action || mode.energetic) return index % 2 ? 'whip-right' : 'flash-cut';
   if (mode.dark || mode.horror) return index % 2 ? 'dip-black' : 'crossfade';
+  if (mode.funny) return index % 2 ? 'hard-cut' : 'flash-cut';
   return index % 3 === 1 ? 'crossfade' : 'hard-cut';
 }
 
 function speedFor(purpose, moment, mode) {
   let speed = num(moment?.speed, 1);
-  if (purpose === 'action' || mode.action) speed = Math.max(speed, 1.12);
-  if (purpose === 'hero-ending') speed = Math.min(speed, 0.78);
-  if (/slow|dramatic|reveal/.test([moment?.description, moment?.reason].join(' ').toLowerCase())) speed = Math.min(speed, 0.78);
+  if (purpose === 'action' || mode.action || mode.energetic) speed = Math.max(speed, 1.12);
+  if (purpose === 'hero-ending' || purpose === 'emotional-beat') speed = Math.min(speed, 0.82);
+  if (/slow|dramatic|reveal|emotional|beautiful/.test([moment?.description, moment?.reason].join(' ').toLowerCase())) speed = Math.min(speed, 0.78);
+  if (mode.funny && purpose === 'payoff') speed = Math.max(speed, 1.08);
   return clamp(speed, 0.5, 1.5);
+}
+
+function gradeFor(analysis, moment, options, mode) {
+  if (mode.dark || mode.horror) return 'dark-cinematic';
+  if (mode.emotional) return text(moment?.colorGrade) || 'warm-cinematic';
+  if (mode.funny) return text(moment?.colorGrade) || 'natural';
+  return text(moment?.colorGrade)
+    || text(analysis?.colorGrade)
+    || options.colorGrade
+    || 'cinematic';
 }
 
 function makeCut(moment, index, total, analysis, options, mode, forcedStart = null, forcedDuration = null) {
@@ -88,8 +116,8 @@ function makeCut(moment, index, total, analysis, options, mode, forcedStart = nu
   if (!overlay && index === 0 && analysis?.textRecommendation?.useText) overlay = text(analysis.textRecommendation.text);
   if (purpose === 'hero-ending' && !moment?.text) overlay = '';
   return {
-    mediaIndex: 0,
-    mediaId: 'video-0',
+    mediaIndex: Number.isInteger(Number(moment?.mediaIndex)) ? Number(moment.mediaIndex) : 0,
+    mediaId: text(moment?.mediaId) || 'video-0',
     startTime: Number(sourceStart.toFixed(2)),
     duration: Number(duration.toFixed(2)),
     purpose,
@@ -98,7 +126,7 @@ function makeCut(moment, index, total, analysis, options, mode, forcedStart = nu
     motionStyle: motionFor(moment, purpose, index, mode),
     motionIntensity: purpose === 'action' ? 1.1 : purpose === 'hero-ending' ? 0.75 : 0.9,
     stabilization: true,
-    colorGrade: mode.dark || mode.horror ? 'dark-cinematic' : text(moment?.colorGrade) || text(analysis?.colorGrade) || options.colorGrade || 'dark-cinematic',
+    colorGrade: gradeFor(analysis, moment, options, mode),
     text: overlay,
     textIn: 0.1,
     textOut: 0.88,
@@ -124,20 +152,14 @@ function ensureUsefulDuration(cuts, analysis, options, mode) {
   const current = cuts.reduce((sum, cut) => sum + num(cut.duration, 0), 0);
   if (current >= Math.min(target, 7) || sourceDuration < 7) return cuts;
 
-  // Gemini can correctly identify one excellent moment but that moment is not
-  // enough to make a useful social edit. Fill the remaining timeline from the
-  // real source using evenly spaced sections; no extra AI request is needed.
   const fallback = storyFallback(analysis, options, mode);
   const needed = Math.max(3, Math.min(5, fallback.length));
   const supplemented = [];
   for (let i = 0; i < needed; i += 1) {
     const preferred = cuts[i];
     const segment = fallback[i];
-    if (preferred) {
-      supplemented.push(preferred);
-    } else {
-      supplemented.push({ ...segment, purpose: i === needed - 1 ? 'hero-ending' : segment.purpose });
-    }
+    if (preferred) supplemented.push(preferred);
+    else supplemented.push({ ...segment, purpose: i === needed - 1 ? 'hero-ending' : segment.purpose });
   }
   const total = supplemented.reduce((sum, cut) => sum + num(cut.duration, 0), 0);
   if (total < target * 0.7) return fallback;
@@ -171,18 +193,36 @@ export function createAIEditPlan(analysis, options = {}) {
   if (!cuts.length) cuts = storyFallback(analysis, { ...options, targetDuration }, mode);
 
   const duration = cuts.reduce((sum, cut) => sum + num(cut.duration, 0), 0);
-  const style = mode.action ? 'cinematic action trailer' : mode.horror ? 'dark cinematic suspense' : mode.game ? 'original open-world game-inspired cinematic' : mode.reveal ? 'cinematic reveal trailer' : 'cinematic motorcycle trailer';
+  const subject = subjectLabel(analysis);
+  const style = mode.action
+    ? 'cinematic action edit'
+    : mode.horror
+      ? 'dark cinematic suspense'
+      : mode.game
+        ? 'original interactive-world cinematic'
+        : mode.funny
+          ? 'fast comedic social edit'
+          : mode.emotional
+            ? 'emotional cinematic story'
+            : mode.reveal
+              ? 'cinematic reveal edit'
+              : mode.trailer
+                ? 'cinematic trailer'
+                : 'cinematic creative edit';
+
   return {
-    title: analysis?.subject?.motorcycleModel ? `${analysis.subject.motorcycleModel} — AI Cinematic Edit` : 'AI Cinematic Edit',
+    title: `${subject} — AI Cinematic Edit`,
     style,
     creativePrompt: text(options.creativePrompt),
-    colorGrade: mode.dark || mode.horror ? 'dark-cinematic' : text(analysis?.colorGrade) || options.colorGrade || 'dark-cinematic',
+    subject,
+    mediaType: text(analysis?.mediaType) || 'mixed-media',
+    colorGrade: gradeFor(analysis, {}, options, mode),
     stabilization: true,
     textOverlay: text(analysis?.textRecommendation?.text),
     cuts,
     duration,
     targetDuration,
-    source: 'bikeztagram-local-director',
+    source: 'bikeztagram-universal-director',
     generatedAt: new Date().toISOString()
   };
 }
