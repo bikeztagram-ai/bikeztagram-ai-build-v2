@@ -149,21 +149,63 @@ export default function App() {
     setErrorDetails(null);
     setCurrentStage('STEP 6 — Creating zero-cost cinematic fill-in');
     setStatus('✨ Creating a free cinematic fill-in from your supplied footage...');
+    let localObjectUrl = '';
     try {
-      const objectUrl = URL.createObjectURL(file);
       const video = document.createElement('video');
       video.preload = 'auto';
       video.muted = true;
       video.playsInline = true;
-      video.src = objectUrl;
+      video.crossOrigin = 'anonymous';
+
+      // Prefer the already-proven public Blob URL. The main renderer can decode this
+      // source on Android, so the free fill-in should use the same known-good source.
+      // Keep a local-file fallback without changing the Blob/Gemini upload pipeline.
+      let source = sourceUrl;
+      if (!source) {
+        localObjectUrl = URL.createObjectURL(file);
+        source = localObjectUrl;
+      }
+      video.src = source;
+      video.load();
+
       await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Timed out loading the source for the free fill-in.')), 12000);
-        video.onloadeddata = () => { clearTimeout(timeout); resolve(); };
-        video.onerror = () => { clearTimeout(timeout); reject(new Error('Could not decode the source video for the free fill-in.')); };
+        let settled = false;
+        const finish = (fn, value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          video.onloadedmetadata = null;
+          video.onloadeddata = null;
+          video.onerror = null;
+          fn(value);
+        };
+        const timeout = setTimeout(() => finish(reject, new Error('Timed out loading the Blob source for the free fill-in.')), 15000);
+        video.onloadedmetadata = () => {
+          if (video.videoWidth > 0 && video.videoHeight > 0) finish(resolve);
+        };
+        video.onloadeddata = () => {
+          if (video.videoWidth > 0 && video.videoHeight > 0) finish(resolve);
+        };
+        video.onerror = () => {
+          const code = video.error?.code ? ` (media error code ${video.error.code})` : '';
+          finish(reject, new Error(`Could not decode the Blob source video for the free fill-in${code}.`));
+        };
       });
-      const sourceDuration = Number.isFinite(video.duration) ? video.duration : 1;
-      video.currentTime = Math.min(Math.max(0.25, sourceDuration * 0.22), Math.max(0.25, sourceDuration - 0.05));
-      await new Promise((resolve) => { video.onseeked = resolve; setTimeout(resolve, 1200); });
+
+      const sourceDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
+      const seekTarget = Math.min(Math.max(0.25, sourceDuration * 0.22), Math.max(0.25, sourceDuration - 0.05));
+      video.currentTime = seekTarget;
+      await new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          video.onseeked = null;
+          resolve();
+        };
+        video.onseeked = finish;
+        setTimeout(finish, 1500);
+      });
 
       const canvas = document.createElement('canvas');
       const targetWidth = 1080;
@@ -221,7 +263,7 @@ export default function App() {
       });
       if (recorder.state !== 'inactive') recorder.stop();
       await stopped;
-      URL.revokeObjectURL(objectUrl);
+      if (localObjectUrl) URL.revokeObjectURL(localObjectUrl);
       if (!chunks.length) throw new Error('Free fill-in recorder produced no video data.');
       const output = new Blob(chunks, { type: chunks[0]?.type || mimeType || 'video/webm' });
       if (!output.size) throw new Error('Free fill-in produced an empty video.');
@@ -230,6 +272,7 @@ export default function App() {
       setCurrentStage('STEP 7 — Zero-cost fill-in completed');
       setStatus(`✅ Zero-cost cinematic fill-in created — ${(output.size / 1024 / 1024).toFixed(2)} MB`);
     } catch (error) {
+      if (localObjectUrl) URL.revokeObjectURL(localObjectUrl);
       const details = makeErrorDetails(error, currentStage || 'Free fill-in error');
       console.error('[APP] FREE FILL-IN ERROR', details);
       setErrorDetails(details);
