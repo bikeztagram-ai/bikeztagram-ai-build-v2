@@ -1,121 +1,99 @@
-import { GoogleGenAI } from '@google/genai';
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 
-function cleanJson(text) {
-  return String(text || '')
-    .replace(/```json/gi, '')
-    .replace(/```/g, '')
-    .trim();
+function text(value) {
+  return String(value || '').trim();
+}
+
+function pickBestMoment(analysis) {
+  const best = Array.isArray(analysis?.bestMoments) ? analysis.bestMoments : [];
+  if (best.length) return best[0];
+  return null;
+}
+
+function buildScenes(analysis, targetDuration) {
+  const duration = clamp(Number(analysis?.durationInSeconds) || 11, 3, 60);
+  const best = pickBestMoment(analysis);
+  const subject = text(analysis?.subject?.description) || text(analysis?.subject?.motorcycleModel) || 'the uploaded motorcycle';
+  const scenes = [];
+
+  const openingEnd = Math.min(2.5, duration);
+  scenes.push({
+    id: 'scene-1',
+    sourceType: 'uploaded',
+    purpose: 'opening',
+    duration: Number(openingEnd.toFixed(2)),
+    startTime: 0,
+    endTime: Number(openingEnd.toFixed(2)),
+    generationPrompt: '',
+    continuityNotes: `Use the supplied footage of ${subject}.`,
+    transitionIn: 'fade-in',
+    transitionOut: 'hard-cut',
+    priority: 'required'
+  });
+
+  if (best?.start != null && best?.end != null) {
+    const start = clamp(Number(best.start), 0, Math.max(0, duration - 0.5));
+    const end = clamp(Number(best.end), start + 0.5, duration);
+    scenes.push({
+      id: 'scene-2',
+      sourceType: 'uploaded',
+      purpose: 'hero-moment',
+      duration: Number(Math.min(4, end - start).toFixed(2)),
+      startTime: Number(start.toFixed(2)),
+      endTime: Number(end.toFixed(2)),
+      generationPrompt: '',
+      continuityNotes: text(best.description) || 'Use the strongest analysed moment.',
+      transitionIn: 'hard-cut',
+      transitionOut: 'fade-out',
+      priority: 'required'
+    });
+  }
+
+  return scenes;
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ success: false, error: 'GEMINI_API_KEY is missing.' });
-
     const { prompt = '', analysis = {}, targetDuration = 15 } = req.body || {};
     if (!analysis || typeof analysis !== 'object') {
       return res.status(400).json({ success: false, error: 'Video analysis is required.' });
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const requestedDuration = clamp(Number(targetDuration) || 15, 5, 60);
+    const subject = text(analysis?.subject?.description) || text(analysis?.subject?.motorcycleModel) || 'the uploaded motorcycle';
+    const creativeRequest = text(prompt) || 'Create a cinematic social-media motorcycle video.';
+    const scenes = buildScenes(analysis, requestedDuration);
 
-    const directorPrompt = `
-You are the production director for BIKEZTAGRAM AI.
-
-The application has already analysed the user's uploaded media. The analysis below is factual information about what the supplied media contains.
-
-Your job is to turn the user's creative request into a production blueprint that can eventually combine REAL uploaded media with ORIGINAL AI-GENERATED fill-in scenes.
-
-IMPORTANT:
-- Treat the uploaded-media analysis as ground truth.
-- Never invent that a real shot exists when the analysis does not support it.
-- Prefer real uploaded footage whenever it satisfies the creative requirement.
-- Identify missing visual/story beats that should eventually be generated.
-- Generated scenes must preserve the identity/appearance of the user's supplied subject where the future generation provider supports reference images or videos.
-- Generated scenes must be original. If the user names a copyrighted movie, game, TV show, character or franchise, translate that request into broad cinematic characteristics instead of reproducing a protected scene, character or exact style.
-- The result should be usable by a future scene-generation/rendering pipeline; do not pretend generated media already exists.
-- Think like a film director: story, continuity, shot variety, pacing, camera, lighting, environment and transitions.
-- For a generated scene, provide a detailed generationPrompt describing the required shot.
-- For a real scene, provide the best timestamp from the uploaded analysis.
-- Keep the user's main subject consistent across scenes.
-
-USER CREATIVE REQUEST:
-${prompt}
-
-TARGET DURATION:
-${Number(targetDuration) || 15} seconds
-
-UPLOADED MEDIA ANALYSIS:
-${JSON.stringify(analysis, null, 2)}
-
-Return ONLY valid JSON using exactly this top-level structure:
-{
-  "title": "",
-  "creativeDirection": "",
-  "subjectContinuity": {
-    "primarySubject": "",
-    "visibleAttributes": [],
-    "referenceStrategy": "Use supplied photos/video as identity references for future generated scenes."
-  },
-  "scenes": [
-    {
-      "id": "scene-1",
-      "sourceType": "uploaded",
-      "purpose": "opening",
-      "duration": 2,
-      "startTime": 0,
-      "endTime": 2,
-      "generationPrompt": "",
-      "continuityNotes": "",
-      "transitionIn": "fade-in",
-      "transitionOut": "hard-cut",
-      "priority": "required"
-    }
-  ],
-  "missingShots": [
-    {
-      "purpose": "",
-      "reason": "",
-      "generationPrompt": "",
-      "priority": "high"
-    }
-  ],
-  "assemblyNotes": ""
-}
-`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: directorPrompt,
-      config: {
-        responseMimeType: 'application/json'
-      }
-    });
-
-    const text = cleanJson(response?.text);
-    if (!text) throw new Error('Gemini returned no production blueprint.');
-
-    let productionPlan;
-    try {
-      productionPlan = JSON.parse(text);
-    } catch {
-      throw new Error('Gemini returned invalid production blueprint JSON.');
-    }
-
-    if (!Array.isArray(productionPlan.scenes)) {
-      throw new Error('Production blueprint contains no scenes.');
-    }
+    const productionPlan = {
+      title: 'AI Director — Local Production Blueprint',
+      creativeDirection: `Build an original cinematic video around ${subject}. Creative request: ${creativeRequest}`,
+      subjectContinuity: {
+        primarySubject: subject,
+        visibleAttributes: [
+          text(analysis?.subject?.motorcycleModel),
+          text(analysis?.subject?.description)
+        ].filter(Boolean),
+        referenceStrategy: 'Use the supplied uploaded media as the source of truth for the subject and visual continuity.'
+      },
+      scenes,
+      missingShots: [
+        {
+          purpose: 'optional-establishing-fill',
+          reason: 'A future zero-cost browser generator can create an original motion treatment from supplied frames when the real footage does not cover a requested beat.',
+          generationPrompt: `Create an original cinematic establishing treatment around ${subject}. Do not reproduce a copyrighted scene, character, franchise or soundtrack. Creative direction: ${creativeRequest}`,
+          priority: 'optional'
+        }
+      ],
+      assemblyNotes: 'This blueprint is generated locally from the verified Gemini analysis. It makes no additional AI API request and therefore adds no API cost.'
+    };
 
     return res.status(200).json({ success: true, productionPlan });
   } catch (error) {
     console.error('[PRODUCTION-PLAN] ERROR', error);
-    return res.status(500).json({
-      success: false,
-      error: error?.message || 'Failed to build production blueprint.'
-    });
+    return res.status(500).json({ success: false, error: error?.message || 'Failed to build production blueprint.' });
   }
 }
