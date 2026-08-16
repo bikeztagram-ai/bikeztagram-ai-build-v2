@@ -1,5 +1,7 @@
-/* BIKEZTAGRAM AI — zero-cost procedural world-scene compositor v4.
-   Product layer only: Blob/Gemini upload and configuration are intentionally untouched. */
+/* BIKEZTAGRAM AI — zero-cost procedural world-scene compositor v5.
+   Product layer only: Blob/Gemini upload and configuration are intentionally untouched.
+   V5 change: the supplied video now drives the foreground instead of freezing one frame.
+*/
 import { FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
 
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/deeplab_v3/float32/1/deeplab_v3.tflite';
@@ -69,7 +71,6 @@ function drawBackground(ctx, w, h, mode, t, shot) {
     }
   }
 
-  // Deliberate cinematic shot differences: reveal, action, hero.
   if (shot === 1) {
     ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(0, 0, w, h * .14);
   } else if (shot === 2) {
@@ -158,9 +159,6 @@ function makeCleanMotorbikeMask(result) {
     minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); count++;
   }
   if (!count) return null;
-
-  // Restrict weak stray detections to an expanded subject envelope. This is a cheap
-  // browser-side matte refinement and avoids carrying large pieces of the old background.
   const padX = Math.round((maxX - minX) * .12), padY = Math.round((maxY - minY) * .12);
   const left = Math.max(0, minX - padX), right = Math.min(mw - 1, maxX + padX);
   const top = Math.max(0, minY - padY), bottom = Math.min(mh - 1, maxY + padY);
@@ -178,14 +176,16 @@ function makeCleanMotorbikeMask(result) {
   return maskCanvas;
 }
 
-async function segmentMotorbike(sourceCanvas) {
+async function createMotorbikeSegmenter() {
   const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm');
-  const segmenter = await ImageSegmenter.createFromOptions(vision, {
+  return ImageSegmenter.createFromOptions(vision, {
     baseOptions: { modelAssetPath: MODEL_URL, delegate: 'CPU' },
     runningMode: 'IMAGE', outputCategoryMask: false, outputConfidenceMasks: true,
   });
-  try { return makeCleanMotorbikeMask(await segmenter.segment(sourceCanvas)); }
-  finally { segmenter.close(); }
+}
+
+async function segmentMotorbikeWith(segmenter, sourceCanvas) {
+  return makeCleanMotorbikeMask(await segmenter.segment(sourceCanvas));
 }
 
 function drawSubjectShadow(ctx, w, h, scale, mode) {
@@ -202,22 +202,49 @@ function drawGrade(ctx, w, h, mode, t) {
   ctx.fillStyle = top; ctx.fillRect(0, 0, w, h * .35); ctx.restore();
 }
 
+function waitForSeek(video, time) {
+  return new Promise((resolve) => {
+    const target = clamp(time, 0, Math.max(0, video.duration - 0.05));
+    if (Math.abs(video.currentTime - target) < 0.03 && video.readyState >= 2) { resolve(); return; }
+    const done = () => { video.removeEventListener('seeked', done); resolve(); };
+    video.addEventListener('seeked', done, { once: true });
+    video.currentTime = target;
+  });
+}
+
 export async function renderWorldScene({ file, sourceUrl, prompt = '', duration = 8, onProgress }) {
   const source = sourceUrl ? { url: sourceUrl, remote: true } : { url: URL.createObjectURL(file), remote: false };
   try {
     const video = await loadVideo(source);
-    video.currentTime = clamp(Number(video.duration) * .35, 0, Math.max(0, video.duration - .1));
-    await new Promise((resolve) => { if (video.readyState >= 2) resolve(); else video.addEventListener('seeked', resolve, { once: true }); });
-
     const w = 1080, h = 1920;
     const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('Could not create world-scene canvas.');
     const sourceCanvas = document.createElement('canvas'); sourceCanvas.width = video.videoWidth; sourceCanvas.height = video.videoHeight;
-    sourceCanvas.getContext('2d').drawImage(video, 0, 0);
+    const sctx = sourceCanvas.getContext('2d');
+    if (!sctx) throw new Error('Could not create source canvas for world scene.');
 
-    let mask = null;
-    try { mask = await segmentMotorbike(sourceCanvas); }
-    catch (error) { console.warn('[Bikeztagram] Motorbike matte unavailable; using full-frame fallback.', error); }
+    let masks = [];
+    let segmenter = null;
+    try {
+      segmenter = await createMotorbikeSegmenter();
+      for (const fraction of [.15, .50, .85]) {
+        await waitForSeek(video, Number(video.duration) * fraction);
+        sctx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+        sctx.drawImage(video, 0, 0, sourceCanvas.width, sourceCanvas.height);
+        const mask = await segmentMotorbikeWith(segmenter, sourceCanvas);
+        if (mask) masks.push({ fraction, mask });
+      }
+    } catch (error) {
+      console.warn('[Bikeztagram] Multi-frame motorbike matte unavailable; using full-frame fallback.', error);
+      masks = [];
+    } finally {
+      try { segmenter?.close(); } catch {}
+    }
+
+    await waitForSeek(video, 0);
+    video.loop = true;
+    video.muted = true;
+    try { await video.play(); } catch (error) { console.warn('[Bikeztagram] Source playback could not start; rendering sampled frames.', error); }
 
     const foreground = document.createElement('canvas'); foreground.width = w; foreground.height = h;
     const fctx = foreground.getContext('2d');
@@ -250,16 +277,25 @@ export async function renderWorldScene({ file, sourceUrl, prompt = '', duration 
         const yOffset = shot === 1 ? Math.sin(shotT * Math.PI) * h * .015 : shot === 2 ? -h * .02 * shotEase : 0;
         const shake = shot === 1 ? Math.sin(t * 95) * 3.5 : 0;
 
+        if (video.readyState >= 2) {
+          sctx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+          sctx.drawImage(video, 0, 0, sourceCanvas.width, sourceCanvas.height);
+        }
+
         drawBackground(ctx, w, h, mode, t, shot);
         drawRoad(ctx, w, h, mode, t, shot);
         drawSubjectShadow(ctx, w, h, scale * .85, mode);
 
         ctx.save(); ctx.translate(w / 2 + xOffset + shake, h / 2 + yOffset); ctx.scale(scale, scale); ctx.translate(-w / 2, -h / 2);
-        if (mask) {
+        if (masks.length) {
+          const sourceFraction = Number(video.currentTime) / Math.max(0.001, Number(video.duration));
+          let chosen = masks[0];
+          let best = Infinity;
+          for (const item of masks) { const d = Math.abs(item.fraction - sourceFraction); if (d < best) { best = d; chosen = item; } }
           fctx.clearRect(0, 0, w, h);
           fctx.drawImage(sourceCanvas, dx, dy, dw, dh);
           fctx.globalCompositeOperation = 'destination-in';
-          fctx.filter = 'blur(0.65px)'; fctx.drawImage(mask, dx, dy, dw, dh);
+          fctx.filter = 'blur(0.65px)'; fctx.drawImage(chosen.mask, dx, dy, dw, dh);
           fctx.filter = 'none'; fctx.globalCompositeOperation = 'source-over';
           ctx.drawImage(foreground, 0, 0);
         } else {
