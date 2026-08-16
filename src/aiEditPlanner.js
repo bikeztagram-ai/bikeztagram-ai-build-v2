@@ -1,3 +1,5 @@
+import { refineCinematicTimeline } from './timelineDirector.js';
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -191,6 +193,8 @@ export function createAIEditPlan(analysis, options = {}) {
   }
 
   if (!cuts.length) cuts = storyFallback(analysis, { ...options, targetDuration }, mode);
+
+  cuts = refineCinematicTimeline(cuts, { creativePrompt: options.creativePrompt });
 
   const duration = cuts.reduce((sum, cut) => sum + num(cut.duration, 0), 0);
   const subject = subjectLabel(analysis);
