@@ -145,135 +145,43 @@ export default function App() {
 
   async function createFreeFillIn() {
     if (!file) return setStatus('Please choose a video first.');
+    if (!sourceUrl) return setStatus('Please analyse the video first so the verified Blob source is available.');
     setCreatingFillIn(true);
     setErrorDetails(null);
     setCurrentStage('STEP 6 — Creating zero-cost cinematic fill-in');
-    setStatus('✨ Creating a free cinematic fill-in from your supplied footage...');
-    let localObjectUrl = '';
+    setStatus('✨ Creating a zero-cost cinematic fill-in using the verified renderer...');
     try {
-      const video = document.createElement('video');
-      video.preload = 'auto';
-      video.muted = true;
-      video.playsInline = true;
-      video.crossOrigin = 'anonymous';
-
-      // Prefer the already-proven public Blob URL. The main renderer can decode this
-      // source on Android, so the free fill-in should use the same known-good source.
-      // Keep a local-file fallback without changing the Blob/Gemini upload pipeline.
-      let source = sourceUrl;
-      if (!source) {
-        localObjectUrl = URL.createObjectURL(file);
-        source = localObjectUrl;
-      }
-      video.src = source;
-      video.load();
-
-      await new Promise((resolve, reject) => {
-        let settled = false;
-        const finish = (fn, value) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          video.onloadedmetadata = null;
-          video.onloadeddata = null;
-          video.onerror = null;
-          fn(value);
-        };
-        const timeout = setTimeout(() => finish(reject, new Error('Timed out loading the Blob source for the free fill-in.')), 15000);
-        video.onloadedmetadata = () => {
-          if (video.videoWidth > 0 && video.videoHeight > 0) finish(resolve);
-        };
-        video.onloadeddata = () => {
-          if (video.videoWidth > 0 && video.videoHeight > 0) finish(resolve);
-        };
-        video.onerror = () => {
-          const code = video.error?.code ? ` (media error code ${video.error.code})` : '';
-          finish(reject, new Error(`Could not decode the Blob source video for the free fill-in${code}.`));
-        };
+      const sourceDuration = Number.isFinite(Number(plan?.sourceDuration)) ? Number(plan.sourceDuration) : 4.5;
+      const start = Math.max(0, Math.min(sourceDuration - 0.25, sourceDuration * 0.22));
+      const duration = Math.min(4.5, Math.max(1.5, sourceDuration - start));
+      const fillPlan = {
+        version: 'bikeztagram-free-fill-in-v2',
+        targetDuration: duration,
+        aspectRatio: '9:16',
+        colorGrade: 'dark-cinematic',
+        cuts: [{
+          sourceId: 'video-0',
+          start,
+          duration,
+          speed: 0.85,
+          transition: { type: 'fade', duration: 0.35 },
+          motion: { type: 'push-in', intensity: 0.75 },
+          text: '',
+          grade: 'dark-cinematic'
+        }]
+      };
+      const outputBlob = await renderProject([{ id: 'video-0', file, name: file.name, type: file.type || 'video/mp4', sourceUrl }], fillPlan, (value) => {
+        const p = Math.max(0, Math.min(100, Number(value) || 0));
+        setRenderProgress(p);
+        setStatus(`✨ Creating free cinematic fill-in... ${p}%`);
       });
-
-      const sourceDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
-      const seekTarget = Math.min(Math.max(0.25, sourceDuration * 0.22), Math.max(0.25, sourceDuration - 0.05));
-      video.currentTime = seekTarget;
-      await new Promise((resolve) => {
-        let settled = false;
-        const finish = () => {
-          if (settled) return;
-          settled = true;
-          video.onseeked = null;
-          resolve();
-        };
-        video.onseeked = finish;
-        setTimeout(finish, 1500);
-      });
-
-      const canvas = document.createElement('canvas');
-      const targetWidth = 1080;
-      const ratio = (video.videoWidth || 1080) / Math.max(1, video.videoHeight || 1920);
-      canvas.width = targetWidth;
-      canvas.height = Math.round(targetWidth / Math.max(0.45, ratio));
-      if (canvas.height > 1920) canvas.height = 1920;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Could not create the free fill-in canvas.');
-
-      const mimeTypes = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-      const mimeType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
-      const stream = canvas.captureStream(30);
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      const chunks = [];
-      recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
-      const stopped = new Promise((resolve, reject) => {
-        recorder.onerror = () => reject(new Error('Browser recorder failed while creating the free fill-in.'));
-        recorder.onstop = resolve;
-      });
-      recorder.start(1000);
-
-      const durationMs = 4500;
-      const started = performance.now();
-      await new Promise((resolve) => {
-        const draw = () => {
-          const p = Math.max(0, Math.min(1, (performance.now() - started) / durationMs));
-          const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-          const sw = video.videoWidth || 1080;
-          const sh = video.videoHeight || 1920;
-          const sourceRatio = sw / sh;
-          const canvasRatio = canvas.width / canvas.height;
-          let w, h;
-          if (sourceRatio > canvasRatio) { h = canvas.height * (1.03 + eased * 0.11); w = h * sourceRatio; }
-          else { w = canvas.width * (1.03 + eased * 0.11); h = w / sourceRatio; }
-          const x = (canvas.width - w) / 2 + (eased - 0.5) * canvas.width * 0.06;
-          const y = (canvas.height - h) / 2;
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle = '#000';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.save();
-          ctx.filter = 'brightness(0.88) contrast(1.18) saturate(1.12)';
-          ctx.drawImage(video, x, y, w, h);
-          ctx.restore();
-          const vignette = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.height * 0.18, canvas.width / 2, canvas.height / 2, canvas.height * 0.82);
-          vignette.addColorStop(0, 'rgba(0,0,0,0)');
-          vignette.addColorStop(1, 'rgba(0,0,0,0.5)');
-          ctx.fillStyle = vignette;
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          if (p < 0.16) { ctx.fillStyle = `rgba(0,0,0,${1 - p / 0.16})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-          if (p > 0.84) { ctx.fillStyle = `rgba(0,0,0,${(p - 0.84) / 0.16})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-          if (p < 1) requestAnimationFrame(draw); else resolve();
-        };
-        requestAnimationFrame(draw);
-      });
-      if (recorder.state !== 'inactive') recorder.stop();
-      await stopped;
-      if (localObjectUrl) URL.revokeObjectURL(localObjectUrl);
-      if (!chunks.length) throw new Error('Free fill-in recorder produced no video data.');
-      const output = new Blob(chunks, { type: chunks[0]?.type || mimeType || 'video/webm' });
-      if (!output.size) throw new Error('Free fill-in produced an empty video.');
+      if (!(outputBlob instanceof Blob) || outputBlob.size === 0) throw new Error('Free fill-in renderer produced an empty video.');
       if (fillInUrl) URL.revokeObjectURL(fillInUrl);
-      setFillInUrl(URL.createObjectURL(output));
+      setFillInUrl(URL.createObjectURL(outputBlob));
       setCurrentStage('STEP 7 — Zero-cost fill-in completed');
-      setStatus(`✅ Zero-cost cinematic fill-in created — ${(output.size / 1024 / 1024).toFixed(2)} MB`);
+      setStatus(`✅ Zero-cost cinematic fill-in created — ${(outputBlob.size / 1024 / 1024).toFixed(2)} MB`);
     } catch (error) {
-      if (localObjectUrl) URL.revokeObjectURL(localObjectUrl);
-      const details = makeErrorDetails(error, currentStage || 'Free fill-in error');
+      const details = makeErrorDetails(error, 'STEP 6 — Creating zero-cost cinematic fill-in');
       console.error('[APP] FREE FILL-IN ERROR', details);
       setErrorDetails(details);
       setStatus(`❌ FILL-IN ERROR — ${details.message}`);
