@@ -13,6 +13,7 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [analysis, setAnalysis] = useState(null);
   const [plan, setPlan] = useState(null);
+  const [productionPlan, setProductionPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(0);
@@ -20,25 +21,100 @@ export default function App() {
   const [errorDetails, setErrorDetails] = useState(null);
   const [currentStage, setCurrentStage] = useState('');
   const errorText = errorDetails ? JSON.stringify(errorDetails, null, 2) : '';
-  function handleFileChange(event) { const selected = event.target.files?.[0] || null; if (renderedVideoUrl) URL.revokeObjectURL(renderedVideoUrl); setFile(selected); setSourceUrl(''); setAnalysis(null); setPlan(null); setRenderedVideoUrl(''); setProgress(0); setRenderProgress(0); setErrorDetails(null); setCurrentStage(''); setStatus(selected ? `Selected: ${selected.name}` : ''); }
-  function makeErrorDetails(error, stage) { return { time: new Date().toISOString(), stage, message: error?.message || String(error) || 'Unknown error', name: error?.name || 'UnknownError', stack: error?.stack || 'No stack trace available', file: file ? { name: file.name, type: file.type, sizeBytes: file.size } : null, browser: { online: navigator.onLine, userAgent: navigator.userAgent, url: window.location.href } }; }
-  async function analyseActualVideo() {
-    if (!file) return setStatus('Please choose a video first.'); if (!file.type.startsWith('video/')) return setStatus('Please select a valid video file.');
-    setLoading(true); setProgress(0); setErrorDetails(null); setAnalysis(null); setPlan(null); setRenderedVideoUrl(''); setSourceUrl('');
+
+  function handleFileChange(event) {
+    const selected = event.target.files?.[0] || null;
+    if (renderedVideoUrl) URL.revokeObjectURL(renderedVideoUrl);
+    setFile(selected); setSourceUrl(''); setAnalysis(null); setPlan(null); setProductionPlan(null); setRenderedVideoUrl('');
+    setProgress(0); setRenderProgress(0); setErrorDetails(null); setCurrentStage(''); setStatus(selected ? `Selected: ${selected.name}` : '');
+  }
+
+  function makeErrorDetails(error, stage) {
+    return { time: new Date().toISOString(), stage, message: error?.message || String(error) || 'Unknown error', name: error?.name || 'UnknownError', stack: error?.stack || 'No stack trace available', file: file ? { name: file.name, type: file.type, sizeBytes: file.size } : null, browser: { online: navigator.onLine, userAgent: navigator.userAgent, url: window.location.href } };
+  }
+
+  async function buildProductionBlueprint(analysisData) {
     try {
-      setCurrentStage('STEP 1 — Preparing secure Blob upload'); setStatus('Preparing secure Blob upload...'); const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_'); const pathname = `videos/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
-      const blob = await upload(pathname, file, { access: 'public', handleUploadUrl: '/api/upload', multipart: true, clientPayload: JSON.stringify({ source: 'bikeztagram-ai', filename: file.name, mimeType: file.type || 'video/mp4', size: file.size }), onUploadProgress: (event) => { const value = Number(event?.percentage); if (Number.isFinite(value)) { const p = Math.max(0, Math.min(100, Math.round(value))); setProgress(p); setStatus(`Uploading video to Blob storage... ${p}%`); } } });
-      if (!blob?.url || !blob?.pathname) throw new Error('Vercel Blob upload did not return a valid URL/pathname.'); setSourceUrl(blob.url); setProgress(100); setCurrentStage('STEP 2 — Blob upload completed'); setStatus('✅ Video successfully stored in Blob. Preparing Gemini analysis...'); setCurrentStage('STEP 3 — Sending Blob video URL to /api/analyse');
-      const response = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ videoUrl: blob.url, pathname: blob.pathname, filename: file.name, mimeType: file.type || 'video/mp4', prompt }) }); const text = await response.text(); let data; try { data = JSON.parse(text); } catch { throw new Error(`Analysis server returned invalid JSON: ${text.slice(0, 1000)}`); } if (!response.ok) throw new Error(data?.error || `Analysis server returned HTTP ${response.status}`); if (!data?.analysis) throw new Error('Gemini returned no analysis.');
-      setAnalysis(data.analysis); setCurrentStage('STEP 5 — Building AI edit plan'); setStatus('Gemini analysis complete. Building AI edit plan...'); const generatedPlan = createAIEditPlan(data.analysis, { maxCuts: 8, targetDuration: 15, colorGrade: 'dark-cinematic' }); if (!generatedPlan?.cuts?.length) throw new Error('AI edit planner returned no usable cuts.'); setPlan(generatedPlan); setStatus(`✅ Gemini analysed the actual video. ${describeAIEditPlan(generatedPlan)}`);
-    } catch (error) { const details = makeErrorDetails(error, currentStage || 'Unknown stage'); console.error('[APP] ERROR', details); setErrorDetails(details); setStatus(`❌ ERROR — ${details.message}`); } finally { setLoading(false); }
+      setCurrentStage('STEP 5B — Building AI production blueprint');
+      const response = await fetch('/api/production-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, analysis: analysisData, targetDuration: 15 })
+      });
+      const text = await response.text();
+      let data;
+      try { data = JSON.parse(text); } catch { throw new Error(`Production planner returned invalid JSON: ${text.slice(0, 500)}`); }
+      if (!response.ok) throw new Error(data?.error || `Production planner returned HTTP ${response.status}`);
+      if (!data?.productionPlan?.scenes?.length) throw new Error('Production planner returned no scenes.');
+      setProductionPlan(data.productionPlan);
+      return data.productionPlan;
+    } catch (error) {
+      console.warn('[APP] Production blueprint unavailable; keeping existing edit plan.', error);
+      setProductionPlan(null);
+      return null;
+    }
   }
+
+  async function analyseActualVideo() {
+    if (!file) return setStatus('Please choose a video first.');
+    if (!file.type.startsWith('video/')) return setStatus('Please select a valid video file.');
+    setLoading(true); setProgress(0); setErrorDetails(null); setAnalysis(null); setPlan(null); setProductionPlan(null); setRenderedVideoUrl(''); setSourceUrl('');
+    try {
+      setCurrentStage('STEP 1 — Preparing secure Blob upload'); setStatus('Preparing secure Blob upload...');
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const pathname = `videos/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+      const blob = await upload(pathname, file, {
+        access: 'public', handleUploadUrl: '/api/upload', multipart: true,
+        clientPayload: JSON.stringify({ source: 'bikeztagram-ai', filename: file.name, mimeType: file.type || 'video/mp4', size: file.size }),
+        onUploadProgress: (event) => {
+          const value = Number(event?.percentage);
+          if (Number.isFinite(value)) { const p = Math.max(0, Math.min(100, Math.round(value))); setProgress(p); setStatus(`Uploading video to Blob storage... ${p}%`); }
+        }
+      });
+      if (!blob?.url || !blob?.pathname) throw new Error('Vercel Blob upload did not return a valid URL/pathname.');
+      setSourceUrl(blob.url); setProgress(100); setCurrentStage('STEP 2 — Blob upload completed'); setStatus('✅ Video successfully stored in Blob. Preparing Gemini analysis...');
+      setCurrentStage('STEP 3 — Sending Blob video URL to /api/analyse');
+      const response = await fetch('/api/analyse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ videoUrl: blob.url, pathname: blob.pathname, filename: file.name, mimeType: file.type || 'video/mp4', prompt }) });
+      const text = await response.text(); let data;
+      try { data = JSON.parse(text); } catch { throw new Error(`Analysis server returned invalid JSON: ${text.slice(0, 1000)}`); }
+      if (!response.ok) throw new Error(data?.error || `Analysis server returned HTTP ${response.status}`);
+      if (!data?.analysis) throw new Error('Gemini returned no analysis.');
+      setAnalysis(data.analysis); setCurrentStage('STEP 5 — Building AI edit plan'); setStatus('Gemini analysis complete. Building AI edit plan...');
+      const generatedPlan = createAIEditPlan(data.analysis, { maxCuts: 8, targetDuration: 15, colorGrade: 'dark-cinematic' });
+      if (!generatedPlan?.cuts?.length) throw new Error('AI edit planner returned no usable cuts.');
+      setPlan(generatedPlan);
+      setStatus(`✅ Gemini analysed the actual video. ${describeAIEditPlan(generatedPlan)}`);
+      await buildProductionBlueprint(data.analysis);
+      setCurrentStage('STEP 5 — AI plans ready');
+      setStatus(`✅ Gemini analysed the actual video. ${describeAIEditPlan(generatedPlan)} • Production blueprint ready for real + generated scenes.`);
+    } catch (error) {
+      const details = makeErrorDetails(error, currentStage || 'Unknown stage'); console.error('[APP] ERROR', details); setErrorDetails(details); setStatus(`❌ ERROR — ${details.message}`);
+    } finally { setLoading(false); }
+  }
+
   async function buildAIEdit() {
-    if (!file) return setStatus('Please choose a video first.'); if (!plan?.cuts?.length) return setStatus('No AI edit plan is available yet. Analyse the video first.'); setRendering(true); setRenderProgress(0); setErrorDetails(null);
-    try { setCurrentStage('STEP 6 — Rendering AI-directed video'); setStatus('🎬 Building your AI-directed cinematic edit...'); const outputBlob = await renderProject([{ id: 'video-0', file, name: file.name, type: file.type || 'video/mp4', sourceUrl }], plan, (value) => { const p = Math.max(0, Math.min(100, Number(value) || 0)); setRenderProgress(p); setStatus(`🎬 Rendering AI edit... ${p}%`); }); if (!(outputBlob instanceof Blob) || outputBlob.size === 0) throw new Error('Renderer completed but produced an empty video file.'); if (renderedVideoUrl) URL.revokeObjectURL(renderedVideoUrl); setRenderedVideoUrl(URL.createObjectURL(outputBlob)); setRenderProgress(100); setCurrentStage('STEP 7 — AI edit completed'); setStatus(`✅ AI edit completed successfully — ${(outputBlob.size / 1024 / 1024).toFixed(2)} MB`); }
-    catch (error) { const details = makeErrorDetails(error, currentStage || 'AI render error'); console.error('[APP] AI RENDER ERROR', details); setErrorDetails(details); setStatus(`❌ RENDER ERROR — ${details.message}`); } finally { setRendering(false); }
+    if (!file) return setStatus('Please choose a video first.');
+    if (!plan?.cuts?.length) return setStatus('No AI edit plan is available yet. Analyse the video first.');
+    setRendering(true); setRenderProgress(0); setErrorDetails(null);
+    try {
+      setCurrentStage('STEP 6 — Rendering AI-directed video'); setStatus('🎬 Building your AI-directed cinematic edit...');
+      const outputBlob = await renderProject([{ id: 'video-0', file, name: file.name, type: file.type || 'video/mp4', sourceUrl }], plan, (value) => {
+        const p = Math.max(0, Math.min(100, Number(value) || 0)); setRenderProgress(p); setStatus(`🎬 Rendering AI edit... ${p}%`);
+      });
+      if (!(outputBlob instanceof Blob) || outputBlob.size === 0) throw new Error('Renderer completed but produced an empty video file.');
+      if (renderedVideoUrl) URL.revokeObjectURL(renderedVideoUrl);
+      setRenderedVideoUrl(URL.createObjectURL(outputBlob)); setRenderProgress(100); setCurrentStage('STEP 7 — AI edit completed');
+      setStatus(`✅ AI edit completed successfully — ${(outputBlob.size / 1024 / 1024).toFixed(2)} MB`);
+    } catch (error) {
+      const details = makeErrorDetails(error, currentStage || 'AI render error'); console.error('[APP] AI RENDER ERROR', details); setErrorDetails(details); setStatus(`❌ RENDER ERROR — ${details.message}`);
+    } finally { setRendering(false); }
   }
-  function clearVideo() { if (renderedVideoUrl) URL.revokeObjectURL(renderedVideoUrl); setFile(null); setSourceUrl(''); setAnalysis(null); setPlan(null); setRenderedVideoUrl(''); setStatus(''); setProgress(0); setRenderProgress(0); setErrorDetails(null); setCurrentStage(''); }
+
+  function clearVideo() {
+    if (renderedVideoUrl) URL.revokeObjectURL(renderedVideoUrl);
+    setFile(null); setSourceUrl(''); setAnalysis(null); setPlan(null); setProductionPlan(null); setRenderedVideoUrl(''); setStatus(''); setProgress(0); setRenderProgress(0); setErrorDetails(null); setCurrentStage('');
+  }
+
   return <div className="app-container"><header className="app-header"><div><h1>BIKEZTAGRAM AI</h1><p>AI-powered motorcycle video editor</p></div></header><main>
     <section className="form-group"><label htmlFor="video-file">Test motorcycle footage</label><input id="video-file" type="file" accept="video/*" onChange={handleFileChange} disabled={loading || rendering}/>{file && <p className="status-text">{file.name}</p>}</section>
     <section className="form-group"><label htmlFor="analysis-prompt">Tell Gemini what to look for</label><textarea id="analysis-prompt" rows="6" value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={loading || rendering}/></section>
@@ -48,6 +124,7 @@ export default function App() {
     {errorDetails && <section className="status-panel" style={{marginTop:'20px',border:'2px solid #ff4d4d',padding:'15px',borderRadius:'8px'}}><h2>❌ FULL ERROR DETAILS</h2><button className="generate-btn" onClick={async () => { try { await navigator.clipboard.writeText(errorText); setStatus('✅ Error details copied.'); } catch {} }}>📋 Copy Error Details</button><pre style={{whiteSpace:'pre-wrap',wordBreak:'break-word',textAlign:'left',fontSize:'12px'}}>{errorText}</pre></section>}
     {analysis && <section className="result-container" style={{marginTop:'20px'}}><h2>Gemini Video Analysis</h2><div className="status-panel"><pre style={{whiteSpace:'pre-wrap',wordBreak:'break-word',textAlign:'left',margin:0}}>{JSON.stringify(analysis,null,2)}</pre></div></section>}
     {plan && <section className="result-container" style={{marginTop:'20px'}}><h2>🎬 AI Edit Plan</h2><div className="status-panel"><p>{describeAIEditPlan(plan)}</p><pre style={{whiteSpace:'pre-wrap',wordBreak:'break-word',textAlign:'left',margin:0}}>{JSON.stringify(plan,null,2)}</pre></div></section>}
+    {productionPlan && <section className="result-container" style={{marginTop:'20px'}}><h2>🎥 AI Production Blueprint</h2><div className="status-panel"><p>{productionPlan.title || 'AI Production Blueprint'}</p><p>{productionPlan.creativeDirection || ''}</p><p><strong>{productionPlan.scenes.filter((scene) => scene.sourceType === 'uploaded').length}</strong> real scenes • <strong>{productionPlan.scenes.filter((scene) => scene.sourceType === 'generated').length}</strong> generated fill-in scenes planned</p><pre style={{whiteSpace:'pre-wrap',wordBreak:'break-word',textAlign:'left',margin:0}}>{JSON.stringify(productionPlan,null,2)}</pre></div></section>}
     {renderedVideoUrl && <section className="result-container" style={{marginTop:'20px'}}><h2>🏍️ AI Cinematic Edit</h2><div className="status-panel"><video src={renderedVideoUrl} controls playsInline style={{width:'100%',maxWidth:'420px',display:'block',margin:'0 auto',borderRadius:'10px',background:'#000'}}/><p style={{marginTop:'12px'}}>Gemini selected the moments. The AI edit planner converted them into cuts, timing, speed, transitions and motion, and the browser renderer built the video.</p></div></section>}
   </main></div>;
 }
