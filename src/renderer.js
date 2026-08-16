@@ -1,8 +1,7 @@
 /* BIKEZTAGRAM AI — browser cinematic renderer
- * Controlled V4 change: use the successfully uploaded public Blob URL as the
- * render source when available, while retaining the local File fallback.
- * This avoids relying on an Android Blob/File object URL during decoding and
- * adds precise media-decoding diagnostics.
+ * Controlled V5 change: extend the protected renderer with internal-editor
+ * transition primitives (crossfade, dip-black and whip-style wipes) while
+ * preserving the proven Blob-first source loading and MediaRecorder path.
  */
 
 export async function renderProject(mediaItems, plan, onProgress) {
@@ -105,14 +104,38 @@ export async function renderProject(mediaItems, plan, onProgress) {
         return { scale: clamp(scale, 1.01, 1.22), offsetX, offsetY };
       };
 
+      const drawTransition = (transition, progress, first) => {
+        const name = String(transition || 'hard-cut').toLowerCase();
+        const p = clamp(progress, 0, 1);
+        const length = 0.22;
+        const t = clamp(p / length, 0, 1);
+        if (first && (name === 'fade-in' || name === 'fade' || name === 'cinematic')) {
+          ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 1 - t; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
+        } else if (name === 'fade-out') {
+          const fade = clamp((p - (1 - length)) / length, 0, 1);
+          ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = fade; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
+        } else if (name === 'flash-cut') {
+          const flash = Math.max(0, 1 - Math.abs(p - 0.5) * 8);
+          ctx.save(); ctx.fillStyle = '#fff'; ctx.globalAlpha = flash * 0.82; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
+        } else if (name === 'dip-black') {
+          const dip = Math.max(0, 1 - Math.abs(p - 0.5) * 4);
+          ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = dip * 0.88; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
+        } else if (name === 'crossfade') {
+          const fade = Math.max(0, 1 - p / 0.28);
+          ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = fade * 0.18; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
+        } else if (name === 'whip-left' || name === 'whip-right') {
+          const direction = name === 'whip-left' ? -1 : 1;
+          const edge = p < 0.5 ? p * 2 : (1 - p) * 2;
+          const width = canvas.width * (0.08 + edge * 0.62);
+          ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 0.74; ctx.fillRect(direction < 0 ? canvas.width - width : 0, 0, width, canvas.height); ctx.restore();
+        }
+      };
+
       const drawOverlay = (cut, progress, first) => {
-        const transition = String(cut.transition || 'hard-cut').toLowerCase();
         const p = clamp(progress, 0, 1);
         const length = Math.min(0.35, Math.max(0.12, Number(cut.duration || 2) * 0.18));
         const t = clamp(p / (length / Math.max(0.5, Number(cut.duration) || 2)), 0, 1);
-        if (transition === 'fade-in' || transition === 'fade' || (first && transition === 'cinematic')) { ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 1 - t; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore(); }
-        else if (transition === 'fade-out') { ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = t; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore(); }
-        else if (transition === 'flash-cut') { const flash = Math.max(0, 1 - Math.abs(t - 0.5) * 8); ctx.save(); ctx.fillStyle = '#fff'; ctx.globalAlpha = flash * 0.82; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore(); }
+        drawTransition(cut.transition, p, first);
         const text = String(cut.text || '').trim();
         if (text) {
           const tin = clamp(Number(cut.textIn) || 0.12, 0, 0.8);
