@@ -1,6 +1,6 @@
-/* BIKEZTAGRAM AI — zero-cost procedural world-scene compositor v5.
+/* BIKEZTAGRAM AI — zero-cost procedural world-scene compositor v6.
    Product layer only: Blob/Gemini upload and configuration are intentionally untouched.
-   V5 change: the supplied video now drives the foreground instead of freezing one frame.
+   V6 change: cinematic finishing pass — richer atmosphere, motion, lighting, particles and cleaner trailer presentation.
 */
 import { FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
 
@@ -47,8 +47,10 @@ function drawBackground(ctx, w, h, mode, t, shot) {
 
   if (mode === 'neon-city' || mode === 'future' || mode === 'drone-chase') {
     for (let i = 0; i < 34; i++) {
+      const depth = (i % 5) / 5;
       const bw = 22 + (i % 6) * 16, bh = 120 + (i % 8) * 72;
-      const x = i * (w / 30) - 25, y = h * .58 - bh;
+      const x = i * (w / 30) - 25 + Math.sin(t * (.25 + depth * .25) + i) * (3 + depth * 8);
+      const y = h * .58 - bh;
       ctx.fillStyle = i % 3 === 0 ? 'rgba(18,42,62,.98)' : 'rgba(4,13,23,.99)';
       ctx.fillRect(x, y, bw, bh);
       for (let wy = y + 16; wy < y + bh - 10; wy += 24) {
@@ -130,6 +132,109 @@ function drawAtmosphere(ctx, w, h, mode, t, shot) {
   ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
 }
 
+function drawCinematicFX(ctx, w, h, mode, t, shot, prompt) {
+  const p = String(prompt).toLowerCase();
+  const action = /action|race|chase|pursuit|fast|speed|tracking|aggressive|blockbuster|trailer|sparks/.test(p);
+  const intensity = shot === 1 ? 1 : shot === 2 ? .72 : .42;
+
+  // Atmospheric light shafts and a moving lens flare give the synthetic world a real camera feel.
+  const flareX = w * (.22 + .56 * ((Math.sin(t * .55) + 1) / 2));
+  const flareY = mode === 'mars' || mode === 'desert' ? h * .30 : h * .24;
+  const flare = ctx.createRadialGradient(flareX, flareY, 2, flareX, flareY, h * .28);
+  flare.addColorStop(0, mode === 'mars' ? 'rgba(255,150,75,.20)' : 'rgba(80,210,255,.14)');
+  flare.addColorStop(.18, mode === 'mars' ? 'rgba(255,100,45,.08)' : 'rgba(70,190,255,.06)');
+  flare.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = flare; ctx.fillRect(0, 0, w, h);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  const streak = ctx.createLinearGradient(flareX - w * .42, flareY, flareX + w * .42, flareY);
+  streak.addColorStop(0, 'rgba(255,255,255,0)');
+  streak.addColorStop(.5, mode === 'mars' ? 'rgba(255,145,75,.16)' : 'rgba(70,210,255,.13)');
+  streak.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = streak; ctx.fillRect(0, flareY - 2, w, 4);
+  ctx.restore();
+
+  // Speed streaks at the edge of frame make the centre subject feel fast without blurring it.
+  if (action || shot === 1) {
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    for (let i = 0; i < 22; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const seed = i * 97.3;
+      const y = h * (.34 + ((seed % 51) / 100));
+      const travel = ((t * (900 + i * 37) + seed) % (w * .52));
+      const x = side < 0 ? travel - w * .52 : w - travel;
+      const len = 35 + (i % 7) * 24;
+      const a = (.025 + (i % 5) * .012) * intensity;
+      ctx.strokeStyle = mode === 'mars' ? `rgba(255,145,70,${a})` : `rgba(80,210,255,${a})`;
+      ctx.lineWidth = 2 + (i % 3);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + side * len, y - 3); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Dust/particles are strongest near the road so the bike appears grounded in the world.
+  if (mode === 'mars' || mode === 'desert') {
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    for (let i = 0; i < 90; i++) {
+      const seed = i * 73.17;
+      const drift = ((t * (110 + i * 3) + seed) % (w + 240)) - 120;
+      const rise = ((seed * .7 + t * (45 + i % 6) * 20) % (h * .42));
+      const x = w * .5 + (drift - w * .5) * .58;
+      const y = h * .70 - rise;
+      const size = 1 + (i % 4);
+      const alpha = (.025 + (i % 5) * .012) * (shot === 1 ? 1.45 : .8);
+      ctx.fillStyle = mode === 'mars' ? `rgba(255,150,80,${alpha})` : `rgba(235,205,150,${alpha})`;
+      ctx.fillRect(x, y, size, size);
+    }
+    ctx.restore();
+  }
+
+  // Brief sparks in the action section, designed as accents rather than constant noise.
+  if (action && shot === 1) {
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    for (let i = 0; i < 28; i++) {
+      const phase = (t * 2.7 + i * .173) % 1;
+      if (phase > .42) continue;
+      const x = w * (.37 + ((i * 19) % 28) / 100) + Math.sin(i * 9 + t * 13) * 24;
+      const y = h * (.72 + ((i * 11) % 15) / 100);
+      const len = 8 + (i % 5) * 6;
+      ctx.strokeStyle = `rgba(255,205,110,${.12 + (.42 - phase) * .55})`;
+      ctx.lineWidth = 2 + (i % 2);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(i) * len, y + Math.sin(i * 2) * len); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Soft anamorphic flare lines for neon/future scenes.
+  if (mode === 'neon-city' || mode === 'future' || mode === 'drone-chase') {
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    const y = h * (.31 + Math.sin(t * .7) * .035);
+    const g = ctx.createLinearGradient(0, y, w, y);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(.5, 'rgba(65,205,255,.10)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, y - 2, w, 4);
+    ctx.restore();
+  }
+}
+
+function drawFrameFinish(ctx, w, h, mode, t) {
+  // Subtle cinematic framing: enough to feel intentional, never enough to hide the bike.
+  ctx.fillStyle = 'rgba(0,0,0,.20)';
+  ctx.fillRect(0, 0, w, 26); ctx.fillRect(0, h - 26, w, 26);
+  const edge = ctx.createRadialGradient(w / 2, h * .47, h * .20, w / 2, h * .47, h * .82);
+  edge.addColorStop(0, 'rgba(0,0,0,0)');
+  edge.addColorStop(.72, 'rgba(0,0,0,.06)');
+  edge.addColorStop(1, 'rgba(0,0,0,.48)');
+  ctx.fillStyle = edge; ctx.fillRect(0, 0, w, h);
+
+  // Tiny cinematic focus glint; no generic labels are burned into the generated video.
+  const pulse = .035 + Math.sin(t * Math.PI * 2) * .012;
+  ctx.fillStyle = mode === 'mars' ? `rgba(255,150,80,${pulse})` : `rgba(70,200,255,${pulse})`;
+  ctx.fillRect(w * .08, h * .085, w * .16, 2);
+}
+
 async function loadVideo(source) {
   const video = document.createElement('video');
   video.muted = true; video.playsInline = true; video.preload = 'auto';
@@ -197,7 +302,7 @@ function drawSubjectShadow(ctx, w, h, scale, mode) {
 
 function drawGrade(ctx, w, h, mode, t) {
   ctx.save(); ctx.globalCompositeOperation = 'source-atop';
-  ctx.fillStyle = mode === 'mars' ? 'rgba(255,95,45,.075)' : 'rgba(15,55,85,.06)'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = mode === 'mars' ? 'rgba(255,95,45,.075)' : mode === 'desert' ? 'rgba(235,150,65,.055)' : 'rgba(15,55,85,.06)'; ctx.fillRect(0, 0, w, h);
   const top = ctx.createLinearGradient(0, 0, 0, h * .35); top.addColorStop(0, 'rgba(0,0,0,.28)'); top.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = top; ctx.fillRect(0, 0, w, h * .35); ctx.restore();
 }
@@ -303,15 +408,10 @@ export async function renderWorldScene({ file, sourceUrl, prompt = '', duration 
         }
         ctx.restore();
 
+        drawCinematicFX(ctx, w, h, mode, t, shot, prompt);
         drawAtmosphere(ctx, w, h, mode, t, shot);
         drawGrade(ctx, w, h, mode, t);
-
-        if (shot === 1 && (mode === 'drone-chase' || /chase|pursuit|action|race/.test(String(prompt).toLowerCase()))) {
-          ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(0, h * .46, w, 5);
-        }
-        ctx.save(); ctx.fillStyle = 'rgba(255,255,255,.94)'; ctx.font = '700 42px Arial'; ctx.textAlign = 'center';
-        const label = mode === 'mars' ? 'MARS // ORIGINAL CINEMATIC SCENE' : mode === 'neon-city' ? 'NIGHT CITY // ORIGINAL SCENE' : mode === 'drone-chase' ? 'DRONE PURSUIT // ORIGINAL SCENE' : mode === 'desert' ? 'DESERT RUN // ORIGINAL SCENE' : 'FUTURE WORLD // ORIGINAL SCENE';
-        ctx.fillText(label, w / 2, h - 120); ctx.restore();
+        drawFrameFinish(ctx, w, h, mode, t);
 
         onProgress?.(Math.round(t * 100));
         if (t >= 1) { resolve(); return; }
