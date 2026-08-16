@@ -72,14 +72,18 @@ function speedFor(purpose, moment, mode) {
   return clamp(speed, 0.5, 1.5);
 }
 
-function makeCut(moment, index, total, analysis, options, mode) {
+function makeCut(moment, index, total, analysis, options, mode, forcedStart = null, forcedDuration = null) {
   const sourceDuration = clamp(num(analysis?.durationInSeconds, 11), 3, 60);
-  const sourceStart = clamp(num(moment?.start ?? moment?.startTime, 0), 0, Math.max(0, sourceDuration - 0.5));
+  const sourceStart = forcedStart == null
+    ? clamp(num(moment?.start ?? moment?.startTime, 0), 0, Math.max(0, sourceDuration - 0.5))
+    : clamp(forcedStart, 0, Math.max(0, sourceDuration - 0.5));
   const sourceEnd = num(moment?.end ?? moment?.endTime, sourceStart + 3);
   const available = Math.max(0.5, sourceEnd - sourceStart);
   const purpose = purposeFor(moment, index, total, mode);
-  const requested = num(moment?.duration, Math.min(3, available));
-  const duration = clamp(Math.min(requested, available), 0.5, Math.min(6, options.targetDuration));
+  const requested = forcedDuration == null ? num(moment?.duration, Math.min(3, available)) : forcedDuration;
+  const duration = forcedDuration == null
+    ? clamp(Math.min(requested, available), 0.5, Math.min(6, options.targetDuration))
+    : clamp(requested, 0.5, Math.min(6, options.targetDuration));
   let overlay = text(moment?.text);
   if (!overlay && index === 0 && analysis?.textRecommendation?.useText) overlay = text(analysis.textRecommendation.text);
   if (purpose === 'hero-ending' && !moment?.text) overlay = '';
@@ -103,14 +107,41 @@ function makeCut(moment, index, total, analysis, options, mode) {
 }
 
 function storyFallback(analysis, options, mode) {
-  const duration = Math.min(clamp(num(analysis?.durationInSeconds, 11), 3, 60), options.targetDuration);
+  const sourceDuration = clamp(num(analysis?.durationInSeconds, 11), 3, 60);
+  const duration = Math.min(sourceDuration, options.targetDuration);
   const count = duration >= 10 ? 5 : duration >= 7 ? 4 : 3;
   const segment = duration / count;
   const moments = momentsFrom(analysis);
   return Array.from({ length: count }, (_, index) => {
     const fallback = { start: index * segment, end: Math.min(duration, (index + 1) * segment) };
-    return makeCut(moments[index] || fallback, index, count, analysis, options, mode);
+    return makeCut(moments[index] || fallback, index, count, analysis, options, mode, fallback.start, segment);
   });
+}
+
+function ensureUsefulDuration(cuts, analysis, options, mode) {
+  const sourceDuration = clamp(num(analysis?.durationInSeconds, 11), 3, 60);
+  const target = Math.min(sourceDuration, options.targetDuration);
+  const current = cuts.reduce((sum, cut) => sum + num(cut.duration, 0), 0);
+  if (current >= Math.min(target, 7) || sourceDuration < 7) return cuts;
+
+  // Gemini can correctly identify one excellent moment but that moment is not
+  // enough to make a useful social edit. Fill the remaining timeline from the
+  // real source using evenly spaced sections; no extra AI request is needed.
+  const fallback = storyFallback(analysis, options, mode);
+  const needed = Math.max(3, Math.min(5, fallback.length));
+  const supplemented = [];
+  for (let i = 0; i < needed; i += 1) {
+    const preferred = cuts[i];
+    const segment = fallback[i];
+    if (preferred) {
+      supplemented.push(preferred);
+    } else {
+      supplemented.push({ ...segment, purpose: i === needed - 1 ? 'hero-ending' : segment.purpose });
+    }
+  }
+  const total = supplemented.reduce((sum, cut) => sum + num(cut.duration, 0), 0);
+  if (total < target * 0.7) return fallback;
+  return supplemented;
 }
 
 export function createAIEditPlan(analysis, options = {}) {
@@ -129,12 +160,15 @@ export function createAIEditPlan(analysis, options = {}) {
   } else if (moments.length) {
     const limited = moments.slice(0, clamp(num(options.maxCuts, 8), 1, 30));
     cuts = limited.map((moment, index) => makeCut(moment, index, limited.length, analysis, { ...options, targetDuration }, mode));
-    if (cuts.length < 3 && num(analysis?.durationInSeconds, 0) >= 3) cuts = storyFallback(analysis, { ...options, targetDuration }, mode);
   } else {
     cuts = storyFallback(analysis, { ...options, targetDuration }, mode);
   }
 
-  if (!cuts.length) cuts = [{ mediaIndex: 0, mediaId: 'video-0', startTime: 0, duration: Math.min(3, targetDuration), purpose: 'opening', speed: 1, transition: 'fade-in', motionStyle: 'slow-push', motionIntensity: 0.8, stabilization: true, colorGrade: options.colorGrade || 'dark-cinematic', text: '', textIn: 0.1, textOut: 0.9, textStyle: 'cinematic' }];
+  if (cuts.length < 3 || cuts.reduce((sum, cut) => sum + num(cut.duration, 0), 0) < Math.min(targetDuration, 7)) {
+    cuts = ensureUsefulDuration(cuts, analysis, { ...options, targetDuration }, mode);
+  }
+
+  if (!cuts.length) cuts = storyFallback(analysis, { ...options, targetDuration }, mode);
 
   const duration = cuts.reduce((sum, cut) => sum + num(cut.duration, 0), 0);
   const style = mode.action ? 'cinematic action trailer' : mode.horror ? 'dark cinematic suspense' : mode.game ? 'original open-world game-inspired cinematic' : mode.reveal ? 'cinematic reveal trailer' : 'cinematic motorcycle trailer';
