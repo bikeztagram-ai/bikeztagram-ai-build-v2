@@ -6,6 +6,7 @@ import './styles.css';
 
 export default function App() {
   const [file, setFile] = useState(null);
+  const [sourceUrl, setSourceUrl] = useState('');
   const [prompt, setPrompt] = useState('Analyse this motorcycle footage for the strongest cinematic moments, camera movement, action, composition and best timestamps for an exciting social-media motorcycle video.');
   const [status, setStatus] = useState('');
   const [progress, setProgress] = useState(0);
@@ -23,7 +24,7 @@ export default function App() {
   function handleFileChange(event) {
     const selected = event.target.files?.[0] || null;
     if (renderedVideoUrl) URL.revokeObjectURL(renderedVideoUrl);
-    setFile(selected); setAnalysis(null); setPlan(null); setRenderedVideoUrl('');
+    setFile(selected); setSourceUrl(''); setAnalysis(null); setPlan(null); setRenderedVideoUrl('');
     setProgress(0); setRenderProgress(0); setErrorDetails(null); setCurrentStage('');
     setStatus(selected ? `Selected: ${selected.name}` : '');
   }
@@ -41,15 +42,14 @@ export default function App() {
   async function analyseActualVideo() {
     if (!file) return setStatus('Please choose a video first.');
     if (!file.type.startsWith('video/')) return setStatus('Please select a valid video file.');
-    setLoading(true); setProgress(0); setErrorDetails(null); setAnalysis(null); setPlan(null); setRenderedVideoUrl('');
+    setLoading(true); setProgress(0); setErrorDetails(null); setAnalysis(null); setPlan(null); setRenderedVideoUrl(''); setSourceUrl('');
     try {
       setCurrentStage('STEP 1 — Preparing secure Blob upload');
       setStatus('Preparing secure Blob upload...');
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const pathname = `videos/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
       const blob = await upload(pathname, file, {
-        access: 'public', handleUploadUrl: '/api/upload',
-        multipart: true,
+        access: 'public', handleUploadUrl: '/api/upload', multipart: true,
         clientPayload: JSON.stringify({ source: 'bikeztagram-ai', filename: file.name, mimeType: file.type || 'video/mp4', size: file.size }),
         onUploadProgress: (event) => {
           const value = Number(event?.percentage);
@@ -57,7 +57,7 @@ export default function App() {
         }
       });
       if (!blob?.url || !blob?.pathname) throw new Error('Vercel Blob upload did not return a valid URL/pathname.');
-
+      setSourceUrl(blob.url);
       setProgress(100); setCurrentStage('STEP 2 — Blob upload completed');
       setStatus('✅ Video successfully stored in Blob. Preparing Gemini analysis...');
       setCurrentStage('STEP 3 — Sending Blob video URL to /api/analyse');
@@ -70,7 +70,6 @@ export default function App() {
       try { data = JSON.parse(text); } catch { throw new Error(`Analysis server returned invalid JSON: ${text.slice(0, 1000)}`); }
       if (!response.ok) throw new Error(data?.error || `Analysis server returned HTTP ${response.status}`);
       if (!data?.analysis) throw new Error('Gemini returned no analysis.');
-
       setAnalysis(data.analysis);
       setCurrentStage('STEP 5 — Building AI edit plan');
       setStatus('Gemini analysis complete. Building AI edit plan...');
@@ -90,7 +89,7 @@ export default function App() {
     setRendering(true); setRenderProgress(0); setErrorDetails(null);
     try {
       setCurrentStage('STEP 6 — Rendering AI-directed video'); setStatus('🎬 Building your AI-directed cinematic edit...');
-      const outputBlob = await renderProject([{ id: 'video-0', file, name: file.name, type: file.type || 'video/mp4' }], plan, (value) => {
+      const outputBlob = await renderProject([{ id: 'video-0', file, name: file.name, type: file.type || 'video/mp4', sourceUrl }], plan, (value) => {
         const p = Math.max(0, Math.min(100, Number(value) || 0)); setRenderProgress(p); setStatus(`🎬 Rendering AI edit... ${p}%`);
       });
       if (!(outputBlob instanceof Blob) || outputBlob.size === 0) throw new Error('Renderer completed but produced an empty video file.');
@@ -105,7 +104,7 @@ export default function App() {
 
   function clearVideo() {
     if (renderedVideoUrl) URL.revokeObjectURL(renderedVideoUrl);
-    setFile(null); setAnalysis(null); setPlan(null); setRenderedVideoUrl(''); setStatus(''); setProgress(0); setRenderProgress(0); setErrorDetails(null); setCurrentStage('');
+    setFile(null); setSourceUrl(''); setAnalysis(null); setPlan(null); setRenderedVideoUrl(''); setStatus(''); setProgress(0); setRenderProgress(0); setErrorDetails(null); setCurrentStage('');
   }
 
   return <div className="app-container">
@@ -118,10 +117,8 @@ export default function App() {
         {plan && !loading && !rendering && <button className="generate-btn" onClick={buildAIEdit}>🎬 Build AI Edit</button>}
         {!loading && !rendering && file && <button className="clear-btn" onClick={clearVideo}>Clear</button>}
       </div>
-
       {(loading || rendering) && <section className="status-panel" style={{marginTop:'15px'}}><p className="status-text">{status}</p><p style={{fontSize:'13px',opacity:0.8}}>{currentStage}</p>{loading && <div>Blob upload: {progress}%</div>}{rendering && <div>Render: {renderProgress}%</div>}</section>}
       {!loading && !rendering && status && !errorDetails && <section className="status-panel" style={{marginTop:'15px'}}><p className="status-text">{status}</p></section>}
-
       {errorDetails && <section className="status-panel" style={{marginTop:'20px',border:'2px solid #ff4d4d',padding:'15px',borderRadius:'8px'}}><h2>❌ FULL ERROR DETAILS</h2><button className="generate-btn" onClick={async () => { try { await navigator.clipboard.writeText(errorText); setStatus('✅ Error details copied.'); } catch {} }}>📋 Copy Error Details</button><pre style={{whiteSpace:'pre-wrap',wordBreak:'break-word',textAlign:'left',fontSize:'12px'}}>{errorText}</pre></section>}
       {analysis && <section className="result-container" style={{marginTop:'20px'}}><h2>Gemini Video Analysis</h2><div className="status-panel"><pre style={{whiteSpace:'pre-wrap',wordBreak:'break-word',textAlign:'left',margin:0}}>{JSON.stringify(analysis,null,2)}</pre></div></section>}
       {plan && <section className="result-container" style={{marginTop:'20px'}}><h2>🎬 AI Edit Plan</h2><div className="status-panel"><p>{describeAIEditPlan(plan)}</p><pre style={{whiteSpace:'pre-wrap',wordBreak:'break-word',textAlign:'left',margin:0}}>{JSON.stringify(plan,null,2)}</pre></div></section>}
