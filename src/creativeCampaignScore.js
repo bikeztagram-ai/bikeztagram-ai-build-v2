@@ -1,0 +1,1 @@
+export function scoreCampaign(outputs=[]){if(!outputs.length)return {score:0,outputs:[]};const scored=outputs.map(o=>({id:o.id||null,score:Number(((Number(o.creativeScore??o.score??0))*0.7+(Number(o.platformFit??.5)*0.3)).toFixed(4))})).sort((a,b)=>b.score-a.score);return {score:Number((scored.reduce((s,o)=>s+o.score,0)/scored.length).toFixed(4)),outputs:scored};}
