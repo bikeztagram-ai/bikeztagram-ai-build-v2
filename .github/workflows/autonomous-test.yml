@@ -93,7 +93,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Run guarded autonomous improvement
-        if: always()
+        if: steps.deployment.outcome == 'success'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-2.5-flash
@@ -106,11 +106,14 @@ jobs:
 
       - name: Report test result when no autonomous change was made
         if: steps.smoke.outcome == 'failure' && !cancelled()
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           if git log -1 --pretty=%s | grep -qi '\[auto-improve '; then
             echo "The autonomous agent made a guarded change; the next workflow cycle will retest it."
-          elif [ -n "${{ secrets.GEMINI_API_KEY }}" ]; then
-            echo "Autonomous agent made no new change; leaving this failure for the next review."
+          elif [ -n "$GEMINI_API_KEY" ]; then
+            echo "Autonomous agent made no new change; leaving this failure recorded."
+            exit 1
           else
             echo "GEMINI_API_KEY is not configured, so autonomous repair is paused."
             exit 1
