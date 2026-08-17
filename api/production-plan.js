@@ -1,8 +1,11 @@
 /* BIKEZTAGRAM AI — AI Director production blueprint.
    Product layer only. Blob/Gemini upload + analysis configuration remain untouched.
-   This layer converts Gemini's real-media analysis + the user's creative prompt into
-   a deterministic, zero-cost production plan for Bikeztagram's own browser compositor.
+   Stage 1: Gemini analyses the actual uploaded video.
+   Stage 2: Gemini acts as the creative director using that analysis + the user's one prompt.
+   Local deterministic planning remains as a fallback if Stage 2 is unavailable.
 */
+
+import { GoogleGenAI } from '@google/genai';
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -34,7 +37,7 @@ function detectWorld(prompt) {
   const p = text(prompt).toLowerCase();
   if (/mars|red planet|martian|alien planet/.test(p)) return 'mars';
   if (/gta|grand theft|open world|crime|street race|neon city|night city/.test(p)) return 'neon-city';
-  if (/drone|drones|pursuit|chase|military/.test(p)) return 'drone-chase';
+  if (/drone|drones|pursuit|military/.test(p)) return 'drone-chase';
   if (/desert|dust|sand/.test(p)) return 'desert';
   if (/future|futuristic|sci-fi|cyber/.test(p)) return 'future';
   return 'cinematic-world';
@@ -134,11 +137,9 @@ function buildScenes(analysis, creativeRequest, targetDuration) {
   const style = detectStyle(creativeRequest);
   const scenes = [];
 
-  // Start with real media whenever possible. This grounds the generated world in the user's footage.
   const opening = Math.min(2.2, sourceDuration);
   scenes.push(uploadedScene('scene-01', 'real-opening', 0, opening, 'Establish the real motorcycle and its authentic camera movement.', 'fade-in', 'cinematic-blend'));
 
-  // Insert a generated establishing beat so the requested world can appear before the hero action.
   scenes.push(generatedScene(
     'scene-02',
     'generated-world-establishing',
@@ -154,7 +155,6 @@ function buildScenes(analysis, creativeRequest, targetDuration) {
     scenes.push(uploadedScene('scene-03', 'real-hero-moment', start, end, best.description || 'Use the strongest moment identified by Gemini.', 'match-cut', 'action-blend'));
   }
 
-  // Add a generated action bridge whenever the prompt asks for a chase, trailer or environment the real footage cannot contain.
   const generatedActionDuration = Math.min(3.2, Math.max(1.8, target * (style.action ? 0.22 : 0.16)));
   scenes.push(generatedScene(
     'scene-04',
@@ -165,7 +165,6 @@ function buildScenes(analysis, creativeRequest, targetDuration) {
     'impact-cut'
   ));
 
-  // Prefer a second real moment when Gemini found one that is sufficiently different from the hero shot.
   const second = moments.find((m) => !best || Math.abs(m.start - best.start) > 1.0);
   if (second) {
     const start = clamp(second.start, 0, Math.max(0, sourceDuration - 0.5));
@@ -182,7 +181,6 @@ function buildScenes(analysis, creativeRequest, targetDuration) {
     'fade-out'
   ));
 
-  // Trim only optional scenes if the requested duration is short. Required scene ordering remains intact.
   let total = scenes.reduce((sum, s) => sum + s.duration, 0);
   if (total > target) {
     for (let i = scenes.length - 1; i >= 0 && total > target; i--) {
@@ -198,6 +196,171 @@ function buildScenes(analysis, creativeRequest, targetDuration) {
   return { scenes, totalDuration: Number(total.toFixed(2)), world, style };
 }
 
+function parseModelJson(raw) {
+  const cleaned = String(raw || '')
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
+    .trim();
+  if (!cleaned) throw new Error('Gemini creative director returned no plan.');
+  return JSON.parse(cleaned);
+}
+
+function normaliseDirectorPlan(plan, analysis, creativeRequest, targetDuration) {
+  if (!plan || !Array.isArray(plan.scenes) || !plan.scenes.length) throw new Error('Gemini creative director returned no scenes.');
+
+  const sourceDuration = clamp(Number(analysis?.durationInSeconds) || 11, 3, 60);
+  const target = clamp(Number(targetDuration) || 15, 5, 60);
+  const allowedTransitions = new Set(['fade-in', 'fade-out', 'crossfade', 'match-cut', 'action-blend', 'impact-cut', 'hero-rise', 'cinematic-blend', 'whip-left', 'whip-right', 'zoom-punch', 'dip-black', 'flash-cut']);
+
+  const scenes = plan.scenes.slice(0, 10).map((scene, index) => {
+    const sourceType = scene.sourceType === 'generated' ? 'generated' : 'uploaded';
+    let startTime = null;
+    let endTime = null;
+    let duration = clamp(Number(scene.duration) || 1.5, 0.5, Math.max(0.5, target));
+
+    if (sourceType === 'uploaded') {
+      startTime = clamp(Number(scene.startTime) || 0, 0, Math.max(0, sourceDuration - 0.5));
+      endTime = clamp(Number(scene.endTime), startTime + 0.5, sourceDuration);
+      if (!Number.isFinite(endTime) || endTime <= startTime) endTime = Math.min(sourceDuration, startTime + duration);
+      duration = clamp(endTime - startTime, 0.5, target);
+    }
+
+    return {
+      id: text(scene.id) || `scene-${String(index + 1).padStart(2, '0')}`,
+      sourceType,
+      purpose: text(scene.purpose) || (sourceType === 'uploaded' ? 'real-footage' : 'generated-cinematic-fill'),
+      duration: Number(duration.toFixed(2)),
+      startTime,
+      endTime,
+      generationPrompt: sourceType === 'generated' ? text(scene.generationPrompt) : '',
+      continuityNotes: text(scene.continuityNotes) || 'Preserve the supplied motorcycle as the identity anchor.',
+      transitionIn: allowedTransitions.has(text(scene.transitionIn)) ? text(scene.transitionIn) : (index === 0 ? 'fade-in' : 'crossfade'),
+      transitionOut: allowedTransitions.has(text(scene.transitionOut)) ? text(scene.transitionOut) : 'crossfade',
+      priority: text(scene.priority) || 'required'
+    };
+  });
+
+  if (!scenes.some((scene) => scene.sourceType === 'uploaded')) {
+    scenes.unshift(uploadedScene('scene-01', 'real-opening', 0, Math.min(1.5, sourceDuration), 'Always establish the real supplied motorcycle first.', 'fade-in', 'cinematic-blend'));
+  }
+
+  let total = scenes.reduce((sum, scene) => sum + scene.duration, 0);
+  if (total > target) {
+    for (let i = scenes.length - 1; i >= 0 && total > target; i--) {
+      const minimum = scenes[i].priority === 'required' ? 0.7 : 0.5;
+      const reducible = Math.max(0, scenes[i].duration - minimum);
+      const reduction = Math.min(reducible, total - target);
+      scenes[i].duration = Number((scenes[i].duration - reduction).toFixed(2));
+      if (scenes[i].sourceType === 'uploaded' && scenes[i].startTime != null) {
+        scenes[i].endTime = Number((scenes[i].startTime + scenes[i].duration).toFixed(2));
+      }
+      total -= reduction;
+    }
+  }
+
+  return {
+    version: '8.0-gemini-director',
+    title: text(plan.title) || 'AI Director — Gemini Creative Plan',
+    creativeRequest,
+    creativeDirection: text(plan.creativeDirection) || 'Gemini analysed the supplied media first, then designed this edit from the analysis and the user's creative request.',
+    worldMode: text(plan.worldMode) || detectWorld(creativeRequest),
+    style: plan.style && typeof plan.style === 'object' ? plan.style : detectStyle(creativeRequest),
+    targetDuration: target,
+    plannedDuration: Number(total.toFixed(2)),
+    subjectContinuity: subjectContinuity(analysis),
+    sourceAnalysis: {
+      filename: text(analysis?.filename),
+      durationSeconds: Number(analysis?.durationInSeconds || 0),
+      strongestMoments: allBestMoments(analysis).slice(0, 5)
+    },
+    scenes,
+    directorNotes: Array.isArray(plan.directorNotes) ? plan.directorNotes.map(text).filter(Boolean).slice(0, 12) : [],
+    generationPolicy: {
+      engine: 'bikeztagram-local-browser-compositor',
+      paidVideoGeneration: false,
+      externalVideoGenerator: false,
+      useGeneratedFill: true,
+      rule: 'Generated scenes are original procedural/composited material. Never imitate a named franchise, copyrighted character or soundtrack; translate the requested mood and cinematic traits into an original world.'
+    },
+    assemblyNotes: [
+      'Use real uploaded footage as the identity anchor.',
+      'Use the Gemini analysis as the factual source of truth for real timestamps.',
+      'Use generated scenes only where they serve the requested creative story.',
+      'Match generated scene direction to the camera motion and subject position found in the real footage.',
+      'Use cinematic transitions and motion continuity rather than simply placing unrelated clips back-to-back.',
+      'Keep the generation path local/browser-side so no paid video-generation API is required.'
+    ]
+  };
+}
+
+async function buildGeminiDirectorPlan(analysis, creativeRequest, targetDuration) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY is missing.');
+
+  const ai = new GoogleGenAI({ apiKey });
+  const directorPrompt = `
+You are the second-stage Creative Director for BIKEZTAGRAM AI.
+
+The video has ALREADY been analysed by another Gemini stage. Do not pretend to watch the original video again. Use the supplied analysis as the factual source of truth for real footage timestamps.
+
+USER CREATIVE REQUEST:
+${creativeRequest}
+
+TARGET DURATION:
+${targetDuration} seconds
+
+VIDEO ANALYSIS:
+${JSON.stringify(analysis, null, 2)}
+
+Design the actual edit, not another analysis.
+
+Rules:
+- Use the strongest real moments identified in the analysis.
+- Do not invent real footage timestamps.
+- Do not simply use upload order.
+- Prefer a clear story: hook → build → escalation/action → hero ending.
+- Use varied real shots when the analysis provides them.
+- Decide when a real shot should be shortened, sped up or slowed down.
+- Decide transitions and motion treatment for every scene.
+- Generated scenes are optional and should only fill a creative gap that the supplied footage cannot provide.
+- If a generated scene is requested, it must be an original procedural/composited concept, not a copy of a named game, film, TV show, character, logo or soundtrack.
+- Keep the supplied motorcycle as the identity anchor.
+- The final plan must be executable by a browser compositor.
+- Keep the total planned duration close to the target.
+
+Return ONLY valid JSON with this exact top-level structure:
+{
+  "title": "",
+  "creativeDirection": "",
+  "worldMode": "",
+  "style": { "action": false, "trailer": true, "dark": true, "energy": 0.8 },
+  "directorNotes": [],
+  "scenes": [
+    {
+      "id": "scene-01",
+      "sourceType": "uploaded",
+      "purpose": "hook",
+      "startTime": 0,
+      "endTime": 1.5,
+      "duration": 1.5,
+      "transitionIn": "fade-in",
+      "transitionOut": "crossfade",
+      "priority": "required",
+      "generationPrompt": "",
+      "continuityNotes": ""
+    }
+  ]
+}
+`;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3.6-flash',
+    contents: directorPrompt
+  });
+
+  return parseModelJson(response?.text || '');
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
@@ -210,41 +373,50 @@ export default async function handler(req, res) {
     const creativeRequest = text(prompt) || 'Create a cinematic social-media motorcycle video.';
     const requestedDuration = clamp(Number(targetDuration) || 15, 5, 60);
     const subject = text(analysis?.subject?.description) || text(analysis?.subject?.motorcycleModel) || 'the uploaded motorcycle';
-    const built = buildScenes(analysis, creativeRequest, requestedDuration);
-    const continuity = subjectContinuity(analysis);
 
-    const productionPlan = {
-      version: '7.0',
-      title: 'AI Director — Real Footage + Original Generative Fill',
-      creativeRequest,
-      creativeDirection: `Turn the supplied ${subject} media into an original cinematic production driven by the user's request. Gemini supplies real-media understanding; Bikeztagram supplies the local production/compositing plan.`,
-      worldMode: built.world,
-      style: built.style,
-      targetDuration: requestedDuration,
-      plannedDuration: built.totalDuration,
-      subjectContinuity: continuity,
-      sourceAnalysis: {
-        filename: text(analysis?.filename),
-        durationSeconds: Number(analysis?.durationInSeconds || 0),
-        strongestMoments: allBestMoments(analysis).slice(0, 5)
-      },
-      scenes: built.scenes,
-      generationPolicy: {
-        engine: 'bikeztagram-local-browser-compositor',
-        paidVideoGeneration: false,
-        externalVideoGenerator: false,
-        useGeneratedFill: true,
-        rule: 'Generated scenes are original procedural/composited material. Never imitate a named franchise, copyrighted character or soundtrack; translate the requested mood and cinematic traits into an original world.'
-      },
-      assemblyNotes: [
-        'Use real uploaded footage as the identity anchor.',
-        'Use generated scenes to fill narrative gaps the supplied footage cannot cover.',
-        'Match generated scene direction to the camera motion and subject position found in the real footage.',
-        'Use cinematic transitions and motion continuity rather than simply placing unrelated clips back-to-back.',
-        'Keep the entire generation path local/browser-side so no paid video-generation API is required.'
-      ]
-    };
+    let productionPlan;
+    let directorSource = 'gemini-stage-2';
 
+    try {
+      const directorPlan = await buildGeminiDirectorPlan(analysis, creativeRequest, requestedDuration);
+      productionPlan = normaliseDirectorPlan(directorPlan, analysis, creativeRequest, requestedDuration);
+    } catch (directorError) {
+      console.warn('[PRODUCTION-PLAN] Gemini creative-director stage unavailable; using deterministic fallback.', directorError?.message || directorError);
+      const built = buildScenes(analysis, creativeRequest, requestedDuration);
+      const continuity = subjectContinuity(analysis);
+      productionPlan = {
+        version: '7.0-local-fallback',
+        title: 'AI Director — Real Footage + Original Generative Fill',
+        creativeRequest,
+        creativeDirection: `Fallback local plan for the supplied ${subject} media.`,
+        worldMode: built.world,
+        style: built.style,
+        targetDuration: requestedDuration,
+        plannedDuration: built.totalDuration,
+        subjectContinuity: continuity,
+        sourceAnalysis: {
+          filename: text(analysis?.filename),
+          durationSeconds: Number(analysis?.durationInSeconds || 0),
+          strongestMoments: allBestMoments(analysis).slice(0, 5)
+        },
+        scenes: built.scenes,
+        generationPolicy: {
+          engine: 'bikeztagram-local-browser-compositor',
+          paidVideoGeneration: false,
+          externalVideoGenerator: false,
+          useGeneratedFill: true,
+          rule: 'Generated scenes are original procedural/composited material. Never imitate a named franchise, copyrighted character or soundtrack.'
+        },
+        assemblyNotes: [
+          'Use real uploaded footage as the identity anchor.',
+          'Use generated scenes to fill narrative gaps the supplied footage cannot cover.',
+          'Use cinematic transitions and motion continuity rather than simply placing unrelated clips back-to-back.'
+        ]
+      };
+      directorSource = 'local-fallback';
+    }
+
+    productionPlan.directorSource = directorSource;
     return res.status(200).json({ success: true, productionPlan });
   } catch (error) {
     console.error('[PRODUCTION-PLAN] ERROR', error);
