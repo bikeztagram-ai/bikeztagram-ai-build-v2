@@ -1,0 +1,4 @@
+const COMMANDS = Object.freeze([
+  ['faster',['faster','quicker','speed up'],'edit'],['slower',['slower','slow it down'],'edit'],['darker',['darker','moodier'],'look'],['brighter',['brighter','lighter'],'look'],['cinematic',['cinematic','film look'],'treatment'],['vertical',['vertical','9:16'],'reframe'],['landscape',['landscape','16:9'],'reframe'],['captions',['captions','subtitles'],'captions'],['music',['music','soundtrack'],'music'],['sound',['sound effects','foley','sound'],'sound'],['story',['change the story','new story'],'story']
+]);
+export function routeCreativeCommand(input='') { const text=String(input).toLowerCase(); const matches=COMMANDS.filter(([,terms])=>terms.some(t=>text.includes(t))); return {input:String(input), commands:matches.map(([id])=>id), stages:[...new Set(matches.map(([, ,stage])=>stage))], confidence:matches.length ? Math.min(1,.55+matches.length*.1):0}; }
