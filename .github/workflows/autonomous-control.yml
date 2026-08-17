@@ -1,0 +1,133 @@
+name: Bikeztagram Autonomous Control Plane
+
+on:
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+    inputs:
+      actions:
+        description: 'Number of guarded improvements to attempt'
+        required: false
+        default: '1'
+        type: string
+
+concurrency:
+  group: bikeztagram-autonomous-control
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+  deployments: read
+
+jobs:
+  autonomous-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DEV_BRANCH: ai-director-two-stage
+      MAX_ACTIONS: ${{ inputs.actions || '1' }}
+    steps:
+      - name: Checkout development branch
+        uses: actions/checkout@v4
+        with:
+          ref: ai-director-two-stage
+          fetch-depth: 2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prepare deterministic test fixture
+        run: |
+          set -euo pipefail
+          mkdir -p tests/fixtures
+          curl -L --fail --retry 3 --retry-delay 2 \
+            -o tests/fixtures/sample-5mb.mp4 \
+            https://cdn.truefilesize.com/mp4/sample-5mb.mp4
+          file tests/fixtures/sample-5mb.mp4
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Discover latest Vercel preview for tested commit
+        id: deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          checked_sha=$(git rev-parse HEAD)
+          echo "Testing development commit $checked_sha"
+          for attempt in $(seq 1 60); do
+            deployments=$(curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/deployments?sha=${checked_sha}&per_page=20")
+            deployment_id=$(echo "$deployments" | jq -r 'map(select(.environment != null and (.environment | test("preview|Preview")))) | sort_by(.created_at) | last | .id // empty')
+            if [ -n "$deployment_id" ]; then
+              statuses=$(curl -fsSL \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses")
+              state=$(echo "$statuses" | jq -r '.[0].state // empty')
+              url=$(echo "$statuses" | jq -r '.[0].environment_url // empty')
+              echo "Deployment $deployment_id state=$state url=$url"
+              if [ "$state" = "success" ] && [ -n "$url" ]; then
+                echo "test_url=$url" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              if [ "$state" = "failure" ] || [ "$state" = "error" ]; then
+                echo "Vercel deployment failed; pausing autonomous mutation."
+                exit 1
+              fi
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for Vercel preview deployment."
+          exit 1
+
+      - name: Run real deployed render QA
+        id: smoke
+        continue-on-error: true
+        env:
+          TEST_URL: ${{ steps.deployment.outputs.test_url }}
+          TEST_VIDEO: tests/fixtures/sample-5mb.mp4
+          TEST_TIMEOUT_MS: 900000
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node tests/autonomous-smoke.mjs
+
+      - name: Upload render failure evidence
+        if: steps.smoke.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-render-evidence
+          path: autotest-failure.png
+          if-no-files-found: ignore
+
+      - name: Run one guarded AI engineering improvement
+        id: improver
+        continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.5-flash-lite
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ai-director-two-stage
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          MAX_AUTO_ITERATIONS: 1
+          AUTO_ITERATION: 0
+          AUTO_REMAINING_ACTIONS: ${{ env.MAX_ACTIONS }}
+        run: node scripts/autonomous-improver.mjs
+
+      - name: Report cycle outcome
+        if: always()
+        run: |
+          echo "Autonomous control-plane cycle complete."
+          echo "Render QA: ${{ steps.smoke.outcome }}"
+          echo "AI improvement: ${{ steps.improver.outcome }}"
+          echo "The next scheduled cycle will re-evaluate the latest development commit."
