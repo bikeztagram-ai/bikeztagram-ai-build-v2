@@ -1,26 +1,18 @@
 /* BIKEZTAGRAM AI — client-side cinematic generation bridge. £0-only. */
 
-export async function generateCinematicShot({ prompt, durationSeconds = 4, aspectRatio = '16:9', referenceAssets = [], continuity = null, shotId = null, onProgress } = {}) {
+export async function generateCinematicShot({ prompt, durationSeconds = 4, aspectRatio = '16:9', referenceAssets = [], continuity = null, shotId = null, onProgress, signal } = {}) {
   if (!prompt || !String(prompt).trim()) throw new Error('A cinematic shot prompt is required.');
+  if (signal?.aborted) throw new DOMException('Generation cancelled.', 'AbortError');
 
   onProgress?.({ stage: 'queued', percent: 5, shotId });
-
   const response = await fetch('/api/generate-free-video', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: String(prompt).trim(),
-      durationSeconds,
-      aspectRatio,
-      referenceAssets,
-      continuity,
-      shotId,
-      zeroCostOnly: true,
-    }),
+    signal,
+    body: JSON.stringify({ prompt: String(prompt).trim(), durationSeconds, aspectRatio, referenceAssets, continuity, shotId, zeroCostOnly: true }),
   });
 
   onProgress?.({ stage: 'worker-response', percent: 60, shotId });
-
   const contentType = response.headers.get('content-type') || '';
   if (!response.ok) {
     const text = await response.text();
@@ -28,22 +20,18 @@ export async function generateCinematicShot({ prompt, durationSeconds = 4, aspec
     try { message = JSON.parse(text)?.error || text; } catch {}
     throw new Error(`Cinematic generation failed (HTTP ${response.status}): ${String(message).slice(0, 700)}`);
   }
-  if (!contentType.includes('video/')) {
-    throw new Error(`Cinematic generation returned ${contentType || 'unknown content'} instead of video.`);
-  }
-
+  if (!contentType.includes('video/')) throw new Error(`Cinematic generation returned ${contentType || 'unknown content'} instead of video.`);
   const blob = await response.blob();
   if (!(blob instanceof Blob) || blob.size === 0) throw new Error('Cinematic generation returned an empty video.');
-
   onProgress?.({ stage: 'complete', percent: 100, shotId, bytes: blob.size });
   return blob;
 }
 
-export async function generateCinematicTrailer({ shots = [], referenceAssets = [], continuity = null, onShotProgress, onProgress } = {}) {
+export async function generateCinematicTrailer({ shots = [], referenceAssets = [], continuity = null, onShotProgress, onProgress, signal } = {}) {
   if (!Array.isArray(shots) || shots.length === 0) throw new Error('At least one cinematic shot is required.');
-
   const results = [];
   for (let index = 0; index < shots.length; index += 1) {
+    if (signal?.aborted) throw new DOMException('Generation cancelled.', 'AbortError');
     const shot = shots[index];
     const blob = await generateCinematicShot({
       prompt: shot.generationPrompt || shot.prompt,
@@ -52,6 +40,7 @@ export async function generateCinematicTrailer({ shots = [], referenceAssets = [
       referenceAssets: shot.referenceAssets || referenceAssets,
       continuity: shot.continuity || continuity,
       shotId: shot.id || `shot-${index + 1}`,
+      signal,
       onProgress: (event) => {
         onShotProgress?.({ ...event, index, total: shots.length });
         const overall = Math.round(((index + (event.percent || 0) / 100) / shots.length) * 100);
