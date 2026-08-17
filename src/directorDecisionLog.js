@@ -1,0 +1,1 @@
+export function recordDirectorDecision(decision={},existing=[]){return [...existing,{id:decision.id||`decision-${existing.length+1}`,timestamp:decision.timestamp||Date.now(),action:decision.action||'unknown',reason:decision.reason||null,confidence:Number(decision.confidence??.5),affected:decision.affected||[]}];}
