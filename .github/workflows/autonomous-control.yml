@@ -1,6 +1,8 @@
 name: Bikeztagram Autonomous Control Plane
 
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: '17,47 * * * *'
   workflow_dispatch:
@@ -39,6 +41,16 @@ jobs:
         with:
           node-version: 22
 
+      - name: Verify autonomous secrets are available
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+          test -n "$GEMINI_API_KEY" || { echo 'Missing GEMINI_API_KEY repository secret.'; exit 1; }
+          test -n "$VERCEL_AUTOMATION_BYPASS_SECRET" || { echo 'Missing VERCEL_AUTOMATION_BYPASS_SECRET repository secret.'; exit 1; }
+          echo 'Required autonomous secrets are configured.'
+
       - name: Install dependencies
         run: npm install
 
@@ -58,7 +70,6 @@ jobs:
         id: deployment
         env:
           GH_TOKEN: ${{ github.token }}
-          SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           checked_sha=$(git rev-parse HEAD)
@@ -78,6 +89,7 @@ jobs:
               url=$(echo "$statuses" | jq -r '.[0].environment_url // empty')
               echo "Deployment $deployment_id state=$state url=$url"
               if [ "$state" = "success" ] && [ -n "$url" ]; then
+                echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
                 echo "test_url=$url" >> "$GITHUB_OUTPUT"
                 exit 0
               fi
@@ -123,6 +135,33 @@ jobs:
           AUTO_ITERATION: 0
           AUTO_REMAINING_ACTIONS: ${{ env.MAX_ACTIONS }}
         run: node scripts/autonomous-improver.mjs
+
+      - name: Write cycle evidence ledger
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p autonomous-ledger
+          cat > autonomous-ledger/cycle-${GITHUB_RUN_ID}.json <<EOF
+          {
+            "runId": "${GITHUB_RUN_ID}",
+            "trigger": "${GITHUB_EVENT_NAME}",
+            "testedBranch": "${DEV_BRANCH}",
+            "testedCommit": "$(git rev-parse HEAD)",
+            "deploymentId": "${{ steps.deployment.outputs.deployment_id }}",
+            "deploymentUrl": "${{ steps.deployment.outputs.test_url }}",
+            "renderQa": "${{ steps.smoke.outcome }}",
+            "improvement": "${{ steps.improver.outcome }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Upload cycle evidence ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-cycle-ledger-${{ github.run_id }}
+          path: autonomous-ledger/cycle-${{ github.run_id }}.json
+          retention-days: 30
 
       - name: Report cycle outcome
         if: always()
