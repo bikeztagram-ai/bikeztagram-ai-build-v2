@@ -1,0 +1,1 @@
+export function createExportManifest(project={},deliverables=[]){return {version:1,projectId:project.id||null,createdAt:new Date().toISOString(),deliverables:deliverables.map((d,i)=>({id:d.id||`output-${i}`,platform:d.platform||'master',format:d.format||'mp4',ratio:d.ratio||'16:9',duration:d.duration||null,status:'queued'}))};}
