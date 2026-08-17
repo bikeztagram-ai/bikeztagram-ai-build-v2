@@ -1,0 +1,1 @@
+export function buildDuckingPlan(segments=[],musicLevel=.8,duckLevel=.35){return segments.filter(s=>s.start<s.end).map(s=>({start:s.start,end:s.end,level:s.type==='dialogue'?duckLevel:musicLevel,reason:s.type==='dialogue'?'dialogue':'music'}));}
