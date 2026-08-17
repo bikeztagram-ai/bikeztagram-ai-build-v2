@@ -105,7 +105,8 @@ export function refineCinematicTimeline(cuts, options = {}) {
       preserveSubject: true,
       avoidUnnecessaryRepeat: Number.isInteger(currentSource) && Number.isInteger(Number(previous?.mediaIndex)) && currentSource === Number(previous.mediaIndex),
       cameraIntent: cut.motionStyle,
-      pacingIntent: flags.action ? 'escalate' : flags.emotional ? 'breathe' : index === total - 1 ? 'resolve' : 'build'
+      pacingIntent: flags.action ? 'escalate' : flags.emotional ? 'breathe' : index === total - 1 ? 'resolve' : 'build',
+      professionalGrade: true
     };
 
     return cut;
