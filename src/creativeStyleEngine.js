@@ -1,0 +1,2 @@
+const STYLES={cinematic:{cut:0.45,motion:.35,effects:.2},aggressive:{cut:.8,motion:.75,effects:.7},luxury:{cut:.3,motion:.25,effects:.2},documentary:{cut:.35,motion:.3,effects:.15},social:{cut:.7,motion:.65,effects:.55}};
+export function resolveCreativeStyle(name='cinematic',energy=.5){const base=STYLES[name]||STYLES.cinematic;return {...base,cut:Math.min(1,base.cut* (0.8+energy*.4)),motion:Math.min(1,base.motion*(0.8+energy*.4))};}
