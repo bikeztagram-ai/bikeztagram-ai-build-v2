@@ -11,16 +11,13 @@ export function validateProductionShots(shots = []) {
   });
 }
 
-export async function runCinematicProduction({ shots, referenceAssets = [], continuity = null, onState } = {}) {
+export async function runCinematicProduction({ shots, referenceAssets = [], continuity = null, onState, signal } = {}) {
   const safeShots = validateProductionShots(shots);
   let state = createGenerationState(safeShots);
   onState?.(state);
-
   try {
     const results = await generateCinematicTrailer({
-      shots: safeShots,
-      referenceAssets,
-      continuity,
+      shots: safeShots, referenceAssets, continuity, signal,
       onShotProgress: (event) => {
         state = markGenerationStarted(state, event.shotId);
         state = { ...state, progress: Math.max(state.progress, Math.round(((event.index + (event.percent || 0) / 100) / event.total) * 100)) };
@@ -28,13 +25,13 @@ export async function runCinematicProduction({ shots, referenceAssets = [], cont
       },
       onProgress: (progress) => onState?.({ ...state, progress }),
     });
-
     state = results.reduce((next, result) => markShotComplete(next, result), state);
     state = { ...state, status: 'complete', currentShot: null, progress: 100 };
     onState?.(state);
     return state;
   } catch (error) {
     state = markGenerationFailed(state, error);
+    if (error?.name === 'AbortError') state = { ...state, status: 'cancelled', currentShot: null, error: 'Generation cancelled; no further shots were queued.' };
     onState?.(state);
     throw error;
   }
