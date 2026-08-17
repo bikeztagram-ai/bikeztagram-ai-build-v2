@@ -15,4 +15,17 @@ ZeroGPU is shared/queued infrastructure with a daily quota. It is therefore a **
 
 ## Space setup
 
-Create a Gradio Space, enable ZeroGPU if the account is eligible, and copy `app.py` into the Space. Install the dependencies required by the Wan2.1/Diffusers runtime. The application exposes a simple Gradio generation UI for the first end-to-end proof.
+1. Create a Gradio Space and enable ZeroGPU if the account is eligible.
+2. Copy `app.py` and `requirements.txt` from this directory into the Space.
+3. Wait for the Space to become Running.
+4. Generate a 1–5 second test clip from a simple prompt.
+5. Confirm the returned file is a non-empty MP4 and can be played.
+6. Only after that proof should the Bikeztagram app be given the worker URL/token.
+
+## Acceptance test
+
+The first end-to-end milestone is:
+
+`prompt -> ZeroGPU -> Wan2.1 -> real MP4 -> Bikeztagram -> playback/QA`
+
+If ZeroGPU is unavailable or its free quota is exhausted, the system must report the worker as unavailable. It must never silently switch to a paid video provider.
