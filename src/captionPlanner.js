@@ -1,0 +1,1 @@
+export function planCaptions(transcript=[],options={}){const maxWords=Number(options.maxWords)||8;return transcript.map((line,i)=>({id:`caption-${i}`,start:line.start||0,end:line.end||0,text:String(line.text||'').trim().split(/\s+/).slice(0,maxWords).join(' '),emphasis:Boolean(line.emphasis),safeZone:options.safeZone||'lower-third'})).filter(x=>x.text);}
