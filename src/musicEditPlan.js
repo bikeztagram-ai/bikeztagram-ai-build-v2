@@ -1,0 +1,1 @@
+export function buildMusicEditPlan(shots=[], music={}){const beats=music.beats||[];return shots.map((shot,i)=>{const beat=beats[i%Math.max(beats.length,1)];return {...shot,beatTime:beat?.time??null,cutStyle:beat?.strength>.8?'impact':'clean',energy:beat?.strength??.5};});}
