@@ -20,9 +20,6 @@ function copyFfmpegAssets() {
 
 export default defineConfig({
   plugins: [react(), copyFfmpegAssets()],
-  resolve: {
-    alias: [{ find: /\/aiEditPlanner\.js$/, replacement: path.resolve('src/aiEditPlanner2.js') }]
-  },
   base: './',
   server: { host: true, headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
   preview: { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
