@@ -1,12 +1,4 @@
-"""Bikeztagram zero-cost AI video worker.
-
-Runs on a user-owned or legitimately free GPU machine (for example a free
-notebook session). The web app sends a prompt; this worker performs the actual
-open-source text-to-video generation with Wan2.1 T2V-1.3B.
-
-This process intentionally has no paid-provider fallback.
-"""
-
+"""Bikeztagram zero-cost AI video worker using Wan2.1 T2V-1.3B."""
 from __future__ import annotations
 
 import os
@@ -86,32 +78,26 @@ def generate(request: GenerationRequest, x_bikeztagram_token: str | None = Heade
         raise HTTPException(400, f"Maximum generation duration is {MAX_SECONDS} seconds")
 
     ensure_runtime()
-    size = f"{request.width}*{request.height}"
-    output_name = f"bikeztagram-{secrets.token_hex(8)}.mp4"
-    output_path = OUTPUT_DIR / output_name
-
-    cmd = [
-        sys.executable,
-        str(WAN_DIR / "generate.py"),
-        "--task", "t2v-1.3B",
-        "--size", size,
-        "--ckpt_dir", str(MODEL_DIR),
-        "--offload_model", "True",
-        "--t5_cpu",
-        "--sample_shift", "8",
-        "--sample_guide_scale", "6",
-        "--prompt", request.prompt.strip(),
-    ]
-    if request.seed is not None:
-        cmd.extend(["--seed", str(request.seed)])
-
-    # Wan's CLI writes to its output directory. Keep the worker isolated and
-    # then move the newest generated mp4 to our controlled output path.
+    output_path = OUTPUT_DIR / f"bikeztagram-{secrets.token_hex(8)}.mp4"
     with tempfile.TemporaryDirectory(prefix="bikeztagram-wan-") as tmp:
-        subprocess.run(cmd + ["--save_file", str(Path(tmp) / "generated.mp4")], check=True)
         generated = Path(tmp) / "generated.mp4"
+        cmd = [
+            sys.executable, str(WAN_DIR / "generate.py"),
+            "--task", "t2v-1.3B",
+            "--size", f"{request.width}*{request.height}",
+            "--ckpt_dir", str(MODEL_DIR),
+            "--offload_model", "True",
+            "--t5_cpu",
+            "--sample_shift", "8",
+            "--sample_guide_scale", "6",
+            "--prompt", request.prompt.strip(),
+            "--save_file", str(generated),
+        ]
+        if request.seed is not None:
+            cmd.extend(["--base_seed", str(request.seed)])
+        subprocess.run(cmd, cwd=WAN_DIR, check=True)
         if not generated.exists():
             raise HTTPException(500, "Wan2.1 completed without producing a video file")
         generated.replace(output_path)
 
-    return FileResponse(output_path, media_type="video/mp4", filename=output_name)
+    return FileResponse(output_path, media_type="video/mp4", filename=output_path.name)
