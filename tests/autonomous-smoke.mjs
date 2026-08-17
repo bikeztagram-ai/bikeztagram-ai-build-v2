@@ -4,7 +4,8 @@ import { chromium } from 'playwright';
 
 const baseUrl = process.env.TEST_URL;
 const fixture = process.env.TEST_VIDEO || path.resolve('tests/fixtures/sample-5mb.mp4');
-const timeoutMs = Number(process.env.TEST_TIMEOUT_MS || 900000);
+const analysisTimeoutMs = Number(process.env.ANALYSIS_TIMEOUT_MS || 300000);
+const renderTimeoutMs = Number(process.env.RENDER_TIMEOUT_MS || 600000);
 const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 const expectedDurationSeconds = Number(process.env.EXPECTED_RENDER_DURATION_SECONDS || 15);
 const minimumDurationRatio = Number(process.env.MINIMUM_RENDER_DURATION_RATIO || 0.75);
@@ -41,8 +42,42 @@ await page.route('**/*', async (route) => {
 
 const started = Date.now();
 const events = [];
-page.on('console', (message) => events.push(`[browser:${message.type()}] ${message.text()}`));
-page.on('pageerror', (error) => events.push(`[pageerror] ${error.message}`));
+let fatalProviderError = null;
+const isProviderFailure = (text) => /\b429\b|RESOURCE_EXHAUSTED|quota|rate.?limit|exceeded your/i.test(text);
+
+page.on('console', (message) => {
+  const text = message.text();
+  events.push(`[browser:${message.type()}] ${text}`);
+  if (message.type() === 'error' && isProviderFailure(text)) {
+    fatalProviderError = text;
+  }
+});
+page.on('response', (response) => {
+  if (response.status() === 429) {
+    fatalProviderError = `Provider returned HTTP 429 for ${response.url()}`;
+  }
+});
+page.on('pageerror', (error) => {
+  const text = error.message;
+  events.push(`[pageerror] ${text}`);
+  if (isProviderFailure(text)) fatalProviderError = text;
+});
+
+async function waitForBodySignal(predicate, timeoutMs, label) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fatalProviderError) {
+      throw new Error(`AUTOTEST: provider error detected; aborting early: ${fatalProviderError}`);
+    }
+    const body = await page.locator('body').innerText().catch(() => '');
+    if (predicate(body)) return body;
+    if (/\bERROR\b/i.test(body)) {
+      throw new Error(`AUTOTEST: application surfaced an error during ${label}: ${body.slice(-2500)}`);
+    }
+    await page.waitForTimeout(500);
+  }
+  throw new Error(`AUTOTEST: timed out after ${Math.round(timeoutMs / 1000)}s waiting for ${label}.`);
+}
 
 try {
   console.log(`AUTOTEST: opening ${baseUrl}`);
@@ -61,10 +96,11 @@ try {
   await analyse.click({ timeout: 15000 });
   console.log('AUTOTEST: analysis started.');
 
-  await page.waitForFunction(() => {
-    const body = document.body.innerText;
-    return /AI Director blueprint ready|AI Director plan ready|AI edit plan/i.test(body) && !/ERROR/i.test(body);
-  }, null, { timeout: timeoutMs });
+  await waitForBodySignal(
+    (body) => /AI Director blueprint ready|AI Director plan ready|AI edit plan/i.test(body) && !/ERROR/i.test(body),
+    analysisTimeoutMs,
+    'AI analysis + Director completion',
+  );
   console.log('AUTOTEST: analysis + director completed.');
 
   // The deployed app owns the complete render-and-QA flow behind this button.
@@ -74,10 +110,11 @@ try {
   await fullTest.click();
   console.log('AUTOTEST: full render + QA started.');
 
-  await page.waitForFunction(() => {
-    const body = document.body.innerText;
-    return /FULL AI TEST PASSED|FULL AI TEST FAILED/i.test(body);
-  }, null, { timeout: timeoutMs });
+  await waitForBodySignal(
+    (body) => /FULL AI TEST PASSED|FULL AI TEST FAILED/i.test(body),
+    renderTimeoutMs,
+    'full render + QA completion',
+  );
 
   const bodyText = await page.locator('body').innerText();
   if (/FULL AI TEST FAILED/i.test(bodyText)) {
