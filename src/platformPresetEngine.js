@@ -1,0 +1,3 @@
+const PRESETS=Object.freeze({reels:{ratio:'9:16',maxDuration:90,captionSafe:.82},tiktok:{ratio:'9:16',maxDuration:180,captionSafe:.78},shorts:{ratio:'9:16',maxDuration:180,captionSafe:.82},youtube:{ratio:'16:9',maxDuration:900,captionSafe:.9},square:{ratio:'1:1',maxDuration:60,captionSafe:.84}});
+export function getPlatformPreset(platform='reels'){return PRESETS[platform]||PRESETS.reels;}
+export function validateDelivery(candidate={},platform='reels'){const p=getPlatformPreset(platform);return {platform,ratioOk:!candidate.ratio||candidate.ratio===p.ratio,durationOk:!candidate.duration||candidate.duration<=p.maxDuration,captionSafe:p.captionSafe};}
