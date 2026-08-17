@@ -5,15 +5,20 @@ export async function assembleCinematicTrailer(results = [], { fps = 30, mimeTyp
   if (!window.MediaRecorder) throw new Error('This browser does not support trailer assembly.');
 
   const videos = [];
+  let audioContext = null;
+  let destination = null;
   try {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    destination = audioContext.createMediaStreamDestination();
     for (let i = 0; i < results.length; i += 1) {
       if (signal?.aborted) throw new DOMException('Assembly cancelled.', 'AbortError');
       const source = results[i]?.blob || results[i];
       if (!(source instanceof Blob) || source.size === 0) throw new Error(`Shot ${i + 1} has no valid video.`);
       const url = URL.createObjectURL(source);
       const video = document.createElement('video');
-      video.src = url; video.muted = true; video.playsInline = true; video.preload = 'auto';
+      video.src = url; video.muted = false; video.volume = 1; video.playsInline = true; video.preload = 'auto';
       await waitForMetadata(video, signal);
+      try { audioContext.createMediaElementSource(video).connect(destination); } catch { /* video may have no usable audio track */ }
       videos.push({ video, url });
     }
 
@@ -22,8 +27,6 @@ export async function assembleCinematicTrailer(results = [], { fps = 30, mimeTyp
     const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext('2d');
     const stream = canvas.captureStream(fps);
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const destination = audioContext.createMediaStreamDestination();
     const combined = new MediaStream([...stream.getVideoTracks(), ...destination.stream.getAudioTracks()]);
     const recorder = new MediaRecorder(combined, { mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : 'video/webm' });
     const chunks = [];
@@ -32,6 +35,7 @@ export async function assembleCinematicTrailer(results = [], { fps = 30, mimeTyp
 
     for (let i = 0; i < videos.length; i += 1) {
       const { video } = videos[i];
+      if (audioContext.state === 'suspended') await audioContext.resume();
       video.currentTime = 0; await waitForSeek(video, signal); await video.play();
       while (!video.ended) {
         if (signal?.aborted) throw new DOMException('Assembly cancelled.', 'AbortError');
@@ -50,6 +54,7 @@ export async function assembleCinematicTrailer(results = [], { fps = 30, mimeTyp
     return new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
   } finally {
     videos.forEach(({ video, url }) => { video.pause(); video.removeAttribute('src'); URL.revokeObjectURL(url); });
+    if (audioContext && audioContext.state !== 'closed') await audioContext.close().catch(() => {});
   }
 }
 
