@@ -14,7 +14,7 @@ function wantsGeneratedWorld(creativeRequest) {
 
 function normalise(plan, analysis, creativeRequest, targetDuration) {
   if (!plan || !Array.isArray(plan.scenes) || !plan.scenes.length) throw new Error('Gemini Creative Director returned no scenes.');
-  const sourceDuration = clamp(safeNumber(analysis?.durationInSeconds, 11), 3, 60);
+  const sourceDuration = clamp(safeNumber(analysis?.durationInSeconds ?? analysis?.durationSeconds, 11), 3, 60);
   const target = clamp(safeNumber(targetDuration, 15), 5, 60);
   const allowGenerated = wantsGeneratedWorld(creativeRequest);
   const transitions = new Set(['hard-cut','fade-in','fade-out','crossfade','dip-black','flash-cut','whip-left','whip-right','zoom-punch','match-cut']);
@@ -69,7 +69,7 @@ function normalise(plan, analysis, creativeRequest, targetDuration) {
     targetDuration:target, plannedDuration:Number(total.toFixed(2)), worldMode:text(plan.worldMode) || 'real-footage-cinematic',
     style:plan.style && typeof plan.style === 'object' ? plan.style : { cinematic:true },
     subjectContinuity:{ primarySubject:text(analysis?.subject?.description) || text(analysis?.subject?.motorcycleModel) || 'the uploaded motorcycle', motorcycleModel:text(analysis?.subject?.motorcycleModel), motorcycleVisible:analysis?.subject?.motorcycleVisible !== false, riderVisible:analysis?.subject?.riderVisible === true },
-    sourceAnalysis:{ filename:text(analysis?.filename), durationSeconds:safeNumber(analysis?.durationInSeconds,0), strongestMoments:Array.isArray(analysis?.bestMoments) ? analysis.bestMoments.slice(0,8) : [] },
+    sourceAnalysis:{ filename:text(analysis?.filename), durationSeconds:safeNumber(analysis?.durationInSeconds ?? analysis?.durationSeconds,0), strongestMoments:Array.isArray(analysis?.bestMoments) ? analysis.bestMoments.slice(0,8) : [] },
     scenes, directorNotes:Array.isArray(plan.directorNotes) ? plan.directorNotes.map(text).filter(Boolean).slice(0,12) : [],
     directorSource:'gemini-stage-2',
     mode:allowGenerated ? 'creative-hybrid' : 'real-footage-first',
@@ -118,7 +118,7 @@ export default async function handler(req, res) {
     const creativeRequest = text(body.prompt) || 'Create the strongest cinematic motorcycle social-media edit from the supplied footage.';
     const targetDuration = clamp(safeNumber(body.targetDuration,15),5,60);
     if (!analysis || typeof analysis !== 'object') return res.status(400).json({success:false,error:'Verified Stage 1 video analysis is required.'});
-    console.log('[DIRECTOR] Stage 2 request received.', {filename:analysis?.filename,duration:analysis?.durationInSeconds,bestMoments:Array.isArray(analysis?.bestMoments)?analysis.bestMoments.length:0,generatedMode:wantsGeneratedWorld(creativeRequest)});
+    console.log('[DIRECTOR] Stage 2 request received.', {filename:analysis?.filename,duration:analysis?.durationInSeconds ?? analysis?.durationSeconds,bestMoments:Array.isArray(analysis?.bestMoments)?analysis.bestMoments.length:0,generatedMode:wantsGeneratedWorld(creativeRequest)});
     const modelPlan = await askGemini(analysis, creativeRequest, targetDuration);
     const productionPlan = normalise(modelPlan, analysis, creativeRequest, targetDuration);
     console.log('[DIRECTOR] Stage 2 plan created.', {scenes:productionPlan.scenes.length,plannedDuration:productionPlan.plannedDuration,mode:productionPlan.mode,generatedScenes:productionPlan.scenes.filter((s)=>s.sourceType==='generated').length});
