@@ -23,7 +23,7 @@ permissions:
 jobs:
   deployed-smoke-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 20
     steps:
       - name: Checkout tested commit
         uses: actions/checkout@v4
@@ -105,7 +105,8 @@ jobs:
         env:
           TEST_URL: ${{ steps.deployment.outputs.test_url }}
           TEST_VIDEO: tests/fixtures/sample-5mb.mp4
-          TEST_TIMEOUT_MS: 900000
+          ANALYSIS_TIMEOUT_MS: 300000
+          RENDER_TIMEOUT_MS: 600000
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node tests/autonomous-smoke.mjs
 
