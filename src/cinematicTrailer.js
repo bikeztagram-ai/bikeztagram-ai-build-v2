@@ -67,6 +67,7 @@ export async function generateCinematicTrailer({
       throw new Error('Cinematic trailer renderer produced an empty video.');
     }
 
+    generated.status = 'complete';
     onProgress({ stage: 'complete', progress: 100 });
     return { ...generated, renderPlan, outputBlob, status: 'complete' };
   } catch (error) {
