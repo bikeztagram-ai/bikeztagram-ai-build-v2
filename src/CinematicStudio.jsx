@@ -33,6 +33,14 @@ export default function CinematicStudio() {
     }));
   }
 
+  async function preflightWorker(signal) {
+    const response = await fetch('/api/free-video-worker-status', { method: 'GET', cache: 'no-store', signal });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?.error || `GPU worker preflight failed (HTTP ${response.status}).`);
+    if (!data?.configured) throw new Error('Free GPU worker is not configured yet. No generation job was queued and no reference files were uploaded.');
+    return data;
+  }
+
   async function uploadReferences(signal) {
     if (!files.length) return [];
     setUploading(true);
@@ -59,6 +67,7 @@ export default function CinematicStudio() {
     controllerRef.current = controller;
     setState({ status: 'preparing', progress: 0, results: [], error: null });
     try {
+      await preflightWorker(controller.signal);
       const referenceAssets = assets.length ? assets : await uploadReferences(controller.signal);
       const shots = makeShots(referenceAssets);
       const next = await runCinematicProduction({ shots, referenceAssets, continuity: shots[0]?.continuity, signal: controller.signal, onState: setState });
@@ -72,10 +81,7 @@ export default function CinematicStudio() {
     } finally { controllerRef.current = null; }
   }
 
-  function cancel() {
-    controllerRef.current?.abort();
-  }
-
+  function cancel() { controllerRef.current?.abort(); }
   const busy = uploading || ['preparing', 'generating'].includes(state.status);
 
   return <main style={{ maxWidth: 1000, margin: '0 auto', padding: 32, fontFamily: 'system-ui, sans-serif' }}>
@@ -84,10 +90,7 @@ export default function CinematicStudio() {
       <label>Rider / bike photos or videos<input type="file" multiple accept="image/*,video/*" disabled={busy} onChange={(e) => { setFiles(Array.from(e.target.files || [])); setAssets([]); }} style={{ display: 'block', marginTop: 8 }} /></label>
       <label>Cinematic brief<textarea value={brief} disabled={busy} onChange={(e) => setBrief(e.target.value)} rows={5} style={{ display: 'block', width: '100%', marginTop: 8 }} /></label>
       <label>Shots<select value={shotCount} disabled={busy} onChange={(e) => setShotCount(Number(e.target.value))} style={{ display: 'block', marginTop: 8 }}><option value={1}>1 — fastest proof</option><option value={2}>2 — short sequence</option><option value={3}>3 — trailer</option><option value={4}>4 — extended trailer</option><option value={5}>5 — full sequence</option></select></label>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button onClick={generate} disabled={busy || !!controllerRef.current}>{state.status === 'generating' ? `Generating… ${state.progress}%` : 'Generate cinematic trailer'}</button>
-        {busy && <button onClick={cancel} type="button">Cancel generation</button>}
-      </div>
+      <div style={{ display: 'flex', gap: 10 }}><button onClick={generate} disabled={busy || !!controllerRef.current}>{state.status === 'generating' ? `Generating… ${state.progress}%` : 'Generate cinematic trailer'}</button>{busy && <button onClick={cancel} type="button">Cancel generation</button>}</div>
       {state.status === 'cancelled' && <div>⏹️ Generation stopped. The queue is clear and no later shots were started.</div>}
       {state.status === 'complete' && <div>✅ {state.results.length} shot{state.results.length === 1 ? '' : 's'} generated.</div>}
       {state.status === 'error' && <pre style={{ whiteSpace: 'pre-wrap' }}>❌ {state.error}</pre>}
