@@ -13,7 +13,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const request = normalizeGenerationRequest(req.body || {});
+    const body = req.body || {};
+    const request = normalizeGenerationRequest(body);
+    const references = Array.isArray(body.referenceAssets) ? body.referenceAssets : [];
+    const continuity = body.continuity && typeof body.continuity === 'object' ? body.continuity : null;
     const response = await fetch(`${workerUrl}/generate`, {
       method: 'POST',
       headers: {
@@ -25,6 +28,10 @@ export default async function handler(req, res) {
         seconds: Math.min(5, Math.max(1, Math.round(request.durationSeconds))),
         width: request.aspectRatio === '16:9' ? 832 : 480,
         height: request.aspectRatio === '16:9' ? 480 : 832,
+        referenceAssets: references,
+        continuity,
+        shotId: body.shotId || null,
+        zeroCostOnly: body.zeroCostOnly !== false,
       }),
     });
 
@@ -34,7 +41,11 @@ export default async function handler(req, res) {
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    res.setHeader('Content-Type', response.headers.get('content-type') || 'video/mp4');
+    const contentType = response.headers.get('content-type') || 'video/mp4';
+    if (!contentType.includes('video/')) {
+      return res.status(502).json({ error: `Free GPU worker returned non-video content: ${contentType}` });
+    }
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', 'inline; filename="bikeztagram-generated.mp4"');
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).send(buffer);
