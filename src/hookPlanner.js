@@ -1,0 +1,2 @@
+export function scoreHook(moment={}){const visual=Number(moment.visualImpact??.5), emotion=Number(moment.emotion??.5), novelty=Number(moment.novelty??.5), clarity=Number(moment.clarity??.5), payoff=Number(moment.payoff??.5);const score=visual*.25+emotion*.2+novelty*.2+clarity*.15+payoff*.2;return {score:Number(score.toFixed(4)),signals:{visual,emotion,novelty,clarity,payoff}}}
+export function rankHooks(moments=[]){return moments.map((m)=>({...m,hookScore:scoreHook(m).score})).sort((a,b)=>b.hookScore-a.hookScore)}
