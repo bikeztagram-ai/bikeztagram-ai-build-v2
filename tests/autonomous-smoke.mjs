@@ -21,9 +21,6 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 
-// Vercel can redirect the initial protected request before the browser has a
-// bypass cookie. Inject the bypass headers on every request so redirects and
-// subsequent asset/API requests remain authenticated to the preview.
 await page.route('**/*', async (route) => {
   const headers = {
     ...route.request().headers(),
@@ -35,7 +32,6 @@ await page.route('**/*', async (route) => {
 
 const started = Date.now();
 const events = [];
-
 page.on('console', (message) => events.push(`[browser:${message.type()}] ${message.text()}`));
 page.on('pageerror', (error) => events.push(`[pageerror] ${error.message}`));
 
@@ -62,15 +58,23 @@ try {
   }, null, { timeout: timeoutMs });
   console.log('AUTOTEST: analysis + director completed.');
 
-  const build = page.getByRole('button', { name: /Build AI Edit/i });
-  await build.click({ timeout: 15000 });
-  console.log('AUTOTEST: render started.');
+  // The deployed app owns the complete render-and-QA flow behind this button.
+  // Drive that real path instead of depending on an intermediate UI button.
+  const fullTest = page.getByRole('button', { name: /Run Full AI Test/i });
+  await fullTest.waitFor({ state: 'visible', timeout: 30000 });
+  await fullTest.click();
+  console.log('AUTOTEST: full render + QA started.');
 
   await page.waitForFunction(() => {
     const body = document.body.innerText;
-    return /AI Director edit rendered|AI edit completed|AI edit rendered/i.test(body);
+    return /FULL AI TEST PASSED|FULL AI TEST FAILED/i.test(body);
   }, null, { timeout: timeoutMs });
-  console.log('AUTOTEST: render completed.');
+
+  const bodyText = await page.locator('body').innerText();
+  if (/FULL AI TEST FAILED/i.test(bodyText)) {
+    throw new Error(`AUTOTEST: application reported full AI test failure. ${bodyText.slice(-3000)}`);
+  }
+  console.log('AUTOTEST: application reported full AI test passed.');
 
   const videos = page.locator('video');
   const count = await videos.count();
