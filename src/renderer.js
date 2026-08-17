@@ -71,9 +71,8 @@ export async function renderProject(mediaItems, plan, onProgress) {
         else if(m.includes('tilt-up')){scale=Math.max(scale,1.08);y=(.5-e)*canvas.height*.09*intensity;}
         else if(m.includes('tilt-down')){scale=Math.max(scale,1.08);y=(e-.5)*canvas.height*.09*intensity;}
         else if(m.includes('orbit')||m.includes('parallax')){scale=Math.max(scale,1.09);x=Math.sin(e*Math.PI*2)*canvas.width*.035*intensity;y=Math.cos(e*Math.PI*2)*canvas.height*.018*intensity;r=Math.sin(e*Math.PI*2)*.006*intensity;}
-        const purpose=String(cut.purpose||'').toLowerCase(), action=/action|chase|impact|energetic|race|speed/.test(purpose+' '+String(plan?.creativePrompt||''));
-        if(action){x+=Math.sin(p*Math.PI*34)*2.5*intensity;y+=Math.cos(p*Math.PI*29)*1.8*intensity;r+=Math.sin(p*Math.PI*20)*.0035*intensity;}
-        return {scale:clamp(scale,1.01,1.28),x,y,r};
+        // Real uploaded footage must stay stable. Do not add artificial handheld shake.
+        return {scale:clamp(scale,1.01,1.24),x,y,r};
       };
 
       const transition = (name,p,first) => {
@@ -116,11 +115,25 @@ export async function renderProject(mediaItems, plan, onProgress) {
         const isVideo=!isGen&&String(media.type||'').startsWith('video'), source=isGen?null:getSourceUrl(media); if(!isGen&&!source)throw new Error(`Cut ${index+1} has no usable source file or Blob URL.`);
         const element=isGen?null:(isVideo?document.createElement('video'):new Image()), duration=clamp(Number(cut.duration)||2,.5,8), speedStart=clamp(Number(cut.speed)||1,.5,1.75), speedEnd=clamp(Number(cut.speedEnd??cut.speed)||speedStart,.5,1.75);
         try{
+          let clipStart = 0;
           if(isVideo){try{await loadVideo(element,source);}catch(firstError){if(source.remote&&media.file){console.warn('[Bikeztagram] Public Blob source failed; retrying local File source.',firstError);try{element.removeAttribute('src');element.load();}catch{}const fallback={url:URL.createObjectURL(media.file),revoke:true,remote:false};try{await loadVideo(element,fallback);}finally{try{URL.revokeObjectURL(fallback.url);}catch{}}}else throw firstError;}
-            const start=Number(cut.startTime);if(Number.isFinite(start)&&start>=0){element.currentTime=Math.min(start,Math.max(0,element.duration-.05));await new Promise((done)=>{let finished=false;const finish=()=>{if(finished)return;finished=true;clearTimeout(timer);element.removeEventListener('seeked',finish);done();};const timer=setTimeout(finish,1800);element.addEventListener('seeked',finish,{once:true});});}element.playbackRate=speedStart;await element.play();
+            const start=Number(cut.startTime); clipStart=Number.isFinite(start)&&start>=0?Math.min(start,Math.max(0,element.duration-.05)):0;
+            element.currentTime=clipStart;
+            await new Promise((done)=>{let finished=false;const finish=()=>{if(finished)return;finished=true;clearTimeout(timer);element.removeEventListener('seeked',finish);done();};const timer=setTimeout(finish,1800);element.addEventListener('seeked',finish,{once:true});});
+            element.pause();
           }else if(!isGen){element.src=source.url;await new Promise((done,failLoad)=>{const timer=setTimeout(()=>failLoad(new Error('Timed out loading source image.')),10000);element.onload=()=>{clearTimeout(timer);done();};element.onerror=()=>{clearTimeout(timer);failLoad(new Error('Could not load source image.'));};});}
           const started=performance.now();
-          await new Promise((done)=>{const tick=()=>{const p=clamp((performance.now()-started)/(duration*1000),0,1);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);if(isGen)drawWorld(cut,p);else drawCover(element,motion(cut,p),cut.colorGrade||plan.colorGrade);if(isVideo&&element.readyState>=2){try{element.playbackRate=lerp(speedStart,speedEnd,ease(p));}catch{}}finish(cut,p);transition(cut.transition,p,index===0);textOverlay(cut,p);onProgress?.(Math.round(((index+p)/cuts.length)*100));if(p>=1){done();return;}requestAnimationFrame(tick);};requestAnimationFrame(tick);});
+          await new Promise((done)=>{const tick=()=>{const p=clamp((performance.now()-started)/(duration*1000),0,1);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);
+            if(isGen) drawWorld(cut,p); else {
+              if(isVideo && Number.isFinite(element.duration) && element.duration > 0){
+                const sourceProgress = p * duration * lerp(speedStart,speedEnd,ease(p));
+                const targetTime = clamp(clipStart + sourceProgress, clipStart, Math.max(clipStart, element.duration-.05));
+                try { element.currentTime = targetTime; } catch {}
+              }
+              drawCover(element,motion(cut,p),cut.colorGrade||plan.colorGrade);
+            }
+            finish(cut,p);transition(cut.transition,p,index===0);textOverlay(cut,p);onProgress?.(Math.round(((index+p)/cuts.length)*100));
+            if(p>=1){done();return;} requestAnimationFrame(tick);};requestAnimationFrame(tick);});
           if(isVideo)element.pause();if(source?.revoke)URL.revokeObjectURL(source.url);await renderCut(index+1);
         }catch(error){if(source?.revoke){try{URL.revokeObjectURL(source.url);}catch{}}throw new Error(`Cut ${index+1} failed: ${error?.message||String(error)}`);}
       };
