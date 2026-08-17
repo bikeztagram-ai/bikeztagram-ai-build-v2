@@ -1,0 +1,3 @@
+/* Music-aware edit planning. Analysis is provider-agnostic: callers may supply detected events. */
+export function buildMusicStructure(events=[], duration=0){const beats=events.filter(e=>['beat','kick','snare','drop','rise','break'].includes(e.type)).sort((a,b)=>a.time-b.time);return {duration,beats,sections:buildSections(beats,duration)};}
+function buildSections(beats,duration){if(!beats.length)return[];const sections=[];let start=beats[0].time, energy=0;for(let i=0;i<beats.length;i++){energy+=Number(beats[i].energy??.5);if(['drop','break'].includes(beats[i].type)||i===beats.length-1){const end=i===beats.length-1?(duration||beats[i].time):beats[i].time;sections.push({start,end,energy:Number((energy/Math.max(1,i+1)).toFixed(3))});start=end;energy=0;}}return sections;}
