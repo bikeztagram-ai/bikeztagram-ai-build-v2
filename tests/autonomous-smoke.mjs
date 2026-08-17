@@ -14,9 +14,25 @@ if (!bypassSecret) throw new Error('VERCEL_AUTOMATION_BYPASS_SECRET is required 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
   viewport: { width: 1280, height: 900 },
-  extraHTTPHeaders: { 'x-vercel-protection-bypass': bypassSecret },
+  extraHTTPHeaders: {
+    'x-vercel-protection-bypass': bypassSecret,
+    'x-vercel-set-bypass-cookie': 'samesitenone',
+  },
 });
 const page = await context.newPage();
+
+// Vercel can redirect the initial protected request before the browser has a
+// bypass cookie. Inject the bypass headers on every request so redirects and
+// subsequent asset/API requests remain authenticated to the preview.
+await page.route('**/*', async (route) => {
+  const headers = {
+    ...route.request().headers(),
+    'x-vercel-protection-bypass': bypassSecret,
+    'x-vercel-set-bypass-cookie': 'samesitenone',
+  };
+  await route.continue({ headers });
+});
+
 const started = Date.now();
 const events = [];
 
