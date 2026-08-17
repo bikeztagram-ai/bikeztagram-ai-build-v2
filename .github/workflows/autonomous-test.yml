@@ -77,8 +77,8 @@ jobs:
         run: |
           set -euo pipefail
           # Vercel's Git integration does not always create a GitHub deployment record.
-          # Try the exact SHA briefly, then use the stable branch preview alias instead of
-          # wasting 10+ minutes waiting for a record that may never exist.
+          # Try the exact SHA briefly. If no record exists, smoke-test the project's
+          # stable URL rather than a stale, hard-coded preview deployment.
           for attempt in $(seq 1 6); do
             deployments=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/deployments?sha=${SHA}&per_page=20")
             deployment_id=$(echo "$deployments" | jq -r 'map(select(.environment != null)) | sort_by(.created_at) | last | .id // empty')
@@ -97,8 +97,8 @@ jobs:
             fi
             sleep 5
           done
-          fallback="https://bikeztagram-ai-build-v2-git-ai-director-50b6b9-bikeztagram-ai1.vercel.app"
-          echo "No GitHub deployment record for $SHA; using branch preview alias: $fallback"
+          fallback="https://bikeztagram-ai-build-v2-3hkw.vercel.app"
+          echo "No GitHub deployment record for $SHA; using stable project URL: $fallback"
           echo "test_url=$fallback" >> "$GITHUB_OUTPUT"
 
       - name: Run deployed end-to-end browser test
