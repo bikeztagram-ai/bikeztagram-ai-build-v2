@@ -1,0 +1,1 @@
+export function creativeSafetyGate(output={}){const checks={source:Boolean(output.source),duration:Number(output.duration??1)>0,format:Boolean(output.format),provenance:Boolean(output.provenance)};return {passed:Object.values(checks).every(Boolean),checks};}
