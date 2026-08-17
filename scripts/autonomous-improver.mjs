@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const apiKey = process.env.GEMINI_API_KEY;
-const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const runId = process.env.WORKFLOW_RUN_ID || '';
 const repo = process.env.GITHUB_REPOSITORY || '';
 const branch = process.env.GITHUB_REF_NAME || 'ai-director-two-stage';
@@ -48,7 +48,7 @@ Return JSON only with this exact shape:
 {"summary":"short reason","changes":[{"path":"src/file.js","content":"complete replacement file contents"}]}
 The changes array may contain zero or one item. Do not return patches or markdown.`;
 const schema = { type: 'OBJECT', properties: { summary: { type: 'STRING' }, changes: { type: 'ARRAY', items: { type: 'OBJECT', properties: { path: { type: 'STRING', enum: allowed }, content: { type: 'STRING' } }, required: ['path', 'content'] } } }, required: ['summary', 'changes'] };
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.15 } }) });
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: schema } }) });
 if (!response.ok) throw new Error(`Gemini improver failed: ${response.status} ${await response.text()}`);
 const body = await response.json();
 const text = body.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '{}';
