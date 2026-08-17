@@ -1,0 +1,1 @@
+export function scoreCampaign(items=[]){if(!items.length)return {score:0,ready:false};const scores=items.map(x=>Number(x.score??x.quality?.score??0));const score=scores.reduce((a,b)=>a+b,0)/scores.length;return {score:Number(score.toFixed(3)),ready:score>=.65,itemCount:items.length,weakItems:items.filter(x=>Number(x.score??x.quality?.score??0)<.55).map(x=>x.id||null)};}
