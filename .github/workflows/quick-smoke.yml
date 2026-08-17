@@ -1,0 +1,77 @@
+name: Bikeztagram Quick Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ai-director-two-stage
+
+concurrency:
+  group: bikeztagram-quick-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Download test video
+        run: |
+          mkdir -p tests/fixtures
+          curl -L --fail --retry 2 --retry-delay 1 \
+            -o tests/fixtures/sample-5mb.mp4 \
+            https://cdn.truefilesize.com/mp4/sample-5mb.mp4
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Resolve Vercel preview URL
+        id: deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            deployments=$(curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/deployments?sha=${SHA}&per_page=20")
+            url=$(echo "$deployments" | jq -r 'map(select(.environment != null and (.environment | test("preview|Preview")))) | sort_by(.created_at) | last | .statuses_url // empty')
+            if [ -n "$url" ]; then
+              status=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$url")
+              state=$(echo "$status" | jq -r '.[0].state // empty')
+              test_url=$(echo "$status" | jq -r '.[0].environment_url // empty')
+              if [ "$state" = "success" ] && [ -n "$test_url" ]; then
+                echo "test_url=$test_url" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              if [ "$state" = "failure" ] || [ "$state" = "error" ]; then
+                echo "Deployment reported $state"
+                exit 1
+              fi
+            fi
+            sleep 5
+          done
+          echo "No deployment record found quickly; use the branch preview URL as fallback."
+          test_url="https://${GITHUB_REF_NAME//\//-}-bikeztagram-ai-build-v2.vercel.app"
+          echo "test_url=$test_url" >> "$GITHUB_OUTPUT"
+
+      - name: Run deployed browser smoke test
+        env:
+          TEST_URL: ${{ steps.deployment.outputs.test_url }}
+          TEST_VIDEO: tests/fixtures/sample-5mb.mp4
+          TEST_TIMEOUT_MS: 300000
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: node tests/autonomous-smoke.mjs
