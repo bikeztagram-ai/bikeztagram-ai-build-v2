@@ -73,6 +73,7 @@ jobs:
         env:
           TEST_URL: ${{ steps.deployment.outputs.test_url }}
           TEST_VIDEO: tests/fixtures/sample-5mb.mp4
-          TEST_TIMEOUT_MS: 300000
+          ANALYSIS_TIMEOUT_MS: 180000
+          RENDER_TIMEOUT_MS: 420000
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node tests/autonomous-smoke.mjs
