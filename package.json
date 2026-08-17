@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify:cinematic": "node scripts/verify-cinematic-pipeline.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
@@ -19,6 +20,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "playwright": "^1.62.1",
+    "@vitejs/plugin-react": "^5.0.2",
     "playwright": "^1.62.1",
     "@vitejs/plugin-react": "^5.0.2",
     "vite": "^6.4.3"
