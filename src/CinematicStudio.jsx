@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { upload } from '@vercel/blob/client';
-import { runCinematicProduction } from './cinematicProductionController.js';
-import { buildCinematicTrailerManifest } from './cinematicTrailerManifest.js';
+import { buildTrailerPlan, validateTrailerPlan } from './cinematicTrailerPlan.js';
+import { createTrailerSession } from './cinematicTrailerSession.js';
+import { runCinematicTrailer } from './cinematicTrailerRunner.js';
+import { createTrailerOutput, downloadTrailerOutput, revokeTrailerOutput } from './cinematicTrailerOutput.js';
+import { evaluateCinematicResult } from './cinematicQualityGate.js';
 
 const DEFAULT_BRIEF = 'Create a cinematic open-world motorcycle trailer with dramatic night lighting, sweeping camera movement, realistic road detail and a premium game-trailer feel. Keep the rider and motorcycle visually consistent across every shot.';
 
@@ -13,12 +16,16 @@ export default function CinematicStudio() {
   const [assets, setAssets] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [worker, setWorker] = useState({ checked: false, configured: false, ready: false, message: '' });
+  const [output, setOutput] = useState(null);
+  const [quality, setQuality] = useState(null);
   const controllerRef = useRef(null);
+  const outputRef = useRef(null);
   const objectUrlsRef = useRef([]);
 
   useEffect(() => () => {
     controllerRef.current?.abort();
     objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    if (outputRef.current) revokeTrailerOutput(outputRef.current);
   }, []);
 
   function clearPreviewUrls() {
@@ -68,6 +75,8 @@ export default function CinematicStudio() {
   async function generate() {
     if (controllerRef.current) return;
     clearPreviewUrls();
+    if (outputRef.current) revokeTrailerOutput(outputRef.current);
+    setOutput(null); setQuality(null);
     const controller = new AbortController();
     controllerRef.current = controller;
     setState({ status: 'preparing', progress: 0, results: [], error: null });
@@ -75,13 +84,24 @@ export default function CinematicStudio() {
       await preflightWorker(controller.signal);
       const referenceAssets = assets.length ? assets : await uploadReferences(controller.signal);
       const shots = makeShots(referenceAssets);
-      const manifest = buildCinematicTrailerManifest({ brief, shots, referenceAssets, continuity: shots[0]?.continuity });
-      if (!manifest.shots.length) throw new Error('Trailer manifest contains no shots.');
-      const next = await runCinematicProduction({ shots: manifest.shots, referenceAssets, continuity: manifest.continuity, signal: controller.signal, onState: setState });
+      const plan = buildTrailerPlan({ brief, shots });
+      const planCheck = validateTrailerPlan(plan);
+      if (!planCheck.valid) throw new Error(`Trailer plan is invalid: ${planCheck.errors.join(' ')}`);
+      const session = createTrailerSession(plan);
+      const next = await runCinematicTrailer(session, {
+        signal: controller.signal,
+        onProgress: (event) => setState((current) => ({ ...current, progress: Math.max(current.progress || 0, Number(event?.percent) || 0), stage: event?.stage || current.stage })),
+        onSession: setState,
+        assemble: true,
+      });
       if (controller.signal.aborted) return;
-      const results = next.results.map((result) => ({ ...result, url: result.blob ? URL.createObjectURL(result.blob) : '' }));
+      const results = (next.results || []).map((result) => ({ ...result, url: result.blob ? URL.createObjectURL(result.blob) : '' }));
       objectUrlsRef.current = results.map((result) => result.url).filter(Boolean);
-      setState({ ...next, results, manifest });
+      const trailerOutput = next.output?.blob instanceof Blob ? next.output : createTrailerOutput(await import('./cinematicTrailerAssembler.js').then(({ assembleCinematicTrailer }) => assembleCinematicTrailer(results)), { sessionId: next.id, shotCount: results.length });
+      outputRef.current = trailerOutput;
+      setOutput(trailerOutput);
+      setState({ ...next, results, progress: 100 });
+      setQuality(evaluateCinematicResult({ session: next, output: trailerOutput }));
     } catch (error) {
       if (error?.name === 'AbortError') setState((s) => ({ ...s, status: 'cancelled', currentShot: null, error: 'Generation cancelled. No further shots were queued.' }));
       else setState((s) => ({ ...s, status: 'error', error: error?.message || String(error) }));
@@ -99,10 +119,12 @@ export default function CinematicStudio() {
       <label>Cinematic brief<textarea value={brief} disabled={busy} onChange={(e) => setBrief(e.target.value)} rows={5} style={{ display: 'block', width: '100%', marginTop: 8 }} /></label>
       <label>Shots<select value={shotCount} disabled={busy} onChange={(e) => setShotCount(Number(e.target.value))} style={{ display: 'block', marginTop: 8 }}><option value={1}>1 — fastest proof</option><option value={2}>2 — short sequence</option><option value={3}>3 — trailer</option><option value={4}>4 — extended trailer</option><option value={5}>5 — full sequence</option></select></label>
       <div style={{ display: 'flex', gap: 10 }}><button onClick={generate} disabled={busy || !!controllerRef.current}>{state.status === 'generating' ? `Generating… ${state.progress}%` : 'Generate cinematic trailer'}</button>{busy && <button onClick={cancel} type="button">Cancel generation</button>}</div>
+      {busy && <div>Stage: {state.stage || state.status} • {state.progress || 0}%</div>}
       {state.status === 'cancelled' && <div>⏹️ Generation stopped. The queue is clear and no later shots were started.</div>}
-      {state.status === 'complete' && <div>✅ {state.results.length} shot{state.results.length === 1 ? '' : 's'} generated.</div>}
+      {state.status === 'complete' && <div>✅ {state.results.length} shot{state.results.length === 1 ? '' : 's'} generated and trailer assembled.</div>}
       {state.status === 'error' && <pre style={{ whiteSpace: 'pre-wrap' }}>❌ {state.error}</pre>}
     </section>
+    {output && <section style={{ marginTop: 32 }}><h2>🎬 Finished cinematic trailer</h2><video controls playsInline src={output.url} style={{ width: '100%', borderRadius: 12 }} /><div style={{ display: 'flex', gap: 10, marginTop: 12 }}><button onClick={() => downloadTrailerOutput(output, 'bikeztagram-cinematic-trailer.webm')}>⬇️ Download trailer</button></div>{quality && <p>{quality.passed ? '✅ Local quality gate passed.' : `⚠️ Quality gate: ${quality.errors.join(' ')}`}</p>}</section>}
     {state.results?.length > 0 && <section style={{ marginTop: 32, display: 'grid', gap: 24 }}><h2>Generated shots</h2>{state.results.map((result) => <article key={result.id || result.index}><h3>{result.id || `Shot ${result.index + 1}`}</h3><video controls playsInline src={result.url || ''} style={{ width: '100%', borderRadius: 12 }} /></article>)}</section>}
   </main>;
 }
