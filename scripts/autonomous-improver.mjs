@@ -5,8 +5,11 @@ const apiKey = process.env.GEMINI_API_KEY;
 const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const runId = process.env.WORKFLOW_RUN_ID || '';
 const repo = process.env.GITHUB_REPOSITORY || '';
+const branch = process.env.GITHUB_REF_NAME || 'ai-director-two-stage';
 const maxIterations = Number(process.env.MAX_AUTO_ITERATIONS || 3);
-const iteration = Number(process.env.AUTO_ITERATION || 0);
+const commitSubject = (() => { try { return execFileSync('git', ['log', '-1', '--pretty=%s'], { encoding: 'utf8' }).trim(); } catch { return ''; } })();
+const match = commitSubject.match(/\[auto-improve (\d+)\]/i);
+const iteration = Number(process.env.AUTO_ITERATION || (match ? match[1] : 0));
 const allowed = [
   'src/aiEditPlanner.js',
   'src/timelineDirector.js',
@@ -118,5 +121,13 @@ const token = process.env.GITHUB_TOKEN;
 if (!token) throw new Error('GITHUB_TOKEN is required to push an autonomous improvement.');
 const remote = `https://x-access-token:${token}@github.com/${repo}.git`;
 sh('git', ['remote', 'set-url', 'origin', remote]);
-sh('git', ['push', 'origin', process.env.GITHUB_REF_NAME || 'ai-director-two-stage']);
+sh('git', ['push', 'origin', branch]);
 console.log(`AUTONOMOUS IMPROVER: committed and pushed iteration ${iteration + 1}. ${plan.summary}`);
+
+const dispatch = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/autonomous-test.yml/dispatches`, {
+  method: 'POST',
+  headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+  body: JSON.stringify({ ref: branch })
+});
+if (!dispatch.ok) throw new Error(`Could not dispatch next autonomous test: ${dispatch.status} ${await dispatch.text()}`);
+console.log('AUTONOMOUS IMPROVER: dispatched the next test cycle.');
