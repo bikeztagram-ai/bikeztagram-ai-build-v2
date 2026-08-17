@@ -1,0 +1,2 @@
+export function buildEnergyPlan(sections=[], target='dynamic'){return sections.map((s,i)=>({index:i,start:s.start,end:s.end,energy:curve(s.energy,target),cutDensity:Math.max(.25,Math.min(1,s.energy*1.25)),motion:Math.max(.2,Math.min(1,.35+s.energy*.65)),transitionIntensity:Math.max(0,Math.min(1,s.energy))}));}
+function curve(v,target){const x=Number(v??.5);if(target==='cinematic')return Number((.25+x*.65).toFixed(3));if(target==='aggressive')return Number((.45+x*.9).toFixed(3));return Number(x.toFixed(3));}
