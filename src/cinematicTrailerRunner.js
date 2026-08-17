@@ -5,8 +5,19 @@ import { createTrailerOutput } from './cinematicTrailerOutput.js';
 import { validateTrailerSession } from './cinematicTrailerValidation.js';
 import { markShotStarted, markShotCompleted, markShotFailed, updateTrailerSession, getNextPendingShot, saveTrailerSession } from './cinematicTrailerSession.js';
 
+function reconcilePersistedSession(session) {
+  const results = Array.isArray(session?.results) ? session.results : [];
+  const shots = (session?.shots || []).map((shot) => {
+    const result = results.find((item) => item?.id === shot.id);
+    if (shot.status === 'complete' && !(result?.blob instanceof Blob)) return { ...shot, status: 'pending', error: null };
+    return shot;
+  });
+  const usableResults = results.filter((result) => result?.blob instanceof Blob && result.blob.size > 0);
+  return updateTrailerSession({ ...session, shots, results: usableResults, output: session?.output?.blob instanceof Blob ? session.output : null }, { status: 'ready' });
+}
+
 export async function runCinematicTrailer(session, { onProgress, onSession, signal, assemble = true } = {}) {
-  let current = session;
+  let current = reconcilePersistedSession(session);
   const validation = validateTrailerSession(current);
   if (!validation.valid) throw new Error(`Trailer validation failed: ${validation.errors.join(' ')}`);
   current = updateTrailerSession(current, { status: 'generating' });
