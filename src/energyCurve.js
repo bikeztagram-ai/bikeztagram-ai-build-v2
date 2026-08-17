@@ -1,0 +1,2 @@
+export function buildEnergyCurve(duration=0,keyframes=[]){const points=[{time:0,value:.35},...keyframes.filter(k=>k.time>=0&&k.time<=duration),{time:duration,value:.45}].sort((a,b)=>a.time-b.time);return points.map((p,i)=>({time:p.time,value:Math.max(0,Math.min(1,p.value)),phase:p.phase||((i%2)?'build':'release')}));}
+export function energyAt(time,curve=[]){if(!curve.length)return .5;let best=curve[0];for(const point of curve){if(Math.abs(point.time-time)<Math.abs(best.time-time))best=point;}return best.value;}
