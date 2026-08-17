@@ -1,0 +1,3 @@
+/* Internal quality score, not a promise of social performance. */
+export function scoreCreativeCandidate(candidate={}) { const keys=['hookStrength','retentionPotential','emotionalPayoff','visualImpact','pacing','audioImpact','platformFit','originality','styleFit']; const vals=keys.map(k=>Math.min(1,Math.max(0,Number(candidate[k]??0.5)))); const score=vals.reduce((a,v)=>a+v,0)/vals.length; return {score:Number(score.toFixed(4)),score100:Math.round(score*100),signals:Object.fromEntries(keys.map((k,i)=>[k,vals[i]]))}; }
+export function rankCreativeCandidates(items=[]) { return items.map(item=>({...item,creativeScore:scoreCreativeCandidate(item)})).sort((a,b)=>b.creativeScore.score-a.creativeScore.score); }
