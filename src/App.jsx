@@ -68,14 +68,78 @@ export default function App() {
     if (!file.type.startsWith('video/')) return setStatus('Please select a valid video file.');
     setLoading(true); setProgress(0); setErrorDetails(null); setAnalysis(null); setPlan(null); setProductionPlan(null); setRenderedVideoUrl(''); setWorldVideoUrl(''); setSourceUrl('');
     try {
-      setCurrentStage('STEP 1 — Preparing secure Blob upload'); setStatus('Preparing secure Blob upload...');
+      const uploadStage = 'STEP 1 — Preparing secure Blob upload';
+      setCurrentStage(uploadStage); setStatus('Preparing secure Blob upload...');
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const pathname = `videos/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
-      const blob = await upload(pathname, file, {
-        access: 'public', handleUploadUrl: '/api/upload', multipart: false,
-        clientPayload: JSON.stringify({ source: 'bikeztagram-ai', filename: file.name, mimeType: file.type || 'video/mp4', size: file.size }),
-        onUploadProgress: (event) => { const value = Number(event?.percentage); if (Number.isFinite(value)) { const p = Math.max(0, Math.min(100, Math.round(value))); setProgress(p); setStatus(`Uploading video to Blob storage... ${p}%`); } }
-      });
+
+      // Diagnostic wrapper only: the existing Blob upload options are deliberately unchanged.
+      // Abort after 120s if the browser receives the client token but never completes the direct Blob transfer.
+      const uploadController = new AbortController();
+      const uploadStartedAt = performance.now();
+      let lastProgressAt = uploadStartedAt;
+      let lastProgressValue = 0;
+      const uploadWatchdog = setTimeout(() => {
+        const elapsedSeconds = Math.round((performance.now() - uploadStartedAt) / 1000);
+        console.error('[APP] Blob upload watchdog timeout', {
+          elapsedSeconds,
+          lastProgressValue,
+          secondsSinceProgress: Math.round((performance.now() - lastProgressAt) / 1000),
+          online: navigator.onLine,
+          fileSizeBytes: file.size
+        });
+        uploadController.abort();
+      }, 120000);
+      const uploadHeartbeat = setInterval(() => {
+        const elapsedSeconds = Math.round((performance.now() - uploadStartedAt) / 1000);
+        const silentSeconds = Math.round((performance.now() - lastProgressAt) / 1000);
+        console.info('[APP] Blob upload diagnostic heartbeat', {
+          elapsedSeconds,
+          progress: lastProgressValue,
+          silentSeconds,
+          online: navigator.onLine,
+          fileSizeBytes: file.size
+        });
+        if (lastProgressValue === 0 && silentSeconds >= 15) {
+          setStatus(`Uploading video to Blob storage... waiting for transfer (${elapsedSeconds}s)`);
+        }
+      }, 10000);
+
+      let blob;
+      try {
+        console.info('[APP] Starting Blob client upload', {
+          pathname,
+          fileName: file.name,
+          fileSizeBytes: file.size,
+          mimeType: file.type || 'video/mp4',
+          online: navigator.onLine
+        });
+        blob = await upload(pathname, file, {
+          access: 'public', handleUploadUrl: '/api/upload', multipart: false,
+          clientPayload: JSON.stringify({ source: 'bikeztagram-ai', filename: file.name, mimeType: file.type || 'video/mp4', size: file.size }),
+          abortSignal: uploadController.signal,
+          onUploadProgress: (event) => {
+            const value = Number(event?.percentage);
+            if (Number.isFinite(value)) {
+              const p = Math.max(0, Math.min(100, Math.round(value)));
+              lastProgressAt = performance.now(); lastProgressValue = p;
+              setProgress(p); setStatus(`Uploading video to Blob storage... ${p}%`);
+              console.info('[APP] Blob upload progress', { percentage: p });
+            }
+          }
+        });
+        const elapsedSeconds = Math.round((performance.now() - uploadStartedAt) / 1000);
+        console.info('[APP] Blob client upload completed', { elapsedSeconds, blobUrl: blob?.url, pathname: blob?.pathname });
+      } catch (uploadError) {
+        const elapsedSeconds = Math.round((performance.now() - uploadStartedAt) / 1000);
+        const diagnosticError = new Error(`Blob client upload failed after ${elapsedSeconds}s. Last reported progress: ${lastProgressValue}%. Browser online: ${navigator.onLine}. Original error: ${uploadError?.message || String(uploadError)}`);
+        diagnosticError.name = uploadError?.name || 'BlobUploadError';
+        diagnosticError.stack = uploadError?.stack || diagnosticError.stack;
+        throw diagnosticError;
+      } finally {
+        clearTimeout(uploadWatchdog); clearInterval(uploadHeartbeat);
+      }
+
       if (!blob?.url || !blob?.pathname) throw new Error('Vercel Blob upload did not return a valid URL/pathname.');
       setSourceUrl(blob.url); setProgress(100); setCurrentStage('STEP 2 — Blob upload completed'); setStatus('✅ Video successfully stored in Blob. Preparing Gemini analysis...');
       setCurrentStage('STEP 3 — Sending Blob video URL to /api/analyse');
