@@ -1,0 +1,1 @@
+export function planCaptionStyle({platform='reels',tone='cinematic',safeArea='standard'}={}){const compact=platform==='tiktok'||platform==='reels';return {platform,tone,safeArea,maxWordsPerLine:compact?5:7,emphasis:tone==='aggressive'?'impact':'selective',placement:platform==='shorts'?'lower-third':'dynamic-safe'};}
