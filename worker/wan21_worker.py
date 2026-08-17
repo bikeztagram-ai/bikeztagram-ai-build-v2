@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Final
 
+import torch
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -19,8 +20,9 @@ MODEL_DIR: Final = ROOT / "Wan2.1-T2V-1.3B"
 OUTPUT_DIR: Final = ROOT / "outputs"
 TOKEN = os.environ.get("BIKEZ_WORKER_TOKEN", "")
 MAX_SECONDS = int(os.environ.get("BIKEZ_MAX_SECONDS", "5"))
+FPS = 24
 
-app = FastAPI(title="Bikeztagram Zero-Cost Video Worker", version="1.0")
+app = FastAPI(title="Bikeztagram Zero-Cost Video Worker", version="1.1")
 
 
 class GenerationRequest(BaseModel):
@@ -36,6 +38,12 @@ def require_token(provided: str | None) -> None:
         raise HTTPException(503, "Worker token is not configured")
     if not provided or not secrets.compare_digest(provided, TOKEN):
         raise HTTPException(401, "Invalid worker token")
+
+
+def frame_count_for_seconds(seconds: int) -> int:
+    """Wan requires frame counts of 4n+1; target approximately 24fps."""
+    target = max(5, round(seconds * FPS))
+    return 4 * round((target - 1) / 4) + 1
 
 
 def ensure_runtime() -> None:
@@ -59,12 +67,15 @@ def ensure_runtime() -> None:
 
 @app.get("/health")
 def health() -> dict:
+    gpu_available = bool(torch.cuda.is_available())
     return {
-        "ok": True,
+        "ok": gpu_available,
         "engine": "Wan2.1-T2V-1.3B",
         "mode": "text-to-video",
         "zeroCostOnly": True,
         "gpuRequired": True,
+        "gpuAvailable": gpu_available,
+        "gpuName": torch.cuda.get_device_name(0) if gpu_available else None,
         "modelReady": MODEL_DIR.exists(),
     }
 
@@ -76,15 +87,19 @@ def generate(request: GenerationRequest, x_bikeztagram_token: str | None = Heade
         raise HTTPException(400, "Prompt is required")
     if request.seconds > MAX_SECONDS:
         raise HTTPException(400, f"Maximum generation duration is {MAX_SECONDS} seconds")
+    if not torch.cuda.is_available():
+        raise HTTPException(503, "GPU is unavailable on this worker")
 
     ensure_runtime()
     output_path = OUTPUT_DIR / f"bikeztagram-{secrets.token_hex(8)}.mp4"
+    frame_num = frame_count_for_seconds(request.seconds)
     with tempfile.TemporaryDirectory(prefix="bikeztagram-wan-") as tmp:
         generated = Path(tmp) / "generated.mp4"
         cmd = [
             sys.executable, str(WAN_DIR / "generate.py"),
             "--task", "t2v-1.3B",
             "--size", f"{request.width}*{request.height}",
+            "--frame_num", str(frame_num),
             "--ckpt_dir", str(MODEL_DIR),
             "--offload_model", "True",
             "--t5_cpu",
@@ -96,7 +111,7 @@ def generate(request: GenerationRequest, x_bikeztagram_token: str | None = Heade
         if request.seed is not None:
             cmd.extend(["--base_seed", str(request.seed)])
         subprocess.run(cmd, cwd=WAN_DIR, check=True)
-        if not generated.exists():
+        if not generated.exists() or generated.stat().st_size == 0:
             raise HTTPException(500, "Wan2.1 completed without producing a video file")
         generated.replace(output_path)
 
