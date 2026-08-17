@@ -1,0 +1,2 @@
+const COMMANDS={darker:['look','colour'],brighter:['look','colour'],faster:['edit','music'],slower:['edit','music'],cinematic:['treatment','look'],vertical:['reframe','export'],landscape:['reframe','export'],captions:['captions'],music:['music'],sound:['sound'],story:['story','edit']};
+export function parseCreativeCommand(input=''){const text=String(input).toLowerCase();const matches=Object.keys(COMMANDS).filter(k=>text.includes(k));return {input:String(input),commands:matches,targets:[...new Set(matches.flatMap(k=>COMMANDS[k]))]};}
