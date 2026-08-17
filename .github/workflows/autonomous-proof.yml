@@ -1,0 +1,91 @@
+name: Autonomous Proof Gate
+
+on:
+  push:
+    branches:
+      - ai-director-two-stage
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autonomous-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci
+          elif [ -f package.json ]; then
+            npm install
+          else
+            echo 'No package.json found; repository-level proof is limited to source checks.'
+          fi
+
+      - name: Run tests when defined
+        shell: bash
+        run: |
+          if [ -f package.json ] && node -e "const p=require('./package.json'); process.exit(p.scripts?.test ? 0 : 1)"; then
+            npm test -- --if-present
+          else
+            echo 'No npm test script defined.'
+          fi
+
+      - name: Run build when defined
+        shell: bash
+        run: |
+          if [ -f package.json ] && node -e "const p=require('./package.json'); process.exit(p.scripts?.build ? 0 : 1)"; then
+            npm run build
+          else
+            echo 'No npm build script defined.'
+          fi
+
+      - name: Write cycle evidence
+        shell: bash
+        run: |
+          mkdir -p proof
+          node > proof/cycle-evidence.json <<'NODE'
+          const fs = require('fs');
+          const p = fs.existsSync('package.json') ? require('./package.json') : {};
+          const scripts = p.scripts || {};
+          const evidence = {
+            commit: process.env.GITHUB_SHA,
+            branch: process.env.GITHUB_REF_NAME,
+            workflow: process.env.GITHUB_WORKFLOW,
+            runId: process.env.GITHUB_RUN_ID,
+            timestamp: new Date().toISOString(),
+            checks: {
+              repositoryCheckedOut: true,
+              packagePresent: fs.existsSync('package.json'),
+              testScriptPresent: Boolean(scripts.test),
+              buildScriptPresent: Boolean(scripts.build)
+            },
+            policy: { maxCostGbp: 0, paidFallbackAllowed: false }
+          };
+          process.stdout.write(JSON.stringify(evidence, null, 2));
+          NODE
+
+      - name: Upload proof evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-proof-${{ github.run_id }}
+          path: proof/cycle-evidence.json
+          retention-days: 7
