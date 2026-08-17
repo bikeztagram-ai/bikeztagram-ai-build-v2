@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bikeztagram AI — Cinematic Generator</title>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0b0b0d;color:#f4f4f5;padding:24px}.wrap{max-width:760px;margin:auto}h1{margin-bottom:6px}.muted{opacity:.7}textarea,input{width:100%;box-sizing:border-box;margin:8px 0 16px;padding:12px;border-radius:10px;border:1px solid #333;background:#151519;color:#fff}button{padding:12px 18px;border:0;border-radius:10px;background:#fff;color:#111;font-weight:700;cursor:pointer}button:disabled{opacity:.5;cursor:wait}.panel{margin-top:18px;padding:16px;border:1px solid #29292f;border-radius:14px;background:#111114}.shot{padding:10px 0;border-bottom:1px solid #29292f}.shot:last-child{border-bottom:0}video{width:100%;border-radius:12px;background:#000;margin-top:12px}.error{color:#ff8585;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>BIKEZTAGRAM AI — Cinematic Generator</h1>
+  <p class="muted">Reference-backed, £0-only cinematic generation. This page uses the real free-video worker path; it does not fake generated footage.</p>
+  <label>Reference photos / video</label>
+  <input id="refs" type="file" accept="image/*,video/*" multiple />
+  <label>What should the trailer look like?</label>
+  <textarea id="brief" rows="7">Create a cinematic motorcycle trailer. Keep the rider and motorcycle visually consistent with the supplied references. Use an original fictional open-world city, dramatic dusk lighting, realistic materials, controlled camera movement, fast action beats and a premium film-trailer finish.</textarea>
+  <button id="generate">Generate cinematic trailer</button>
+  <div id="progress" class="panel" hidden></div>
+  <div id="result" class="panel" hidden></div>
+</div>
+<script type="module">
+const $=id=>document.getElementById(id);
+const progress=$('progress'), result=$('result'), button=$('generate');
+async function dataUrl(file){return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)})}
+function buildShots(brief){
+  const base=String(brief||'').trim();
+  return [
+    ['establishing','Wide cinematic establishing shot of the original fictional city and the rider approaching on the motorcycle.'],
+    ['hero-bike','Low-angle hero reveal of the motorcycle, preserving the exact bike identity from the references, cinematic lighting and realistic reflections.'],
+    ['rider-reveal','Medium tracking shot revealing the rider and motorcycle together, preserving identity, clothing and proportions from the references.'],
+    ['action','Dynamic chase shot through the fictional city, realistic motorcycle movement, controlled motion blur and energetic camera work.'],
+    ['detail','Premium close-up details of the motorcycle, wheels, controls and rider interaction, shallow depth of field and cinematic lighting.'],
+    ['finale','Epic final hero shot of the rider and motorcycle stopping in the city, dramatic atmosphere, polished film-trailer composition.']
+  ].map(([purpose,scene],i)=>({id:`cinematic-${i+1}`,purpose,duration:4,aspectRatio:'16:9',generationPrompt:`${scene} ${base} Generate original content; do not reproduce copyrighted game assets or logos.`}));
+}
+button.onclick=async()=>{
+  button.disabled=true; progress.hidden=false; result.hidden=true; progress.textContent='Preparing references...';
+  try{
+    const files=[...$('refs').files];
+    const referenceAssets=await Promise.all(files.map(async f=>({name:f.name,type:f.type,dataUrl:await dataUrl(f)})));
+    const shots=buildShots($('brief').value);
+    const outputs=[];
+    for(let i=0;i<shots.length;i++){
+      const shot=shots[i]; progress.textContent=`Generating shot ${i+1} of ${shots.length} — ${shot.purpose}...`;
+      const response=await fetch('/api/generate-free-video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:shot.generationPrompt,durationSeconds:shot.duration,aspectRatio:shot.aspectRatio,referenceAssets,continuity:{subject:'rider and motorcycle',world:'original fictional open-world city',shotIndex:i,totalShots:shots.length},shotId:shot.id,zeroCostOnly:true})});
+      const type=response.headers.get('content-type')||'';
+      if(!response.ok){const text=await response.text();let message=text;try{message=JSON.parse(text)?.error||text}catch{};throw new Error(`Shot ${i+1} failed (HTTP ${response.status}): ${String(message).slice(0,700)}`)}
+      if(!type.includes('video/')) throw new Error(`Shot ${i+1} returned ${type||'unknown content'} instead of video.`);
+      const blob=await response.blob(); if(!blob.size) throw new Error(`Shot ${i+1} returned an empty video.`);
+      outputs.push({shot,blob,url:URL.createObjectURL(blob)});
+    }
+    progress.textContent='All cinematic shots generated.';
+    result.hidden=false; result.innerHTML='<h2>Generated shots</h2>';
+    outputs.forEach(({shot,url},i)=>{const div=document.createElement('div');div.className='shot';div.innerHTML=`<strong>${i+1}. ${shot.purpose}</strong><video controls playsinline src="${url}"></video>`;result.appendChild(div)});
+  }catch(e){progress.textContent='Generation stopped.';result.hidden=false;result.innerHTML=`<div class="error">${e?.message||String(e)}</div>`}finally{button.disabled=false}
+};
+</script>
+</body>
+</html>
