@@ -134,6 +134,8 @@ jobs:
 
       - name: Run one guarded autonomous improvement
         if: steps.budget.outputs.remaining != '0' && steps.deployment.outcome == 'success'
+        id: improver
+        continue-on-error: true
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-3.5-flash-lite
@@ -146,14 +148,33 @@ jobs:
           AUTO_REMAINING_ACTIONS: ${{ steps.budget.outputs.remaining }}
         run: node scripts/autonomous-improver.mjs
 
+      - name: Chain next autonomous run
+        if: steps.budget.outputs.remaining != '0' && steps.improver.outcome == 'success' && steps.budget.outputs.remaining != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          REMAINING: ${{ steps.budget.outputs.remaining }}
+        run: |
+          set -euo pipefail
+          next=$((REMAINING - 1))
+          echo "Dispatching next autonomous run with $next actions remaining."
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${REPO}/actions/workflows/autonomous-test.yml/dispatches" \
+            -d "$(jq -n --arg ref "$BRANCH" --arg actions "$next" '{ref:$ref,inputs:{actions:$actions}}')"
+
       - name: Report batch status
         if: always() && steps.budget.outputs.remaining != '0'
         run: |
           remaining="${{ steps.budget.outputs.remaining }}"
-          if git log -1 --pretty=%s | grep -q '\[auto-improve remaining='; then
-            echo "One autonomous action completed. The improver has dispatched the next run when budget remains."
-          elif [ "$remaining" -eq 1 ]; then
-            echo "Autonomous batch is complete. Use Continue (workflow_dispatch) for another batch of up to 10 actions."
+          if [ "$remaining" -eq 1 ]; then
+            echo "Autonomous batch is complete."
+          elif [ "${{ steps.improver.outcome }}" = "success" ]; then
+            echo "Autonomous action completed; the next run has been dispatched with reduced budget."
           else
-            echo "No autonomous change was committed. The batch is paused so we do not blindly burn actions."
+            echo "Autonomous improvement failed or was unavailable; the batch is paused safely."
           fi
