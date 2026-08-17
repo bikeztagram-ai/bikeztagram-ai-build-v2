@@ -1,12 +1,19 @@
 import assert from 'node:assert/strict';
 import { createGenerationState, markGenerationStarted, markShotComplete, markGenerationFailed } from '../src/cinematicGenerationState.js';
 import { buildCinematicTrailerManifest, validateCinematicTrailerManifest } from '../src/cinematicTrailerManifest.js';
+import { buildTrailerPlan, validateTrailerPlan } from '../src/cinematicTrailerPlan.js';
 
 const shots = [
-  { id: 'shot-1', generationPrompt: 'wide motorcycle reveal', duration: 4, aspectRatio: '16:9' },
-  { id: 'shot-2', generationPrompt: 'dynamic tracking shot', duration: 5, aspectRatio: '16:9' },
+  { id: 'shot-1', generationPrompt: 'wide motorcycle reveal', duration: 4, aspectRatio: '16:9', referenceAssets: [] },
+  { id: 'shot-2', generationPrompt: 'dynamic tracking shot', duration: 5, aspectRatio: '16:9', referenceAssets: [] },
 ];
-const manifest = buildCinematicTrailerManifest({ brief: 'night motorcycle trailer', shots });
+
+const plan = buildTrailerPlan({ brief: 'night motorcycle trailer', shots });
+assert.equal(validateTrailerPlan(plan).valid, true);
+assert.equal(plan.zeroCostOnly, true);
+assert.equal(plan.shotCount, 2);
+
+const manifest = buildCinematicTrailerManifest({ brief: plan.brief, shots: plan.shots });
 const validation = validateCinematicTrailerManifest(manifest);
 assert.equal(validation.ok, true);
 assert.equal(validation.shotCount, 2);
