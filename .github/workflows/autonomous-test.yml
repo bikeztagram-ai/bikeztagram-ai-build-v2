@@ -76,9 +76,6 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          # Vercel's Git integration does not always create a GitHub deployment record.
-          # Try the exact SHA briefly. If no record exists, smoke-test the project's
-          # stable URL rather than a stale, hard-coded preview deployment.
           for attempt in $(seq 1 6); do
             deployments=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/deployments?sha=${SHA}&per_page=20")
             deployment_id=$(echo "$deployments" | jq -r 'map(select(.environment != null)) | sort_by(.created_at) | last | .id // empty')
@@ -119,6 +116,12 @@ jobs:
           name: bikeztagram-autotest-failure
           path: autotest-failure.png
           if-no-files-found: ignore
+
+      - name: Stop batch after smoke failure
+        if: steps.budget.outputs.remaining != '0' && steps.smoke.outcome == 'failure'
+        run: |
+          echo "Smoke test failed; stopping this autonomous batch without running the improver or dispatching another cycle."
+          exit 1
 
       - name: Run one guarded autonomous improvement
         if: steps.budget.outputs.remaining != '0' && steps.deployment.outcome == 'success' && steps.smoke.outcome == 'success'
