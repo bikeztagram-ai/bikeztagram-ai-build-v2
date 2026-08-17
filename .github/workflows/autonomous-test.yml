@@ -5,11 +5,20 @@ on:
     branches:
       - ai-director-two-stage
   workflow_dispatch:
+    inputs:
+      actions:
+        description: 'Number of autonomous improvement actions to run'
+        required: false
+        default: '10'
+        type: string
+
+concurrency:
+  group: bikeztagram-autonomous
+  cancel-in-progress: false
 
 permissions:
   contents: write
   deployments: read
-  actions: write
 
 jobs:
   deployed-smoke-test:
@@ -18,16 +27,42 @@ jobs:
     steps:
       - name: Checkout tested commit
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Determine autonomous action budget
+        id: budget
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ACTIONS: ${{ inputs.actions }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            remaining="${INPUT_ACTIONS:-10}"
+          else
+            remaining=$(printf '%s\n' "$COMMIT_MESSAGE" | sed -n 's/.*\[auto-improve remaining=\([0-9][0-9]*\)\].*/\1/p' | head -n1)
+            remaining="${remaining:-10}"
+          fi
+          if ! [[ "$remaining" =~ ^[0-9]+$ ]]; then
+            echo "Invalid autonomous action budget: $remaining"
+            exit 1
+          fi
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          echo "Autonomous actions remaining in this batch: $remaining"
 
       - name: Set up Node
+        if: steps.budget.outputs.remaining != '0'
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Install dependencies
+        if: steps.budget.outputs.remaining != '0'
         run: npm install
 
       - name: Download deterministic CC0 test video
+        if: steps.budget.outputs.remaining != '0'
         run: |
           mkdir -p tests/fixtures
           curl -L --fail --retry 3 --retry-delay 2 \
@@ -37,9 +72,11 @@ jobs:
           ls -lh tests/fixtures/sample-5mb.mp4
 
       - name: Install Playwright Chromium
+        if: steps.budget.outputs.remaining != '0'
         run: npx playwright install --with-deps chromium
 
       - name: Wait for Vercel deployment and discover URL
+        if: steps.budget.outputs.remaining != '0'
         id: deployment
         env:
           GH_TOKEN: ${{ github.token }}
@@ -76,6 +113,7 @@ jobs:
           exit 1
 
       - name: Run deployed end-to-end browser test
+        if: steps.budget.outputs.remaining != '0'
         id: smoke
         continue-on-error: true
         env:
@@ -85,15 +123,15 @@ jobs:
         run: node tests/autonomous-smoke.mjs
 
       - name: Upload autonomous test failure screenshot
-        if: steps.smoke.outcome == 'failure'
+        if: steps.budget.outputs.remaining != '0' && steps.smoke.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: bikeztagram-autotest-failure
           path: autotest-failure.png
           if-no-files-found: ignore
 
-      - name: Run guarded autonomous improvement
-        if: steps.deployment.outcome == 'success'
+      - name: Run one guarded autonomous improvement
+        if: steps.budget.outputs.remaining != '0' && steps.deployment.outcome == 'success'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-2.5-flash
@@ -101,20 +139,19 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
-          MAX_AUTO_ITERATIONS: 3
+          MAX_AUTO_ITERATIONS: 1
+          AUTO_ITERATION: 0
+          AUTO_REMAINING_ACTIONS: ${{ steps.budget.outputs.remaining }}
         run: node scripts/autonomous-improver.mjs
 
-      - name: Report test result when no autonomous change was made
-        if: steps.smoke.outcome == 'failure' && !cancelled()
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: Report batch status
+        if: always() && steps.budget.outputs.remaining != '0'
         run: |
-          if git log -1 --pretty=%s | grep -qi '\[auto-improve '; then
-            echo "The autonomous agent made a guarded change; the next workflow cycle will retest it."
-          elif [ -n "$GEMINI_API_KEY" ]; then
-            echo "Autonomous agent made no new change; leaving this failure recorded."
-            exit 1
+          remaining="${{ steps.budget.outputs.remaining }}"
+          if git log -1 --pretty=%s | grep -q '\[auto-improve remaining='; then
+            echo "One autonomous action completed. The pushed commit carries the remaining batch budget into the next run."
+          elif [ "$remaining" -eq 1 ]; then
+            echo "Autonomous batch is complete. Use Continue (workflow_dispatch) for another batch of up to 10 actions."
           else
-            echo "GEMINI_API_KEY is not configured, so autonomous repair is paused."
-            exit 1
+            echo "No autonomous change was committed. The batch is paused so we do not blindly burn actions."
           fi
