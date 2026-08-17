@@ -65,6 +65,132 @@ export async function validateRenderedVideo(blob, expectedDuration = 15) {
   }
 }
 
+async function sendAutomaticTelemetry(report) {
+  try {
+    await fetch('/api/qa-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(report),
+      keepalive: true
+    });
+  } catch (error) {
+    console.warn('[AUTO-QA] Could not send telemetry:', error?.message || error);
+  }
+}
+
+async function inspectRenderedElement(videoElement) {
+  const source = videoElement.currentSrc || videoElement.src || '';
+  if (!source.startsWith('blob:') && !source.startsWith('https://')) return;
+
+  const probe = document.createElement('video');
+  probe.muted = true;
+  probe.playsInline = true;
+  probe.preload = 'metadata';
+
+  try {
+    const metadata = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('metadata timeout')), 10000);
+      probe.onloadedmetadata = () => {
+        clearTimeout(timeout);
+        resolve({ duration: probe.duration, width: probe.videoWidth, height: probe.videoHeight });
+      };
+      probe.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error('browser could not decode rendered video'));
+      };
+      probe.src = source;
+      probe.load();
+    });
+
+    const start = performance.now();
+    await probe.play();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const advanced = probe.currentTime > 0.05;
+    const probeMs = Math.round(performance.now() - start);
+    probe.pause();
+
+    let frameQA = { sampled: false, darkFrameRatio: null };
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.min(probe.videoWidth || 320, 320);
+      canvas.height = Math.min(probe.videoHeight || 180, 180);
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (ctx && canvas.width && canvas.height) {
+        probe.currentTime = Math.min(0.5, Math.max(0, metadata.duration - 0.05));
+        await new Promise((resolve) => { probe.onseeked = resolve; setTimeout(resolve, 500); });
+        ctx.drawImage(probe, 0, 0, canvas.width, canvas.height);
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let dark = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          const luminance = (pixels[i] * 0.2126) + (pixels[i + 1] * 0.7152) + (pixels[i + 2] * 0.0722);
+          if (luminance < 12) dark += 1;
+        }
+        frameQA = { sampled: true, darkFrameRatio: Number((dark / (pixels.length / 4)).toFixed(3)) };
+      }
+    } catch (error) {
+      frameQA = { sampled: false, darkFrameRatio: null, error: error?.message || 'frame sample failed' };
+    }
+
+    const passed = Number.isFinite(metadata.duration) && metadata.duration > 0 && advanced;
+    const report = {
+      generatedAt: new Date().toISOString(),
+      kind: 'automatic-render-browser-qa',
+      verdict: passed ? 'PASS' : 'FAIL',
+      durationSeconds: Number((metadata.duration || 0).toFixed(2)),
+      width: metadata.width || 0,
+      height: metadata.height || 0,
+      playbackAdvanced: advanced,
+      playbackProbeMs: probeMs,
+      frameQA,
+      sourceUrlType: source.startsWith('blob:') ? 'blob-url' : 'https-url',
+      blobLikeOutput: source.startsWith('blob:'),
+      error: passed ? null : 'Rendered video did not decode/play correctly.'
+    };
+
+    console.log('[AUTO-QA] Rendered video test:', report);
+    await sendAutomaticTelemetry(report);
+  } catch (error) {
+    const report = {
+      generatedAt: new Date().toISOString(), kind: 'automatic-render-browser-qa', verdict: 'FAIL',
+      durationSeconds: 0, width: 0, height: 0, playbackAdvanced: false, playbackProbeMs: 0,
+      frameQA: null, sourceUrlType: source.startsWith('blob:') ? 'blob-url' : 'https-url',
+      blobLikeOutput: source.startsWith('blob:'), error: error?.message || 'QA failed'
+    };
+    console.error('[AUTO-QA] Rendered video test failed:', report);
+    await sendAutomaticTelemetry(report);
+  } finally {
+    try { probe.pause(); } catch {}
+    probe.removeAttribute('src');
+    probe.load();
+  }
+}
+
+function installAutomaticVideoQA() {
+  if (typeof window === 'undefined' || typeof document === 'undefined' || !window.MutationObserver) return;
+
+  const seen = new WeakSet();
+  const markExisting = () => document.querySelectorAll('video').forEach((video) => seen.add(video));
+  const inspectNew = () => {
+    document.querySelectorAll('video').forEach((video) => {
+      if (seen.has(video)) return;
+      seen.add(video);
+      inspectRenderedElement(video);
+    });
+  };
+
+  const start = () => {
+    markExisting();
+    const observer = new MutationObserver(inspectNew);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    window.__bikeztagramAutoQA = observer;
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+}
+
+installAutomaticVideoQA();
+
 export function buildDirectorQAReport({ file, analysis, productionPlan, renderPlan, renderQA }) {
   const scenes = Array.isArray(productionPlan?.scenes) ? productionPlan.scenes : [];
   const realScenes = scenes.filter((scene) => scene.sourceType === 'uploaded');
@@ -81,14 +207,9 @@ export function buildDirectorQAReport({ file, analysis, productionPlan, renderPl
       bestMomentCount: Array.isArray(analysis.bestMoments) ? analysis.bestMoments.length : 0
     } : null,
     director: productionPlan ? {
-      version: productionPlan.version || '',
-      title: productionPlan.title || '',
-      directorSource: productionPlan.directorSource || '',
-      targetDuration: Number(productionPlan.targetDuration || 0),
-      plannedDuration: Number(productionPlan.plannedDuration || 0),
-      realSceneCount: realScenes.length,
-      generatedSceneCount: generatedScenes.length,
-      totalSceneCount: scenes.length
+      version: productionPlan.version || '', title: productionPlan.title || '', directorSource: productionPlan.directorSource || '',
+      targetDuration: Number(productionPlan.targetDuration || 0), plannedDuration: Number(productionPlan.plannedDuration || 0),
+      realSceneCount: realScenes.length, generatedSceneCount: generatedScenes.length, totalSceneCount: scenes.length
     } : null,
     renderer: {
       cutCount: cuts.length,
@@ -97,11 +218,7 @@ export function buildDirectorQAReport({ file, analysis, productionPlan, renderPl
       transitions: cuts.map((cut) => cut.transition || 'hard-cut')
     },
     output: renderQA || null,
-    notes: [
-      'QA runs in the browser against the actual rendered Blob.',
-      'The playback probe confirms that the browser can decode and advance the exported video.',
-      'Blob upload configuration is not part of this QA layer.'
-    ]
+    notes: ['QA runs in the browser against the actual rendered video element.', 'The playback probe confirms that the browser can decode and advance the exported video.', 'Blob upload configuration is not part of this QA layer.']
   };
 }
 
