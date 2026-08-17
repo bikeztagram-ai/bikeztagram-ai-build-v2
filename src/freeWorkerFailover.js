@@ -25,15 +25,24 @@ export function createGenerationQueueItem({ id, prompt, duration = 5 } = {}) {
     attempts: 0,
     maxAttempts: 3,
     createdAt: new Date().toISOString(),
+    workerHistory: [],
+    paidFallback: false,
   };
 }
 
-export function handleWorkerExhaustion(job, reason = 'No free GPU worker currently available') {
+export function handleWorkerExhaustion(job, reason = 'No free GPU worker currently available', worker = null) {
+  const attempts = (job?.attempts || 0) + 1;
   return {
     ...job,
     status: 'waiting-for-free-worker',
+    attempts,
     lastError: reason,
     nextAction: 'retry-when-free-worker-available',
+    workerHistory: [...(job?.workerHistory || []), worker].filter(Boolean),
     paidFallback: false,
   };
+}
+
+export function canRetryFree(job) {
+  return Boolean(job) && job.costPolicy === 'ZERO_GBP' && job.paidFallback !== true && (job.attempts || 0) < (job.maxAttempts || 3);
 }
