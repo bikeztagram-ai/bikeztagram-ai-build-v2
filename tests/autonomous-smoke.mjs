@@ -11,6 +11,13 @@ if (!baseUrl) throw new Error('TEST_URL is required.');
 if (!fs.existsSync(fixture)) throw new Error(`Test video not found: ${fixture}`);
 if (!bypassSecret) throw new Error('VERCEL_AUTOMATION_BYPASS_SECRET is required for protected preview deployments.');
 
+// Seed the Vercel automation bypass through the initial URL as well as the
+// request header. This lets Vercel issue its bypass cookie before Playwright
+// starts loading the app's subresources. The secret is never logged.
+const testUrl = new URL(baseUrl);
+testUrl.searchParams.set('x-vercel-protection-bypass', bypassSecret);
+testUrl.searchParams.set('x-vercel-set-bypass-cookie', 'true');
+
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
   viewport: { width: 1280, height: 900 },
@@ -37,8 +44,8 @@ page.on('pageerror', (error) => events.push(`[pageerror] ${error.message}`));
 
 try {
   console.log(`AUTOTEST: opening ${baseUrl}`);
-  await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  console.log(`AUTOTEST: landed on ${page.url()}`);
+  await page.goto(testUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 60000 });
+  console.log(`AUTOTEST: landed on ${new URL(page.url()).origin}`);
 
   if (/login|sso|vercel/i.test(await page.title())) {
     throw new Error(`Deployment is protected and the autonomous runner cannot access it. URL=${page.url()} title=${await page.title()}`);
