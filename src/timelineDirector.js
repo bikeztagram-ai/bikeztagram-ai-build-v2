@@ -32,11 +32,17 @@ function roleFor(index, total, flags) {
 }
 
 function motionFor(role, index, flags, existing) {
-  if (existing && existing !== 'static') return existing;
+  if (existing && existing !== 'static') {
+    // Uploaded motorcycle footage should feel like a controlled camera move,
+    // not handheld shake. Preserve explicit user/model intent except for orbit,
+    // which is too aggressive for real footage in the browser renderer.
+    if (existing === 'orbit' || existing === 'parallax') return index % 2 ? 'pan-right' : 'pan-left';
+    return existing;
+  }
   if (role === 'hook') return flags.action ? 'slow-push' : 'slow-pull';
   if (role === 'build') return index % 2 ? 'pan-right' : 'slow-push';
-  if (role === 'action') return index % 2 ? 'orbit' : 'pan-left';
-  if (role === 'peak') return 'zoom-punch';
+  if (role === 'action') return index % 2 ? 'pan-right' : 'pan-left';
+  if (role === 'peak') return 'slow-push';
   if (role === 'hero-ending') return 'slow-push';
   if (role === 'emotional-build') return 'slow-pull';
   return index % 2 ? 'pan-right' : 'slow-push';
@@ -76,26 +82,29 @@ export function refineCinematicTimeline(cuts, options = {}) {
     cut.motionStyle = motionFor(role, index, flags, cut.motionStyle);
     cut.transition = transitionFor(index, total, flags, cut.transition);
 
-    const baseIntensity = num(cut.motionIntensity, 0.9);
+    const baseIntensity = num(cut.motionIntensity, 0.75);
+    // Keep browser-generated camera motion subtle. Real motorcycle footage should
+    // retain the rider's natural movement rather than receiving a second artificial
+    // layer of aggressive movement on top.
     cut.motionIntensity = Number(clamp(
-      role === 'action' || role === 'peak' ? Math.max(baseIntensity, 1.05) :
-      role === 'hero-ending' ? Math.min(baseIntensity, 0.9) : baseIntensity,
+      role === 'action' || role === 'peak' ? Math.max(baseIntensity, 0.82) :
+      role === 'hero-ending' ? Math.min(baseIntensity, 0.72) : Math.min(baseIntensity, 0.78),
       0.35,
-      1.6
+      1.05
     ).toFixed(2));
 
     let speed = clamp(num(cut.speed, 1), 0.5, 1.75);
-    if (flags.action && (role === 'action' || role === 'peak')) speed = Math.max(speed, 1.12);
+    if (flags.action && (role === 'action' || role === 'peak')) speed = Math.max(speed, 1.08);
     if (role === 'hook' || role === 'hero-ending' || flags.emotional) speed = Math.min(speed, 0.92);
     cut.speed = Number(speed.toFixed(2));
 
     // A short speed ramp gives the renderer a usable cinematic acceleration/deceleration curve.
     if (flags.action && (role === 'action' || role === 'peak')) {
-      cut.speedEnd = Number(clamp(speed * 0.82, 0.55, 1.55).toFixed(2));
+      cut.speedEnd = Number(clamp(speed * 0.88, 0.55, 1.45).toFixed(2));
     } else if (role === 'hero-ending' || flags.emotional) {
-      cut.speedEnd = Number(clamp(speed * 0.88, 0.5, 1.35).toFixed(2));
+      cut.speedEnd = Number(clamp(speed * 0.90, 0.5, 1.25).toFixed(2));
     } else {
-      cut.speedEnd = Number(clamp(speed * 1.02, 0.5, 1.75).toFixed(2));
+      cut.speedEnd = Number(clamp(speed * 1.01, 0.5, 1.6).toFixed(2));
     }
 
     cut.stabilization = cut.stabilization !== false;
