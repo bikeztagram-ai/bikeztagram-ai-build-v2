@@ -18,8 +18,21 @@ function copyFfmpegAssets() {
   };
 }
 
+function experimentalMultipartBlobUpload() {
+  return {
+    name: 'experimental-multipart-blob-upload',
+    transform(code, id) {
+      if (id.replace(/\\/g, '/').endsWith('/src/App.jsx')) {
+        const next = code.replace('multipart: false', 'multipart: true');
+        if (next !== code) return { code: next, map: null };
+      }
+      return null;
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), copyFfmpegAssets()],
+  plugins: [react(), copyFfmpegAssets(), experimentalMultipartBlobUpload()],
   base: './',
   server: { host: true, headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
   preview: { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
