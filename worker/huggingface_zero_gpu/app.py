@@ -1,8 +1,7 @@
 """Bikeztagram ZeroGPU adapter.
 
-Runs the same Wan2.1 generation contract inside a Hugging Face ZeroGPU Space.
-This is a proof/bridge adapter: it keeps generation free within the account's
-included ZeroGPU quota and never introduces a paid provider fallback.
+Runs the Wan2.1 T2V-1.3B model inside a Hugging Face ZeroGPU Space.
+The first milestone is a short real MP4 generation with no paid fallback.
 """
 from __future__ import annotations
 
@@ -14,21 +13,27 @@ import gradio as gr
 import spaces
 import torch
 
-MODEL_ID = os.getenv("WAN_MODEL_ID", "Wan-AI/Wan2.1-T2V-1.3B")
+MODEL_ID = os.getenv("WAN_MODEL_ID", "Wan-AI/Wan2.1-T2V-1.3B-Diffusers")
 MAX_SECONDS = 5
-
+FPS = 16
 _pipe = None
 
 
 def load_pipeline():
     global _pipe
     if _pipe is None:
-        from diffusers import WanPipeline
+        from diffusers import AutoencoderKLWan, WanPipeline
+        vae = AutoencoderKLWan.from_pretrained(
+            MODEL_ID,
+            subfolder="vae",
+            torch_dtype=torch.float32,
+        )
         _pipe = WanPipeline.from_pretrained(
             MODEL_ID,
-            torch_dtype=torch.float16,
+            vae=vae,
+            torch_dtype=torch.bfloat16,
         )
-        _pipe.to("cuda")
+        _pipe.enable_model_cpu_offload()
     return _pipe
 
 
@@ -40,11 +45,9 @@ def generate(prompt: str, seconds: int = 3, seed: int = 0):
     seconds = max(1, min(MAX_SECONDS, int(seconds)))
     pipe = load_pipeline()
 
-    # Keep the first proof deliberately small. The adapter can be upgraded to
-    # the official Wan repository runner if the Diffusers pipeline is not
-    # available on the selected ZeroGPU runtime.
+    # Wan requires num_frames = 4*k + 1. At 16 fps, k=4*seconds.
+    frames = 4 * (4 * seconds) + 1
     generator = torch.Generator(device="cuda").manual_seed(int(seed))
-    frames = 4 * (8 * seconds) + 1
     result = pipe(
         prompt=prompt,
         num_frames=frames,
@@ -57,7 +60,7 @@ def generate(prompt: str, seconds: int = 3, seed: int = 0):
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
         output = Path(f.name)
     from diffusers.utils import export_to_video
-    export_to_video(result.frames[0], str(output), fps=16)
+    export_to_video(result.frames[0], str(output), fps=FPS)
     return str(output)
 
 
