@@ -5,12 +5,18 @@ import { chromium } from 'playwright';
 const baseUrl = process.env.TEST_URL;
 const fixture = process.env.TEST_VIDEO || path.resolve('tests/fixtures/sample-5mb.mp4');
 const timeoutMs = Number(process.env.TEST_TIMEOUT_MS || 900000);
+const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
 if (!baseUrl) throw new Error('TEST_URL is required.');
 if (!fs.existsSync(fixture)) throw new Error(`Test video not found: ${fixture}`);
+if (!bypassSecret) throw new Error('VERCEL_AUTOMATION_BYPASS_SECRET is required for protected preview deployments.');
 
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+const context = await browser.newContext({
+  viewport: { width: 1280, height: 900 },
+  extraHTTPHeaders: { 'x-vercel-protection-bypass': bypassSecret },
+});
+const page = await context.newPage();
 const started = Date.now();
 const events = [];
 
@@ -50,7 +56,6 @@ try {
   }, null, { timeout: timeoutMs });
   console.log('AUTOTEST: render completed.');
 
-  const video = page.locator('video').filter({ has: page.locator('source') }).first();
   const videos = page.locator('video');
   const count = await videos.count();
   if (!count) throw new Error('AUTOTEST: no rendered video element found.');
@@ -88,5 +93,6 @@ try {
   await page.screenshot({ path: 'autotest-failure.png', fullPage: true }).catch(() => {});
   process.exitCode = 1;
 } finally {
+  await context.close();
   await browser.close();
 }
