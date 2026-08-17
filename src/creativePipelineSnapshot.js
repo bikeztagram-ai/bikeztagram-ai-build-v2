@@ -1,0 +1,2 @@
+export function snapshotPipeline(state={}){return {version:1,projectId:state.projectId||null,status:state.status||'queued',completed:[...(state.completed||[])],pending:[...(state.pending||[])],failed:[...(state.failed||[])],updatedAt:new Date().toISOString()};}
+export function resumeFromSnapshot(snapshot={}){return {projectId:snapshot.projectId||null,status:snapshot.status||'queued',completed:[...(snapshot.completed||[])],pending:[...(snapshot.pending||[])],failed:[...(snapshot.failed||[])]};}
