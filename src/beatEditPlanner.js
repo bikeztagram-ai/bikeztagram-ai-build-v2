@@ -1,0 +1,4 @@
+import { buildMusicStructure } from './musicStructure.js';
+export function buildBeatEditPlan(shots=[], events=[], duration=0){const music=buildMusicStructure(events,duration);const beats=music.beats;return {music, cuts:shots.map((shot,i)=>({shotId:shot.id||i,time:nearestBeat(shot.preferredTime??i,beats),strength:shot.impact??.5,transition:transitionFor(shot,beats)}))};}
+function nearestBeat(time,beats){if(!beats.length)return time;return beats.reduce((best,b)=>Math.abs(b.time-time)<Math.abs(best.time-time)?b:best,beats[0]).time;}
+function transitionFor(shot,beats){const t=nearestBeat(shot.preferredTime??0,beats);const event=beats.find(b=>b.time===t);if(event?.type==='drop')return'hero-drop';if(event?.type==='rise')return'build';if(event?.type==='break')return'breath';return shot.transition||'cut';}
