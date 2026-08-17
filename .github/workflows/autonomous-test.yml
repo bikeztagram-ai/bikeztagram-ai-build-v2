@@ -16,6 +16,11 @@ concurrency:
   group: bikeztagram-autonomous
   cancel-in-progress: false
 
+permissions:
+  contents: write
+  actions: write
+  deployments: read
+
 jobs:
   deployed-smoke-test:
     runs-on: ubuntu-latest
@@ -146,7 +151,7 @@ jobs:
         run: |
           remaining="${{ steps.budget.outputs.remaining }}"
           if git log -1 --pretty=%s | grep -q '\[auto-improve remaining='; then
-            echo "One autonomous action completed. The pushed commit carries the remaining batch budget into the next run."
+            echo "One autonomous action completed. The improver has dispatched the next run when budget remains."
           elif [ "$remaining" -eq 1 ]; then
             echo "Autonomous batch is complete. Use Continue (workflow_dispatch) for another batch of up to 10 actions."
           else
