@@ -1,0 +1,1 @@
+export function recordDecision(log=[],decision={}){return [...log,{id:decision.id||`decision-${log.length+1}`,stage:decision.stage||'creative',reason:decision.reason||'unspecified',selected:decision.selected||null,alternatives:decision.alternatives||[],timestamp:new Date().toISOString()}];}
