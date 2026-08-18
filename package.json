@@ -10,7 +10,8 @@
     "verify:cinematic": "node scripts/verify-cinematic-pipeline.mjs",
     "verify:creative-studio": "node scripts/verify-creative-studio.mjs",
     "verify:pipeline-contracts": "node scripts/verify-pipeline-contracts.mjs",
-    "verify:all": "npm run verify:cinematic && npm run verify:creative-studio && npm run verify:pipeline-contracts"
+    "verify:edit-director": "node scripts/verify-edit-director-policy.mjs",
+    "verify:all": "npm run verify:cinematic && npm run verify:creative-studio && npm run verify:pipeline-contracts && npm run verify:edit-director"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
