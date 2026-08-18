@@ -13,7 +13,7 @@ on:
 
 concurrency:
   group: bikeztagram-autonomous
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -117,6 +117,28 @@ jobs:
           name: bikeztagram-autotest-failure
           path: autotest-failure.png
           if-no-files-found: ignore
+
+      - name: Cancel queued autonomous runs after smoke failure
+        if: steps.budget.outputs.remaining != '0' && steps.smoke.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+          CURRENT_RUN: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          echo "Smoke test failed; cancelling sibling queued/in-progress autonomous runs on ${BRANCH}."
+          gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow autonomous-test.yml \
+            --branch "$BRANCH" \
+            --limit 100 \
+            --json databaseId,status \
+            --jq '.[] | select(.databaseId != ('"$CURRENT_RUN"') and (.status == "queued" or .status == "in_progress")) | .databaseId' \
+          | while read -r run_id; do
+              [ -z "$run_id" ] && continue
+              echo "Cancelling autonomous run $run_id"
+              gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY" || true
+            done
 
       - name: Stop batch after smoke failure
         if: steps.budget.outputs.remaining != '0' && steps.smoke.outcome == 'failure'
