@@ -13,6 +13,8 @@ import { createPipelineRun } from './pipelineRun.js';
 import { buildCampaignRunPlan } from './campaignRunPlan.js';
 import { buildRepurposePlan } from './repurposePlanner.js';
 import { evaluateRepurposedClip } from './repurposeQualityGate.js';
+import { rankMediaCandidates } from './mediaIntelligence.js';
+import { buildMultiPlatformPlans } from './autoReframePlan.js';
 
 export function createCreativeStudioProject(input = {}) {
   const subjectType = input.subjectType || 'general';
@@ -29,8 +31,27 @@ export function createCreativeStudioProject(input = {}) {
   const story = buildCreativeStory({ ...intent, treatment });
   const visualLook = buildVisualLookPlan({ lookId: input.lookId || 'cinematic-natural' });
   const dna = createCreativeDna(input.creativeDna || {});
+  const assets = Array.isArray(input.assets) ? input.assets : [];
   const campaign = buildContentCampaign({ subjectType, platforms: input.platforms || [intent.platform] });
-  return { version: 1, intent, blueprint, story, treatment, visualLook, dna, assets: input.assets || [], editPlan: input.editPlan || null, campaign };
+  const assetRanking = rankMediaCandidates(assets, { motion: input.motionTarget ?? 0.5 });
+  const reframePlans = buildMultiPlatformPlans({
+    platforms: input.platforms || ['reels', 'tiktok', 'youtube'],
+    subject: input.subjectFocus || 'auto',
+  });
+  return {
+    version: 2,
+    intent,
+    blueprint,
+    story,
+    treatment,
+    visualLook,
+    dna,
+    assets,
+    assetRanking,
+    reframePlans,
+    editPlan: input.editPlan || null,
+    campaign,
+  };
 }
 
 export function prepareCreativeExecution(project = {}, moments = [], options = {}) {
