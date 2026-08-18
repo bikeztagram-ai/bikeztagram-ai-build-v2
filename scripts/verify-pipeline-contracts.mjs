@@ -4,6 +4,7 @@ import { createPipelineRun, advancePipelineRun } from '../src/pipelineRun.js';
 import { recoveryAction } from '../src/pipelineRecovery.js';
 import { collectPipelineOutput, appendOutput } from '../src/pipelineOutputCollector.js';
 import { validateCreativeStudioResult } from '../src/creativeStudioContract.js';
+import { normalizeEditCut } from '../src/editPlanTiming.js';
 
 const plan = { stages: [{ id: 'analyse' }, { id: 'direct' }, { id: 'generate' }] };
 let run = createPipelineRun({ id: 'regression' }, plan);
@@ -46,4 +47,19 @@ assert.deepEqual(validateCreativeStudioResult({}), {
   valid: false,
   errors: ['Missing execution plan.', 'Missing project health.', 'Missing render job.', 'Missing campaign plan.', 'Missing pipeline run.'],
 });
+
+const verifiedMoment = { start: 5, end: 8 };
+const normalized = normalizeEditCut(
+  { momentIndex: 0, startTime: 5.25, endTime: 7.25, duration: 4, speed: 1 },
+  verifiedMoment,
+  1,
+);
+assert.equal(normalized.startTime, 5.25);
+assert.equal(normalized.endTime, 7.25);
+assert.equal(normalized.duration, 2);
+assert.equal(normalized.speed, 1);
+assert.equal(normalizeEditCut({ momentIndex: 0, startTime: 5, endTime: 5.4, duration: 1 }, verifiedMoment, 1), null);
+assert.equal(normalizeEditCut({ momentIndex: 0, startTime: 5.5, endTime: 9, duration: 2, speed: 1 }, verifiedMoment, 1).endTime, 7.5);
+assert.equal(normalizeEditCut({ momentIndex: 1, startTime: 5, endTime: 7 }, verifiedMoment, 1), null);
+
 console.log('pipeline-contracts: PASS');
