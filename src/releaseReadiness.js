@@ -15,7 +15,7 @@ export function assessReleaseReadiness(input = {}) {
     render: input.renderValidation?.valid === true,
     master: input.masterReady === true,
     platform: input.platformExport?.valid === true,
-    protectedInfrastructure: input.protectedInfrastructureIntact !== false,
+    protectedInfrastructure: input.protectedInfrastructureIntact === true,
   };
 
   if (!checks.contracts) errors.push('Required pipeline contracts are not all verified.');
@@ -25,13 +25,17 @@ export function assessReleaseReadiness(input = {}) {
   if (!checks.platform) warnings.push('Platform export readiness has not been observed in this run.');
   if (!checks.protectedInfrastructure) errors.push('Protected infrastructure integrity check failed.');
 
+  const executionEvidence = checks.master && checks.platform;
+  if (!executionEvidence) warnings.push('Full end-to-end render/export evidence is still required before release sign-off.');
+
+  const ready = errors.length === 0 && checks.pipeline && checks.render && executionEvidence;
   return {
-    version: 1,
-    ready: errors.length === 0 && checks.pipeline && checks.render,
+    version: 2,
+    ready,
     checks,
     errors,
     warnings,
     requiredContracts: REQUIRED_CONTRACTS,
-    deploymentRecommendation: errors.length === 0 && checks.pipeline && checks.render ? 'candidate-for-single-vercel-deployment' : 'do-not-deploy',
+    deploymentRecommendation: ready ? 'candidate-for-single-vercel-deployment' : 'do-not-deploy',
   };
 }
