@@ -1,34 +1,30 @@
 import assert from 'node:assert/strict';
-import { buildBeatMap } from '../src/audioBeatMap.js';
-import { refineCinematicTimeline, timelineSummary } from '../src/timelineDirector.js';
+import { compileDirectorTimeline } from '../src/directorTimelineCompiler.js';
 
-const beatMap = buildBeatMap({ durationSeconds: 15, bpm: 120 });
-const cuts = [
-  { id: 'scene-01', purpose: 'real-opening', duration: 2.5, startTime: 0, mediaIndex: 0, motionStyle: 'slow-push', speed: 0.95 },
-  { id: 'scene-02', purpose: 'real-cinematic-beat', duration: 2.5, startTime: 2.5, mediaIndex: 0, motionStyle: 'pan-right', speed: 1 },
-  { id: 'scene-03', purpose: 'real-action', duration: 2.5, startTime: 5, mediaIndex: 0, motionStyle: 'pan-left', speed: 1.1 },
-  { id: 'scene-04', purpose: 'real-cinematic-beat', duration: 2.5, startTime: 7.5, mediaIndex: 0, motionStyle: 'tilt-up', speed: 1 },
-  { id: 'scene-05', purpose: 'real-hero-ending', duration: 2.5, startTime: 10, mediaIndex: 0, motionStyle: 'slow-pull', speed: 0.9 }
-];
+const plan = {
+  title: 'Integration test',
+  creativeRequest: 'cinematic motorcycle trailer',
+  targetDuration: 10,
+  sourceAnalysis: { durationSeconds: 12 },
+  style: { dark: true },
+  scenes: [
+    { id: 'a', sourceType: 'uploaded', mediaIndex: 0, mediaId: 'bike-a', purpose: 'real-opening', startTime: 0.2, duration: 2 },
+    { id: 'b', sourceType: 'uploaded', mediaIndex: 1, mediaId: 'bike-b', purpose: 'real-cinematic-beat', startTime: 3, duration: 2 },
+    { id: 'c', sourceType: 'uploaded', mediaIndex: 0, mediaId: 'bike-a', purpose: 'real-action-speed', startTime: 6, duration: 2 },
+    { id: 'd', sourceType: 'uploaded', mediaIndex: 1, mediaId: 'bike-b', purpose: 'real-hero-ending', startTime: 8, duration: 2 }
+  ]
+};
 
-const refined = refineCinematicTimeline(cuts, {
-  creativePrompt: 'cinematic motorcycle action trailer',
-  beatMap
-});
-
-assert.equal(refined.length, 5);
-assert.equal(refined[0].storyRole, 'hook');
-assert.equal(refined[2].storyRole, 'escalation');
-assert.equal(refined[4].storyRole, 'hero');
-assert.ok(refined[2].motionIntensity >= 1.05);
-assert.ok(refined[2].speed >= 1.12);
-assert.equal(refined[2].beatSync.syncMode, 'impact-target');
-assert.equal(refined[4].beatSync.syncMode, 'resolve-target');
-assert.equal(refined[0].beatSync.action, 'hook');
-assert.ok(refined.every((cut) => cut.coverage?.preserveSubject === true));
-
-const summary = timelineSummary(refined);
-assert.equal(summary.cuts, 5);
-assert.ok(summary.storyScore >= 80);
+const compiled = compileDirectorTimeline(plan, { bpm: 120 });
+assert.equal(compiled.version, '1.4');
+assert.equal(compiled.cuts.length, 4);
+assert.equal(compiled.story.beatAware, true);
+assert.equal(compiled.cuts[0].mediaId, 'bike-a');
+assert.equal(compiled.cuts[1].mediaId, 'bike-b');
+assert.equal(compiled.cuts[2].storyRole, 'escalation');
+assert.equal(compiled.cuts[3].storyRole, 'hero');
+assert.ok(compiled.cuts.every((cut) => cut.sourceType === 'uploaded' && cut.generated === false));
+assert.ok(compiled.cuts.every((cut) => cut.directorIntent?.preserveSubject === true));
+assert.ok(compiled.cuts.some((cut) => cut.beatTreatment?.role === 'impact'));
 
 console.log('director-timeline-integration: PASS');
