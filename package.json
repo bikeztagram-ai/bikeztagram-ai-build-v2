@@ -15,13 +15,14 @@
     "verify:cinematic-director-integration": "node scripts/verify-cinematic-director-integration.mjs",
     "verify:render-duration": "node scripts/verify-render-duration-policy.mjs",
     "verify:render-execution": "node scripts/verify-render-execution-policy.mjs",
+    "verify:render-project-guard": "node scripts/verify-render-project-guard.mjs",
     "verify:generation-director": "node scripts/verify-generation-director.mjs",
     "verify:platform-reframe": "node scripts/verify-platform-reframe.mjs",
     "verify:platform-output": "node scripts/verify-platform-output.mjs",
     "verify:platform-export": "node scripts/verify-platform-export.mjs",
     "verify:platform-export-ui": "node scripts/verify-platform-export-ui-contract.mjs",
     "verify:release-readiness": "node scripts/verify-release-readiness.mjs",
-    "verify:all": "npm run verify:cinematic && npm run verify:creative-studio && npm run verify:pipeline-contracts && npm run verify:edit-director && npm run verify:two-stage-director && npm run verify:cinematic-director-integration && npm run verify:render-duration && npm run verify:render-execution && npm run verify:generation-director && npm run verify:platform-reframe && npm run verify:platform-output && npm run verify:platform-export && npm run verify:platform-export-ui && npm run verify:release-readiness"
+    "verify:all": "npm run verify:cinematic && npm run verify:creative-studio && npm run verify:pipeline-contracts && npm run verify:edit-director && npm run verify:two-stage-director && npm run verify:cinematic-director-integration && npm run verify:render-duration && npm run verify:render-execution && npm run verify:render-project-guard && npm run verify:generation-director && npm run verify:platform-reframe && npm run verify:platform-output && npm run verify:platform-export && npm run verify:platform-export-ui && npm run verify:release-readiness"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
@@ -33,9 +34,7 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1",
-    "playwright": "^1.62.1",
-    "@vitejs/plugin-react": "^5.0.2",
+    "@playwright/test": "^5.0.2",
     "vite": "^6.4.3"
   }
 }
