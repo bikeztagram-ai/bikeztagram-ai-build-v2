@@ -11,7 +11,8 @@
     "verify:creative-studio": "node scripts/verify-creative-studio.mjs",
     "verify:pipeline-contracts": "node scripts/verify-pipeline-contracts.mjs",
     "verify:edit-director": "node scripts/verify-edit-director-policy.mjs",
-    "verify:all": "npm run verify:cinematic && npm run verify:creative-studio && npm run verify:pipeline-contracts && npm run verify:edit-director"
+    "verify:two-stage-director": "node scripts/verify-two-stage-director.mjs",
+    "verify:all": "npm run verify:cinematic && npm run verify:creative-studio && npm run verify:pipeline-contracts && npm run verify:edit-director && npm run verify:two-stage-director"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
@@ -26,6 +27,7 @@
     "@playwright/test": "^1.62.1",
     "playwright": "^1.62.1",
     "@vitejs/plugin-react": "^5.0.2",
-    "vite": "^6.4.3"
+    "vite": "^6.4.3",
+    "playwright": "^1.62.1"
   }
 }
