@@ -28,9 +28,16 @@ assert.equal(shaped.editorialStructure.length, 4);
 assert.ok(shaped.cuts.every((cut) => cut.momentIndex >= 0 && cut.momentIndex < moments.length));
 assert.ok(shaped.cuts.every((cut) => cut.transition));
 assert.ok(shaped.cuts.every((cut) => cut.motionStyle));
+assert.ok(shaped.plannedDuration >= 7);
 
+// Regression: Gemini can legally return a single verified cut. The director
+// must use additional verified Stage 1 moments rather than rendering a
+// one-shot ~2-second edit when the analysis contains enough evidence.
 const sparse = shapeCinematicEditPlan({ cuts: [{ momentIndex: 2, startTime: 9, endTime: 11, duration: 2 }] }, moments);
-assert.equal(sparse.cuts.length, 1);
-assert.equal(sparse.cuts[0].purpose, 'hook');
+assert.equal(sparse.cuts.length, 4);
+assert.equal(sparse.cuts.at(-1).momentIndex, 1);
+assert.ok(sparse.plannedDuration >= 7);
+assert.ok(sparse.cuts.every((cut) => cut.startTime >= moments[cut.momentIndex].start));
+assert.ok(sparse.cuts.every((cut) => cut.endTime <= moments[cut.momentIndex].end + 1e-9));
 
 console.log('edit-director-policy: PASS');
