@@ -10,6 +10,7 @@ const moments = [
 
 const input = {
   title: 'Night Ride',
+  targetDuration: 15,
   cuts: [
     { momentIndex: 0, startTime: 0, endTime: 2, duration: 2, purpose: 'mystery', transition: 'hard-cut', motionStyle: 'static', speed: 1, text: 'NINJA 1000SX' },
     { momentIndex: 1, startTime: 4, endTime: 6, duration: 2, purpose: 'build', transition: 'hard-cut', motionStyle: 'slow-push', speed: 1, text: 'repeat' },
@@ -28,15 +29,17 @@ assert.equal(shaped.editorialStructure.length, 4);
 assert.ok(shaped.cuts.every((cut) => cut.momentIndex >= 0 && cut.momentIndex < moments.length));
 assert.ok(shaped.cuts.every((cut) => cut.transition));
 assert.ok(shaped.cuts.every((cut) => cut.motionStyle));
-assert.ok(shaped.plannedDuration >= 7);
+assert.ok(shaped.plannedDuration >= 13);
+assert.ok(shaped.plannedDuration <= 15.01);
 
 // Regression: Gemini can legally return a single verified cut. The director
 // must use additional verified Stage 1 moments rather than rendering a
 // one-shot ~2-second edit when the analysis contains enough evidence.
-const sparse = shapeCinematicEditPlan({ cuts: [{ momentIndex: 2, startTime: 9, endTime: 11, duration: 2 }] }, moments);
+const sparse = shapeCinematicEditPlan({ targetDuration: 15, cuts: [{ momentIndex: 2, startTime: 9, endTime: 11, duration: 2 }] }, moments);
 assert.equal(sparse.cuts.length, 4);
 assert.equal(sparse.cuts.at(-1).momentIndex, 1);
-assert.ok(sparse.plannedDuration >= 7);
+assert.ok(sparse.plannedDuration >= 12);
+assert.ok(sparse.plannedDuration <= 15.01);
 assert.ok(sparse.cuts.every((cut) => cut.startTime >= moments[cut.momentIndex].start));
 assert.ok(sparse.cuts.every((cut) => cut.endTime <= moments[cut.momentIndex].end + 1e-9));
 
