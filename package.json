@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "verify:production-plan-selection": "node scripts/verify-production-plan-selection.mjs",
-    "verify:cinematic-treatment": "node scripts/verify-cinematic-treatment.mjs"
+    "verify:cinematic-treatment": "node scripts/verify-cinematic-treatment.mjs",
+    "verify:render-treatment-contract": "node scripts/verify-render-treatment-contract.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
