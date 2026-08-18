@@ -32,13 +32,46 @@ function speedFor(scene, audioTreatment, key, fallback) {
   return requested;
 }
 
+function extendToTarget(scenes, targetDuration, sourceDuration) {
+  const target = Math.max(0.5, num(targetDuration, 15));
+  const current = scenes.reduce((sum, scene) => sum + Math.max(0.5, num(scene.duration, 0.5)), 0);
+  const remainder = Number((target - current).toFixed(3));
+  if (remainder <= 0.05) return scenes;
+  const last = scenes[scenes.length - 1];
+  return [
+    ...scenes,
+    {
+      id: 'scene-duration-hold',
+      sourceType: 'uploaded',
+      purpose: 'real-hero-hold',
+      startTime: Math.max(0, num(sourceDuration, 0) - 0.08),
+      duration: remainder,
+      endTime: Math.max(0, num(sourceDuration, 0)),
+      motionStyle: 'slow-pull',
+      motionIntensity: 0.35,
+      speed: 0.78,
+      speedEnd: 0.72,
+      colorGrade: last?.colorGrade || 'dark-cinematic',
+      transitionIn: 'fade-in',
+      transitionOut: 'fade-out',
+      stabilization: true,
+      text: '',
+      holdLastFrame: true,
+      continuityNotes: 'Controlled end hold used only when the verified source is shorter than the requested output duration.'
+    }
+  ];
+}
+
 export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSeconds = 0 } = {}) {
   if (!productionPlan?.scenes?.length) throw new Error('Production blueprint contains no scenes.');
-  const scenes = productionPlan.scenes.filter((scene) => scene?.sourceType === 'uploaded');
-  if (!scenes.length) throw new Error('Production blueprint contains no renderable uploaded scenes.');
+  const sourceDuration = num(productionPlan.sourceAnalysis?.durationSeconds, 0);
+  const targetDuration = num(productionPlan.targetDuration, 15);
+  const sourceScenes = productionPlan.scenes.filter((scene) => scene?.sourceType === 'uploaded');
+  if (!sourceScenes.length) throw new Error('Production blueprint contains no renderable uploaded scenes.');
+  const scenes = extendToTarget(sourceScenes, targetDuration, sourceDuration);
 
   const audioTimeline = buildAudioAwareTimeline(scenes, {
-    durationSeconds: num(productionPlan.targetDuration, 15),
+    durationSeconds: targetDuration,
     bpm,
     offsetSeconds,
     snapToleranceSeconds: 0.16
@@ -55,7 +88,7 @@ export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSecon
       mediaIndex: 0,
       mediaId: 'video-0',
       startTime: clamp(num(scene.startTime), 0, 3600),
-      duration: clamp(num(scene.duration, 1), 0.5, 4),
+      duration: clamp(num(scene.duration, 1), 0.5, 8),
       purpose: scene.purpose || 'real-cinematic-beat',
       sourceType: 'uploaded',
       generated: false,
@@ -67,17 +100,18 @@ export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSecon
       colorGrade,
       stabilization: scene.stabilization !== false,
       text: scene.text || '',
+      holdLastFrame: scene.holdLastFrame === true,
       audioSync: scene.audioSync,
       beatTreatment: audioTreatment
     };
   });
 
   return {
-    version: '1.1',
+    version: '1.2',
     title: productionPlan.title || 'AI Director Production',
     style: productionPlan.style || {},
     creativePrompt: productionPlan.creativeRequest || '',
-    targetDuration: num(productionPlan.targetDuration, 15),
+    targetDuration,
     duration: Number(cuts.reduce((sum, cut) => sum + cut.duration, 0).toFixed(2)),
     cuts,
     audio: {
