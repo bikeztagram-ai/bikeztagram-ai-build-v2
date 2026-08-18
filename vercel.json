@@ -1,4 +1,9 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "ai-director-two-stage": false
+    }
+  },
   "rewrites": [
     {
       "source": "/((?!api/).*)",
