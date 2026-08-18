@@ -16,14 +16,25 @@ export function buildRenderRecordingPlan(routedExecution = {}, fps = 30) {
   if (!cuts.length) return { ready: false, reason: 'No render cuts available.' };
 
   const recordingCuts = cuts.map((cut, index) => ({
+    ...cut,
     order: index,
     source: cut.mediaSource.url,
     kind: cut.mediaSource.kind,
     startTime: Number(cut.startTime) || 0,
     duration: Number(cut.duration) || 0,
     renderIndex: cut.renderIndex,
-    treatment: cut.treatment || null,
+    purpose: cut.purpose || cut.storyRole || 'cinematic-beat',
     storyRole: cut.storyRole || null,
+    directorIntent: cut.directorIntent || null,
+    beatTreatment: cut.beatTreatment || null,
+    transition: cut.transition || 'hard-cut',
+    motionStyle: cut.motionStyle || 'static',
+    motionIntensity: Number(cut.motionIntensity) || 0.65,
+    speed: Number(cut.speed) || 1,
+    speedEnd: Number(cut.speedEnd ?? cut.speed) || Number(cut.speed) || 1,
+    colorGrade: cut.colorGrade || null,
+    text: cut.text || '',
+    treatment: cut.treatment || null,
   }));
 
   const frameSchedule = buildRenderFrameSchedule({ cuts: recordingCuts }, fps);
