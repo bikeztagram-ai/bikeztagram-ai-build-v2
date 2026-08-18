@@ -1,4 +1,4 @@
-import { renderProject as renderProjectUnsafe } from './renderer.js';
+import { renderProject as renderProjectUnsafe } from './stableRendererV2.js';
 import { assessRenderExecution } from './renderExecutionPolicy.js';
 
 export async function renderProject(mediaItems, plan, onProgress) {
