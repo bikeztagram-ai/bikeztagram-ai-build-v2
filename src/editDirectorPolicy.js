@@ -27,15 +27,36 @@ const overlap = (a, b) => {
   return shared / Math.max(a.size, b.size);
 };
 
+function candidateFromMoment(index, moment, cut = {}) {
+  return {
+    cut: { ...cut, momentIndex: index },
+    index,
+    score: scoreMoment(moment),
+    descriptor: descriptor(moment),
+  };
+}
+
 function selectDistinctMoments(cuts, moments, limit = 6) {
   const candidates = [];
   const seen = new Set();
+
+  // Preserve Gemini's explicit choices first, but make the verified Stage 1
+  // analysis the fallback source when Gemini supplied too few cuts. This is
+  // what prevents a valid analysis from collapsing into a one-shot edit.
   for (const cut of cuts) {
     const index = Number(cut?.momentIndex);
     if (!Number.isInteger(index) || !moments[index] || seen.has(index)) continue;
     seen.add(index);
-    candidates.push({ cut, index, score: scoreMoment(moments[index]), descriptor: descriptor(moments[index]) });
+    candidates.push(candidateFromMoment(index, moments[index], cut));
   }
+
+  const explicitCount = candidates.length;
+  for (let index = 0; index < moments.length && candidates.length < limit * 2; index += 1) {
+    if (seen.has(index) || !moments[index]) continue;
+    seen.add(index);
+    candidates.push(candidateFromMoment(index, moments[index]));
+  }
+
   candidates.sort((a, b) => b.score - a.score);
 
   const selected = [];
@@ -50,12 +71,17 @@ function selectDistinctMoments(cuts, moments, limit = 6) {
       const distancePenalty = selected.length
         ? Math.max(...selected.map((item) => Math.max(0, 1 - Math.abs(candidate.index - item.index) / Math.max(moments.length, 1))))
         : 0;
-      const value = candidate.score - redundancy * 0.25 - distancePenalty * 0.05;
+      const newMomentPenalty = candidate.cut && Object.keys(candidate.cut).length === 1 ? 0 : 0;
+      const value = candidate.score - redundancy * 0.25 - distancePenalty * 0.05 + newMomentPenalty;
       if (value > bestValue) { bestValue = value; bestIndex = i; }
     }
     selected.push(candidates.splice(bestIndex, 1)[0]);
   }
-  return selected;
+
+  // If Gemini explicitly supplied cuts, retain them when possible. The
+  // analysis-derived additions only fill genuine gaps; they never invent
+  // timestamps or footage.
+  return selected.map((item) => ({ ...item, explicit: Object.keys(item.cut).length > 1 })).slice(0, limit);
 }
 
 function purposeSequence(count) {
@@ -95,11 +121,23 @@ function chooseSpeed(moment, purpose) {
   return 1;
 }
 
+function chooseDuration(cut, moment, speed, purpose) {
+  const momentStart = numberOr(moment?.start, 0);
+  const momentEnd = numberOr(moment?.end, momentStart);
+  const available = Math.max(0, momentEnd - momentStart);
+  const explicit = numberOr(cut?.duration, 0);
+  if (explicit >= 0.5) return Math.min(4, explicit);
+  if (available >= 3.5) return purpose === 'hero' ? 3.5 : 3;
+  if (available >= 2.5) return 2.5;
+  if (available >= 1.5) return Math.min(2, available / Math.max(speed, 0.5));
+  return Math.min(1.5, available / Math.max(speed, 0.5));
+}
+
 export function shapeCinematicEditPlan(plan = {}, moments = []) {
   const cuts = Array.isArray(plan.cuts) ? plan.cuts.filter(Boolean).slice(0, 8) : [];
-  if (!cuts.length || !Array.isArray(moments) || !moments.length) return plan;
+  if (!Array.isArray(moments) || !moments.length) return plan;
 
-  const selected = selectDistinctMoments(cuts, moments, Math.min(6, cuts.length));
+  const selected = selectDistinctMoments(cuts, moments, Math.min(6, Math.max(cuts.length, Math.min(6, moments.length))));
   if (!selected.length) return { ...plan, cuts: [] };
 
   const ordered = selected.map((item) => item.cut);
@@ -121,26 +159,40 @@ export function shapeCinematicEditPlan(plan = {}, moments = []) {
       ? String(cut.transition)
       : chooseTransition(index, isHero, motionStyle, previousMotion);
     const purpose = purposes[Math.min(index, purposes.length - 1)];
+    const speed = Math.max(0.5, Math.min(1.5, numberOr(cut.speed, chooseSpeed(moment, purpose))));
+    const duration = chooseDuration(cut, moment, speed, purpose);
+    const start = numberOr(cut.startTime, numberOr(moment.start, 0));
+    const momentEnd = numberOr(moment.end, start + duration * speed);
+    const end = Math.min(momentEnd, start + duration * speed);
+    const finalDuration = Math.max(0.5, (end - start) / speed);
     return {
       ...cut,
+      momentIndex: Number(cut.momentIndex),
+      startTime: start,
+      endTime: end,
       purpose,
       motionStyle,
       transition,
-      speed: Math.max(0.5, Math.min(1.5, numberOr(cut.speed, chooseSpeed(moment, purpose)))),
+      speed,
+      duration: Number(finalDuration.toFixed(3)),
       text: isHero || index === 0 ? String(cut.text || '') : '',
     };
   });
 
+  const plannedDuration = shaped.reduce((sum, cut) => sum + numberOr(cut.duration), 0);
   return {
     ...plan,
     cuts: shaped,
     editorialStructure: purposes.slice(0, shaped.length),
+    plannedDuration: Number(plannedDuration.toFixed(3)),
     selectionPolicy: {
       sourceOfTruth: 'verified-video-analysis',
       maxCuts: 6,
+      fillFromVerifiedMomentsWhenGeminiUnderspecifies: true,
       deduplicateMoments: true,
       preferVisualVariety: true,
       strongestMomentAsHero: true,
+      preserveVerifiedTimestampsOnly: true,
     },
   };
 }
