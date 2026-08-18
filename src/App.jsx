@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { upload } from '@vercel/blob/client';
 import { createAIEditPlan, describeAIEditPlan } from './aiEditPlanner.js';
 import { requestTwoStageEditPlan, editPlanToDirectorBlueprint } from './twoStageDirector.js';
-import { renderProject } from './renderer.js';
+import { renderProject } from './renderProjectGuard.js';
 import { renderWorldScene } from './worldScene.js';
 import { validateRenderedVideo, buildDirectorQAReport, downloadQAReport } from './qa.js';
 import './styles.css';
@@ -245,6 +245,8 @@ export default function App() {
       cuts,
       duration: cuts.reduce((sum, cut) => sum + cut.duration, 0),
       targetDuration: Number(sourcePlan.targetDuration) || 15,
+      sourceDuration: Number(sourcePlan.executionReadiness?.sourceDuration) || 0,
+      executionReadiness: sourcePlan.executionReadiness,
       source: sourcePlan.directorSource || 'bikeztagram-two-stage-director',
       mode: 'real-footage-first',
     };
