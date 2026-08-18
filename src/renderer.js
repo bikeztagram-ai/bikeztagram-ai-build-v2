@@ -183,8 +183,14 @@ export async function renderProject(mediaItems, plan, onProgress) {
             }
             const start = clamp(Number(cut.startTime) || 0, 0, Math.max(0, video.duration-.05));
             const duration = clamp(Number(cut.duration) || 2, .5, 4);
-            const speedA = clamp(Number(cut.speed) || 1, .5, 1.5);
-            const speedB = clamp(Number(cut.speedEnd ?? speedA) || speedA, .5, 1.5);
+            const purpose = String(cut.purpose || '').toLowerCase();
+            const requestedSpeedA = clamp(Number(cut.speed) || 1, .5, 1.5);
+            const requestedSpeedB = clamp(Number(cut.speedEnd ?? requestedSpeedA) || requestedSpeedA, .5, 1.5);
+            const purposeSpeedA = purpose.includes('action') || purpose.includes('speed') || purpose.includes('chase') ? 1.12 : purpose.includes('opening') ? .92 : purpose.includes('hero') ? .88 : 1;
+            const purposeSpeedB = purpose.includes('action') || purpose.includes('speed') || purpose.includes('chase') ? 1.30 : purpose.includes('opening') ? 1.02 : purpose.includes('hero') ? .76 : requestedSpeedB;
+            const maxSafeRate = clamp((video.duration - start - .05) / duration, .5, 1.5);
+            const speedA = clamp(Math.min(requestedSpeedA === 1 ? purposeSpeedA : requestedSpeedA, maxSafeRate), .5, 1.5);
+            const speedB = clamp(Math.min(requestedSpeedB === 1 ? purposeSpeedB : requestedSpeedB, maxSafeRate), .5, 1.5);
             video.pause();
             video.currentTime = start;
             await new Promise((resolveSeek) => {
