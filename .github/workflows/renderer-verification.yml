@@ -1,0 +1,37 @@
+name: Bikeztagram Renderer Verification
+
+on:
+  push:
+    branches: [renderer-stability-mainline]
+  pull_request:
+    branches: [renderer-stability-mainline]
+  workflow_dispatch:
+
+concurrency:
+  group: bikeztagram-renderer-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run full deterministic verification suite
+        run: npm run verify:all
+
+      - name: Build production bundle
+        run: npm run build
