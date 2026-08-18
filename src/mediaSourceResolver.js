@@ -19,7 +19,7 @@ export function resolveMediaSource(scene, mediaItems = []) {
 
   const index = Number(scene.mediaIndex);
   const item = Number.isInteger(index) ? mediaItems[index] : null;
-  const url = item?.url || item?.src || item?.previewUrl || null;
+  const url = item?.sourceUrl || item?.url || item?.src || item?.previewUrl || null;
   if (!url) return { ready: false, reason: 'Uploaded media source is unavailable.' };
 
   return {
