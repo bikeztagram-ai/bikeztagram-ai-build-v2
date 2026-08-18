@@ -1,12 +1,51 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_PLATFORMS, buildPlatformExportReadiness, exportMasterToPlatforms } from './platformExportController.js';
 
-export default function PlatformExports({ masterBlob, disabled = false, onStatus }) {
+function findMasterVideo() {
+  const sections = [...document.querySelectorAll('section.result-container')];
+  const section = sections.find((item) => item.querySelector('h2')?.textContent?.includes('AI Cinematic Edit'));
+  return section?.querySelector('video') || null;
+}
+
+export default function PlatformExports({ masterBlob: providedMasterBlob = null, disabled = false, onStatus }) {
+  const [masterBlob, setMasterBlob] = useState(providedMasterBlob);
   const [selected, setSelected] = useState(['reels']);
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState([]);
   const [error, setError] = useState('');
   const readiness = useMemo(() => buildPlatformExportReadiness(masterBlob, selected), [masterBlob, selected]);
+
+  useEffect(() => {
+    if (providedMasterBlob) {
+      setMasterBlob(providedMasterBlob);
+      return undefined;
+    }
+    let cancelled = false;
+    let lastSrc = '';
+    const sync = async () => {
+      const video = findMasterVideo();
+      const src = video?.currentSrc || video?.src || '';
+      if (!src || src === lastSrc) return;
+      lastSrc = src;
+      try {
+        const response = await fetch(src);
+        if (!response.ok) throw new Error(`Could not read cinematic master (${response.status}).`);
+        const blob = await response.blob();
+        if (!cancelled && blob.size > 0) setMasterBlob(blob);
+      } catch (err) {
+        if (!cancelled) setError(`Master video is not available for platform export: ${err?.message || String(err)}`);
+      }
+    };
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.getElementById('root') || document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+    const timer = window.setInterval(sync, 1000);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+      window.clearInterval(timer);
+    };
+  }, [providedMasterBlob]);
 
   function toggle(platform) {
     setSelected((current) => current.includes(platform)
@@ -43,6 +82,8 @@ export default function PlatformExports({ masterBlob, disabled = false, onStatus
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
+
+  if (!masterBlob && !providedMasterBlob) return null;
 
   return <section className="result-container" style={{ marginTop: '20px' }}>
     <h2>📱 Platform Outputs</h2>
