@@ -32,6 +32,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
     speedEnd: Number(s.speedEnd ?? s.speed) || Number(s.speed) || 1,
     colorGrade: s.colorGrade || plan.colorGrade || 'cinematic',
     text: s.text || '',
+    holdLastFrame: s.holdLastFrame === true
   })) : [];
   if (!cuts.length) throw new Error('AI edit plan contains no cuts.');
 
@@ -92,18 +93,22 @@ export async function renderProject(mediaItems, plan, onProgress) {
     const purpose = String(cut?.purpose || '').toLowerCase();
     if (plan?.style || /cinematic|film|trailer|commercial/.test(prompt)) {
       const v = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.height*.22, canvas.width/2, canvas.height/2, canvas.height*.78);
-      v.addColorStop(0, 'rgba(0,0,0,0)');
-      v.addColorStop(.72, 'rgba(0,0,0,.06)');
-      v.addColorStop(1, 'rgba(0,0,0,.52)');
+      v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(.72, 'rgba(0,0,0,.06)'); v.addColorStop(1, 'rgba(0,0,0,.52)');
       ctx.save(); ctx.fillStyle = v; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
     }
     if (/trailer|film|cinematic|commercial/.test(prompt)) {
       const bar = Math.round(canvas.height * .035);
-      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.9)';
-      ctx.fillRect(0, 0, canvas.width, bar); ctx.fillRect(0, canvas.height-bar, canvas.width, bar); ctx.restore();
+      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.9)'; ctx.fillRect(0, 0, canvas.width, bar); ctx.fillRect(0, canvas.height-bar, canvas.width, bar); ctx.restore();
     }
     if (index === 0 && cut.transition === 'fade-in') {
       ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 1 - clamp(p/.25, 0, 1); ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
+    }
+    if (cut.transition === 'fade-out') {
+      ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = clamp((p - .78) / .22, 0, 1); ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
+    }
+    if (cut.transition === 'crossfade') {
+      const edge = p < .12 ? 1 - clamp(p / .12, 0, 1) : p > .88 ? clamp((p - .88) / .12, 0, 1) : 0;
+      if (edge > 0) { ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = edge * .72; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore(); }
     }
     if (cut.transition === 'flash-cut') {
       ctx.save(); ctx.fillStyle = '#fff'; ctx.globalAlpha = Math.max(0, 1 - Math.abs(p-.5)*8) * .35; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
@@ -125,29 +130,16 @@ export async function renderProject(mediaItems, plan, onProgress) {
   };
 
   const loadVideo = async (video, source) => {
-    video.muted = true;
-    video.playsInline = true;
-    video.preload = 'auto';
-    video.crossOrigin = source.remote ? 'anonymous' : '';
-    video.src = source.url;
-    video.load();
+    video.muted = true; video.playsInline = true; video.preload = 'auto'; video.crossOrigin = source.remote ? 'anonymous' : '';
+    video.src = source.url; video.load();
     await new Promise((resolve, reject) => {
       let doneFlag = false;
       const timer = setTimeout(() => finish(new Error('Timed out loading source video.')), 15000);
-      const cleanup = () => {
-        clearTimeout(timer);
-        video.removeEventListener('loadedmetadata', ready);
-        video.removeEventListener('loadeddata', ready);
-        video.removeEventListener('canplay', ready);
-        video.removeEventListener('error', failed);
-      };
+      const cleanup = () => { clearTimeout(timer); video.removeEventListener('loadedmetadata', ready); video.removeEventListener('loadeddata', ready); video.removeEventListener('canplay', ready); video.removeEventListener('error', failed); };
       const finish = (error) => { if (doneFlag) return; doneFlag = true; cleanup(); error ? reject(error) : resolve(); };
       const ready = () => { if (video.videoWidth && video.videoHeight && Number.isFinite(video.duration)) finish(); };
       const failed = () => finish(new Error(`Could not decode source video. MediaError code=${video.error?.code ?? 'unknown'}.`));
-      video.addEventListener('loadedmetadata', ready);
-      video.addEventListener('loadeddata', ready);
-      video.addEventListener('canplay', ready);
-      video.addEventListener('error', failed);
+      video.addEventListener('loadedmetadata', ready); video.addEventListener('loadeddata', ready); video.addEventListener('canplay', ready); video.addEventListener('error', failed);
     });
   };
 
@@ -182,7 +174,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
               } else throw error;
             }
             const start = clamp(Number(cut.startTime) || 0, 0, Math.max(0, video.duration-.05));
-            const duration = clamp(Number(cut.duration) || 2, .5, 4);
+            const duration = clamp(Number(cut.duration) || 2, .5, 8);
             const purpose = String(cut.purpose || '').toLowerCase();
             const requestedSpeedA = clamp(Number(cut.speed) || 1, .5, 1.5);
             const requestedSpeedB = clamp(Number(cut.speedEnd ?? requestedSpeedA) || requestedSpeedA, .5, 1.5);
@@ -191,27 +183,27 @@ export async function renderProject(mediaItems, plan, onProgress) {
             const maxSafeRate = clamp((video.duration - start - .05) / duration, .5, 1.5);
             const speedA = clamp(Math.min(requestedSpeedA === 1 ? purposeSpeedA : requestedSpeedA, maxSafeRate), .5, 1.5);
             const speedB = clamp(Math.min(requestedSpeedB === 1 ? purposeSpeedB : requestedSpeedB, maxSafeRate), .5, 1.5);
-            video.pause();
-            video.currentTime = start;
+            video.pause(); video.currentTime = start;
             await new Promise((resolveSeek) => {
               let finished = false;
               const done = () => { if (finished) return; finished=true; clearTimeout(timer); video.removeEventListener('seeked', done); resolveSeek(); };
-              const timer = setTimeout(done, 2000);
-              video.addEventListener('seeked', done, { once: true });
+              const timer = setTimeout(done, 2000); video.addEventListener('seeked', done, { once: true });
             });
-            video.playbackRate = speedA;
-            try { await video.play(); }
-            catch (error) { throw new Error(`Browser refused video playback: ${error?.message || String(error)}`); }
+            if (!cut.holdLastFrame) {
+              video.playbackRate = speedA;
+              try { await video.play(); }
+              catch (error) { throw new Error(`Browser refused video playback: ${error?.message || String(error)}`); }
+            }
             const started = performance.now();
             await new Promise((resolveFrame) => {
               const frame = () => {
                 const p = clamp((performance.now()-started)/(duration*1000), 0, 1);
-                try { video.playbackRate = clamp(speedA + (speedB-speedA)*ease(p), .5, 1.5); } catch {}
+                if (!cut.holdLastFrame) { try { video.playbackRate = clamp(speedA + (speedB-speedA)*ease(p), .5, 1.5); } catch {} }
                 ctx.fillStyle='#000'; ctx.fillRect(0,0,canvas.width,canvas.height);
                 drawVideo(video, cut, p);
                 overlays(cut, p, index);
                 onProgress?.(Math.round(((index+p)/cuts.length)*100));
-                if (p >= 1 || video.ended) return resolveFrame();
+                if (p >= 1) return resolveFrame();
                 requestAnimationFrame(frame);
               };
               requestAnimationFrame(frame);
