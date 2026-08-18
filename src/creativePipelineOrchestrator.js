@@ -3,7 +3,9 @@ import { buildRenderJob, validateRenderJob } from './creativeRenderBridge.js';
 import { buildRepurposePlan } from './repurposePlanner.js';
 import { evaluateRepurposedClip } from './repurposeQualityGate.js';
 import { validateEditPlan, normalizeVerifiedEditPlan } from './editPlanQualityGate.js';
-import { createTimeline, validateTimeline } from './timelineModel.js';
+import { createTimeline } from './timelineModel.js';
+import { createTimelineFromVerifiedCuts } from './verifiedCutTimeline.js';
+import { validateTimeline } from './timelineModel.js';
 
 export function orchestrateCreativeProject(project = {}, moments = [], options = {}) {
   const execution = buildExecutionPlan(project);
@@ -34,10 +36,8 @@ function buildQuality(editPlan, moments) {
 export function buildCreativePipeline(project = {}, moments = [], options = {}) {
   const editPlan = project.editPlan || null;
   const quality = buildQuality(editPlan, moments);
-  const normalizedEditPlan = quality.mode === 'verified-two-stage' && quality.normalizedCuts.length
-    ? normalizeVerifiedEditPlan(editPlan, moments)
-    : editPlan;
-  const timeline = normalizedEditPlan ? createTimeline(normalizedEditPlan) : null;
+  const normalizedEditPlan = quality.mode === 'verified-two-stage' && quality.normalizedCuts.length ? normalizeVerifiedEditPlan(editPlan, moments) : editPlan;
+  const timeline = quality.mode === 'verified-two-stage' ? createTimelineFromVerifiedCuts(normalizedEditPlan?.cuts) : (normalizedEditPlan ? createTimeline(normalizedEditPlan) : null);
   const timelineValidation = timeline ? validateTimeline(timeline) : { valid: false, errors: ['No timeline can be created without an edit plan.'] };
   const stages = STAGES.map((id) => ({
     id,
