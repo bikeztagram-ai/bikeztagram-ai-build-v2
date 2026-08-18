@@ -29,11 +29,11 @@
     "verify:render-media-frame": "node scripts/verify-render-media-frame.mjs",
     "verify:render-frame-adapter": "node scripts/verify-render-frame-adapter.mjs",
     "verify:render-execution-plan": "node scripts/verify-render-execution-plan.mjs",
-    "verify:all": "npm run verify:production-plan-selection && npm run verify:cinematic-treatment && npm run verify:render-treatment-contract && npm run verify:audio-beat-map && npm run verify:audio-director-sync && npm run verify:render-timeline-contract && npm run verify:director-timeline-compiler && npm run verify:renderer-stability && npm run verify:director-story && npm run verify:director-timeline-integration && npm run verify:director-integration && npm run verify:director-render-treatment && npm run verify:renderer-director-join && npm run verify:render-quality-guard && npm run verify:platform-reframe && npm run verify:platform-timeline-compiler && npm run verify:generated-media-contract && npm run verify:mixed-media-timeline && npm run verify:media-source-resolver && npm run verify:render-media-frame && npm run verify:render-frame-adapter && npm run verify:render-execution-plan"
+    "verify:render-execution-gate": "node scripts/verify-render-execution-gate.mjs",
+    "verify:all": "npm run verify:production-plan-selection && npm run verify:cinematic-treatment && npm run verify:render-treatment-contract && npm run verify:audio-beat-map && npm run verify:audio-director-sync && npm run verify:render-timeline-contract && npm run verify:director-timeline-compiler && npm run verify:renderer-stability && npm run verify:director-story && npm run verify:director-timeline-integration && npm run verify:director-integration && npm run verify:director-render-treatment && npm run verify:renderer-director-join && npm run verify:render-quality-guard && npm run verify:platform-reframe && npm run verify:platform-timeline-compiler && npm run verify:generated-media-contract && npm run verify:mixed-media-timeline && npm run verify:media-source-resolver && npm run verify:render-media-frame && npm run verify:render-frame-adapter && npm run verify:render-execution-plan && npm run verify:render-execution-gate"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
-    "@ffmpeg/util": "^0.12.2",
     "@google/genai": "^1.16.0",
     "@mediapipe/tasks-vision": "^0.10.22",
     "@vercel/blob": "2.6.1",
@@ -41,7 +41,6 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^5.0.2",
-    "vite": "^6.4.3"
+    "@vitejs/plugin-react": "^6.4.3"
   }
 }
