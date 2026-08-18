@@ -42,20 +42,35 @@ export async function validateRenderedVideo(blob, expectedDuration = 15) {
       throw new Error('QA: rendered video loaded but did not advance during playback.');
     }
 
-    const durationDifference = Math.abs(metadata.duration - Number(expectedDuration || metadata.duration));
+    const expected = Number(expectedDuration);
+    const expectedSeconds = Number.isFinite(expected) && expected > 0 ? expected : metadata.duration;
+    const durationDifference = Math.abs(metadata.duration - expectedSeconds);
+    const shortfallSeconds = Math.max(0, expectedSeconds - metadata.duration);
+    const durationTolerance = Math.min(1.5, Math.max(0.75, expectedSeconds * 0.10));
+
+    if (shortfallSeconds > durationTolerance) {
+      throw new Error(
+        `QA: rendered video is materially shorter than requested. ` +
+        `Expected about ${expectedSeconds.toFixed(2)}s, got ${metadata.duration.toFixed(2)}s ` +
+        `(short by ${shortfallSeconds.toFixed(2)}s; tolerance ${durationTolerance.toFixed(2)}s).`
+      );
+    }
+
     return {
       passed: true,
       blobBytes: blob.size,
       blobMB: Number((blob.size / 1024 / 1024).toFixed(2)),
       durationSeconds: Number(metadata.duration.toFixed(2)),
-      expectedDurationSeconds: Number(expectedDuration || 0),
+      expectedDurationSeconds: Number(expectedSeconds.toFixed(2)),
       durationDifferenceSeconds: Number(durationDifference.toFixed(2)),
+      shortfallSeconds: Number(shortfallSeconds.toFixed(2)),
+      durationToleranceSeconds: Number(durationTolerance.toFixed(2)),
       width: metadata.width,
       height: metadata.height,
       playbackProbeSeconds: Number(playbackSeconds.toFixed(2)),
       playbackProbeElapsedMs: Math.round(performance.now() - playbackStart),
       codecCheck: 'Browser decoded rendered video successfully',
-      verdict: durationDifference <= 1.5 ? 'PASS' : 'PASS_WITH_DURATION_DIFFERENCE'
+      verdict: 'PASS',
     };
   } finally {
     try { video.pause(); } catch {}
@@ -71,7 +86,7 @@ async function sendAutomaticTelemetry(report) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(report),
-      keepalive: true
+      keepalive: true,
     });
   } catch (error) {
     console.warn('[AUTO-QA] Could not send telemetry:', error?.message || error);
@@ -144,7 +159,7 @@ async function inspectRenderedElement(videoElement) {
       frameQA,
       sourceUrlType: source.startsWith('blob:') ? 'blob-url' : 'https-url',
       blobLikeOutput: source.startsWith('blob:'),
-      error: passed ? null : 'Rendered video did not decode/play correctly.'
+      error: passed ? null : 'Rendered video did not decode/play correctly.',
     };
 
     console.log('[AUTO-QA] Rendered video test:', report);
@@ -154,7 +169,7 @@ async function inspectRenderedElement(videoElement) {
       generatedAt: new Date().toISOString(), kind: 'automatic-render-browser-qa', verdict: 'FAIL',
       durationSeconds: 0, width: 0, height: 0, playbackAdvanced: false, playbackProbeMs: 0,
       frameQA: null, sourceUrlType: source.startsWith('blob:') ? 'blob-url' : 'https-url',
-      blobLikeOutput: source.startsWith('blob:'), error: error?.message || 'QA failed'
+      blobLikeOutput: source.startsWith('blob:'), error: error?.message || 'QA failed',
     };
     console.error('[AUTO-QA] Rendered video test failed:', report);
     await sendAutomaticTelemetry(report);
@@ -204,21 +219,26 @@ export function buildDirectorQAReport({ file, analysis, productionPlan, renderPl
     analysis: analysis ? {
       filename: analysis.filename || file?.name || '',
       durationSeconds: Number(analysis.durationInSeconds || 0),
-      bestMomentCount: Array.isArray(analysis.bestMoments) ? analysis.bestMoments.length : 0
+      bestMomentCount: Array.isArray(analysis.bestMoments) ? analysis.bestMoments.length : 0,
     } : null,
     director: productionPlan ? {
       version: productionPlan.version || '', title: productionPlan.title || '', directorSource: productionPlan.directorSource || '',
       targetDuration: Number(productionPlan.targetDuration || 0), plannedDuration: Number(productionPlan.plannedDuration || 0),
-      realSceneCount: realScenes.length, generatedSceneCount: generatedScenes.length, totalSceneCount: scenes.length
+      realSceneCount: realScenes.length, generatedSceneCount: generatedScenes.length, totalSceneCount: scenes.length,
     } : null,
     renderer: {
       cutCount: cuts.length,
       sourceTypes: cuts.map((cut) => cut.sourceType || 'uploaded'),
       motionStyles: cuts.map((cut) => cut.motionStyle || 'static'),
-      transitions: cuts.map((cut) => cut.transition || 'hard-cut')
+      transitions: cuts.map((cut) => cut.transition || 'hard-cut'),
     },
     output: renderQA || null,
-    notes: ['QA runs in the browser against the actual rendered video element.', 'The playback probe confirms that the browser can decode and advance the exported video.', 'Blob upload configuration is not part of this QA layer.']
+    notes: [
+      'QA runs in the browser against the actual rendered video element.',
+      'The playback probe confirms that the browser can decode and advance the exported video.',
+      'Materially short renders now fail QA instead of being accepted with a warning.',
+      'Blob upload configuration is not part of this QA layer.',
+    ],
   };
 }
 
