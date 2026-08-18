@@ -25,11 +25,12 @@ export function buildAudioAwareTimeline(cuts = [], { durationSeconds = 15, bpm =
 
   const timelineCuts = safeCuts.map((cut, index) => {
     const duration = Math.max(0.1, number(cut?.duration, 0.1));
-    const beat = nearestBeat(timelineTime, beatMap, { prefer: index === 0 ? 'downbeat' : 'any' });
-    const snapDistance = beat ? Math.abs(beat.time - timelineTime) : Infinity;
+    const intendedStart = timelineTime;
+    const beat = nearestBeat(intendedStart, beatMap, { prefer: index === 0 ? 'downbeat' : 'any' });
+    const snapDistance = beat ? Math.abs(beat.time - intendedStart) : Infinity;
     const shouldSnap = Number.isFinite(snapDistance) && snapDistance <= snapToleranceSeconds;
     const role = roleFor(index, safeCuts.length, cut?.purpose);
-    const start = shouldSnap ? beat.time : timelineTime;
+    const start = shouldSnap ? beat.time : intendedStart;
     const nextBeat = nearestBeat(start + duration, beatMap);
     const sync = {
       role,
@@ -43,12 +44,14 @@ export function buildAudioAwareTimeline(cuts = [], { durationSeconds = 15, bpm =
       endBeatTime: nextBeat?.time ?? null
     };
 
-    timelineTime += duration;
+    // Continue from the actual scheduled start. This prevents a snapped cut from
+    // leaving an invisible timing gap/overlap before the next cut.
+    timelineTime = start + duration;
     return { ...cut, audioSync: sync };
   });
 
   return {
-    version: '1.0',
+    version: '1.1',
     bpm: beatMap.bpm,
     durationSeconds: beatMap.durationSeconds,
     offsetSeconds: beatMap.offsetSeconds,
@@ -58,6 +61,7 @@ export function buildAudioAwareTimeline(cuts = [], { durationSeconds = 15, bpm =
       sourceTimingIsAuthoritative: true,
       audioSyncAffectsTimelineOnly: true,
       neverMoveSourceTimestampToAchieveBeatSync: true,
+      snappedCutsRemainTimelineContiguous: true,
       futureAudioRendererMayUseBeatEvents: true
     }
   };
@@ -69,41 +73,13 @@ export function buildBeatDrivenTreatment(cut, index, totalCuts) {
   const beatStrength = sync?.beatIndex != null && sync.beatIndex % 4 === 0 ? 'downbeat' : 'beat';
 
   if (role === 'impact') {
-    return {
-      role,
-      beatStrength,
-      speedBias: 'accelerate-into-beat',
-      transitionBias: 'impact-cut',
-      motionBias: 'stronger',
-      holdAfterBeat: true
-    };
+    return { role, beatStrength, speedBias: 'accelerate-into-beat', transitionBias: 'impact-cut', motionBias: 'stronger', holdAfterBeat: true };
   }
   if (role === 'hook') {
-    return {
-      role,
-      beatStrength,
-      speedBias: 'controlled-entry',
-      transitionBias: 'fade-in',
-      motionBias: 'subtle',
-      holdAfterBeat: false
-    };
+    return { role, beatStrength, speedBias: 'controlled-entry', transitionBias: 'fade-in', motionBias: 'subtle', holdAfterBeat: false };
   }
   if (role === 'resolve') {
-    return {
-      role,
-      beatStrength,
-      speedBias: 'decelerate-after-beat',
-      transitionBias: 'hero-rise',
-      motionBias: 'smooth',
-      holdAfterBeat: true
-    };
+    return { role, beatStrength, speedBias: 'decelerate-after-beat', transitionBias: 'hero-rise', motionBias: 'smooth', holdAfterBeat: true };
   }
-  return {
-    role,
-    beatStrength,
-    speedBias: 'steady',
-    transitionBias: 'cinematic-blend',
-    motionBias: 'moderate',
-    holdAfterBeat: false
-  };
+  return { role, beatStrength, speedBias: 'steady', transitionBias: 'cinematic-blend', motionBias: 'moderate', holdAfterBeat: false };
 }
