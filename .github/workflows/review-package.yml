@@ -28,7 +28,7 @@ jobs:
       - name: Create full source review ZIP
         run: |
           set -euo pipefail
-          zip -qr /tmp/bikeztagram-gemini-source-review.zip . -x 'tests/fixtures/*' '*.log'
+          zip -qr /tmp/bikeztagram-gemini-source-review.zip . -x 'tests/fixtures/*' '*.log' '*.zip'
 
       - name: Create architecture review ZIP
         run: |
@@ -48,7 +48,14 @@ Do not modify this codebase. Provide architectural findings and a prioritized ro
 
 Protected area: do not recommend changing Blob/storage configuration unless a concrete defect is demonstrated.
 EOF
-          (cd /tmp/architecture-review && zip -qr /tmp/bikeztagram-gemini-architecture-review.zip .)
+          (cd /tmp/architecture-review && zip -qr /tmp/bikeztagram-gemini-architecture-review.zip . -x '*.zip')
+
+      - name: Write package manifest and checksums
+        run: |
+          set -euo pipefail
+          sha256sum /tmp/bikeztagram-gemini-source-review.zip /tmp/bikeztagram-gemini-architecture-review.zip > /tmp/gemini-review-checksums.txt
+          printf 'Branch: %s\nCommit: %s\n' "$GITHUB_REF_NAME" "$GITHUB_SHA" > /tmp/gemini-review-manifest.txt
+          cat /tmp/gemini-review-checksums.txt >> /tmp/gemini-review-manifest.txt
 
       - name: Upload safe review packages
         uses: actions/upload-artifact@v4
@@ -57,5 +64,6 @@ EOF
           path: |
             /tmp/bikeztagram-gemini-source-review.zip
             /tmp/bikeztagram-gemini-architecture-review.zip
+            /tmp/gemini-review-manifest.txt
           if-no-files-found: error
           retention-days: 7
