@@ -4,6 +4,7 @@ import { editPlanToDirectorBlueprint } from '../src/twoStageDirector.js';
 const analysis = {
   filename: '8518.mp4',
   durationInSeconds: 13,
+  subject: { focalPoint: { x: 0.62, y: 0.47 } },
   bestMoments: [
     { start: 0, end: 3, score: 70 },
     { start: 4, end: 8, score: 90 },
@@ -34,5 +35,11 @@ assert.equal(blueprint.scenes.every((scene) => scene.sourceType === 'uploaded'),
 assert.equal(blueprint.scenes.every((scene) => scene.generationPrompt === ''), true);
 assert.equal(blueprint.generationPolicy.generatedScenesAllowed, false);
 assert.ok(blueprint.plannedDuration > 0);
+assert.equal(blueprint.platformPlan.sourceOfTruth, 'same-verified-edit');
+assert.equal(blueprint.platformPlan.preserveTimeline, true);
+assert.equal(blueprint.platformPlan.platforms.length, 3);
+assert.equal(blueprint.platformPlan.platforms[0].output.aspect, '9:16');
+assert.equal(blueprint.reframeReadiness.readyForPlanning, true);
+assert.equal(blueprint.reframeReadiness.readyForRendering, false);
 
 console.log('two-stage-director: PASS');
