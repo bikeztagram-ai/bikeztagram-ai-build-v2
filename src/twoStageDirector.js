@@ -1,4 +1,6 @@
 /* BIKEZTAGRAM AI — client boundary for the verified two-stage director. */
+import { buildMultiPlatformPlan } from './platformReframe.js';
+import { buildReframeReadiness } from './platformReframeQuality.js';
 
 function text(value) { return String(value ?? '').trim(); }
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
@@ -20,7 +22,7 @@ export async function requestTwoStageEditPlan({ prompt, analysis, targetDuration
   return data.plan;
 }
 
-export function editPlanToDirectorBlueprint(plan, analysis, prompt, targetDuration = 15) {
+export function editPlanToDirectorBlueprint(plan, analysis, prompt, targetDuration = 15, platforms = ['reels', 'tiktok', 'shorts']) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
   const scenes = cuts.map((cut, index) => ({
     id: `scene-${String(index + 1).padStart(2, '0')}`,
@@ -41,6 +43,8 @@ export function editPlanToDirectorBlueprint(plan, analysis, prompt, targetDurati
     text: text(cut.text),
   }));
   const plannedDuration = scenes.reduce((sum, scene) => sum + scene.duration, 0);
+  const platformPlan = buildMultiPlatformPlan(analysis, platforms);
+  const reframeReadiness = buildReframeReadiness(platformPlan, analysis);
   return {
     version: 'two-stage-edit-plan-adapter',
     title: text(plan.title) || 'Bikeztagram AI Cinematic Edit',
@@ -56,10 +60,13 @@ export function editPlanToDirectorBlueprint(plan, analysis, prompt, targetDurati
       strongestMoments: Array.isArray(analysis?.bestMoments) ? analysis.bestMoments.slice(0, 8) : [],
     },
     scenes,
+    platformPlan,
+    reframeReadiness,
     directorNotes: [
       ...(Array.isArray(plan.editorialStructure) ? [`Editorial structure: ${plan.editorialStructure.join(' → ')}`] : []),
       'All scenes are sourced from verified Stage 1 moments.',
       'No generated footage is requested by this execution path.',
+      'Platform reframing preserves the same verified edit and source timestamps.',
     ],
     directorSource: 'gemini-two-stage-edit-plan',
     mode: 'real-footage-first',
