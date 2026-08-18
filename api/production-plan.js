@@ -1,21 +1,11 @@
 /* BIKEZTAGRAM AI — AI Director production blueprint.
    Product layer only. Blob/Gemini upload + analysis configuration remain untouched.
    This layer converts Gemini's real-media analysis + the user's creative prompt into
-   a deterministic, zero-cost production plan for Bikeztagram's own browser compositor.
+a deterministic, zero-cost production plan for Bikeztagram's own browser compositor.
 */
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function text(value) {
-  return String(value || '').trim();
-}
-
-function firstBestMoment(analysis) {
-  const best = Array.isArray(analysis?.bestMoments) ? analysis.bestMoments : [];
-  return best.find((m) => m && m.start != null && m.end != null) || null;
-}
+function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+function text(value) { return String(value || '').trim(); }
 
 function allBestMoments(analysis) {
   return (Array.isArray(analysis?.bestMoments) ? analysis.bestMoments : [])
@@ -124,78 +114,69 @@ function generatedScene(id, purpose, duration, prompt, transitionIn, transitionO
   };
 }
 
-function buildScenes(analysis, creativeRequest, targetDuration) {
+function buildRealFootageScenes(analysis, targetDuration) {
   const sourceDuration = clamp(Number(analysis?.durationInSeconds) || 11, 3, 60);
-  const target = clamp(Number(targetDuration) || 15, 5, 60);
+  const target = Math.min(clamp(Number(targetDuration) || 15, 5, 60), sourceDuration);
   const moments = allBestMoments(analysis);
-  const best = moments[0] || firstBestMoment(analysis);
-  const subject = text(analysis?.subject?.description) || text(analysis?.subject?.motorcycleModel) || 'the uploaded motorcycle';
-  const world = detectWorld(creativeRequest);
-  const style = detectStyle(creativeRequest);
   const scenes = [];
 
-  // Start with real media whenever possible. This grounds the generated world in the user's footage.
-  const opening = Math.min(2.2, sourceDuration);
-  scenes.push(uploadedScene('scene-01', 'real-opening', 0, opening, 'Establish the real motorcycle and its authentic camera movement.', 'fade-in', 'cinematic-blend'));
+  if (moments.length) {
+    const selected = [];
+    for (const moment of moments) {
+      const start = clamp(moment.start, 0, Math.max(0, sourceDuration - 0.5));
+      const end = clamp(moment.end, start + 0.5, sourceDuration);
+      if (!selected.some((m) => Math.abs(m.start - start) < 1.0)) selected.push({ ...moment, start, end });
+      if (selected.length >= 8) break;
+    }
 
-  // Insert a generated establishing beat so the requested world can appear before the hero action.
-  scenes.push(generatedScene(
-    'scene-02',
-    'generated-world-establishing',
-    Math.min(2.2, Math.max(1.5, target * 0.14)),
-    generatedPrompt({ creativeRequest, subject, world, style, purpose: 'Introduce the requested world and establish scale, atmosphere and direction of travel before the main action.' }),
-    'cinematic-blend',
-    'match-cut'
-  ));
+    const desiredCount = target >= 12 ? Math.min(6, selected.length) : target >= 8 ? Math.min(5, selected.length) : Math.min(4, selected.length);
+    const chosen = selected.slice(0, desiredCount);
+    const baseDuration = target / Math.max(1, chosen.length);
 
-  if (best) {
-    const start = clamp(best.start, 0, Math.max(0, sourceDuration - 0.5));
-    const end = clamp(best.end, start + 0.5, sourceDuration);
-    scenes.push(uploadedScene('scene-03', 'real-hero-moment', start, end, best.description || 'Use the strongest moment identified by Gemini.', 'match-cut', 'action-blend'));
+    chosen.forEach((moment, index) => {
+      const available = Math.max(0.5, moment.end - moment.start);
+      const duration = Math.min(available, Math.max(0.8, baseDuration));
+      const start = moment.start;
+      const end = Math.min(moment.end, start + duration);
+      const purpose = index === 0 ? 'real-opening' : index === chosen.length - 1 ? 'real-hero-ending' : (moment.description || '').toLowerCase().match(/action|accelerat|corner|speed|riding|movement|chase/) ? 'real-action' : 'real-cinematic-beat';
+      const transitionIn = index === 0 ? 'fade-in' : index % 2 ? 'crossfade' : 'hard-cut';
+      const transitionOut = index === chosen.length - 1 ? 'fade-out' : index % 2 ? 'action-blend' : 'cinematic-blend';
+      scenes.push(uploadedScene(`scene-${String(index + 1).padStart(2, '0')}`, purpose, start, end, moment.description || 'Use a distinct verified Gemini moment from the supplied footage.', transitionIn, transitionOut));
+    });
   }
 
-  // Add a generated action bridge whenever the prompt asks for a chase, trailer or environment the real footage cannot contain.
-  const generatedActionDuration = Math.min(3.2, Math.max(1.8, target * (style.action ? 0.22 : 0.16)));
-  scenes.push(generatedScene(
-    'scene-04',
-    style.action ? 'generated-action-fill' : 'generated-environment-fill',
-    generatedActionDuration,
-    generatedPrompt({ creativeRequest, subject, world, style, purpose: style.action ? 'Fill the requested action beat with an original cinematic continuation that can bridge real motorcycle shots.' : 'Extend the requested environment around the real footage with an original cinematic transition.' }),
-    'action-blend',
-    'impact-cut'
-  ));
-
-  // Prefer a second real moment when Gemini found one that is sufficiently different from the hero shot.
-  const second = moments.find((m) => !best || Math.abs(m.start - best.start) > 1.0);
-  if (second) {
-    const start = clamp(second.start, 0, Math.max(0, sourceDuration - 0.5));
-    const end = clamp(second.end, start + 0.5, sourceDuration);
-    scenes.push(uploadedScene('scene-05', 'real-secondary-moment', start, end, second.description || 'Use a second distinct analysed moment for visual variety.', 'impact-cut', 'hero-rise', 'recommended'));
-  }
-
-  scenes.push(generatedScene(
-    'scene-06',
-    'generated-hero-ending',
-    Math.min(2.4, Math.max(1.5, target * 0.14)),
-    generatedPrompt({ creativeRequest, subject, world, style, purpose: 'Finish with a memorable original hero reveal, keeping the motorcycle as the identity anchor and leaving clean space for an optional title.' }),
-    'hero-rise',
-    'fade-out'
-  ));
-
-  // Trim only optional scenes if the requested duration is short. Required scene ordering remains intact.
-  let total = scenes.reduce((sum, s) => sum + s.duration, 0);
-  if (total > target) {
-    for (let i = scenes.length - 1; i >= 0 && total > target; i--) {
-      const scene = scenes[i];
-      const minimum = scene.priority === 'required' ? 0.8 : 0.6;
-      const reducible = Math.max(0, scene.duration - minimum);
-      const reduction = Math.min(reducible, total - target);
-      scene.duration = Number((scene.duration - reduction).toFixed(2));
-      total -= reduction;
+  if (scenes.length < 3) {
+    scenes.length = 0;
+    const count = target >= 12 ? 6 : target >= 8 ? 5 : 3;
+    const segment = target / count;
+    for (let index = 0; index < count; index += 1) {
+      const start = index * segment;
+      const end = Math.min(sourceDuration, start + segment);
+      scenes.push(uploadedScene(
+        `scene-${String(index + 1).padStart(2, '0')}`,
+        index === 0 ? 'real-opening' : index === count - 1 ? 'real-hero-ending' : 'real-cinematic-beat',
+        start,
+        end,
+        'Use this verified source segment as part of the real-footage cinematic story.',
+        index === 0 ? 'fade-in' : index % 2 ? 'crossfade' : 'hard-cut',
+        index === count - 1 ? 'fade-out' : 'cinematic-blend'
+      ));
     }
   }
 
-  return { scenes, totalDuration: Number(total.toFixed(2)), world, style };
+  return { scenes, totalDuration: Number(scenes.reduce((sum, scene) => sum + scene.duration, 0).toFixed(2)), sourceDuration };
+}
+
+function buildGenerationPlan(analysis, creativeRequest, targetDuration) {
+  const subject = text(analysis?.subject?.description) || text(analysis?.subject?.motorcycleModel) || 'the uploaded motorcycle';
+  const world = detectWorld(creativeRequest);
+  const style = detectStyle(creativeRequest);
+  const generatedDuration = Math.min(3.2, Math.max(1.8, Number(targetDuration) * (style.action ? 0.22 : 0.16)));
+  return [
+    generatedScene('generated-world-establishing', 'generated-world-establishing', Math.min(2.2, Math.max(1.5, Number(targetDuration) * 0.14)), generatedPrompt({ creativeRequest, subject, world, style, purpose: 'Introduce the requested world and establish scale, atmosphere and direction of travel before the main action.' }), 'cinematic-blend', 'match-cut'),
+    generatedScene('generated-action-fill', style.action ? 'generated-action-fill' : 'generated-environment-fill', generatedDuration, generatedPrompt({ creativeRequest, subject, world, style, purpose: style.action ? 'Fill the requested action beat with an original cinematic continuation that can bridge real motorcycle shots.' : 'Extend the requested environment around the real footage with an original cinematic transition.' }), 'action-blend', 'impact-cut'),
+    generatedScene('generated-hero-ending', 'generated-hero-ending', Math.min(2.4, Math.max(1.5, Number(targetDuration) * 0.14)), generatedPrompt({ creativeRequest, subject, world, style, purpose: 'Finish with a memorable original hero reveal, keeping the motorcycle as the identity anchor and leaving clean space for an optional title.' }), 'hero-rise', 'fade-out')
+  ];
 }
 
 export default async function handler(req, res) {
@@ -203,45 +184,45 @@ export default async function handler(req, res) {
 
   try {
     const { prompt = '', analysis = {}, targetDuration = 15 } = req.body || {};
-    if (!analysis || typeof analysis !== 'object') {
-      return res.status(400).json({ success: false, error: 'Video analysis is required.' });
-    }
+    if (!analysis || typeof analysis !== 'object') return res.status(400).json({ success: false, error: 'Video analysis is required.' });
 
     const creativeRequest = text(prompt) || 'Create a cinematic social-media motorcycle video.';
     const requestedDuration = clamp(Number(targetDuration) || 15, 5, 60);
     const subject = text(analysis?.subject?.description) || text(analysis?.subject?.motorcycleModel) || 'the uploaded motorcycle';
-    const built = buildScenes(analysis, creativeRequest, requestedDuration);
+    const real = buildRealFootageScenes(analysis, requestedDuration);
+    const generationPlan = buildGenerationPlan(analysis, creativeRequest, requestedDuration);
     const continuity = subjectContinuity(analysis);
 
     const productionPlan = {
-      version: '7.0',
-      title: 'AI Director — Real Footage + Original Generative Fill',
+      version: '8.0',
+      title: 'AI Director — Real Footage Master',
       creativeRequest,
-      creativeDirection: `Turn the supplied ${subject} media into an original cinematic production driven by the user's request. Gemini supplies real-media understanding; Bikeztagram supplies the local production/compositing plan.`,
-      worldMode: built.world,
-      style: built.style,
+      creativeDirection: `Turn the supplied ${subject} media into an original cinematic production driven by the user's request. Gemini supplies real-media understanding; Bikeztagram's current master render path executes verified real footage first.`,
+      worldMode: detectWorld(creativeRequest),
+      style: detectStyle(creativeRequest),
       targetDuration: requestedDuration,
-      plannedDuration: built.totalDuration,
+      plannedDuration: real.totalDuration,
       subjectContinuity: continuity,
       sourceAnalysis: {
         filename: text(analysis?.filename),
         durationSeconds: Number(analysis?.durationInSeconds || 0),
-        strongestMoments: allBestMoments(analysis).slice(0, 5)
+        strongestMoments: allBestMoments(analysis).slice(0, 8)
       },
-      scenes: built.scenes,
+      scenes: real.scenes,
+      generationPlan,
       generationPolicy: {
         engine: 'bikeztagram-local-browser-compositor',
         paidVideoGeneration: false,
         externalVideoGenerator: false,
-        useGeneratedFill: true,
-        rule: 'Generated scenes are original procedural/composited material. Never imitate a named franchise, copyrighted character or soundtrack; translate the requested mood and cinematic traits into an original world.'
+        useGeneratedFill: false,
+        rule: 'Generated scenes are planned separately and are not substituted into the real-footage master render until the generation compositor is ready. Never imitate a named franchise, copyrighted character or soundtrack; translate the requested mood and cinematic traits into an original world.'
       },
       assemblyNotes: [
         'Use real uploaded footage as the identity anchor.',
-        'Use generated scenes to fill narrative gaps the supplied footage cannot cover.',
-        'Match generated scene direction to the camera motion and subject position found in the real footage.',
+        'Use the strongest verified Gemini moments as separate cinematic cuts rather than repeating one source position.',
+        'Use generated scenes only through the dedicated generation compositor when that renderer is ready.',
         'Use cinematic transitions and motion continuity rather than simply placing unrelated clips back-to-back.',
-        'Keep the entire generation path local/browser-side so no paid video-generation API is required.'
+        'Keep the current master render path local/browser-side so no paid video-generation API is required.'
       ]
     };
 
