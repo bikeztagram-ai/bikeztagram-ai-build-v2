@@ -5,6 +5,10 @@ import { createAIEditPlan, describeAIEditPlan } from './aiEditPlanner.js';
 import { renderProject } from './renderer.js';
 import { renderWorldScene } from './worldScene.js';
 import { compileDirectorTimeline } from './directorTimelineCompiler.js';
+import { buildRenderExecutionPlan } from './renderExecutionPlan.js';
+import { routeRenderExecution } from './renderExecutionRouter.js';
+import { buildRenderRecordingPlan } from './renderRecordingPlan.js';
+import { buildStableRendererInput } from './renderRecordingAdapter.js';
 import './styles.css';
 
 export default function App() {
@@ -161,7 +165,16 @@ export default function App() {
     try {
       setCurrentStage('STEP 8 — Rendering AI-directed video'); setStatus(productionPlan ? '🎬 Rendering the AI Director production — real footage master...' : '🎬 Building your AI-directed cinematic edit...');
       const renderPlan = productionPlanToRenderPlan(productionPlan) || plan;
-      const outputBlob = await renderProject([{ id: 'video-0', file, name: file.name, type: file.type || 'video/mp4', sourceUrl }], renderPlan, (value) => { const p = Math.max(0, Math.min(100, Number(value) || 0)); setRenderProgress(p); setStatus(`🎬 Rendering AI edit... ${p}%`); });
+      const mediaItems = [{ id: 'video-0', file, name: file.name, type: file.type || 'video/mp4', sourceUrl, url: sourceUrl }];
+      const executionPlan = buildRenderExecutionPlan({ cuts: renderPlan.cuts || [], mediaItems, targetDuration: renderPlan.targetDuration || 15 });
+      const routedExecution = routeRenderExecution(executionPlan);
+      if (!routedExecution.ready) throw new Error(routedExecution.reason || 'Render execution could not be prepared.');
+      if (routedExecution.mode !== 'stable-video') throw new Error('This render contains media that is not yet supported by the stable video renderer.');
+      const recordingPlan = buildRenderRecordingPlan(routedExecution, 30);
+      if (!recordingPlan.ready) throw new Error(recordingPlan.reason || 'Recording plan could not be prepared.');
+      const stableInput = buildStableRendererInput(recordingPlan, mediaItems);
+      if (!stableInput.ready) throw new Error(stableInput.reason || 'Stable renderer input could not be prepared.');
+      const outputBlob = await renderProject(stableInput.mediaItems, stableInput.plan, (value) => { const p = Math.max(0, Math.min(100, Number(value) || 0)); setRenderProgress(p); setStatus(`🎬 Rendering AI edit... ${p}%`); });
       if (!(outputBlob instanceof Blob) || outputBlob.size === 0) throw new Error('Renderer completed but produced an empty video file.');
       if (renderedVideoUrl) URL.revokeObjectURL(renderedVideoUrl); setRenderedVideoUrl(URL.createObjectURL(outputBlob)); setRenderProgress(100);
       setCurrentStage('STEP 9 — AI edit completed'); setStatus(`✅ AI Director production completed successfully — ${(outputBlob.size / 1024 / 1024).toFixed(2)} MB`);
