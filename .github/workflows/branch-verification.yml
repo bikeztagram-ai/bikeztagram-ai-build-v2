@@ -1,0 +1,37 @@
+name: Branch Verification
+
+on:
+  push:
+    branches: [ai-director-two-stage]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify pipeline contracts
+        run: npm run verify:pipeline-contracts
+
+      - name: Verify creative studio integration
+        run: npm run verify:creative-studio
+
+      - name: Verify timeline model
+        run: node scripts/verify-timeline-model.mjs
+
+      - name: Build application
+        run: npm run build
