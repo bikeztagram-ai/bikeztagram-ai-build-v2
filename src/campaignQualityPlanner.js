@@ -1,0 +1,1 @@
+export function buildCampaignQualityPlan(outputs=[]){return outputs.map(output=>({id:output.id||null,platform:output.platform||null,checks:['hook','visual','audio','captions','framing','duration','source'],status:'pending'}));}
