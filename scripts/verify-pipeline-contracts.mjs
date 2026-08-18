@@ -37,6 +37,11 @@ const prepared = prepareCreativeExecution(
   { outputs: ['hero'] },
 );
 assert.equal(validateCreativeStudioResult(prepared).valid, true);
+assert.equal(validateCreativeStudioResult({ ...prepared, execution: { ...prepared.execution, ready: false } }).valid, false);
+assert.equal(validateCreativeStudioResult({ ...prepared, health: { ...prepared.health, ready: false } }).valid, false);
+assert.equal(validateCreativeStudioResult({ ...prepared, renderValidation: { valid: false } }).valid, false);
+assert.equal(validateCreativeStudioResult({ ...prepared, run: { ...prepared.run, status: 'blocked' } }).valid, false);
+assert.equal(validateCreativeStudioResult({ ...prepared, run: { ...prepared.run, outputs: [failed] } }).valid, false);
 assert.deepEqual(validateCreativeStudioResult({}), {
   valid: false,
   errors: ['Missing execution plan.', 'Missing project health.', 'Missing render job.', 'Missing campaign plan.', 'Missing pipeline run.'],
