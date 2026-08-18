@@ -22,10 +22,12 @@ assert.equal(run.stages[1].status, 'failed');
 assert.deepEqual(recoveryAction({ kind: 'timeout' }), { action: 'retry', preserve: true });
 assert.deepEqual(recoveryAction({ kind: 'invalid_input' }), { action: 'fix_input', preserve: true });
 
-const pending = collectPipelineOutput({ id: 'o1' }, 'hero');
+const pending = collectPipelineOutput({ id: 'o1', url: 'https://example.test/pending.mp4' }, 'hero');
 assert.equal(pending.status, 'pending');
-const ready = collectPipelineOutput({ id: 'o2', url: 'https://example.test/o2', mime: 'video/mp4' }, 'reel');
+const ready = collectPipelineOutput({ id: 'o2', url: 'https://example.test/o2', mime: 'video/mp4', status: 'ready' }, 'reel');
 assert.equal(ready.status, 'ready');
+const failed = collectPipelineOutput({ id: 'o3', url: 'https://example.test/o3', status: 'failed' }, 'reel');
+assert.equal(failed.status, 'failed');
 assert.equal(appendOutput(run, ready, 'reel').outputs.length, 1);
 
 const project = createCreativeStudioProject({ subjectType: 'general', assets: [{ id: 'a1' }] });
