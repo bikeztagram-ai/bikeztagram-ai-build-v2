@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createCreativeStudioProject, prepareCreativeExecution, reviseCreativeProject } from '../src/creativeStudioFacade.js';
+import { validateCreativeStudioResult } from '../src/creativeStudioContract.js';
 
 const project = createCreativeStudioProject({
   subjectType: 'travel',
@@ -27,6 +28,10 @@ assert.equal(prepared.renderValidation.valid, true);
 assert.equal(prepared.renderJob.timeline.version, 1);
 assert.equal(prepared.campaign.length, 2);
 assert.ok(prepared.run.stages.length > 0);
+assert.equal(prepared.pipeline.ready, true);
+assert.equal(prepared.pipeline.policy.nonDestructive, true);
+assert.equal(validateCreativeStudioResult(prepared).valid, true);
+assert.equal(validateCreativeStudioResult({ ...prepared, pipeline: { ...prepared.pipeline, ready: false } }).valid, false);
 
 const revision = reviseCreativeProject(executable, 'make it darker and faster');
 assert.ok(revision.regeneration.stages.includes('look'));
