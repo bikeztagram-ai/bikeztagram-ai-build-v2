@@ -39,18 +39,16 @@ function extendToTarget(scenes, targetDuration, sourceDuration) {
   const remainder = Number((target - current).toFixed(3));
   if (remainder <= 0.05) return scenes;
   const last = scenes[scenes.length - 1];
-  return [
-    ...scenes,
-    {
-      id: 'scene-duration-hold', sourceType: 'uploaded', purpose: 'real-hero-hold',
-      startTime: Math.max(0, num(sourceDuration, 0) - 0.08), duration: remainder,
-      endTime: Math.max(0, num(sourceDuration, 0)), motionStyle: 'slow-pull',
-      motionIntensity: 0.35, speed: 0.78, speedEnd: 0.72,
-      colorGrade: last?.colorGrade || 'dark-cinematic', transitionIn: 'fade-in', transitionOut: 'fade-out',
-      stabilization: true, text: '', holdLastFrame: true,
-      continuityNotes: 'Controlled end hold used only when the verified source is shorter than the requested output duration.'
-    }
-  ];
+  return [...scenes, {
+    id: 'scene-duration-hold', sourceType: 'uploaded', purpose: 'real-hero-hold',
+    mediaIndex: last?.mediaIndex ?? 0, mediaId: last?.mediaId,
+    startTime: Math.max(0, num(sourceDuration, 0) - 0.08), duration: remainder,
+    endTime: Math.max(0, num(sourceDuration, 0)), motionStyle: 'slow-pull',
+    motionIntensity: 0.35, speed: 0.78, speedEnd: 0.72,
+    colorGrade: last?.colorGrade || 'dark-cinematic', transitionIn: 'fade-in', transitionOut: 'fade-out',
+    stabilization: true, text: '', holdLastFrame: true,
+    continuityNotes: 'Controlled end hold used only when the verified source is shorter than the requested output duration.'
+  }];
 }
 
 export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSeconds = 0 } = {}) {
@@ -62,11 +60,10 @@ export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSecon
 
   const scenes = extendToTarget(sourceScenes, targetDuration, sourceDuration);
   const storyScenes = assignStoryRoles(scenes);
-  const storyDirection = buildStoryDirection(storyScenes);
-
   const audioTimeline = buildAudioAwareTimeline(storyScenes, {
     durationSeconds: targetDuration, bpm, offsetSeconds, snapToleranceSeconds: 0.16
   });
+  const storyDirection = buildStoryDirection(storyScenes, { beatMap: audioTimeline.beatMap });
 
   const cuts = audioTimeline.cuts.map((scene, index) => {
     const audioTreatment = buildBeatDrivenTreatment(scene, index, audioTimeline.cuts.length);
@@ -76,9 +73,11 @@ export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSecon
     const speedEnd = clamp(speedFor(scene, audioTreatment, 'speedEnd', requestedSpeedEnd), 0.5, 1.5);
     const colorGrade = scene.colorGrade || (productionPlan.style?.dark ? 'dark-cinematic' : 'cinematic');
     const storyRole = scene.storyRole || 'story-beat';
+    const mediaIndex = Number.isInteger(Number(scene.mediaIndex)) ? Number(scene.mediaIndex) : 0;
+    const mediaId = scene.mediaId != null ? scene.mediaId : `video-${mediaIndex}`;
 
     return {
-      mediaIndex: 0, mediaId: 'video-0',
+      mediaIndex, mediaId,
       startTime: clamp(num(scene.startTime), 0, 3600),
       duration: clamp(num(scene.duration, 1), 0.5, 8),
       purpose: scene.purpose || 'real-cinematic-beat', storyRole,
@@ -100,7 +99,7 @@ export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSecon
   });
 
   return {
-    version: '1.3', title: productionPlan.title || 'AI Director Production',
+    version: '1.4', title: productionPlan.title || 'AI Director Production',
     style: productionPlan.style || {}, creativePrompt: productionPlan.creativeRequest || '',
     targetDuration, duration: Number(cuts.reduce((sum, cut) => sum + cut.duration, 0).toFixed(2)), cuts,
     story: storyDirection,
