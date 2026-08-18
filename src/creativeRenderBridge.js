@@ -1,9 +1,16 @@
 /* BIKEZTAGRAM AI — adapter boundary between planning and existing renderer. */
 import { createTimeline, validateTimeline } from './timelineModel.js';
+import { createTimelineFromVerifiedCuts } from './verifiedCutTimeline.js';
+
+function timelineFromEditPlan(editPlan) {
+  if (!editPlan) return null;
+  if (Array.isArray(editPlan.cuts)) return createTimelineFromVerifiedCuts(editPlan.cuts);
+  return createTimeline(editPlan);
+}
 
 export function buildRenderJob(project = {}, execution = {}) {
   const output = project.outputs?.primary || project.output || {};
-  const timeline = project.editPlan ? createTimeline(project.editPlan) : null;
+  const timeline = timelineFromEditPlan(project.editPlan);
   return {
     version: 2,
     projectId: project.id || null,
