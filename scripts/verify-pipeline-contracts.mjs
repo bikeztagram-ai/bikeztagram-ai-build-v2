@@ -11,7 +11,14 @@ assert.equal(run.status, 'queued');
 run = advancePipelineRun(run, {});
 assert.equal(run.cursor, 1);
 run = advancePipelineRun(run, { error: { kind: 'timeout' } });
+assert.equal(run.status, 'retrying');
+assert.equal(run.stages[1].recovery.action, 'retry');
+run = advancePipelineRun(run, { error: { kind: 'timeout' } });
+assert.equal(run.status, 'retrying');
+run = advancePipelineRun(run, { error: { kind: 'timeout' } });
 assert.equal(run.status, 'blocked');
+assert.equal(run.stages[1].attempts, 3);
+assert.equal(run.stages[1].status, 'failed');
 assert.deepEqual(recoveryAction({ kind: 'timeout' }), { action: 'retry', preserve: true });
 assert.deepEqual(recoveryAction({ kind: 'invalid_input' }), { action: 'fix_input', preserve: true });
 
