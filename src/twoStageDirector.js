@@ -1,6 +1,7 @@
 /* BIKEZTAGRAM AI — client boundary for the verified two-stage director. */
 import { buildMultiPlatformPlan } from './platformReframe.js';
 import { buildReframeReadiness } from './platformReframeQuality.js';
+import { shapeCinematicEditPlan } from './editDirectorPolicy.js';
 
 function text(value) { return String(value ?? '').trim(); }
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
@@ -23,7 +24,8 @@ export async function requestTwoStageEditPlan({ prompt, analysis, targetDuration
 }
 
 export function editPlanToDirectorBlueprint(plan, analysis, prompt, targetDuration = 15, platforms = ['reels', 'tiktok', 'shorts']) {
-  const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
+  const shapedPlan = shapeCinematicEditPlan(plan, Array.isArray(analysis?.bestMoments) ? analysis.bestMoments : []);
+  const cuts = Array.isArray(shapedPlan?.cuts) ? shapedPlan.cuts : [];
   const scenes = cuts.map((cut, index) => ({
     id: `scene-${String(index + 1).padStart(2, '0')}`,
     sourceType: 'uploaded',
@@ -47,13 +49,13 @@ export function editPlanToDirectorBlueprint(plan, analysis, prompt, targetDurati
   const reframeReadiness = buildReframeReadiness(platformPlan, analysis);
   return {
     version: 'two-stage-edit-plan-adapter',
-    title: text(plan.title) || 'Bikeztagram AI Cinematic Edit',
+    title: text(shapedPlan.title) || 'Bikeztagram AI Cinematic Edit',
     creativeRequest: text(prompt),
     creativeDirection: 'Stage 1 analysed the actual uploaded video; Stage 2 selected and directed verified moments only.',
     targetDuration: clamp(number(targetDuration, 15), 5, 60),
     plannedDuration: Number(plannedDuration.toFixed(2)),
     worldMode: 'real-footage-cinematic',
-    style: { cinematic: true, dark: text(plan.colorGrade).includes('dark') },
+    style: { cinematic: true, dark: text(shapedPlan.colorGrade).includes('dark') },
     sourceAnalysis: {
       filename: text(analysis?.filename),
       durationSeconds: number(analysis?.durationInSeconds ?? analysis?.durationSeconds, 0),
@@ -63,7 +65,7 @@ export function editPlanToDirectorBlueprint(plan, analysis, prompt, targetDurati
     platformPlan,
     reframeReadiness,
     directorNotes: [
-      ...(Array.isArray(plan.editorialStructure) ? [`Editorial structure: ${plan.editorialStructure.join(' → ')}`] : []),
+      ...(Array.isArray(shapedPlan.editorialStructure) ? [`Editorial structure: ${shapedPlan.editorialStructure.join(' → ')}`] : []),
       'All scenes are sourced from verified Stage 1 moments.',
       'No generated footage is requested by this execution path.',
       'Platform reframing preserves the same verified edit and source timestamps.',
