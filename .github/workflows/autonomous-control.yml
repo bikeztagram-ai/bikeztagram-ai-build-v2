@@ -15,11 +15,11 @@ on:
 
 concurrency:
   group: bikeztagram-autonomous-control
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write
-  actions: read
+  actions: write
   deployments: read
 
 jobs:
@@ -123,6 +123,12 @@ jobs:
           path: autotest-failure.png
           if-no-files-found: ignore
 
+      - name: Stop cycle after render QA failure
+        if: steps.smoke.outcome == 'failure'
+        run: |
+          echo 'Render QA failed; preserving evidence and stopping before any AI improvement.'
+          exit 1
+
       - name: Run one guarded AI engineering improvement
         id: improver
         continue-on-error: true
@@ -171,4 +177,4 @@ jobs:
           echo "Autonomous control-plane cycle complete."
           echo "Render QA: ${{ steps.smoke.outcome }}"
           echo "AI improvement: ${{ steps.improver.outcome }}"
-          echo "The next scheduled cycle will re-evaluate the latest development commit."
+          echo "A failed render QA never reaches the improver."
