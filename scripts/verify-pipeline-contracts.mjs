@@ -7,6 +7,7 @@ import { validateCreativeStudioResult } from '../src/creativeStudioContract.js';
 import { validateEditPlan } from '../src/editPlanQualityGate.js';
 import { buildCreativePipeline, getPipelineBlockers } from '../src/creativePipelineOrchestrator.js';
 import { buildRenderJob, validateRenderJob } from '../src/creativeRenderBridge.js';
+import { shapeCinematicEditPlan } from '../src/editDirectorPolicy.js';
 
 const plan = { stages: [{ id: 'analyse' }, { id: 'direct' }, { id: 'generate' }] };
 let run = createPipelineRun({ id: 'regression' }, plan);
@@ -51,9 +52,9 @@ assert.deepEqual(validateCreativeStudioResult({}), {
 });
 
 const moments = [
-  { start: 0, end: 3 },
-  { start: 4, end: 8 },
-  { start: 9, end: 13 },
+  { start: 0, end: 3, score: 40, cinematicScore: 50, actionScore: 20 },
+  { start: 4, end: 8, score: 70, cinematicScore: 65, actionScore: 80 },
+  { start: 9, end: 13, score: 95, cinematicScore: 92, actionScore: 90 },
 ];
 const verifiedPlan = {
   cuts: [
@@ -67,7 +68,18 @@ assert.equal(quality.valid, true);
 assert.equal(quality.metrics.uniqueMoments, 3);
 assert.equal(quality.metrics.duration, 6);
 
-const verifiedProject = { ...project, story: project.story, editPlan: verifiedPlan, output: { width: 1080, height: 1920, fps: 30 } };
+const shaped = shapeCinematicEditPlan(verifiedPlan, moments);
+assert.equal(shaped.cuts.length, 3);
+assert.equal(shaped.cuts[2].momentIndex, 2);
+assert.equal(shaped.cuts[0].purpose, 'hook');
+assert.equal(shaped.cuts[1].purpose, 'reveal');
+assert.equal(shaped.cuts[2].purpose, 'hero');
+assert.equal(shaped.editorialStructure.join(','), 'hook,reveal,hero');
+assert.notEqual(shaped.cuts[0].transition, '');
+assert.notEqual(shaped.cuts[1].motionStyle, '');
+assert.equal(shaped.cuts[1].text, '');
+
+const verifiedProject = { ...project, story: project.story, editPlan: shaped, output: { width: 1080, height: 1920, fps: 30 } };
 const pipeline = buildCreativePipeline(verifiedProject, moments);
 assert.equal(pipeline.ready, true);
 assert.equal(pipeline.policy.nonDestructive, true);
