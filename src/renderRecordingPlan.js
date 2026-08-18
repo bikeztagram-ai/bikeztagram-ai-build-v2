@@ -1,8 +1,13 @@
 /* BIKEZTAGRAM AI — recording plan boundary.
    Converts routed render media into a recording-safe sequence without changing
-   the existing MediaRecorder/FFmpeg implementation. */
+   the existing MediaRecorder/FFmpeg implementation.
 
-export function buildRenderRecordingPlan(routedExecution = {}) {
+   The deterministic frame schedule is an original Bikeztagram timing layer. It
+   gives future preview, motion, beat-sync and renderer backends one shared clock.
+*/
+import { buildRenderFrameSchedule } from './renderFrameSchedule.js';
+
+export function buildRenderRecordingPlan(routedExecution = {}, fps = 30) {
   if (!routedExecution?.ready) {
     return { ready: false, reason: 'Render execution is not ready.' };
   }
@@ -10,20 +15,27 @@ export function buildRenderRecordingPlan(routedExecution = {}) {
   const cuts = Array.isArray(routedExecution.cuts) ? routedExecution.cuts : [];
   if (!cuts.length) return { ready: false, reason: 'No render cuts available.' };
 
+  const recordingCuts = cuts.map((cut, index) => ({
+    order: index,
+    source: cut.mediaSource.url,
+    kind: cut.mediaSource.kind,
+    startTime: Number(cut.startTime) || 0,
+    duration: Number(cut.duration) || 0,
+    renderIndex: cut.renderIndex,
+    treatment: cut.treatment || null,
+    storyRole: cut.storyRole || null,
+  }));
+
+  const frameSchedule = buildRenderFrameSchedule({ cuts: recordingCuts }, fps);
+
   return {
     ready: true,
     mode: routedExecution.mode || 'stable-video',
     targetDuration: routedExecution.targetDuration,
-    cuts: cuts.map((cut, index) => ({
-      order: index,
-      source: cut.mediaSource.url,
-      kind: cut.mediaSource.kind,
-      startTime: Number(cut.startTime) || 0,
-      duration: Number(cut.duration) || 0,
-      renderIndex: cut.renderIndex,
-      treatment: cut.treatment || null,
-      storyRole: cut.storyRole || null,
-    })),
+    fps: frameSchedule.fps,
+    totalFrames: frameSchedule.totalFrames,
+    durationSeconds: frameSchedule.durationSeconds,
+    cuts: frameSchedule.cuts,
   };
 }
 
