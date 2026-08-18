@@ -7,10 +7,15 @@ import { prepareRenderExecution } from './renderExecutionGate.js';
 export function prepareRendererRequest({ plan, mediaItems = [] } = {}) {
   if (!plan?.cuts?.length) throw new Error('Cannot render: no cuts are available.');
 
-  const normalizedCuts = plan.cuts.map((cut) => ({
-    ...cut,
-    mediaIndex: Number.isInteger(Number(cut.mediaIndex)) ? Number(cut.mediaIndex) : 0,
-  }));
+  const normalizedCuts = plan.cuts.map((cut) => {
+    const isGenerated = cut?.sourceType === 'generated' || cut?.generated === true;
+    return {
+      ...cut,
+      ...(isGenerated ? {} : {
+        mediaIndex: Number.isInteger(Number(cut.mediaIndex)) ? Number(cut.mediaIndex) : 0,
+      }),
+    };
+  });
   const normalizedPlan = { ...plan, cuts: normalizedCuts };
   const readiness = validateRenderReadiness({ mediaItems, plan: normalizedPlan });
   if (!readiness.ready) throw new Error(`Render readiness failed: ${readiness.issues.join(' ')}`);
