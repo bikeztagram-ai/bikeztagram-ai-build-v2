@@ -10,7 +10,8 @@
     "verify:production-plan-selection": "node scripts/verify-production-plan-selection.mjs",
     "verify:cinematic-treatment": "node scripts/verify-cinematic-treatment.mjs",
     "verify:render-treatment-contract": "node scripts/verify-render-treatment-contract.mjs",
-    "verify:audio-beat-map": "node scripts/verify-audio-beat-map.mjs"
+    "verify:audio-beat-map": "node scripts/verify-audio-beat-map.mjs",
+    "verify:audio-director-sync": "node scripts/verify-audio-director-sync.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
