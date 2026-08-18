@@ -1,8 +1,9 @@
 /* BIKEZTAGRAM AI — master director timeline compiler.
-   One deterministic handoff between the production blueprint, audio timing and renderer.
-   It never changes source timestamps merely to force beat sync. */
+   One deterministic handoff between the production blueprint, story direction,
+   audio timing and renderer. It never changes source timestamps merely to force beat sync. */
 
 import { buildAudioAwareTimeline, buildBeatDrivenTreatment } from './audioDirectorSync.js';
+import { buildStoryDirection, assignStoryRoles } from './directorStoryModel.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const num = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
@@ -41,22 +42,12 @@ function extendToTarget(scenes, targetDuration, sourceDuration) {
   return [
     ...scenes,
     {
-      id: 'scene-duration-hold',
-      sourceType: 'uploaded',
-      purpose: 'real-hero-hold',
-      startTime: Math.max(0, num(sourceDuration, 0) - 0.08),
-      duration: remainder,
-      endTime: Math.max(0, num(sourceDuration, 0)),
-      motionStyle: 'slow-pull',
-      motionIntensity: 0.35,
-      speed: 0.78,
-      speedEnd: 0.72,
-      colorGrade: last?.colorGrade || 'dark-cinematic',
-      transitionIn: 'fade-in',
-      transitionOut: 'fade-out',
-      stabilization: true,
-      text: '',
-      holdLastFrame: true,
+      id: 'scene-duration-hold', sourceType: 'uploaded', purpose: 'real-hero-hold',
+      startTime: Math.max(0, num(sourceDuration, 0) - 0.08), duration: remainder,
+      endTime: Math.max(0, num(sourceDuration, 0)), motionStyle: 'slow-pull',
+      motionIntensity: 0.35, speed: 0.78, speedEnd: 0.72,
+      colorGrade: last?.colorGrade || 'dark-cinematic', transitionIn: 'fade-in', transitionOut: 'fade-out',
+      stabilization: true, text: '', holdLastFrame: true,
       continuityNotes: 'Controlled end hold used only when the verified source is shorter than the requested output duration.'
     }
   ];
@@ -68,13 +59,13 @@ export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSecon
   const targetDuration = num(productionPlan.targetDuration, 15);
   const sourceScenes = productionPlan.scenes.filter((scene) => scene?.sourceType === 'uploaded');
   if (!sourceScenes.length) throw new Error('Production blueprint contains no renderable uploaded scenes.');
-  const scenes = extendToTarget(sourceScenes, targetDuration, sourceDuration);
 
-  const audioTimeline = buildAudioAwareTimeline(scenes, {
-    durationSeconds: targetDuration,
-    bpm,
-    offsetSeconds,
-    snapToleranceSeconds: 0.16
+  const scenes = extendToTarget(sourceScenes, targetDuration, sourceDuration);
+  const storyScenes = assignStoryRoles(scenes);
+  const storyDirection = buildStoryDirection(storyScenes);
+
+  const audioTimeline = buildAudioAwareTimeline(storyScenes, {
+    durationSeconds: targetDuration, bpm, offsetSeconds, snapToleranceSeconds: 0.16
   });
 
   const cuts = audioTimeline.cuts.map((scene, index) => {
@@ -84,43 +75,36 @@ export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSecon
     const speed = clamp(speedFor(scene, audioTreatment, 'speed', requestedSpeed), 0.5, 1.5);
     const speedEnd = clamp(speedFor(scene, audioTreatment, 'speedEnd', requestedSpeedEnd), 0.5, 1.5);
     const colorGrade = scene.colorGrade || (productionPlan.style?.dark ? 'dark-cinematic' : 'cinematic');
+    const storyRole = scene.storyRole || 'story-beat';
+
     return {
-      mediaIndex: 0,
-      mediaId: 'video-0',
+      mediaIndex: 0, mediaId: 'video-0',
       startTime: clamp(num(scene.startTime), 0, 3600),
       duration: clamp(num(scene.duration, 1), 0.5, 8),
-      purpose: scene.purpose || 'real-cinematic-beat',
-      sourceType: 'uploaded',
-      generated: false,
+      purpose: scene.purpose || 'real-cinematic-beat', storyRole,
+      storyOrder: scene.storyOrder || index + 1,
+      sourceType: 'uploaded', generated: false,
       transition: normaliseTransition(scene, index, audioTimeline.cuts.length, audioTreatment),
       motionStyle: normaliseMotion(scene, index, audioTimeline.cuts.length, audioTreatment),
       motionIntensity: clamp(num(scene.motionIntensity, 0.65) * (audioTreatment.motionBias === 'stronger' ? 1.18 : 1), 0.2, 1.5),
-      speed,
-      speedEnd,
-      colorGrade,
+      speed, speedEnd, colorGrade,
       stabilization: scene.stabilization !== false,
-      text: scene.text || '',
-      holdLastFrame: scene.holdLastFrame === true,
-      audioSync: scene.audioSync,
-      beatTreatment: audioTreatment
+      text: scene.text || '', holdLastFrame: scene.holdLastFrame === true,
+      audioSync: scene.audioSync, beatTreatment: audioTreatment,
+      directorIntent: {
+        role: storyRole,
+        pacing: storyRole === 'escalation' ? 'increase-energy' : storyRole === 'hero' ? 'resolve' : storyRole === 'hook' ? 'capture-attention' : storyRole === 'release' ? 'breathe' : 'build',
+        preserveSubject: true
+      }
     };
   });
 
   return {
-    version: '1.2',
-    title: productionPlan.title || 'AI Director Production',
-    style: productionPlan.style || {},
-    creativePrompt: productionPlan.creativeRequest || '',
-    targetDuration,
-    duration: Number(cuts.reduce((sum, cut) => sum + cut.duration, 0).toFixed(2)),
-    cuts,
-    audio: {
-      bpm: audioTimeline.bpm,
-      offsetSeconds: audioTimeline.offsetSeconds,
-      durationSeconds: audioTimeline.durationSeconds,
-      beatMap: audioTimeline.beatMap,
-      policy: audioTimeline.policy
-    },
+    version: '1.3', title: productionPlan.title || 'AI Director Production',
+    style: productionPlan.style || {}, creativePrompt: productionPlan.creativeRequest || '',
+    targetDuration, duration: Number(cuts.reduce((sum, cut) => sum + cut.duration, 0).toFixed(2)), cuts,
+    story: storyDirection,
+    audio: { bpm: audioTimeline.bpm, offsetSeconds: audioTimeline.offsetSeconds, durationSeconds: audioTimeline.durationSeconds, beatMap: audioTimeline.beatMap, policy: audioTimeline.policy },
     source: 'bikeztagram-master-director-timeline'
   };
 }
