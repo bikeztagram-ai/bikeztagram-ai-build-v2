@@ -1,0 +1,61 @@
+name: Build Safe Gemini Review Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ai-director-two-stage]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch snapshot
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Remove local-only and sensitive material
+        run: |
+          set -euo pipefail
+          rm -rf .git node_modules dist
+          find . -type f \( -name '.env' -o -name '.env.*' \) ! -name '.env.example' -delete
+          find . -type f \( -name '*.pem' -o -name '*.key' -o -name '*.p12' -o -name '*.pfx' \) -delete
+          find . -type f -size +25M -print -delete
+
+      - name: Create full source review ZIP
+        run: |
+          set -euo pipefail
+          zip -qr /tmp/bikeztagram-gemini-source-review.zip . -x 'tests/fixtures/*' '*.log'
+
+      - name: Create architecture review ZIP
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/architecture-review
+          cp -R src api scripts tests docs public /tmp/architecture-review/ 2>/dev/null || true
+          cp README.md package.json vite.config.js vercel.json index.html /tmp/architecture-review/ 2>/dev/null || true
+          find /tmp/architecture-review -type f -name '.env*' ! -name '.env.example' -delete
+          cat > /tmp/architecture-review/REVIEW_SCOPE.md <<'EOF'
+# Gemini Architecture Review Scope
+
+This is a read-only architecture review snapshot of Bikeztagram AI.
+
+The product is evolving beyond bikes into a general AI creative/video production platform. Review the joins between creative direction, generation, editing, timeline planning, rendering, QA, campaign/repurposing, storage and autonomous improvement.
+
+Do not modify this codebase. Provide architectural findings and a prioritized roadmap only.
+
+Protected area: do not recommend changing Blob/storage configuration unless a concrete defect is demonstrated.
+EOF
+          (cd /tmp/architecture-review && zip -qr /tmp/bikeztagram-gemini-architecture-review.zip .)
+
+      - name: Upload safe review packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: bikeztagram-gemini-review-packages
+          path: |
+            /tmp/bikeztagram-gemini-source-review.zip
+            /tmp/bikeztagram-gemini-architecture-review.zip
+          if-no-files-found: error
+          retention-days: 7
