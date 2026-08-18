@@ -11,7 +11,7 @@ function sourceKey(source) {
 }
 
 function mediaSourceUrl(item) {
-  return item?.sourceUrl || item?.source?.url || '';
+  return item?.sourceUrl || item?.source?.url || item?.url || '';
 }
 
 function findMediaIndex(mediaItems, source, renderIndex) {
@@ -47,13 +47,17 @@ export function buildStableRendererInput(recordingPlan = {}, mediaItems = []) {
       mediaId: sourceItems[mediaIndex]?.id,
       startTime: Number(cut.startTime) || 0,
       duration: Number(cut.duration) || 0,
-      purpose: cut.storyRole || 'cinematic-beat',
+      purpose: cut.purpose || cut.storyRole || 'cinematic-beat',
       storyRole: cut.storyRole || null,
-      transition: 'hard-cut',
-      motionStyle: 'static',
-      motionIntensity: 0.65,
-      speed: 1,
-      speedEnd: 1,
+      directorIntent: cut.directorIntent || null,
+      beatTreatment: cut.beatTreatment || null,
+      transition: cut.transition || 'hard-cut',
+      motionStyle: cut.motionStyle || 'static',
+      motionIntensity: Number(cut.motionIntensity) || 0.65,
+      speed: Number(cut.speed) || 1,
+      speedEnd: Number(cut.speedEnd ?? cut.speed) || Number(cut.speed) || 1,
+      colorGrade: cut.colorGrade || 'cinematic',
+      text: cut.text || '',
     });
   }
 
