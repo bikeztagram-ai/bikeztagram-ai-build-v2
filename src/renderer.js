@@ -87,6 +87,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
       ctx.fillRect(0, 0, canvas.width, bar); ctx.fillRect(0, canvas.height-bar, canvas.width, bar); ctx.restore();
     }
     if (index === 0 && cut.transition === 'fade-in') { ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 1 - clamp(p/.25, 0, 1); ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore(); }
+    if (cut.transition === 'fade-out') { ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = clamp((p - .72) / .28, 0, 1); ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore(); }
     if (cut.transition === 'flash-cut') { ctx.save(); ctx.fillStyle = '#fff'; ctx.globalAlpha = Math.max(0, 1 - Math.abs(p-.5)*8) * .35; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore(); }
     if (cut.transition === 'dip-black' && Math.abs(p-.5) < .12) { ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = ((.12-Math.abs(p-.5))/.12)*.9; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore(); }
     if (cut.transition === 'crossfade' && p < .16) { ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = (1 - p/.16) * .22; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore(); }
