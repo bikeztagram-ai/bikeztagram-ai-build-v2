@@ -13,7 +13,9 @@
     "verify:audio-beat-map": "node scripts/verify-audio-beat-map.mjs",
     "verify:audio-director-sync": "node scripts/verify-audio-director-sync.mjs",
     "verify:render-timeline-contract": "node scripts/verify-render-timeline-contract.mjs",
-    "verify:director-timeline-compiler": "node scripts/verify-director-timeline-compiler.mjs"
+    "verify:director-timeline-compiler": "node scripts/verify-director-timeline-compiler.mjs",
+    "verify:renderer-stability": "node scripts/verify-renderer-stability.mjs",
+    "verify:all": "npm run verify:production-plan-selection && npm run verify:cinematic-treatment && npm run verify:render-treatment-contract && npm run verify:audio-beat-map && npm run verify:audio-director-sync && npm run verify:render-timeline-contract && npm run verify:director-timeline-compiler && npm run verify:renderer-stability"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
