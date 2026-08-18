@@ -1,4 +1,5 @@
 import { applyDirectorRenderTreatment } from './directorRenderTreatment.js';
+import { createRenderAudioBus } from './renderAudioBus.js';
 
 /* BIKEZTAGRAM AI — stable renderer
  * Controlled change from the protected mainline renderer:
@@ -16,13 +17,6 @@ export async function renderProject(mediaItems, plan, onProgress) {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not create canvas context.');
   const stream = canvas.captureStream(30);
-  const types = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=h264', 'video/mp4'];
-  const mimeType = types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
-  const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-  const chunks = [];
-  let stopped = false;
-  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const ease = (v) => v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : Array.isArray(plan?.scenes) ? plan.scenes.map((s, i) => ({
     mediaIndex: s.mediaIndex ?? 0, mediaId: s.mediaId, startTime: Number(s.startTime) || 0,
     duration: Number(s.duration) || 2, purpose: s.purpose || 'cinematic-beat', storyRole: s.storyRole,
@@ -33,6 +27,20 @@ export async function renderProject(mediaItems, plan, onProgress) {
     colorGrade: s.colorGrade || plan.colorGrade || 'cinematic', text: s.text || '',
   })) : [];
   if (!cuts.length) throw new Error('AI edit plan contains no cuts.');
+
+  const durationSeconds = cuts.reduce((sum, cut) => sum + Math.max(0.5, Number(cut.duration) || 2), 0);
+  const audioBus = await createRenderAudioBus(plan, durationSeconds);
+  const combinedStream = new MediaStream([
+    ...stream.getVideoTracks(),
+    ...(audioBus?.stream?.getAudioTracks?.() || [])
+  ]);
+  const types = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4;codecs=h264,aac', 'video/mp4'];
+  const mimeType = types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+  const recorder = mimeType ? new MediaRecorder(combinedStream, { mimeType }) : new MediaRecorder(combinedStream);
+  const chunks = [];
+  let stopped = false;
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const ease = (v) => v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
   const mediaFor = (cut) => {
     if (cut.mediaId != null) {
       const found = mediaItems.find((item) => String(item.id) === String(cut.mediaId));
@@ -117,6 +125,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
     (async () => {
       try {
         recorder.start(1000);
+        if (audioBus) await audioBus.start();
         for (let index = 0; index < cuts.length; index += 1) {
           const cut = applyDirectorRenderTreatment(cuts[index]);
           const media = mediaFor(cut); if (!media) throw new Error(`Cut ${index+1} references missing media.`);
@@ -151,8 +160,13 @@ export async function renderProject(mediaItems, plan, onProgress) {
             video.pause(); if (sourceEnded) { /* hold last decoded frame; never restart the source */ }
           } finally { if (fallback?.revoke) URL.revokeObjectURL(fallback.url); if (source.revoke) URL.revokeObjectURL(source.url); }
         }
+        if (audioBus) await audioBus.stop();
         if (recorder.state !== 'inactive') recorder.stop();
-      } catch (error) { if (recorder.state !== 'inactive') { try { recorder.stop(); } catch {} } reject(error); }
+      } catch (error) {
+        if (audioBus) { try { await audioBus.stop(); } catch {} }
+        if (recorder.state !== 'inactive') { try { recorder.stop(); } catch {} }
+        reject(error);
+      }
     })();
   });
   return output;
