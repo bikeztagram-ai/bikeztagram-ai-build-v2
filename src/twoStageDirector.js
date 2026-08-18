@@ -2,6 +2,7 @@
 import { buildMultiPlatformPlan } from './platformReframe.js';
 import { buildReframeReadiness } from './platformReframeQuality.js';
 import { shapeCinematicEditPlan } from './editDirectorPolicy.js';
+import { assessRenderExecution } from './renderExecutionPolicy.js';
 
 function text(value) { return String(value ?? '').trim(); }
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
@@ -47,6 +48,17 @@ export function editPlanToDirectorBlueprint(plan, analysis, prompt, targetDurati
   const plannedDuration = scenes.reduce((sum, scene) => sum + scene.duration, 0);
   const platformPlan = buildMultiPlatformPlan(analysis, platforms);
   const reframeReadiness = buildReframeReadiness(platformPlan, analysis);
+  const executionPlan = assessRenderExecution({
+    cuts: scenes.map((scene) => ({
+      startTime: scene.startTime,
+      endTime: scene.endTime,
+      duration: scene.duration,
+      speed: scene.speed,
+      speedEnd: scene.speedEnd,
+    })),
+  }, clamp(number(targetDuration, 15), 5, 60), {
+    sourceDuration: number(analysis?.durationInSeconds ?? analysis?.durationSeconds, 0),
+  });
   return {
     version: 'two-stage-edit-plan-adapter',
     title: text(shapedPlan.title) || 'Bikeztagram AI Cinematic Edit',
@@ -54,6 +66,7 @@ export function editPlanToDirectorBlueprint(plan, analysis, prompt, targetDurati
     creativeDirection: 'Stage 1 analysed the actual uploaded video; Stage 2 selected and directed verified moments only.',
     targetDuration: clamp(number(targetDuration, 15), 5, 60),
     plannedDuration: Number(plannedDuration.toFixed(2)),
+    executionReadiness: executionPlan,
     worldMode: 'real-footage-cinematic',
     style: { cinematic: true, dark: text(shapedPlan.colorGrade).includes('dark') },
     sourceAnalysis: {
@@ -69,6 +82,7 @@ export function editPlanToDirectorBlueprint(plan, analysis, prompt, targetDurati
       'All scenes are sourced from verified Stage 1 moments.',
       'No generated footage is requested by this execution path.',
       'Platform reframing preserves the same verified edit and source timestamps.',
+      `Render execution readiness: ${executionPlan.ready ? 'ready' : 'blocked until plan is repaired'}.`,
     ],
     directorSource: 'gemini-two-stage-edit-plan',
     mode: 'real-footage-first',
