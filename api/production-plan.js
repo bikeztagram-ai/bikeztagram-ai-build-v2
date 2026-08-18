@@ -12,11 +12,36 @@ function wantsGeneratedWorld(creativeRequest) {
     && !/\b(no|without|don't|do not)\s+(generate|generated|world|background|cut.?out)\b/i.test(creativeRequest);
 }
 
+function strongestVerifiedMoment(bestMoments, requestedStart, requestedEnd) {
+  const moments = Array.isArray(bestMoments) ? bestMoments
+    .map((moment) => ({
+      start: safeNumber(moment?.start, NaN),
+      end: safeNumber(moment?.end, NaN)
+    }))
+    .filter((moment) => Number.isFinite(moment.start) && Number.isFinite(moment.end) && moment.end > moment.start + 0.5) : [];
+  if (!moments.length) return null;
+
+  const start = safeNumber(requestedStart, moments[0].start);
+  const end = safeNumber(requestedEnd, start + 1.5);
+  const midpoint = (start + end) / 2;
+
+  let best = moments[0];
+  let bestScore = -Infinity;
+  for (const moment of moments) {
+    const overlap = Math.max(0, Math.min(end, moment.end) - Math.max(start, moment.start));
+    const midpointDistance = Math.abs(((moment.start + moment.end) / 2) - midpoint);
+    const score = overlap * 100 - midpointDistance;
+    if (score > bestScore) { bestScore = score; best = moment; }
+  }
+  return best;
+}
+
 function normalise(plan, analysis, creativeRequest, targetDuration) {
   if (!plan || !Array.isArray(plan.scenes) || !plan.scenes.length) throw new Error('Gemini Creative Director returned no scenes.');
   const sourceDuration = clamp(safeNumber(analysis?.durationInSeconds ?? analysis?.durationSeconds, 11), 3, 60);
   const target = clamp(safeNumber(targetDuration, 15), 5, 60);
   const allowGenerated = wantsGeneratedWorld(creativeRequest);
+  const bestMoments = Array.isArray(analysis?.bestMoments) ? analysis.bestMoments : [];
   const transitions = new Set(['hard-cut','fade-in','fade-out','crossfade','dip-black','flash-cut','whip-left','whip-right','zoom-punch','match-cut']);
   const motion = new Set(['static','slow-push','slow-pull','pan-left','pan-right','tilt-up','tilt-down']);
 
@@ -25,8 +50,12 @@ function normalise(plan, analysis, creativeRequest, targetDuration) {
     let startTime = null; let endTime = null;
     let duration = clamp(safeNumber(raw?.duration, 1.5), 0.5, 6);
     if (sourceType === 'uploaded') {
-      startTime = clamp(safeNumber(raw?.startTime, 0), 0, Math.max(0, sourceDuration - 0.5));
-      endTime = clamp(safeNumber(raw?.endTime, startTime + duration), startTime + 0.5, sourceDuration);
+      const verifiedMoment = strongestVerifiedMoment(bestMoments, raw?.startTime, raw?.endTime);
+      if (!verifiedMoment) throw new Error('Stage 1 supplied no verified bestMoments for an uploaded scene.');
+      const momentStart = verifiedMoment.start;
+      const momentEnd = Math.min(verifiedMoment.end, sourceDuration);
+      startTime = clamp(safeNumber(raw?.startTime, momentStart), momentStart, Math.max(momentStart, momentEnd - 0.5));
+      endTime = clamp(safeNumber(raw?.endTime, startTime + duration), startTime + 0.5, momentEnd);
       duration = clamp(Math.min(duration, endTime - startTime), 0.5, 6);
       endTime = Number((startTime + duration).toFixed(2));
     }
@@ -47,8 +76,11 @@ function normalise(plan, analysis, creativeRequest, targetDuration) {
   });
 
   if (!scenes.some((scene) => scene.sourceType === 'uploaded')) {
-    scenes.unshift({ id:'scene-01', sourceType:'uploaded', purpose:'real-opening', duration:1.5, startTime:0,
-      endTime:Math.min(1.5, sourceDuration), generationPrompt:'', continuityNotes:'Establish the real supplied motorcycle first.',
+    const openingMoment = strongestVerifiedMoment(bestMoments, 0, 1.5);
+    if (!openingMoment) throw new Error('Stage 1 supplied no verified bestMoments for the required real-footage opening.');
+    const openingDuration = Math.min(1.5, openingMoment.end - openingMoment.start);
+    scenes.unshift({ id:'scene-01', sourceType:'uploaded', purpose:'real-opening', duration:Number(Math.max(0.5, openingDuration).toFixed(2)), startTime:openingMoment.start,
+      endTime:Number((openingMoment.start + Math.max(0.5, openingDuration)).toFixed(2)), generationPrompt:'', continuityNotes:'Establish the real supplied motorcycle first.',
       transitionIn:'fade-in', transitionOut:'hard-cut', motionStyle:'static', motionIntensity:0.8, speed:1, priority:'required' });
   }
 
