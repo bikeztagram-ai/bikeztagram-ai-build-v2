@@ -11,20 +11,19 @@ function averageSpeed(cut) {
   return Math.max(0.5, Math.min(1.5, (start + end) / 2));
 }
 
-function effectiveOutputDuration(cut) {
-  const duration = finitePositive(cut?.duration, 0);
-  return duration / averageSpeed(cut);
+function outputDuration(cut) {
+  return finitePositive(cut?.duration, 0);
 }
 
 function sourceConsumption(cut) {
-  return finitePositive(cut?.duration, 0) * averageSpeed(cut);
+  return outputDuration(cut) * averageSpeed(cut);
 }
 
 export function assessRenderExecution(plan, expectedDuration = 15, options = {}) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
   const target = finitePositive(expectedDuration, 15);
   const sourceDuration = finitePositive(options?.sourceDuration, 0);
-  const plannedDuration = cuts.reduce((sum, cut) => sum + effectiveOutputDuration(cut), 0);
+  const plannedDuration = cuts.reduce((sum, cut) => sum + outputDuration(cut), 0);
   const missingCuts = cuts.length === 0;
 
   const invalidCuts = cuts.filter((cut) => {
@@ -52,7 +51,7 @@ export function assessRenderExecution(plan, expectedDuration = 15, options = {})
   if (missingCuts) errors.push('Render plan contains no cuts.');
   if (invalidCuts.length) errors.push(`${invalidCuts.length} render cut(s) have invalid timing.`);
   if (outOfBoundsCuts.length) errors.push(`${outOfBoundsCuts.length} render cut(s) exceed the verified source duration after speed is applied.`);
-  if (!durationPlan.valid) errors.push(`Render plan is materially short: ${durationPlan.actualDuration}s effective output planned for ${durationPlan.expectedDuration}s.`);
+  if (!durationPlan.valid) errors.push(`Render plan is materially short: ${durationPlan.actualDuration}s output planned for ${durationPlan.expectedDuration}s.`);
 
   return {
     ready: errors.length === 0,
@@ -60,7 +59,7 @@ export function assessRenderExecution(plan, expectedDuration = 15, options = {})
     plannedDuration: durationPlan.actualDuration,
     cutCount: cuts.length,
     sourceDuration: sourceDuration || null,
-    effectiveDurationAccountsForSpeed: true,
+    durationSemantics: 'cut.duration is rendered output seconds; speed controls source consumption',
     sourceConsumptionAccountsForSpeed: true,
     errors,
     durationCheck: durationPlan,
