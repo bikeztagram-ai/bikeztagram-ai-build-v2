@@ -12,7 +12,8 @@
     "verify:pipeline-contracts": "node scripts/verify-pipeline-contracts.mjs",
     "verify:edit-director": "node scripts/verify-edit-director-policy.mjs",
     "verify:two-stage-director": "node scripts/verify-two-stage-director.mjs",
-    "verify:all": "npm run verify:cinematic && npm run verify:creative-studio && npm run verify:pipeline-contracts && npm run verify:edit-director && npm run verify:two-stage-director"
+    "verify:platform-reframe": "node scripts/verify-platform-reframe.mjs",
+    "verify:all": "npm run verify:cinematic && npm run verify:creative-studio && npm run verify:pipeline-contracts && npm run verify:edit-director && npm run verify:two-stage-director && npm run verify:platform-reframe"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
