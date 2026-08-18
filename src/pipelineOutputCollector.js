@@ -1,0 +1,2 @@
+export function collectPipelineOutput(output={},kind='primary'){return {kind,id:output.id||null,url:output.url||null,mime:output.mime||null,duration:output.duration??null,width:output.width??null,height:output.height??null,status:output.url?'ready':'pending'};}
+export function appendOutput(run={},output,kind='primary'){return {...run,outputs:[...(run.outputs||[]),collectPipelineOutput(output,kind)]};}
