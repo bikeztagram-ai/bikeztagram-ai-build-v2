@@ -71,8 +71,9 @@ assert.equal(pipeline.ready, true);
 assert.equal(pipeline.policy.nonDestructive, true);
 assert.equal(pipeline.policy.allowInventedFootage, false);
 assert.equal(pipeline.quality.valid, true);
+assert.equal(pipeline.quality.mode, 'verified-two-stage');
 assert.equal(pipeline.timelineValidation.valid, true);
 assert.equal(pipeline.timeline.tracks.video.length, 3);
-assert.deepEqual(getPipelineBlockers(pipeline), ['reframe']);
+assert.deepEqual(getPipelineBlockers(pipeline), []);
 
 console.log('pipeline-contracts: PASS');
