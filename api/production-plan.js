@@ -118,45 +118,84 @@ function buildRealFootageScenes(analysis, targetDuration) {
   const sourceDuration = clamp(Number(analysis?.durationInSeconds) || 11, 3, 60);
   const target = Math.min(clamp(Number(targetDuration) || 15, 5, 60), sourceDuration);
   const moments = allBestMoments(analysis);
-  const scenes = [];
+  const count = target >= 12 ? 6 : target >= 8 ? 5 : 3;
+  const segment = target / count;
+  const windowDuration = Math.min(2.6, Math.max(0.8, segment));
 
-  if (moments.length) {
-    const selected = [];
-    for (const moment of moments) {
-      const start = clamp(moment.start, 0, Math.max(0, sourceDuration - 0.5));
-      const end = clamp(moment.end, start + 0.5, sourceDuration);
-      if (!selected.some((m) => Math.abs(m.start - start) < 1.0)) selected.push({ ...moment, start, end });
-      if (selected.length >= 8) break;
+  // Build a temporally diverse set of anchors. Highest scoring moments are preferred,
+  // but two anchors from the same small time region are never allowed to dominate the edit.
+  const anchors = [];
+  const minimumGap = Math.max(1.2, sourceDuration / (count * 1.5));
+  for (const moment of moments) {
+    const center = clamp((moment.start + moment.end) / 2, 0, sourceDuration);
+    if (!anchors.some((a) => Math.abs(a.center - center) < minimumGap)) {
+      anchors.push({ ...moment, center });
+      if (anchors.length >= count) break;
     }
-
-    const desiredCount = target >= 12 ? Math.min(6, selected.length) : target >= 8 ? Math.min(5, selected.length) : Math.min(4, selected.length);
-    const chosen = selected.slice(0, desiredCount);
-    const baseDuration = target / Math.max(1, chosen.length);
-
-    chosen.forEach((moment, index) => {
-      const available = Math.max(0.5, moment.end - moment.start);
-      const duration = Math.min(available, Math.max(0.8, baseDuration));
-      const start = moment.start;
-      const end = Math.min(moment.end, start + duration);
-      const purpose = index === 0 ? 'real-opening' : index === chosen.length - 1 ? 'real-hero-ending' : (moment.description || '').toLowerCase().match(/action|accelerat|corner|speed|riding|movement|chase/) ? 'real-action' : 'real-cinematic-beat';
-      const transitionIn = index === 0 ? 'fade-in' : index % 2 ? 'crossfade' : 'hard-cut';
-      const transitionOut = index === chosen.length - 1 ? 'fade-out' : index % 2 ? 'action-blend' : 'cinematic-blend';
-      scenes.push(uploadedScene(`scene-${String(index + 1).padStart(2, '0')}`, purpose, start, end, moment.description || 'Use a distinct verified Gemini moment from the supplied footage.', transitionIn, transitionOut));
-    });
   }
 
-  if (scenes.length < 3) {
+  // If Gemini supplied too few distinct moments, fill the remaining slots from
+  // evenly spaced source positions rather than repeating the first strong moment.
+  for (let index = 0; anchors.length < count && index < count * 3; index += 1) {
+    const center = clamp((index + 0.5) * sourceDuration / (count * 1.5), 0, sourceDuration);
+    if (!anchors.some((a) => Math.abs(a.center - center) < minimumGap)) {
+      anchors.push({
+        start: Math.max(0, center - windowDuration / 2),
+        end: Math.min(sourceDuration, center + windowDuration / 2),
+        center,
+        description: 'Use a distinct source segment to maintain visual variety in the cinematic story.',
+        score: 0
+      });
+    }
+  }
+
+  anchors.sort((a, b) => a.center - b.center);
+  const scenes = [];
+
+  anchors.slice(0, count).forEach((anchor, index) => {
+    const desired = Math.min(windowDuration, Math.max(0.8, target / count));
+    let start = clamp(anchor.center - desired / 2, 0, Math.max(0, sourceDuration - desired));
+    let end = Math.min(sourceDuration, start + desired);
+
+    // Prefer the Gemini moment window when it is long enough, but always keep a
+    // consistent cinematic cut length so one tiny moment cannot collapse the edit.
+    const momentStart = clamp(anchor.start, 0, sourceDuration);
+    const momentEnd = clamp(anchor.end, momentStart + 0.5, sourceDuration);
+    if (momentEnd - momentStart >= desired * 0.75) {
+      start = clamp(momentStart, 0, Math.max(0, sourceDuration - desired));
+      end = Math.min(sourceDuration, start + desired);
+    }
+
+    const purpose = index === 0
+      ? 'real-opening'
+      : index === count - 1
+        ? 'real-hero-ending'
+        : (anchor.description || '').toLowerCase().match(/action|accelerat|corner|speed|riding|movement|chase/) ? 'real-action' : 'real-cinematic-beat';
+    const transitionIn = index === 0 ? 'fade-in' : index % 2 ? 'crossfade' : 'hard-cut';
+    const transitionOut = index === count - 1 ? 'fade-out' : index % 2 ? 'action-blend' : 'cinematic-blend';
+    scenes.push(uploadedScene(
+      `scene-${String(index + 1).padStart(2, '0')}`,
+      purpose,
+      start,
+      end,
+      anchor.description || 'Use a distinct verified Gemini moment from the supplied footage.',
+      transitionIn,
+      transitionOut
+    ));
+  });
+
+  // Final safety fallback: the renderer must receive multiple real cuts even if
+  // Gemini returned no usable best-moment timestamps.
+  if (scenes.length < count) {
     scenes.length = 0;
-    const count = target >= 12 ? 6 : target >= 8 ? 5 : 3;
-    const segment = target / count;
     for (let index = 0; index < count; index += 1) {
-      const start = index * segment;
+      const start = Math.min(sourceDuration - 0.5, index * segment);
       const end = Math.min(sourceDuration, start + segment);
       scenes.push(uploadedScene(
         `scene-${String(index + 1).padStart(2, '0')}`,
         index === 0 ? 'real-opening' : index === count - 1 ? 'real-hero-ending' : 'real-cinematic-beat',
-        start,
-        end,
+        Math.max(0, start),
+        Math.max(start + 0.5, end),
         'Use this verified source segment as part of the real-footage cinematic story.',
         index === 0 ? 'fade-in' : index % 2 ? 'crossfade' : 'hard-cut',
         index === count - 1 ? 'fade-out' : 'cinematic-blend'
