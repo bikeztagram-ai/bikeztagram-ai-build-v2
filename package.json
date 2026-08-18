@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "verify:cinematic": "node scripts/verify-cinematic-pipeline.mjs",
-    "verify:creative-studio": "node scripts/verify-creative-studio.mjs"
+    "verify:creative-studio": "node scripts/verify-creative-studio.mjs",
+    "verify:pipeline-contracts": "node scripts/verify-pipeline-contracts.mjs",
+    "verify:all": "npm run verify:cinematic && npm run verify:creative-studio && npm run verify:pipeline-contracts"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
@@ -23,6 +25,7 @@
     "@playwright/test": "^1.62.1",
     "playwright": "^1.62.1",
     "@vitejs/plugin-react": "^5.0.2",
-    "vite": "^6.4.3"
+    "vite": "^6.4.3",
+    "@playwright/test": "^1.62.1"
   }
 }
