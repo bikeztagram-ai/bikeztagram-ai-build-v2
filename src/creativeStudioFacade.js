@@ -4,8 +4,15 @@ import { buildCreativeStory } from './creativeStoryEngine.js';
 import { buildContentCampaign } from './creativeBatchPlanner.js';
 import { createCreativeDna } from './creativeDna.js';
 import { buildExecutionPlan } from './creativeExecutionPlan.js';
+import { buildRenderJob, validateRenderJob } from './creativeRenderBridge.js';
 import { classifyRevision, buildRegenerationScope } from './creativeRevisionImpact.js';
+import { planRevision } from './creativeRevisionLoop.js';
 import { buildVisualLookPlan } from './visualLookPlan.js';
+import { assessProjectHealth } from './projectHealth.js';
+import { createPipelineRun } from './pipelineRun.js';
+import { buildCampaignRunPlan } from './campaignRunPlan.js';
+import { buildRepurposePlan } from './repurposePlanner.js';
+import { evaluateRepurposedClip } from './repurposeQualityGate.js';
 
 export function createCreativeStudioProject(input = {}) {
   const subjectType = input.subjectType || 'general';
@@ -26,11 +33,20 @@ export function createCreativeStudioProject(input = {}) {
   return { version: 1, intent, blueprint, story, treatment, visualLook, dna, assets: input.assets || [], editPlan: input.editPlan || null, campaign };
 }
 
-export function prepareCreativeExecution(project) {
-  return { project, execution: buildExecutionPlan(project) };
+export function prepareCreativeExecution(project = {}, moments = [], options = {}) {
+  const execution = buildExecutionPlan(project);
+  const health = assessProjectHealth(project);
+  const renderJob = buildRenderJob(project, execution);
+  const renderValidation = validateRenderJob(renderJob);
+  const campaign = buildCampaignRunPlan(project, options);
+  const repurpose = buildRepurposePlan(project, moments, options.platforms || undefined);
+  const approvedRepurpose = repurpose.filter((candidate) => evaluateRepurposedClip(candidate).passed);
+  const run = createPipelineRun(project, execution);
+  return { project, execution, health, renderJob, renderValidation, campaign, repurpose, approvedRepurpose, run, ready: health.ready && execution.ready && renderValidation.valid };
 }
 
-export function reviseCreativeProject(project, feedback) {
+export function reviseCreativeProject(project = {}, feedback = '') {
   const revision = typeof feedback === 'string' ? classifyRevision(feedback) : feedback;
-  return { project: { ...project, revision }, regeneration: buildRegenerationScope(revision, project) };
+  const targeted = planRevision(project, feedback);
+  return { project: { ...project, revision }, regeneration: buildRegenerationScope(revision, project), targeted };
 }
