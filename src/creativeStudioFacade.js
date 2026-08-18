@@ -15,6 +15,7 @@ import { buildRepurposePlan } from './repurposePlanner.js';
 import { evaluateRepurposedClip } from './repurposeQualityGate.js';
 import { rankMediaCandidates } from './mediaIntelligence.js';
 import { buildMultiPlatformPlans } from './autoReframePlan.js';
+import { buildCreativePipeline } from './creativePipelineOrchestrator.js';
 
 export function createCreativeStudioProject(input = {}) {
   const subjectType = input.subjectType || 'general';
@@ -63,7 +64,8 @@ export function prepareCreativeExecution(project = {}, moments = [], options = {
   const repurpose = buildRepurposePlan(project, moments, options.platforms || undefined);
   const approvedRepurpose = repurpose.filter((candidate) => evaluateRepurposedClip(candidate).passed);
   const run = createPipelineRun(project, execution);
-  return { project, execution, health, renderJob, renderValidation, campaign, repurpose, approvedRepurpose, run, ready: health.ready && execution.ready && renderValidation.valid };
+  const pipeline = buildCreativePipeline(project, moments, options);
+  return { project, execution, health, renderJob, renderValidation, campaign, repurpose, approvedRepurpose, run, pipeline, ready: health.ready && execution.ready && renderValidation.valid && pipeline.ready };
 }
 
 export function reviseCreativeProject(project = {}, feedback = '') {
