@@ -4,7 +4,8 @@ import { createPipelineRun, advancePipelineRun } from '../src/pipelineRun.js';
 import { recoveryAction } from '../src/pipelineRecovery.js';
 import { collectPipelineOutput, appendOutput } from '../src/pipelineOutputCollector.js';
 import { validateCreativeStudioResult } from '../src/creativeStudioContract.js';
-import { normalizeEditCut } from '../src/editPlanTiming.js';
+import { validateEditPlan } from '../src/editPlanQualityGate.js';
+import { buildCreativePipeline, getPipelineBlockers } from '../src/creativePipelineOrchestrator.js';
 
 const plan = { stages: [{ id: 'analyse' }, { id: 'direct' }, { id: 'generate' }] };
 let run = createPipelineRun({ id: 'regression' }, plan);
@@ -48,18 +49,30 @@ assert.deepEqual(validateCreativeStudioResult({}), {
   errors: ['Missing execution plan.', 'Missing project health.', 'Missing render job.', 'Missing campaign plan.', 'Missing pipeline run.'],
 });
 
-const verifiedMoment = { start: 5, end: 8 };
-const normalized = normalizeEditCut(
-  { momentIndex: 0, startTime: 5.25, endTime: 7.25, duration: 4, speed: 1 },
-  verifiedMoment,
-  1,
-);
-assert.equal(normalized.startTime, 5.25);
-assert.equal(normalized.endTime, 7.25);
-assert.equal(normalized.duration, 2);
-assert.equal(normalized.speed, 1);
-assert.equal(normalizeEditCut({ momentIndex: 0, startTime: 5, endTime: 5.4, duration: 1 }, verifiedMoment, 1), null);
-assert.equal(normalizeEditCut({ momentIndex: 0, startTime: 5.5, endTime: 9, duration: 2, speed: 1 }, verifiedMoment, 1).endTime, 7.5);
-assert.equal(normalizeEditCut({ momentIndex: 1, startTime: 5, endTime: 7 }, verifiedMoment, 1), null);
+const moments = [
+  { start: 0, end: 3 },
+  { start: 4, end: 8 },
+  { start: 9, end: 13 },
+];
+const verifiedPlan = {
+  cuts: [
+    { momentIndex: 0, startTime: 0, endTime: 2, duration: 2, speed: 1, transition: 'hard-cut', motionStyle: 'static' },
+    { momentIndex: 1, startTime: 4, endTime: 7, duration: 2, speed: 1, transition: 'whip-right', motionStyle: 'slow-push' },
+    { momentIndex: 2, startTime: 9, endTime: 12, duration: 2, speed: 1, transition: 'hard-cut', motionStyle: 'pan-left' },
+  ],
+};
+const quality = validateEditPlan(verifiedPlan, moments);
+assert.equal(quality.valid, true);
+assert.equal(quality.metrics.uniqueMoments, 3);
+assert.equal(quality.metrics.duration, 6);
+
+const pipeline = buildCreativePipeline({ ...project, story: project.story, editPlan: verifiedPlan, output: { width: 1080, height: 1920, fps: 30 } }, moments);
+assert.equal(pipeline.ready, true);
+assert.equal(pipeline.policy.nonDestructive, true);
+assert.equal(pipeline.policy.allowInventedFootage, false);
+assert.equal(pipeline.quality.valid, true);
+assert.equal(pipeline.timelineValidation.valid, true);
+assert.equal(pipeline.timeline.tracks.video.length, 3);
+assert.deepEqual(getPipelineBlockers(pipeline), ['reframe']);
 
 console.log('pipeline-contracts: PASS');
