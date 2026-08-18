@@ -25,10 +25,18 @@ export function orchestrateCreativeProject(project = {}, moments = [], options =
 
 const STAGES = Object.freeze(['analyse','direct','edit','quality','reframe','export']);
 
+function buildQuality(editPlan, moments) {
+  if (!editPlan) return { valid: false, errors: ['No edit plan supplied.'], warnings: [], normalizedCuts: [], metrics: { cutCount: 0, uniqueMoments: 0, duration: 0 }, mode: 'missing' };
+  if (!Array.isArray(editPlan.cuts)) return { valid: true, errors: [], warnings: ['Legacy non-destructive timeline preserved without two-stage cut normalization.'], normalizedCuts: null, metrics: { cutCount: Array.isArray(editPlan.tracks?.video) ? editPlan.tracks.video.length : 0, uniqueMoments: 0, duration: Number(editPlan.duration) || 0 }, mode: 'legacy-timeline' };
+  return { ...validateEditPlan(editPlan, moments), mode: 'verified-two-stage' };
+}
+
 export function buildCreativePipeline(project = {}, moments = [], options = {}) {
   const editPlan = project.editPlan || null;
-  const quality = editPlan ? validateEditPlan(editPlan, moments) : { valid: false, errors: ['No edit plan supplied.'], warnings: [], normalizedCuts: [], metrics: { cutCount: 0, uniqueMoments: 0, duration: 0 } };
-  const normalizedEditPlan = editPlan && quality.normalizedCuts.length ? normalizeVerifiedEditPlan(editPlan, moments) : editPlan;
+  const quality = buildQuality(editPlan, moments);
+  const normalizedEditPlan = quality.mode === 'verified-two-stage' && quality.normalizedCuts.length
+    ? normalizeVerifiedEditPlan(editPlan, moments)
+    : editPlan;
   const timeline = normalizedEditPlan ? createTimeline(normalizedEditPlan) : null;
   const timelineValidation = timeline ? validateTimeline(timeline) : { valid: false, errors: ['No timeline can be created without an edit plan.'] };
   const stages = STAGES.map((id) => ({
@@ -51,7 +59,7 @@ export function buildCreativePipeline(project = {}, moments = [], options = {}) 
     timeline,
     timelineValidation,
     policy: {
-      sourceOfTruth: 'verified-video-analysis',
+      sourceOfTruth: quality.mode === 'verified-two-stage' ? 'verified-video-analysis' : 'existing-edit-plan',
       nonDestructive: true,
       preserveExistingTimeline: true,
       allowInventedFootage: false,
