@@ -25,7 +25,8 @@
     "verify:platform-timeline-compiler": "node scripts/verify-platform-timeline-compiler.mjs",
     "verify:generated-media-contract": "node scripts/verify-generated-media-contract.mjs",
     "verify:mixed-media-timeline": "node scripts/verify-mixed-media-timeline.mjs",
-    "verify:all": "npm run verify:production-plan-selection && npm run verify:cinematic-treatment && npm run verify:render-treatment-contract && npm run verify:audio-beat-map && npm run verify:audio-director-sync && npm run verify:render-timeline-contract && npm run verify:director-timeline-compiler && npm run verify:renderer-stability && npm run verify:director-story && npm run verify:director-timeline-integration && npm run verify:director-integration && npm run verify:director-render-treatment && npm run verify:renderer-director-join && npm run verify:render-quality-guard && npm run verify:platform-reframe && npm run verify:platform-timeline-compiler && npm run verify:generated-media-contract && npm run verify:mixed-media-timeline"
+    "verify:media-source-resolver": "node scripts/verify-media-source-resolver.mjs",
+    "verify:all": "npm run verify:production-plan-selection && npm run verify:cinematic-treatment && npm run verify:render-treatment-contract && npm run verify:audio-beat-map && npm run verify:audio-director-sync && npm run verify:render-timeline-contract && npm run verify:director-timeline-compiler && npm run verify:renderer-stability && npm run verify:director-story && npm run verify:director-timeline-integration && npm run verify:director-integration && npm run verify:director-render-treatment && npm run verify:renderer-director-join && npm run verify:render-quality-guard && npm run verify:platform-reframe && npm run verify:platform-timeline-compiler && npm run verify:generated-media-contract && npm run verify:mixed-media-timeline && npm run verify:media-source-resolver"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
