@@ -1,3 +1,5 @@
+import { normalizeEditCut } from '../src/editPlanTiming.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
@@ -113,42 +115,13 @@ Rules:
     const validMotionStyles = new Set(['static','slow-push','slow-pull','pan-left','pan-right','tilt-up','tilt-down']);
 
     plan.cuts = plan.cuts.map((cut) => {
-      const momentIndex = Number(cut.momentIndex);
-      if (!Number.isInteger(momentIndex) || momentIndex < 0 || momentIndex >= availableMoments.length) return null;
-
-      const moment = availableMoments[momentIndex];
-      const momentStart = Number(moment?.start);
-      const momentEnd = Number(moment?.end);
-      if (!Number.isFinite(momentStart) || !Number.isFinite(momentEnd) || momentEnd <= momentStart) return null;
-
-      const requestedStart = Number(cut.startTime);
-      const requestedEnd = Number(cut.endTime);
-      const startTime = Number.isFinite(requestedStart) ? Math.max(momentStart, Math.min(requestedStart, momentEnd)) : momentStart;
-      const endTime = Number.isFinite(requestedEnd) ? Math.max(startTime + 0.1, Math.min(requestedEnd, momentEnd)) : momentEnd;
-      const sourceSpan = endTime - startTime;
-
-      // The renderer consumes source footage according to output duration and speed.
-      // Never allow Gemini to request more source time than the verified moment contains.
-      if (!Number.isFinite(sourceSpan) || sourceSpan < 0.5) return null;
-
-      const requestedSpeed = Number(cut.speed);
-      const maxSafeSpeed = Math.min(1.5, sourceSpan / 0.5);
-      const speed = Math.max(0.5, Math.min(maxSafeSpeed, Number.isFinite(requestedSpeed) ? requestedSpeed : 1));
-
-      const requestedDuration = Number(cut.duration);
-      const maxSafeDuration = Math.min(4, sourceSpan / speed);
-      const duration = Math.max(0.5, Math.min(maxSafeDuration, Number.isFinite(requestedDuration) ? requestedDuration : Math.min(2, maxSafeDuration)));
+      const normalized = normalizeEditCut(cut, availableMoments[Number(cut?.momentIndex)], availableMoments.length);
+      if (!normalized) return null;
 
       return {
-        momentIndex,
-        startTime,
-        endTime: startTime + duration * speed,
-        duration,
-        purpose: String(cut.purpose || 'cinematic'),
+        ...normalized,
         transition: validTransitions.has(String(cut.transition)) ? String(cut.transition) : 'hard-cut',
         motionStyle: validMotionStyles.has(String(cut.motionStyle)) ? String(cut.motionStyle) : 'static',
-        speed,
-        text: String(cut.text || '')
       };
     }).filter(Boolean).slice(0, 8);
 
