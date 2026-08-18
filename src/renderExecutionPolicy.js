@@ -5,12 +5,19 @@ function finitePositive(value, fallback = 0) {
   return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
+function averageSpeed(cut) {
+  const start = finitePositive(cut?.speed, 1);
+  const end = finitePositive(cut?.speedEnd, start);
+  return Math.max(0.5, Math.min(1.5, (start + end) / 2));
+}
+
 function effectiveOutputDuration(cut) {
   const duration = finitePositive(cut?.duration, 0);
-  const speedStart = finitePositive(cut?.speed, 1);
-  const speedEnd = finitePositive(cut?.speedEnd, speedStart);
-  const averageSpeed = Math.max(0.5, Math.min(1.5, (speedStart + speedEnd) / 2));
-  return duration / averageSpeed;
+  return duration / averageSpeed(cut);
+}
+
+function sourceConsumption(cut) {
+  return finitePositive(cut?.duration, 0) * averageSpeed(cut);
 }
 
 export function assessRenderExecution(plan, expectedDuration = 15, options = {}) {
@@ -19,6 +26,7 @@ export function assessRenderExecution(plan, expectedDuration = 15, options = {})
   const sourceDuration = finitePositive(options?.sourceDuration, 0);
   const plannedDuration = cuts.reduce((sum, cut) => sum + effectiveOutputDuration(cut), 0);
   const missingCuts = cuts.length === 0;
+
   const invalidCuts = cuts.filter((cut) => {
     const start = Number(cut?.startTime);
     const duration = Number(cut?.duration);
@@ -31,7 +39,11 @@ export function assessRenderExecution(plan, expectedDuration = 15, options = {})
         const start = Number(cut?.startTime);
         const duration = Number(cut?.duration);
         const end = Number.isFinite(Number(cut?.endTime)) ? Number(cut.endTime) : start + duration;
-        return Number.isFinite(start) && Number.isFinite(end) && (start >= sourceDuration || end > sourceDuration + 0.05);
+        const consumedEnd = Number.isFinite(start) && Number.isFinite(duration)
+          ? start + sourceConsumption(cut)
+          : Infinity;
+        return Number.isFinite(start) && Number.isFinite(end)
+          && (start >= sourceDuration || end > sourceDuration + 0.05 || consumedEnd > sourceDuration + 0.05);
       })
     : [];
 
@@ -39,7 +51,7 @@ export function assessRenderExecution(plan, expectedDuration = 15, options = {})
   const errors = [];
   if (missingCuts) errors.push('Render plan contains no cuts.');
   if (invalidCuts.length) errors.push(`${invalidCuts.length} render cut(s) have invalid timing.`);
-  if (outOfBoundsCuts.length) errors.push(`${outOfBoundsCuts.length} render cut(s) exceed the verified source duration.`);
+  if (outOfBoundsCuts.length) errors.push(`${outOfBoundsCuts.length} render cut(s) exceed the verified source duration after speed is applied.`);
   if (!durationPlan.valid) errors.push(`Render plan is materially short: ${durationPlan.actualDuration}s effective output planned for ${durationPlan.expectedDuration}s.`);
 
   return {
@@ -49,6 +61,7 @@ export function assessRenderExecution(plan, expectedDuration = 15, options = {})
     cutCount: cuts.length,
     sourceDuration: sourceDuration || null,
     effectiveDurationAccountsForSpeed: true,
+    sourceConsumptionAccountsForSpeed: true,
     errors,
     durationCheck: durationPlan,
     invalidCutCount: invalidCuts.length,
