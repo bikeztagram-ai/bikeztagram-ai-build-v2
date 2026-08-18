@@ -1,7 +1,5 @@
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -127,13 +125,24 @@ Rules:
       const requestedEnd = Number(cut.endTime);
       const startTime = Number.isFinite(requestedStart) ? Math.max(momentStart, Math.min(requestedStart, momentEnd)) : momentStart;
       const endTime = Number.isFinite(requestedEnd) ? Math.max(startTime + 0.1, Math.min(requestedEnd, momentEnd)) : momentEnd;
-      const duration = Math.max(0.5, Math.min(4, Number(cut.duration) || Math.min(2, endTime - startTime)));
-      const speed = Math.max(0.5, Math.min(1.5, Number(cut.speed) || 1));
+      const sourceSpan = endTime - startTime;
+
+      // The renderer consumes source footage according to output duration and speed.
+      // Never allow Gemini to request more source time than the verified moment contains.
+      if (!Number.isFinite(sourceSpan) || sourceSpan < 0.5) return null;
+
+      const requestedSpeed = Number(cut.speed);
+      const maxSafeSpeed = Math.min(1.5, sourceSpan / 0.5);
+      const speed = Math.max(0.5, Math.min(maxSafeSpeed, Number.isFinite(requestedSpeed) ? requestedSpeed : 1));
+
+      const requestedDuration = Number(cut.duration);
+      const maxSafeDuration = Math.min(4, sourceSpan / speed);
+      const duration = Math.max(0.5, Math.min(maxSafeDuration, Number.isFinite(requestedDuration) ? requestedDuration : Math.min(2, maxSafeDuration)));
 
       return {
         momentIndex,
         startTime,
-        endTime,
+        endTime: startTime + duration * speed,
         duration,
         purpose: String(cut.purpose || 'cinematic'),
         transition: validTransitions.has(String(cut.transition)) ? String(cut.transition) : 'hard-cut',
@@ -144,7 +153,7 @@ Rules:
     }).filter(Boolean).slice(0, 8);
 
     if (plan.cuts.length === 0) {
-      return res.status(500).json({ success: false, error: 'Gemini returned no cuts linked to verified video moments.' });
+      return res.status(500).json({ success: false, error: 'Gemini returned no cuts linked to verified video moments of usable duration.' });
     }
 
     return res.status(200).json({ success: true, plan });
