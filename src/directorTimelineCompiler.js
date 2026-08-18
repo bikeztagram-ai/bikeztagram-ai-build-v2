@@ -34,7 +34,6 @@ function speedFor(scene, audioTreatment, key, fallback) {
 
 export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSeconds = 0 } = {}) {
   if (!productionPlan?.scenes?.length) throw new Error('Production blueprint contains no scenes.');
-
   const scenes = productionPlan.scenes.filter((scene) => scene?.sourceType === 'uploaded');
   if (!scenes.length) throw new Error('Production blueprint contains no renderable uploaded scenes.');
 
@@ -51,7 +50,7 @@ export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSecon
     const requestedSpeedEnd = clamp(num(scene.speedEnd, requestedSpeed), 0.5, 1.5);
     const speed = clamp(speedFor(scene, audioTreatment, 'speed', requestedSpeed), 0.5, 1.5);
     const speedEnd = clamp(speedFor(scene, audioTreatment, 'speedEnd', requestedSpeedEnd), 0.5, 1.5);
-
+    const colorGrade = scene.colorGrade || (productionPlan.style?.dark ? 'dark-cinematic' : 'cinematic');
     return {
       mediaIndex: 0,
       mediaId: 'video-0',
@@ -65,7 +64,7 @@ export function compileDirectorTimeline(productionPlan, { bpm = 112, offsetSecon
       motionIntensity: clamp(num(scene.motionIntensity, 0.65) * (audioTreatment.motionBias === 'stronger' ? 1.18 : 1), 0.2, 1.5),
       speed,
       speedEnd,
-      colorGrade: scene.colorGrade || productionPlan.style?.dark ? (scene.colorGrade || 'dark-cinematic') : (scene.colorGrade || 'cinematic'),
+      colorGrade,
       stabilization: scene.stabilization !== false,
       text: scene.text || '',
       audioSync: scene.audioSync,
