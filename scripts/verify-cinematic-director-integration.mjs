@@ -15,21 +15,33 @@ const analysis = {
 const plan = {
   title: 'Test Ride',
   cuts: [
-    { momentIndex: 0, startTime: 0, endTime: 2, duration: 2 },
-    { momentIndex: 1, startTime: 4, endTime: 6, duration: 2 },
-    { momentIndex: 2, startTime: 8, endTime: 10, duration: 2 },
-    { momentIndex: 3, startTime: 12, endTime: 14, duration: 2 },
+    { momentIndex: 0, startTime: 0, endTime: 4, duration: 4 },
+    { momentIndex: 1, startTime: 4, endTime: 8, duration: 4 },
+    { momentIndex: 2, startTime: 8, endTime: 12, duration: 4 },
+    { momentIndex: 3, startTime: 12, endTime: 15, duration: 3 },
   ],
 };
 
 const blueprint = editPlanToDirectorBlueprint(plan, analysis, 'Make this a cinematic motorcycle reel.', 15);
 assert.equal(blueprint.scenes.length, 4);
 assert.equal(blueprint.scenes.at(-1).priority, 'hero');
-assert.equal(blueprint.scenes.at(-1).startTime, 4);
+assert.equal(blueprint.scenes.at(-1).startTime, 12);
 assert.ok(blueprint.scenes.some((scene) => scene.motionStyle === 'pan-left'));
 assert.ok(blueprint.scenes.some((scene) => scene.motionStyle === 'pan-right'));
 assert.equal(blueprint.mode, 'real-footage-first');
 assert.equal(blueprint.generationPolicy.generatedScenesAllowed, false);
 assert.ok(blueprint.directorNotes.some((note) => note.includes('Editorial structure')));
+assert.equal(blueprint.executionReadiness.ready, true);
+assert.equal(blueprint.executionReadiness.sourceDuration, 20);
+assert.equal(blueprint.executionReadiness.effectiveDurationAccountsForSpeed, true);
+
+const blocked = editPlanToDirectorBlueprint(
+  { title: 'Too Short', cuts: [{ startTime: 0, endTime: 2, duration: 2 }] },
+  analysis,
+  'Make this a cinematic motorcycle reel.',
+  15,
+);
+assert.equal(blocked.executionReadiness.ready, false);
+assert.ok(blocked.executionReadiness.errors.some((item) => item.includes('materially short')));
 
 console.log('cinematic-director-integration: PASS');
