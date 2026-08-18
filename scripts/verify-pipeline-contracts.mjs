@@ -52,9 +52,9 @@ assert.deepEqual(validateCreativeStudioResult({}), {
 });
 
 const moments = [
-  { start: 0, end: 3, score: 40, cinematicScore: 50, actionScore: 20 },
-  { start: 4, end: 8, score: 70, cinematicScore: 65, actionScore: 80 },
-  { start: 9, end: 13, score: 95, cinematicScore: 92, actionScore: 90 },
+  { start: 0, end: 3, score: 40, cinematicScore: 50, actionScore: 20, cameraMovement: 'static', framing: 'wide' },
+  { start: 4, end: 8, score: 70, cinematicScore: 65, actionScore: 80, cameraMovement: 'pan-right', framing: 'tracking' },
+  { start: 9, end: 13, score: 95, cinematicScore: 92, actionScore: 90, cameraMovement: 'push-in', framing: 'close' },
 ];
 const verifiedPlan = {
   cuts: [
@@ -75,9 +75,23 @@ assert.equal(shaped.cuts[0].purpose, 'hook');
 assert.equal(shaped.cuts[1].purpose, 'reveal');
 assert.equal(shaped.cuts[2].purpose, 'hero');
 assert.equal(shaped.editorialStructure.join(','), 'hook,reveal,hero');
-assert.notEqual(shaped.cuts[0].transition, '');
-assert.notEqual(shaped.cuts[1].motionStyle, '');
+assert.equal(shaped.selectionPolicy.strongestMomentAsHero, true);
+assert.equal(shaped.cuts[1].motionStyle, 'slow-push');
 assert.equal(shaped.cuts[1].text, '');
+
+const duplicateHeavyPlan = {
+  cuts: [
+    { momentIndex: 0, startTime: 0, endTime: 2, duration: 2 },
+    { momentIndex: 0, startTime: 1, endTime: 3, duration: 2 },
+    { momentIndex: 1, startTime: 4, endTime: 6, duration: 2 },
+    { momentIndex: 1, startTime: 6, endTime: 8, duration: 2 },
+    { momentIndex: 2, startTime: 9, endTime: 11, duration: 2 },
+  ],
+};
+const duplicateShaped = shapeCinematicEditPlan(duplicateHeavyPlan, moments);
+assert.equal(duplicateShaped.cuts.length, 3);
+assert.equal(new Set(duplicateShaped.cuts.map((cut) => cut.momentIndex)).size, 3);
+assert.equal(duplicateShaped.cuts.at(-1).momentIndex, 2);
 
 const verifiedProject = { ...project, story: project.story, editPlan: shaped, output: { width: 1080, height: 1920, fps: 30 } };
 const pipeline = buildCreativePipeline(verifiedProject, moments);
