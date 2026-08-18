@@ -9,6 +9,7 @@ export function validateCreativeStudioResult(result = {}) {
   if (result.execution && result.execution.ready === false) errors.push('Execution plan is not ready.');
   if (result.health && result.health.ready === false) errors.push('Project health is not ready.');
   if (result.renderValidation && result.renderValidation.valid === false) errors.push('Render job validation failed.');
+  if (result.pipeline && result.pipeline.ready === false) errors.push('Integrated creative pipeline is not ready.');
   if (result.run?.status === 'blocked') errors.push('Pipeline run is blocked.');
 
   const outputs = Array.isArray(result.run?.outputs) ? result.run.outputs : [];
