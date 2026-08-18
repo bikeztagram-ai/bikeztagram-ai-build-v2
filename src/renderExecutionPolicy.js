@@ -1,29 +1,57 @@
 import { assessRenderDuration } from './renderDurationPolicy.js';
 
-export function assessRenderExecution(plan, expectedDuration = 15) {
+function finitePositive(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function effectiveOutputDuration(cut) {
+  const duration = finitePositive(cut?.duration, 0);
+  const speedStart = finitePositive(cut?.speed, 1);
+  const speedEnd = finitePositive(cut?.speedEnd, speedStart);
+  const averageSpeed = Math.max(0.5, Math.min(1.5, (speedStart + speedEnd) / 2));
+  return duration / averageSpeed;
+}
+
+export function assessRenderExecution(plan, expectedDuration = 15, options = {}) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
-  const target = Number(expectedDuration);
-  const targetDuration = Number.isFinite(target) && target > 0 ? target : 15;
-  const plannedDuration = cuts.reduce((sum, cut) => sum + Math.max(0, Number(cut?.duration) || 0), 0);
+  const target = finitePositive(expectedDuration, 15);
+  const sourceDuration = finitePositive(options?.sourceDuration, 0);
+  const plannedDuration = cuts.reduce((sum, cut) => sum + effectiveOutputDuration(cut), 0);
   const missingCuts = cuts.length === 0;
-  const durationPlan = assessRenderDuration(plannedDuration, targetDuration);
   const invalidCuts = cuts.filter((cut) => {
     const start = Number(cut?.startTime);
     const duration = Number(cut?.duration);
-    return !Number.isFinite(start) || start < 0 || !Number.isFinite(duration) || duration <= 0;
+    const end = Number.isFinite(Number(cut?.endTime)) ? Number(cut.endTime) : start + duration;
+    return !Number.isFinite(start) || start < 0 || !Number.isFinite(duration) || duration <= 0 || !Number.isFinite(end) || end <= start;
   });
 
+  const outOfBoundsCuts = sourceDuration > 0
+    ? cuts.filter((cut) => {
+        const start = Number(cut?.startTime);
+        const duration = Number(cut?.duration);
+        const end = Number.isFinite(Number(cut?.endTime)) ? Number(cut.endTime) : start + duration;
+        return Number.isFinite(start) && Number.isFinite(end) && (start >= sourceDuration || end > sourceDuration + 0.05);
+      })
+    : [];
+
+  const durationPlan = assessRenderDuration(plannedDuration, target);
   const errors = [];
   if (missingCuts) errors.push('Render plan contains no cuts.');
   if (invalidCuts.length) errors.push(`${invalidCuts.length} render cut(s) have invalid timing.`);
-  if (!durationPlan.valid) errors.push(`Render plan is materially short: ${durationPlan.actualDuration}s planned for ${durationPlan.expectedDuration}s.`);
+  if (outOfBoundsCuts.length) errors.push(`${outOfBoundsCuts.length} render cut(s) exceed the verified source duration.`);
+  if (!durationPlan.valid) errors.push(`Render plan is materially short: ${durationPlan.actualDuration}s effective output planned for ${durationPlan.expectedDuration}s.`);
 
   return {
     ready: errors.length === 0,
     targetDuration: durationPlan.expectedDuration,
     plannedDuration: durationPlan.actualDuration,
     cutCount: cuts.length,
+    sourceDuration: sourceDuration || null,
+    effectiveDurationAccountsForSpeed: true,
     errors,
     durationCheck: durationPlan,
+    invalidCutCount: invalidCuts.length,
+    outOfBoundsCutCount: outOfBoundsCuts.length,
   };
 }
