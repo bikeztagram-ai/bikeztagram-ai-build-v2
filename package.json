@@ -12,7 +12,8 @@
     "verify:render-treatment-contract": "node scripts/verify-render-treatment-contract.mjs",
     "verify:audio-beat-map": "node scripts/verify-audio-beat-map.mjs",
     "verify:audio-director-sync": "node scripts/verify-audio-director-sync.mjs",
-    "verify:render-timeline-contract": "node scripts/verify-render-timeline-contract.mjs"
+    "verify:render-timeline-contract": "node scripts/verify-render-timeline-contract.mjs",
+    "verify:director-timeline-compiler": "node scripts/verify-director-timeline-compiler.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
