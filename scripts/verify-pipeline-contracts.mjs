@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { createPipelineRun, advancePipelineRun } from '../src/pipelineRun.js';
+import { recoveryAction } from '../src/pipelineRecovery.js';
+import { collectPipelineOutput, appendOutput } from '../src/pipelineOutputCollector.js';
+import { validateCreativeStudioResult } from '../src/creativeStudioContract.js';
+
+const plan={stages:[{id:'analyse'},{id:'direct'},{id:'generate'}]};
+let run=createPipelineRun({id:'regression'},plan);
+assert.equal(run.status,'queued');
+run=advancePipelineRun(run,{});
+assert.equal(run.cursor,1);
+run=advancePipelineRun(run,{error:{kind:'timeout'}});
+assert.equal(run.status,'blocked');
+assert.deepEqual(recoveryAction({kind:'timeout'}),{action:'retry',preserve:true});
+assert.deepEqual(recoveryAction({kind:'invalid_input'}),{action:'fix_input',preserve:true});
+const pending=collectPipelineOutput({id:'o1'},'hero');
+assert.equal(pending.status,'pending');
+const ready=collectPipelineOutput({id:'o2',url:'https://example.test/o2',mime:'video/mp4'},'reel');
+assert.equal(ready.status,'ready');
+assert.equal(appendOutput(run,ready,'reel').outputs.length,1);
+assert.deepEqual(validateCreativeStudioResult({}),{valid:false,errors:['Missing execution plan.','Missing project health.','Missing render job.','Missing campaign plan.','Missing pipeline run.']});
+console.log('pipeline-contracts: PASS');
