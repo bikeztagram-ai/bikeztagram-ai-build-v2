@@ -1,0 +1,2 @@
+import { classifyRevision } from './creativeRevisionImpact.js';
+export function planRevision(project={},feedback=''){const revision=classifyRevision(feedback);const invalidate=new Set(revision.stages);return {...revision,stages:(project.stages||[]).map(stage=>({...stage,status:invalidate.has(stage.id)?'needs_revision':stage.status||'preserved'})),preserve:['assets','storage','unaffected-output']};}
