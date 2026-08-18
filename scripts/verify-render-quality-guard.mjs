@@ -18,6 +18,30 @@ const good = validateRenderReadiness({
 assert.equal(good.ready, true);
 assert.equal(good.totalDuration, 15);
 
+const generatedGood = validateRenderReadiness({
+  mediaItems: [],
+  plan: {
+    targetDuration: 6,
+    cuts: [
+      { sourceType: 'generated', generationStatus: 'ready', assetUrl: 'blob:image', startTime: 0, duration: 3 },
+      { sourceType: 'generated', generationStatus: 'ready', assetUrl: 'blob:video', startTime: 0, duration: 3 }
+    ]
+  }
+});
+assert.equal(generatedGood.ready, true);
+
+const generatedBad = validateRenderReadiness({
+  mediaItems: [],
+  plan: {
+    targetDuration: 3,
+    cuts: [
+      { sourceType: 'generated', generationStatus: 'planned', startTime: 0, duration: 3 }
+    ]
+  }
+});
+assert.equal(generatedBad.ready, false);
+assert.ok(generatedBad.issues.some((issue) => /generated asset/i.test(issue)));
+
 const bad = validateRenderReadiness({
   mediaItems,
   plan: {
