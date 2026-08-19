@@ -7,15 +7,31 @@ export async function renderProject(mediaItems, plan, onProgress) {
       canvas.width = 1080; canvas.height = 1920;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Could not create canvas context.');
-      const stream = canvas.captureStream(30);
+      const videoStream = canvas.captureStream(30);
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+      let audioContext = null;
+      let audioDestination = null;
+      if (AudioContextCtor) {
+        try {
+          audioContext = new AudioContextCtor();
+          audioDestination = audioContext.createMediaStreamDestination();
+        } catch (error) {
+          console.warn('[Bikeztagram] Audio capture unavailable; continuing video-only.', error);
+        }
+      }
+      const stream = new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...(audioDestination ? audioDestination.stream.getAudioTracks() : []),
+      ]);
       const mimeTypes = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4;codecs=h264','video/mp4'];
       const selectedType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
       const recorder = selectedType ? new MediaRecorder(stream, { mimeType: selectedType }) : new MediaRecorder(stream);
       const chunks = []; let settled = false;
-      const fail = (error) => { if (settled) return; settled = true; try { if (recorder.state !== 'inactive') recorder.stop(); } catch {} reject(error instanceof Error ? error : new Error(String(error))); };
+      const cleanupAudio = () => { try { audioDestination?.stream.getTracks().forEach((track) => track.stop()); } catch {} try { audioContext?.close(); } catch {} };
+      const fail = (error) => { if (settled) return; settled = true; try { if (recorder.state !== 'inactive') recorder.stop(); } catch {} cleanupAudio(); reject(error instanceof Error ? error : new Error(String(error))); };
       recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
       recorder.onerror = (event) => fail(event.error || new Error('Video recording failed.'));
-      recorder.onstop = () => { if (settled) return; settled = true; if (!chunks.length) return reject(new Error(`MediaRecorder produced no video data. Codec selected: ${selectedType || 'browser default'}.`)); resolve(new Blob(chunks, { type: chunks[0]?.type || selectedType || 'video/webm' })); };
+      recorder.onstop = () => { if (settled) return; settled = true; cleanupAudio(); if (!chunks.length) return reject(new Error(`MediaRecorder produced no video data. Codec selected: ${selectedType || 'browser default'}.`)); resolve(new Blob(chunks, { type: chunks[0]?.type || selectedType || 'video/webm' })); };
 
       const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
       const lerp = (a, b, t) => a + (b - a) * t;
@@ -104,7 +120,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
       };
 
       const loadVideo = async (element,source) => {
-        element.muted=true;element.playsInline=true;element.preload='auto';element.crossOrigin=source.remote?'anonymous':'';element.src=source.url;
+        element.muted=false;element.playsInline=true;element.preload='auto';element.volume=1;element.crossOrigin=source.remote?'anonymous':'';element.src=source.url;
         await new Promise((resolve,rejectLoad)=>{let done=false;const timeout=setTimeout(()=>finish(new Error('Timed out loading source video.')),12000);const cleanup=()=>{clearTimeout(timeout);element.removeEventListener('loadedmetadata',onMeta);element.removeEventListener('loadeddata',onData);element.removeEventListener('canplay',onCanPlay);element.removeEventListener('error',onError);};const finish=(error)=>{if(done)return;done=true;cleanup();error?rejectLoad(error):resolve();};const onMeta=()=>{if(element.videoWidth&&element.videoHeight)finish();};const onData=()=>{if(element.videoWidth&&element.videoHeight)finish();};const onCanPlay=()=>{if(element.videoWidth&&element.videoHeight)finish();};const onError=()=>{const e=element.error;finish(new Error(`Could not decode source video. MediaError code=${e?.code??'unknown'}; ${e?.message||'browser media decoder rejected the source'}; readyState=${element.readyState}; networkState=${element.networkState}; canPlayType=${element.canPlayType('video/mp4')||'no'}.`));};element.addEventListener('loadedmetadata',onMeta);element.addEventListener('loadeddata',onData);element.addEventListener('canplay',onCanPlay);element.addEventListener('error',onError);element.load();});
         if(!element.videoWidth||!element.videoHeight||!Number.isFinite(element.duration))throw new Error(`Source video decoded incorrectly: ${element.videoWidth}x${element.videoHeight}, duration=${element.duration}.`);
       };
@@ -113,11 +129,21 @@ export async function renderProject(mediaItems, plan, onProgress) {
       const renderCut = async (index) => {
         if(index>=cuts.length){if(recorder.state!=='inactive')recorder.stop();return;}
         const cut=cuts[index]||{}, isGen=generated(cut), media=isGen?null:findMedia(cut); if(!isGen&&!media)throw new Error(`Cut ${index+1} references missing media.`);
-        const isVideo=!isGen&&String(media.type||'').startsWith('video'), source=isGen?null:getSourceUrl(media); if(!isGen&&!source)throw new Error(`Cut ${index+1} has no usable source file or Blob URL.`);
+        const isVideo=!isGen&&String(media.type||'').startsWith('video'); let source=isGen?null:getSourceUrl(media); if(!isGen&&!source)throw new Error(`Cut ${index+1} has no usable source file or Blob URL.`);
         const element=isGen?null:(isVideo?document.createElement('video'):new Image()), duration=clamp(Number(cut.duration)||2,.5,8), speedStart=clamp(Number(cut.speed)||1,.5,1.75), speedEnd=clamp(Number(cut.speedEnd??cut.speed)||speedStart,.5,1.75);
         try{
-          if(isVideo){try{await loadVideo(element,source);}catch(firstError){if(source.remote&&media.file){console.warn('[Bikeztagram] Public Blob source failed; retrying local File source.',firstError);try{element.removeAttribute('src');element.load();}catch{}const fallback={url:URL.createObjectURL(media.file),revoke:true,remote:false};try{await loadVideo(element,fallback);}finally{try{URL.revokeObjectURL(fallback.url);}catch{}}}else throw firstError;}
-            const start=Number(cut.startTime);if(Number.isFinite(start)&&start>=0){element.currentTime=Math.min(start,Math.max(0,element.duration-.05));await new Promise((done)=>{let finished=false;const finish=()=>{if(finished)return;finished=true;clearTimeout(timer);element.removeEventListener('seeked',finish);done();};const timer=setTimeout(finish,1800);element.addEventListener('seeked',finish,{once:true});});}element.playbackRate=speedStart;await element.play();
+          if(isVideo){try{await loadVideo(element,source);}catch(firstError){if(source.remote&&media.file){console.warn('[Bikeztagram] Public Blob source failed; retrying local File source.',firstError);try{element.removeAttribute('src');element.load();}catch{}const fallback={url:URL.createObjectURL(media.file),revoke:true,remote:false};await loadVideo(element,fallback);source=fallback;}else throw firstError;}
+            const start=Number(cut.startTime);if(Number.isFinite(start)&&start>=0){element.currentTime=Math.min(start,Math.max(0,element.duration-.05));await new Promise((done)=>{let finished=false;const finish=()=>{if(finished)return;finished=true;clearTimeout(timer);element.removeEventListener('seeked',finish);done();};const timer=setTimeout(finish,1800);element.addEventListener('seeked',finish,{once:true});});}
+            if (audioContext && audioDestination) {
+              try {
+                const sourceNode = audioContext.createMediaElementSource(element);
+                sourceNode.connect(audioDestination);
+              } catch (audioError) {
+                console.warn('[Bikeztagram] Could not attach source audio for this cut.', audioError);
+              }
+              if (audioContext.state === 'suspended') await audioContext.resume();
+            }
+            element.playbackRate=speedStart;await element.play();
           }else if(!isGen){element.src=source.url;await new Promise((done,failLoad)=>{const timer=setTimeout(()=>failLoad(new Error('Timed out loading source image.')),10000);element.onload=()=>{clearTimeout(timer);done();};element.onerror=()=>{clearTimeout(timer);failLoad(new Error('Could not load source image.'));};});}
           const started=performance.now();
           await new Promise((done)=>{const tick=()=>{const p=clamp((performance.now()-started)/(duration*1000),0,1);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);if(isGen)drawWorld(cut,p);else drawCover(element,motion(cut,p),cut.colorGrade||plan.colorGrade);if(isVideo&&element.readyState>=2){try{element.playbackRate=lerp(speedStart,speedEnd,ease(p));}catch{}}finish(cut,p);transition(cut.transition,p,index===0);textOverlay(cut,p);onProgress?.(Math.round(((index+p)/cuts.length)*100));if(p>=1){done();return;}requestAnimationFrame(tick);};requestAnimationFrame(tick);});
