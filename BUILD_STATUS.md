@@ -15,46 +15,31 @@ Updated: 2026-08-20
 - Protected 1080×1920 renderer remains intact; UI work does not replace the renderer.
 
 ## BUILT / TESTED
-- Autonomous render → inspect → revise → re-render orchestration (`src/renderQualityLoop.js`) with bounded attempts and deterministic QA revisions.
-- QA-driven luminance correction for dark/black output.
-- QA-driven editorial duration correction.
-- Renderer playback/decode failure detection with bounded retry behaviour.
-- Batch 29 structural verification for the render quality loop.
-- Image Blob intake accepts JPEG/PNG/WebP/GIF/HEIC/HEIF alongside protected video formats.
-- Image Gemini Stage-1 analysis is integrated into the same AI Director → production blueprint → browser render flow.
-- Batch 30 universal image-intake verification.
-- Batch 31 true mixed-media source-library architecture: up to 12 images/videos can be selected together, uploaded to Blob, analysed together by Gemini, directed into a source-indexed edit plan, and passed to the existing render → inspect → improve pipeline.
-- Batch 32 automatic original-soundtrack generation/attachment bridge with audio analysis and beat-aware renderer integration; safe planning fallback remains available when live Lyria audio is unavailable.
-- Batch 33 finished-film social export controls: the current protected renderer output is 1080×1920 portrait (9:16), with browser download and supported Android/browser native video sharing.
-- Batch 34 verified speech-caption bridge: optional automatic speech detection for single uploaded videos, Gemini time-coded caption cues, confidence filtering, and attachment to real AI Director shots without changing source media or renderer infrastructure.
-- Batch 35 licensed/trending-track replacement workflow: exports a copyright-safe rhythm map containing edit timings, source timing, speed, transitions and available beat-grid metadata so the generated/original soundtrack can be swapped later in CapCut/TikTok without losing the intended edit rhythm.
-- Batch 36 beat-sync correctness fix: music alignment now operates on the finished-edit timeline while preserving each real source video's `startTime`; replacement maps distinguish edit timing from source-media offsets; soundtrack playback is explicitly started before MediaRecorder capture.
-- Batch 36 production-build regression fix: restored `src/App.jsx` JSX syntax after the previous integration accidentally left an unmatched expression; the Vercel build failure was reproduced from build logs and corrected without changing protected Blob/Gemini/renderer contracts.
-- Batch 37 caption timeline/source timing verification: confidence-filtered speech cues map to overlapping real edit shots with bounded `textIn`/`textOut` timing while preserving the original video `startTime`.
-- Batch 38 mixed-media caption integration: spoken captions are analysed for each uploaded video source and merged into the mixed-media director plan with source-aware timing.
-- Batch 39 premium filmmaker UI: replaced the interim utility interface with a mobile-first cinematic AI-director experience inspired by the quality bar of modern AI video products. Includes prominent media intake, natural-language director prompt, quick creative briefs, one primary "DIRECT MY FILM" action, shot-plan timeline, music/QA metadata, finished-film preview and social export controls.
-- Batch 39 also restored missing `exportFilm`, `shareFilm` and `world` handlers that had been referenced by the previous App JSX but were not defined.
-- Batch 39 UI verification registered in main CI.
+- Autonomous render → inspect → revise → re-render orchestration with bounded attempts and deterministic QA revisions.
+- Universal image and mixed-media intake, Gemini analysis, source-indexed AI direction and browser rendering.
+- Original soundtrack bridge, beat/BPM/energy analysis and licensed-track rhythm replacement mapping.
+- Social export/download/share for the protected 9:16 output.
+- Source-aware speech caption integration for single and mixed-media video workflows.
+- Batch 39 premium filmmaker UI: mobile-first cinematic AI-director experience with prominent media intake, natural-language brief, quick creative briefs, primary DIRECT MY FILM action, shot-plan timeline, music/QA metadata, finished-film preview and social export controls.
+- Batch 39 restored the previously missing export/share/world handlers and added UI verification to CI.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
-- Image end-to-end production render still requires a real browser acceptance run.
-- Mixed-media multi-source Gemini analysis and source-indexed rendering require a real browser acceptance run.
-- Automatic generated soundtrack attachment requires a real browser run with working production Lyria credentials/model/quota to verify actual audio playback and final-file muxing.
-- Renderer audio mux + beat sync remains structurally verified and source-offset-safe, but needs independent real-browser generated-audio render verification.
-- Social export/download/share requires an actual Android/browser acceptance run.
-- Speech captions need live verification against real spoken footage and final rendered caption readability.
-- Rhythm replacement map needs live acceptance with a real generated soundtrack and an actual licensed/trending replacement track workflow in CapCut/TikTok.
-- Batch 39 premium UI needs browser acceptance for responsive layout and interaction; it is deliberately not claimed production-live while Vercel remains disconnected.
+- Premium UI responsive/interaction acceptance.
+- Image and mixed-media end-to-end render acceptance.
+- Generated soundtrack playback/mux acceptance with live Lyria availability.
+- Caption readability and timing on real spoken footage.
+- Social export/share acceptance on Android.
+- Rhythm-map replacement acceptance with a real licensed/trending track workflow.
 
 ## NOT YET BUILT
-- Additional true output aspect-ratio render presets beyond the protected 9:16 renderer baseline.
-- Full caption styling controls beyond the protected renderer's existing text overlay treatment.
-- Complete end-to-end acceptance test across motorcycle/car/person/animal/travel/product/mixed-media examples.
-- Deployment synchronization of the latest `main` commits. Production must not be treated as current until Vercel is deliberately reconnected and a fresh deployment reports READY.
+- Additional true output aspect-ratio render presets beyond the protected 9:16 baseline.
+- Full caption styling controls.
+- Complete universal acceptance matrix across motorcycle/car/person/animal/travel/landscape/product.
+- Deliberate GitHub → Vercel reconnection and live deployment verification.
 
 ## Current acceleration priority
-1. Browser-test the new premium UI against the protected filmmaker engine.
-2. Add additional output presets without disturbing the protected 9:16 renderer baseline.
-3. Live-verify the accumulated mixed-media + soundtrack + captions + rhythm-map + social-export pipeline.
-4. Run universal acceptance tests across motorcycle, car, person, animal, travel, landscape and product examples.
-5. Reconnect GitHub → Vercel only at a stable milestone, deploy once, live-test the accumulated product, and verify again.
+1. Add a renderer-safe universal output preset contract without disturbing the 9:16 baseline.
+2. Integrate selectable/inferred 9:16, 1:1 and 16:9 output through the real render pipeline.
+3. Browser-test the premium UI and accumulated filmmaker pipeline.
+4. Run universal acceptance examples.
+5. Reconnect GitHub → Vercel only at a stable milestone and live-verify production.
