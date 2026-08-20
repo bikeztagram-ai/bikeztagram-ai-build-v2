@@ -53,3 +53,5 @@ jobs:
         run: npm run verify:batch36
       - name: Verify caption timeline/source timing preservation
         run: npm run verify:batch37
+      - name: Verify mixed-media caption integration
+        run: npm run verify:batch38
