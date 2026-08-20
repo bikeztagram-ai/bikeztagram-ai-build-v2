@@ -6,7 +6,7 @@ const timeline=fs.readFileSync(new URL('../src/beatAwareTimeline.js',import.meta
 const music=fs.readFileSync(new URL('../src/musicDirector.js',import.meta.url),'utf8');
 
 assert.match(production,/attachSoundtrackToPlan/);
-assert.match(production,/version:'8\.2'/);
+assert.match(production,/version:'8\.3'/);
 assert.match(production,/Align editorial events to the soundtrack beat grid/);
 assert.doesNotMatch(production,/motorcycleModel|ninja1000|kawasaki/i);
 assert.match(timeline,/editorialStartTime/);
