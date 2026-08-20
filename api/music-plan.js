@@ -27,9 +27,9 @@ Return ONLY JSON:
 }
 
 function normalizePlan(plan, fallback, duration){
-  const bpm=clamp(plan?.bpm,fallback.bpm,60,180); const energy=clamp(plan?.energy,fallback.energy,0,1);
-  const sections=Array.isArray(plan?.sections)?plan.sections.map((s,i)=>({id:text(s?.id)||`section-${i+1}`,start:clamp(s?.start,0,0,duration),end:clamp(s?.end,duration,0,duration),energy:clamp(s?.energy,energy,0,1),purpose:text(s?.purpose)||'musical section'})).filter(s=>s.end>s.start):fallback.sections;
-  const events=Array.isArray(plan?.editEvents)?plan.editEvents.map(e=>({time:clamp(e?.time,0,0,duration),type:text(e?.type)||'cut'})).sort((a,b)=>a.time-b.time):[];
+  const bpm=clamp(plan?.bpm,60,180); const energy=clamp(plan?.energy,0,1);
+  const sections=Array.isArray(plan?.sections)?plan.sections.map((s,i)=>({id:text(s?.id)||`section-${i+1}`,start:clamp(s?.start,0,duration),end:clamp(s?.end,0,duration),energy:clamp(s?.energy,0,1),purpose:text(s?.purpose)||'musical section'})).filter(s=>s.end>s.start):fallback.sections;
+  const events=Array.isArray(plan?.editEvents)?plan.editEvents.map(e=>({time:clamp(e?.time,0,duration),type:text(e?.type)||'cut'})).sort((a,b)=>a.time-b.time):[];
   return {...fallback,genre:text(plan?.genre)||fallback.genre,bpm,mood:text(plan?.mood)||fallback.mood,energy,instrumentation:Array.isArray(plan?.instrumentation)?plan.instrumentation.map(text).filter(Boolean).slice(0,12):[],sections,editEvents:events};
 }
 
@@ -38,7 +38,7 @@ export default async function handler(req,res){
   try{
     const {GEMINI_API_KEY}=process.env;
     const {prompt='',analysis={},targetDuration=15}=req.body||{};
-    const duration=clamp(targetDuration,15,5,60);
+    const duration=clamp(targetDuration,5,60);
     const fallback=buildSoundtrackBrief({prompt,duration,...inferMusicStyle(prompt)});
     if(!GEMINI_API_KEY)return res.status(200).json({success:true,source:'local-fallback',soundtrack:fallback});
     const ai=new GoogleGenAI({apiKey:GEMINI_API_KEY});
