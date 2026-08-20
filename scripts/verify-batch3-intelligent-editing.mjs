@@ -13,6 +13,8 @@ assert.ok(plan.cuts.length>=3);
 assert.ok(plan.cuts.every(c=>c.duration>0&&c.startTime>=0));
 assert.ok(plan.cuts.every(c=>c.motionIntensity<=.6));
 assert.ok(plan.cuts.every(c=>!['whip-right','whip-left','flash-cut','zoom-punch'].includes(c.transition)));
+assert.ok(new Set(plan.cuts.map(c=>c.mediaIndex)).size>=3,'planner should favour source variety');
+
 const explicit=refineCinematicTimeline([
  {mediaIndex:0,startTime:1,duration:2,motionStyle:'static',transition:'hard-cut'},
  {mediaIndex:1,startTime:5,duration:2,motionStyle:'pan-right',transition:'hard-cut'},
@@ -22,5 +24,18 @@ assert.equal(explicit[0].motionStyle,'static');
 assert.equal(explicit[2].motionStyle,'static');
 assert.ok(explicit.every(c=>!['whip-right','flash-cut','zoom-punch'].includes(c.transition)));
 assert.ok(explicit.every(c=>c.motionIntensity<=.6));
-assert.equal(timelineSummary(explicit).cuts,3);
+const summary=timelineSummary(explicit);
+assert.equal(summary.cuts,3);
+assert.equal(summary.uniqueSources,3);
+assert.equal(summary.repeatedAdjacent,0);
+
+const repeated=refineCinematicTimeline([
+ {mediaIndex:0,duration:2,motionStyle:'static'},
+ {mediaIndex:0,duration:2,motionStyle:'static'},
+ {mediaIndex:1,duration:2,motionStyle:'pan-right'}
+],{creativePrompt:'cinematic'});
+assert.equal(timelineSummary(repeated).repeatedAdjacent,1);
+assert.equal(repeated[0].motionStyle,'static');
+assert.equal(repeated[1].motionStyle,'static');
+
 console.log('Batch 3 intelligent-editing verification passed.');
