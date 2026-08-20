@@ -6,11 +6,12 @@ import { inferMusicStyle, buildSoundtrackBrief } from '../src/musicDirector.js';
 
 function text(value){return String(value??'').trim();}
 function clamp(value,min,max){const n=Number(value);return Math.max(min,Math.min(max,Number.isFinite(n)?n:min));}
-function cleanMusicRequest(prompt, style){
+function cleanMusicRequest(prompt, style, duration, model){
   const namedSong=/\b(back in black|thunderstruck|hotel california|bohemian rhapsody|smells like teen spirit|billie jean)\b/i.test(prompt);
   const namedArtist=/\b(acdc|ac\/dc|metallica|nirvana|taylor swift|drake|the weeknd|queen)\b/i.test(prompt);
+  const length=model.includes('pro')?'Create a complete original song with a coherent intro, development, peak, and ending; target approximately '+duration+' seconds.':'Create an original short music clip suitable for a social-video edit; Lyria Clip supplies a 30-second clip.';
   return [
-    'Create ORIGINAL music for a social-video soundtrack.',
+    length,
     `Genre: ${style.genre}.`,
     `Target tempo: approximately ${style.bpm} BPM.`,
     `Mood: ${style.mood}. Energy: ${style.energy}.`,
@@ -24,12 +25,14 @@ function cleanMusicRequest(prompt, style){
 export default async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({success:false,error:'Method not allowed'});
   const {prompt='',duration=15,genre,mood,energy,bpm}=req.body||{};
+  const requestedDuration=clamp(Number(duration)||15,5,180);
   const style=inferMusicStyle(prompt);
-  const brief=buildSoundtrackBrief({prompt,duration,genre:genre||style.genre,mood:mood||style.mood,energy:energy??style.energy,bpm:bpm||style.bpm});
+  const brief=buildSoundtrackBrief({prompt,duration:requestedDuration,genre:genre||style.genre,mood:mood||style.mood,energy:energy??style.energy,bpm:bpm||style.bpm});
   const apiKey=process.env.GEMINI_API_KEY;
   if(!apiKey)return res.status(200).json({success:true,source:'planning-fallback',warning:'GEMINI_API_KEY is not configured for Lyria audio generation.',soundtrack:{...brief,audioAvailable:false}});
+  const model=requestedDuration<=30?'lyria-3-clip-preview':'lyria-3-pro-preview';
   try{
-    const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/lyria-3-clip-preview:generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify({contents:[{parts:[{text:cleanMusicRequest(text(prompt),style)}]}],generationConfig:{responseModalities:['AUDIO','TEXT']}})});
+    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify({contents:[{parts:[{text:cleanMusicRequest(text(prompt),style,requestedDuration,model)}]}],generationConfig:{responseModalities:['AUDIO','TEXT']}})});
     const payload=await response.json();
     if(!response.ok)throw new Error(payload?.error?.message||`Lyria returned HTTP ${response.status}`);
     const parts=payload?.candidates?.[0]?.content?.parts||[];
@@ -38,9 +41,9 @@ export default async function handler(req,res){
     const mimeType=audio?.inlineData?.mimeType||audio?.inline_data?.mime_type||'audio/mpeg';
     const textParts=parts.map(part=>part?.text).filter(Boolean);
     if(!audioData)throw new Error('Lyria returned no audio data.');
-    return res.status(200).json({success:true,source:'lyria-3-clip-preview',soundtrack:{...brief,audioAvailable:true,audioMimeType:mimeType,audioDataUrl:`data:${mimeType};base64,${audioData}`,generationText:textParts.join('\n').trim()||null}});
+    return res.status(200).json({success:true,source:model,soundtrack:{...brief,audioAvailable:true,audioMimeType:mimeType,audioDataUrl:`data:${mimeType};base64,${audioData}`,generationModel:model,generationText:textParts.join('\n').trim()||null}});
   }catch(error){
     console.error('[GENERATE-MUSIC] ERROR',error);
-    return res.status(200).json({success:true,source:'planning-fallback',warning:error?.message||'Lyria audio generation unavailable.',soundtrack:{...brief,audioAvailable:false}});
+    return res.status(200).json({success:true,source:'planning-fallback',warning:error?.message||'Lyria audio generation unavailable.',soundtrack:{...brief,audioAvailable:false,generationModel:model}});
   }
 }
