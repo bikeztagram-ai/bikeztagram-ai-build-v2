@@ -35,3 +35,7 @@ jobs:
         run: npm run verify:batch27
       - name: Verify renderer audio mux and beat sync
         run: npm run verify:batch28
+      - name: Verify render quality loop
+        run: npm run verify:batch29
+      - name: Verify universal image intake
+        run: npm run verify:batch30
