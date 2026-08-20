@@ -45,3 +45,5 @@ jobs:
         run: npm run verify:batch32
       - name: Verify social export
         run: npm run verify:batch33
+      - name: Verify speech caption integration
+        run: npm run verify:batch34
