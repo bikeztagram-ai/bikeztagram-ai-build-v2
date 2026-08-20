@@ -14,7 +14,8 @@
     "verify:world-scene": "node scripts/verify-world-scene-stability.mjs",
     "verify:world-scene-v8": "node scripts/verify-world-scene-v8.mjs",
     "verify:batch5": "node scripts/verify-batch5-render-strategy.mjs",
-    "verify:batch5-selection": "node scripts/verify-batch5-source-selection.mjs"
+    "verify:batch5-selection": "node scripts/verify-batch5-source-selection.mjs",
+    "verify:batch6": "node scripts/verify-batch6-two-stage-director.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
