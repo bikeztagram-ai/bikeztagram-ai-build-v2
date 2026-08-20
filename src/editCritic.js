@@ -1,6 +1,8 @@
 /* BIKEZTAGRAM AI — autonomous edit quality critic. Product layer only. */
 const n=(v,f=0)=>{const x=Number(v);return Number.isFinite(x)?x:f};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const shotKey=(cut)=>{const media=String(cut?.mediaId??cut?.mediaIndex??'media');const start=n(cut?.startTime??cut?.start,0);return `${media}:${Math.round(start*2)/2}`};
+const mediaKey=(cut)=>String(cut?.mediaId??cut?.mediaIndex??'media');
 const MOTIONS=['slow-push','slow-pull','pan-left','pan-right','tilt-up','tilt-down','orbit','zoom-punch'];
 const AGGRESSIVE_MOTIONS=new Set(['whip-right','whip-left','zoom-punch','orbit']);
 const TRANSITIONS=['hard-cut','crossfade','flash-cut','whip-right','dip-black','fade-in','fade-out','zoom-punch'];
@@ -8,17 +10,16 @@ function scoreTimeline(cuts){
  if(!cuts.length)return{score:0,issues:['No shots']};
  const issues=[];let score=100;
  const duration=cuts.reduce((s,c)=>s+n(c.duration),0);
- const unique=new Set(cuts.map(c=>`${c.mediaId||'media'}:${c.mediaIndex??0}:${Math.round(n(c.startTime)*2)/2}`)).size;
- const sourceIndices=cuts.map(c=>Number(c.mediaIndex)).filter(Number.isInteger);
- const uniqueSources=new Set(sourceIndices).size;
- const repeatedAdjacent=cuts.slice(1).reduce((count,c,i)=>count+(Number.isInteger(Number(c.mediaIndex))&&Number(c.mediaIndex)===Number(cuts[i].mediaIndex)?1:0),0);
+ const unique=new Set(cuts.map(shotKey)).size;
+ const uniqueSources=new Set(cuts.map(mediaKey)).size;
+ const repeatedAdjacent=cuts.slice(1).reduce((count,c,i)=>count+(shotKey(c)===shotKey(cuts[i])?1:0),0);
  const motion=cuts.filter(c=>c.motionStyle&&c.motionStyle!=='static').length;
  const trans=cuts.filter(c=>c.transition&&c.transition!=='hard-cut').length;
  const long=cuts.filter(c=>n(c.duration)>5).length;
  if(cuts.length<3){score-=25;issues.push('Too few shots')}
  if(duration<6){score-=20;issues.push('Edit is too short')}
- if(unique<Math.min(cuts.length,2)){score-=15;issues.push('Too little source variety')}
- if(repeatedAdjacent>0){score-=Math.min(12,repeatedAdjacent*6);issues.push('Adjacent shots repeat the same source')}
+ if(unique<Math.min(cuts.length,2)){score-=15;issues.push('Too little shot variety')}
+ if(repeatedAdjacent>0){score-=Math.min(12,repeatedAdjacent*6);issues.push('Adjacent shots repeat the same moment')}
  if(motion/cuts.length<.35){score-=6;issues.push('Too many static shots')}
  if(trans/cuts.length<.25){score-=5;issues.push('Transitions lack variation')}
  if(long>1){score-=8;issues.push('Several shots linger too long')}
@@ -38,6 +39,6 @@ function repairTimeline(cuts,flags={}){
   cut.coverage={...(cut.coverage||{}),criticAdjusted:true,preserveSubject:true,cinematicIntent:role==='hook'?'immediate-interest':role==='peak'?'maximum-energy':role==='hero-ending'?'memorable-resolution':'forward-story'};return cut});
  if(repaired.length)repaired[0].role='hook';if(repaired.length>1)repaired.at(-1).role=flags.comedy?'payoff':'hero-ending';if(repaired.length>2)repaired[Math.floor(repaired.length*.7)].role='peak';return repaired;
 }
-function repairAdjacentRepetition(cuts){const out=cuts.map(c=>({...c}));for(let i=1;i<out.length;i+=1){if(Number(out[i].mediaIndex)!==Number(out[i-1].mediaIndex))continue;const alternative=out.findIndex((candidate,j)=>j>i&&Number(candidate.mediaIndex)!==Number(out[i-1].mediaIndex));if(alternative>i){const tmp=out[i];out[i]=out[alternative];out[alternative]=tmp;}}return out;}
-export function critiqueAndImproveTimeline(cuts,options={}){if(!Array.isArray(cuts)||!cuts.length)return{cuts:[],before:{score:0,issues:['No shots']},after:{score:0,issues:['No shots']},changed:false};const before=scoreTimeline(cuts);if(before.score>=90)return{cuts,before,after:before,changed:false};let improved=repairTimeline(cuts,options.flags||{});improved=repairAdjacentRepetition(improved);const after=scoreTimeline(improved);return{cuts:improved,before,after,changed:true,improvements:['strengthened story roles','increased purposeful shot variation','reduced adjacent source repetition','tightened pacing','added restrained transition variety','preserved explicit static shots','preserved real source media and subject']}}
+function repairAdjacentRepetition(cuts){const out=cuts.map(c=>({...c}));for(let i=1;i<out.length;i+=1){if(shotKey(out[i])!==shotKey(out[i-1]))continue;const alternative=out.findIndex((candidate,j)=>j>i&&shotKey(candidate)!==shotKey(out[i-1]));if(alternative>i){const tmp=out[i];out[i]=out[alternative];out[alternative]=tmp;}}return out;}
+export function critiqueAndImproveTimeline(cuts,options={}){if(!Array.isArray(cuts)||!cuts.length)return{cuts:[],before:{score:0,issues:['No shots']},after:{score:0,issues:['No shots']},changed:false};const before=scoreTimeline(cuts);if(before.score>=90)return{cuts,before,after:before,changed:false};let improved=repairTimeline(cuts,options.flags||{});improved=repairAdjacentRepetition(improved);const after=scoreTimeline(improved);return{cuts:improved,before,after,changed:true,improvements:['strengthened story roles','increased purposeful shot variation','reduced adjacent duplicate moments','tightened pacing','added restrained transition variety','preserved explicit static shots','preserved real source media and subject']}}
 export function describeCritique(result){if(!result)return'';if(!result.changed)return`🎬 Director quality check: ${result.after.score}/100 — no correction required.`;return`🎬 Director quality check: ${result.before.score}/100 → ${result.after.score}/100 • ${result.before.issues.join(', ')}`}
