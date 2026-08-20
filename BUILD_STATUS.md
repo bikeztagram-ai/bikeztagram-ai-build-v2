@@ -18,20 +18,20 @@ Updated: 2026-08-20
 - Universal client contract for original music generation.
 - Autonomous timeline quality critic integrated into production-plan generation.
 - Real generated-audio analysis contract using browser Web Audio: BPM estimate, onset detection, beat grid and energy estimate.
-- Dedicated Batch 23–27 verification scripts.
-- Main-branch CI verification workflow for the current feature batches.
+- Renderer soundtrack-audio bridge and dedicated Batch 28 structural verification script are committed.
+- Main-branch verification commands remain registered through Batch 28.
 
 ## EXPERIMENTAL
 - Lyria 3 live audio generation: bridge is implemented, but live credentials/model availability and quotas still require production verification.
-- Real generated-audio analysis is implemented client-side but not yet used by the final renderer to drive the final muxed video.
+- Renderer audio mux: implementation is committed, but a real browser render with generated audio has not yet been independently verified.
+- Real analysed audio beats are available to the editor contract but are not yet driving final renderer cut points.
 - Timeline critic is integrated at planning time; final rendered-video visual/audio critique and automatic re-render remain to be completed.
 
 ## NOT YET BUILT
-- Actual generated soundtrack playback/mux into the final rendered video.
-- Use of real analysed audio beats to drive the final renderer's cuts.
+- Beat-driven final renderer cut timing using the actual decoded soundtrack signal.
 - Full render → inspect → critique → automatically re-render loop.
 - Fully universal UI for image/video/mixed-media workflows.
 - Final social-export presets and complete live end-to-end acceptance test.
 
 ## Deployment note
-GitHub `main` is receiving the new source commits. Vercel production is currently behind `main`: the latest READY production deployment visible is commit `b126c8c` (universal music generation client contract). Newer commits are currently reporting Vercel build-rate-limit failures. Do not claim newer source changes are live until a corresponding Vercel deployment is independently observed as `READY` in production.
+GitHub `main` is receiving the new source commits. Vercel production is currently behind `main`: the latest READY production deployment visible is commit `b126c8c` (universal music generation client contract). Newer commits have reported Vercel build-rate-limit failures. Do not claim newer source changes are live until a corresponding Vercel deployment is independently observed as `READY` in production.
