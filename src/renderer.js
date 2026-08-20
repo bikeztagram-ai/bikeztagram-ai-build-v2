@@ -72,7 +72,11 @@ export async function renderProject(mediaItems, plan, onProgress) {
         else if(m.includes('tilt-down')){scale=Math.max(scale,1.08);y=(e-.5)*canvas.height*.09*intensity;}
         else if(m.includes('orbit')||m.includes('parallax')){scale=Math.max(scale,1.09);x=Math.sin(e*Math.PI*2)*canvas.width*.035*intensity;y=Math.cos(e*Math.PI*2)*canvas.height*.018*intensity;r=Math.sin(e*Math.PI*2)*.006*intensity;}
         const purpose=String(cut.purpose||'').toLowerCase(), action=/action|chase|impact|energetic|race|speed/.test(purpose+' '+String(plan?.creativePrompt||''));
-        if(action){x+=Math.sin(p*Math.PI*34)*2.5*intensity;y+=Math.cos(p*Math.PI*29)*1.8*intensity;r+=Math.sin(p*Math.PI*20)*.0035*intensity;}
+        // Stabilised footage must stay visually stable. The previous renderer injected
+        // a continuous artificial shake even when stabilization=true, which made
+        // motorcycle footage look like a damaged/handheld camera. Only allow the
+        // micro-jitter when a plan explicitly disables stabilization.
+        if(action && cut.stabilization===false){x+=Math.sin(p*Math.PI*34)*.7*intensity;y+=Math.cos(p*Math.PI*29)*.5*intensity;r+=Math.sin(p*Math.PI*20)*.001*intensity;}
         return {scale:clamp(scale,1.01,1.28),x,y,r};
       };
 
