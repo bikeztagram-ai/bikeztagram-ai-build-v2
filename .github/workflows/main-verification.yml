@@ -49,3 +49,5 @@ jobs:
         run: npm run verify:batch34
       - name: Verify licensed-track rhythm replacement
         run: npm run verify:batch35
+      - name: Verify beat-sync source-offset preservation
+        run: npm run verify:batch36
