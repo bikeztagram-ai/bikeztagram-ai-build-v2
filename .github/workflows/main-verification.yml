@@ -43,3 +43,5 @@ jobs:
         run: npm run verify:batch31
       - name: Verify automatic soundtrack attachment
         run: npm run verify:batch32
+      - name: Verify social export
+        run: npm run verify:batch33
