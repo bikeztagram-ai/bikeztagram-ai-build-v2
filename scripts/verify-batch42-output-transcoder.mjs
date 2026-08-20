@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { OUTPUT_PRESETS, resolveOutputPreset } from '../src/outputPresets.js';
+import { getOutputPresetOptions } from '../src/postRenderTranscoder.js';
+assert.equal(resolveOutputPreset('portrait').width,1080);
+assert.equal(resolveOutputPreset('square').height,1080);
+assert.equal(resolveOutputPreset('landscape').aspectRatio,'16:9');
+assert.equal(resolveOutputPreset('', 'make a 16:9 YouTube film').id,'landscape');
+assert.equal(resolveOutputPreset('', 'square Instagram feed').id,'square');
+assert.deepEqual(getOutputPresetOptions().map(x=>x.id),Object.keys(OUTPUT_PRESETS));
+console.log('batch42-output-transcoder: PASS');
