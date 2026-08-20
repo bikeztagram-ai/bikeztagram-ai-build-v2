@@ -7,14 +7,13 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     if (!body) return res.status(400).json({ error: "Missing Blob upload request body" });
 
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
-    if (!token) {
-      console.error("Bikeztagram: BLOB_READ_WRITE_TOKEN is missing");
-      return res.status(500).json({ error: "BLOB_READ_WRITE_TOKEN is missing" });
-    }
-
+    // IMPORTANT: do not force BLOB_READ_WRITE_TOKEN here.
+    // The connected Vercel Blob store can authenticate through Vercel's
+    // deployment/OIDC path, while the SDK still falls back to
+    // BLOB_READ_WRITE_TOKEN when that is the available credential.
+    // Keep the existing Blob store, access mode, /api/upload route and
+    // non-multipart client path unchanged.
     const jsonResponse = await handleUpload({
-      token,
       body,
       request: req,
       onBeforeGenerateToken: async (pathname, clientPayload, multipart) => {
