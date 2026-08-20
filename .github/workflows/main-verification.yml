@@ -39,3 +39,7 @@ jobs:
         run: npm run verify:batch29
       - name: Verify universal image intake
         run: npm run verify:batch30
+      - name: Verify mixed-media source library
+        run: npm run verify:batch31
+      - name: Verify automatic soundtrack attachment
+        run: npm run verify:batch32
