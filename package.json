@@ -10,7 +10,8 @@
     "verify:core": "node scripts/verify-core-render.mjs",
     "verify:batch3": "node scripts/verify-batch3-intelligent-editing.mjs",
     "verify:batch4": "node scripts/verify-render-quality-gate.mjs",
-    "verify:timing": "node scripts/verify-render-timing.mjs"
+    "verify:timing": "node scripts/verify-render-timing.mjs",
+    "verify:world-scene": "node scripts/verify-world-scene-stability.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
