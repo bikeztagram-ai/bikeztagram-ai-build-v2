@@ -1,0 +1,19 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const production=fs.readFileSync(new URL('../api/production-plan.js',import.meta.url),'utf8');
+const music=fs.readFileSync(new URL('../src/musicDirector.js',import.meta.url),'utf8');
+const timeline=fs.readFileSync(new URL('../src/beatAwareTimeline.js',import.meta.url),'utf8');
+
+assert.match(production,/buildSoundtrackBrief/);
+assert.match(production,/music:\{\.\.\.soundtrack,enabled:true,role:'editorial-timing'\}/);
+assert.match(production,/Align editorial events to the soundtrack beat grid/);
+assert.doesNotMatch(production,/motorcycleModel|ninja1000|kawasaki/i);
+assert.match(music,/buildBeatGrid/);
+assert.match(music,/swapReady:true/);
+assert.match(music,/original:true/);
+assert.match(music,/Do not reproduce or closely imitate/);
+assert.match(timeline,/attachSoundtrackToPlan/);
+assert.match(timeline,/music-replacement-map-v1/);
+
+console.log('batch22-production-music-integration: PASS');
