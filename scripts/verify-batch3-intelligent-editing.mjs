@@ -43,19 +43,28 @@ assert.equal(summary.cuts,3);
 assert.equal(summary.uniqueSources,3);
 assert.equal(summary.repeatedAdjacent,0);
 
+const sameSourceDifferentMoments=refineCinematicTimeline([
+ {mediaIndex:0,startTime:1,duration:2,motionStyle:'static'},
+ {mediaIndex:0,startTime:5,duration:2,motionStyle:'static'},
+ {mediaIndex:1,startTime:9,duration:2,motionStyle:'pan-right'}
+],{creativePrompt:'cinematic'});
+assert.equal(timelineSummary(sameSourceDifferentMoments).repeatedAdjacent,0,'different moments in one source are not duplicate shots');
+assert.equal(sameSourceDifferentMoments[0].motionStyle,'static');
+assert.equal(sameSourceDifferentMoments[1].motionStyle,'static');
+
 const repeated=refineCinematicTimeline([
- {mediaIndex:0,duration:2,motionStyle:'static'},
- {mediaIndex:0,duration:2,motionStyle:'static'},
- {mediaIndex:1,duration:2,motionStyle:'pan-right'}
+ {mediaIndex:0,startTime:2,duration:2,motionStyle:'static'},
+ {mediaIndex:0,startTime:2,duration:2,motionStyle:'static'},
+ {mediaIndex:1,startTime:6,duration:2,motionStyle:'pan-right'}
 ],{creativePrompt:'cinematic'});
 assert.equal(timelineSummary(repeated).repeatedAdjacent,1);
 assert.equal(repeated[0].motionStyle,'static');
 assert.equal(repeated[1].motionStyle,'static');
 
 const lowQuality=[
- {mediaIndex:0,duration:6,motionStyle:'static'},
- {mediaIndex:0,duration:6,motionStyle:'static'},
- {mediaIndex:1,duration:6,motionStyle:'static'}
+ {mediaIndex:0,startTime:1,duration:6,motionStyle:'static'},
+ {mediaIndex:0,startTime:1,duration:6,motionStyle:'static'},
+ {mediaIndex:1,startTime:8,duration:6,motionStyle:'static'}
 ];
 const repaired=critiqueAndImproveTimeline(lowQuality,{flags:{action:true}});
 assert.ok(repaired.changed);
