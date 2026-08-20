@@ -1,0 +1,9 @@
+import assert from 'node:assert/strict';
+import { SOCIAL_PRESETS, getSocialExportInfo } from '../src/socialExport.js';
+assert.deepEqual(Object.keys(SOCIAL_PRESETS),['portrait','square','landscape']);
+assert.equal(SOCIAL_PRESETS.portrait.width,1080);
+assert.equal(SOCIAL_PRESETS.square.width,1080);
+assert.equal(SOCIAL_PRESETS.landscape.width,1920);
+const info=getSocialExportInfo(new Blob(['x'],{type:'video/webm'}),'landscape');
+assert.equal(info.width,1920);assert.equal(info.height,1080);assert.equal(info.extension,'webm');
+console.log('batch43-social-output-contract: PASS');
