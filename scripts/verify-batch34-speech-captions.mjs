@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const app=fs.readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
+const planner=fs.readFileSync(new URL('../src/captionPlanner.js',import.meta.url),'utf8');
+const api=fs.readFileSync(new URL('../api/captions.js',import.meta.url),'utf8');
+assert.match(app,/applySpeechCaptionsToPlan/);
+assert.match(app,/\/api\/captions/);
+assert.match(app,/Auto-detect spoken dialogue/);
+assert.match(app,/speechCaptions/);
+assert.match(planner,/normaliseSpeechCaptions/);
+assert.match(planner,/captionCueIndex/);
+assert.match(planner,/verified-speech-cues/);
+assert.match(api,/spoken dialogue/);
+assert.match(api,/Do not reproduce song lyrics/);
+assert.match(api,/responseMimeType:'application\/json'/);
+assert.match(api,/source:'gemini-verified-video-speech'/);
+console.log('batch34-speech-captions: PASS');
