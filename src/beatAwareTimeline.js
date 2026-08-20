@@ -9,14 +9,13 @@ function number(value,fallback=0){const n=Number(value);return Number.isFinite(n
 export function attachSoundtrackToPlan(plan, soundtrack){
   const brief=soundtrack?.beatGrid ? soundtrack : buildSoundtrackBrief({prompt:plan?.creativePrompt||'',duration:plan?.targetDuration||plan?.duration||15,bpm:soundtrack?.bpm,genre:soundtrack?.genre,mood:soundtrack?.mood,energy:soundtrack?.energy});
   const sourceScenes=Array.isArray(plan?.scenes)?plan.scenes:[];
-  const sourceCuts=Array.isArray(plan?.cuts)&&plan.cuts.length ? plan.cuts : sourceScenes.map((scene,index)=>({
-    id:scene?.id||`scene-${index+1}`,
-    startTime:0,
-    endTime:number(scene?.duration,.5),
-    duration:number(scene?.duration,.5),
-    sceneIndex:index,
-    purpose:scene?.purpose||'cinematic-scene'
-  }));
+  let cursor=0;
+  const sourceCuts=Array.isArray(plan?.cuts)&&plan.cuts.length ? plan.cuts : sourceScenes.map((scene,index)=>{
+    const duration=Math.max(.5,number(scene?.duration,.5));
+    const start=cursor;
+    cursor+=duration;
+    return {id:scene?.id||`scene-${index+1}`,startTime:start,endTime:cursor,duration,sceneIndex:index,purpose:scene?.purpose||'cinematic-scene'};
+  });
   const cuts=alignCutsToMusic(sourceCuts,brief);
   const musicReplacementMap=buildMusicReplacementMap(brief);
   const scenes=sourceScenes.length ? sourceScenes.map((scene,index)=>{
