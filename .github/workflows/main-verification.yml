@@ -55,3 +55,5 @@ jobs:
         run: npm run verify:batch37
       - name: Verify mixed-media caption integration
         run: npm run verify:batch38
+      - name: Verify premium filmmaker UI
+        run: npm run verify:batch39
