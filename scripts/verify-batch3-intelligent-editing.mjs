@@ -15,6 +15,19 @@ assert.ok(plan.cuts.every(c=>c.duration>0&&c.startTime>=0));
 assert.ok(plan.cuts.every(c=>c.motionIntensity<=.6));
 assert.ok(plan.cuts.every(c=>!['whip-right','whip-left','flash-cut','zoom-punch'].includes(c.transition)));
 assert.ok(new Set(plan.cuts.map(c=>c.mediaIndex)).size>=3,'planner should favour source variety');
+assert.ok(plan.cuts.some(c=>c.selectionScore>90),'high-confidence moments should retain selection score');
+
+const ordered= createAIEditPlan({durationInSeconds:20,bestMoments:[
+ {mediaIndex:0,start:0,end:3,score:.98,description:'weak generic shot'},
+ {mediaIndex:1,start:4,end:7,score:.72,description:'strong cornering action'},
+ {mediaIndex:2,start:8,end:11,score:.95,description:'hero close-up reveal'},
+ {mediaIndex:3,start:12,end:15,score:.93,description:'wide scenic establishing shot'},
+ {mediaIndex:4,start:16,end:19,score:.90,description:'clean action pass'}
+]}, {targetDuration:15,maxCuts:4,creativePrompt:'cinematic action reveal'});
+assert.equal(ordered.cuts.length,4);
+assert.ok(new Set(ordered.cuts.map(c=>c.mediaIndex)).size>=4,'selection should prefer distinct source clips');
+assert.ok(ordered.cuts.some(c=>c.mediaIndex===2),'hero detail should be retained');
+assert.ok(ordered.cuts.some(c=>c.mediaIndex===1),'action context should be retained');
 
 const explicit=refineCinematicTimeline([
  {mediaIndex:0,startTime:1,duration:2,motionStyle:'static',transition:'hard-cut'},
