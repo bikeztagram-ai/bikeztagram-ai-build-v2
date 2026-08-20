@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "verify:core": "node scripts/verify-core-render.mjs",
-    "verify:batch3": "node scripts/verify-batch3-intelligent-editing.mjs"
+    "verify:batch3": "node scripts/verify-batch3-intelligent-editing.mjs",
+    "verify:batch4": "node scripts/verify-render-quality-gate.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
