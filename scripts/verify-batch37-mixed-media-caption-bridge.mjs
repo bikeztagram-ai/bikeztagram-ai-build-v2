@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const bridge=fs.readFileSync(new URL('../src/mixedMediaCaptionBridge.js',import.meta.url),'utf8');
+assert.match(bridge,/applyMixedMediaSpeechCues/);
+assert.match(bridge,/sourceIndex/);
+assert.match(bridge,/textIn/);
+assert.match(bridge,/textOut/);
+assert.match(bridge,/source-media timestamps/);
+assert.match(bridge,/verified-mixed-media-speech-cues/);
+console.log('batch37-mixed-media-caption-bridge: PASS');
