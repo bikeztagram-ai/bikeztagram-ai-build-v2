@@ -61,5 +61,9 @@ jobs:
         run: npm run verify:batch41
       - name: Verify Batch 42 output transcoder module
         run: npm run verify:batch42
+      - name: Verify Batch 43 social output contract
+        run: npm run verify:batch43
       - name: Verify social output UI integration
         run: npm run verify:batch44
+      - name: Verify Batch 45 complete filmmaker acceptance contract
+        run: npm run verify:batch45
