@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const renderer=fs.readFileSync(new URL('../src/renderer.js',import.meta.url),'utf8');
+assert.match(renderer,/captureStream\(30\)/);
+assert.match(renderer,/recorder\.start\(1000\)/);
+assert.match(renderer,/requestAnimationFrame\(tick\)/);
+assert.match(renderer,/duration\*1000/);
+assert.match(renderer,/MediaRecorder produced no video data/);
+assert.doesNotMatch(renderer,/drawWorld\(cut,p\)/);
+assert.doesNotMatch(renderer,/Math\.sin\(p\*Math\.PI\*34\)/);
+console.log('batch10-renderer-integrity: PASS');
