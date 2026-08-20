@@ -27,3 +27,11 @@ jobs:
         run: npm run verify:batch23
       - name: Verify original music generation bridge
         run: npm run verify:batch24
+      - name: Verify autonomous quality loop
+        run: npm run verify:batch25
+      - name: Verify real audio analysis
+        run: npm run verify:batch26
+      - name: Verify Lyria song modes
+        run: npm run verify:batch27
+      - name: Verify renderer audio mux and beat sync
+        run: npm run verify:batch28
