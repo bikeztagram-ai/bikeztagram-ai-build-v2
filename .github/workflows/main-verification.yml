@@ -59,3 +59,5 @@ jobs:
         run: npm run verify:batch39
       - name: Verify output preset transcoder
         run: npm run verify:batch41
+      - name: Verify Batch 42 output transcoder module
+        run: npm run verify:batch42
