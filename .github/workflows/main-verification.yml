@@ -47,3 +47,5 @@ jobs:
         run: npm run verify:batch33
       - name: Verify speech caption integration
         run: npm run verify:batch34
+      - name: Verify licensed-track rhythm replacement
+        run: npm run verify:batch35
