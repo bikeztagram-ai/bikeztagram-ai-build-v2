@@ -1,5 +1,6 @@
 /* BIKEZTAGRAM AI — universal media intake client.
-   One client contract for images and video; preserves the existing Blob upload and Gemini endpoints. */
+   One client contract for images and video; preserves the existing Blob upload and Gemini endpoints.
+   IMPORTANT: keep the proven non-multipart browser upload path used by the stable product. */
 import { upload } from '@vercel/blob/client';
 import { normalizeUniversalAnalysis } from './universalMediaModel.js';
 
@@ -25,10 +26,14 @@ export async function uploadAndAnalyseUniversalMedia(file, prompt = '', options 
   const pathname = `${folder}/${Date.now()}-${crypto.randomUUID()}-${safeName(file.name)}`;
   const onProgress = typeof options.onUploadProgress === 'function' ? options.onUploadProgress : () => {};
 
+  // Keep this false: the project's previously verified working Blob path used
+  // the standard browser upload. The server endpoint still supports multipart
+  // when explicitly requested, but the universal client must not switch the
+  // proven video path underneath the product.
   const blob = await upload(pathname, file, {
     access: 'public',
     handleUploadUrl: '/api/upload',
-    multipart: mediaType === 'video' && file.size > 8 * 1024 * 1024,
+    multipart: false,
     clientPayload: JSON.stringify({ source: 'bikeztagram-ai', filename: file.name, mimeType: file.type, size: file.size, mediaType }),
     onUploadProgress: (event) => {
       const value = Number(event?.percentage);
