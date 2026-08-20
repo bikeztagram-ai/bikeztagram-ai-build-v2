@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { refineCinematicTimeline, timelineSummary } from '../src/timelineDirector.js';
 import { createAIEditPlan } from '../src/aiEditPlanner.js';
+import { critiqueAndImproveTimeline } from '../src/editCritic.js';
 
 const analysis={durationInSeconds:18,subject:{description:'blue Kawasaki motorcycle'},bestMoments:[
  {mediaIndex:0,start:1,end:4,score:.96,description:'clean tracking ride'},
@@ -37,5 +38,19 @@ const repeated=refineCinematicTimeline([
 assert.equal(timelineSummary(repeated).repeatedAdjacent,1);
 assert.equal(repeated[0].motionStyle,'static');
 assert.equal(repeated[1].motionStyle,'static');
+
+const lowQuality=[
+ {mediaIndex:0,duration:6,motionStyle:'static'},
+ {mediaIndex:0,duration:6,motionStyle:'static'},
+ {mediaIndex:1,duration:6,motionStyle:'static'}
+];
+const repaired=critiqueAndImproveTimeline(lowQuality,{flags:{action:true}});
+assert.ok(repaired.changed);
+assert.ok(repaired.after.score>=repaired.before.score);
+assert.equal(repaired.cuts[0].role,'hook');
+assert.equal(repaired.cuts.at(-1).role,'hero-ending');
+assert.equal(repaired.cuts[0].motionStyle,'static');
+assert.equal(repaired.cuts[1].motionStyle,'static');
+assert.equal(new Set(repaired.cuts.map(c=>c.mediaIndex)).size,2);
 
 console.log('Batch 3 intelligent-editing verification passed.');
