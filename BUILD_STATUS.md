@@ -7,31 +7,35 @@ Updated: 2026-08-20
 - Gemini director/production planning pipeline.
 - Vercel Blob upload infrastructure.
 - Existing browser renderer and world-bridge infrastructure.
-- GitHub `main` as the protected source of truth.
-- Vercel production project is connected to `main`; older current production commits have been independently verified as READY.
+- GitHub `main` as the source of truth.
+- Beat/BPM/energy analysis contracts and beat-aware editorial timing.
+- Original-music generation bridge and licensed/trending replacement mapping.
+- Browser render QA: decode, playback and sampled-frame inspection.
 
 ## BUILT / TESTED
-- Universal soundtrack director: genre, mood, BPM, energy, sections and beat grid.
-- Beat-aware production timeline integration with source-media timing kept separate from editorial timing.
-- Licensed/trending replacement map for later CapCut/TikTok replacement.
-- Original Lyria music-generation bridge with clip/full-song model selection and safe planning fallback.
-- Universal client contract for original music generation.
-- Autonomous timeline quality critic integrated into production-plan generation.
-- Real generated-audio analysis contract using browser Web Audio: BPM estimate, onset detection, beat grid and energy estimate.
-- Renderer soundtrack-audio bridge and renderer-side beat synchronisation: detected/analysed beat events now update editorial cut boundaries while preserving source seek positions.
-- Batch 28 verification expanded for soundtrack mux + beat sync.
-- Main-branch CI verification now covers Batches 23–28 plus production build.
+- Autonomous render → inspect → revise → re-render orchestration (`src/renderQualityLoop.js`).
+- QA-driven luminance correction for dark/black output.
+- QA-driven editorial duration correction.
+- Renderer playback/decode failure detection with bounded retry behaviour.
+- Batch 29 structural verification registered in `package.json`.
+- Main application render action now invokes the autonomous quality loop rather than rendering once and stopping.
+- Render QA verdict and attempt count are surfaced in the product UI.
 
 ## EXPERIMENTAL
-- Lyria 3 live audio generation: bridge is implemented, but live credentials/model availability and quotas still require production verification.
-- Renderer audio mux + beat sync: implementation and structural verification are committed, but a real browser render with generated audio has not yet been independently verified.
-- Final rendered-video visual/audio critique and automatic re-render remain to be completed.
+- Automatic render improvement is integrated, but independent real-browser verification of a deliberately failing render followed by a successful revised render is still required.
+- Lyria 3 live audio generation still requires production credential/model/quota verification.
+- Renderer audio mux + beat sync remains structurally verified but needs independent real-browser generated-audio render verification.
 
 ## NOT YET BUILT
-- Reliable end-to-end automatic acquisition of a generated soundtrack into the final render flow for every production (the renderer accepts analysed soundtrack data, but the UI does not yet autonomously generate/attach a track on every run).
-- Full render → inspect → critique → automatically re-render loop.
-- Fully universal UI for image/video/mixed-media workflows.
-- Final social-export presets and complete live end-to-end acceptance test.
+- Fully universal production UI for images, video and mixed media. The current verified Gemini/Blob UI still gates its primary flow on video.
+- Reliable automatic acquisition/attachment of a generated soundtrack on every production run.
+- Full audio + captions + licensed-track replacement UX in the final editor flow.
+- Final social-export presets and complete end-to-end acceptance test across motorcycle/car/person/animal/travel/product/mixed-media examples.
+- Deployment synchronization of the latest `main` commits. Production is currently READY only through commit `6f93cb9705c4b120ac2863cecd58806a2f76302c` (`Add autonomous render inspect improve loop`); newer commits have not yet appeared as READY in production.
 
-## Deployment note
-GitHub `main` is receiving the new source commits. Vercel production is currently behind `main`: the latest READY production deployment visible is commit `b126c8c` (universal music generation client contract). Newer commits continue to report Vercel build-rate-limit failures. Do not claim newer source changes are live until a corresponding Vercel deployment is independently observed as `READY` in production.
+## Current acceleration priority
+1. Universalize the actual product intake UI to image/video/mixed media without regressing Blob/Gemini.
+2. Make soundtrack generation/attachment automatic in the real render path.
+3. Finish render QA + critique/re-render with independent browser acceptance.
+4. Add social export presets and complete multi-subject acceptance tests.
+5. Resolve GitHub → Vercel deployment synchronization and live-test the accumulated product.
