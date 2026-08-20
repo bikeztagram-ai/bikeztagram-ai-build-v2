@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "verify:batch8": "node scripts/verify-batch8-qa-activation.mjs"
+    "verify:batch8": "node scripts/verify-batch8-qa-activation.mjs",
+    "verify:batch9": "node scripts/verify-batch9-export.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
