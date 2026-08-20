@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const analyse=fs.readFileSync(new URL('../api/analyse.js',import.meta.url),'utf8');
+const director=fs.readFileSync(new URL('../src/director.js',import.meta.url),'utf8');
+assert.match(analyse,/GENERAL-PURPOSE AI FILMMAKER/);
+assert.match(analyse,/motorcycle, car, animal, puppy, person/);
+assert.match(analyse,/uploaded-media/);
+assert.match(analyse,/subjects/);
+assert.match(analyse,/continuityNotes/);
+assert.match(director,/classifyMediaSubject/);
+assert.match(director,/buildUniversalMediaProfile/);
+assert.doesNotMatch(director,/STORMCLOUD/i);
+assert.doesNotMatch(director,/KAWASAKI/i);
+console.log('batch12-universal-director: PASS');
