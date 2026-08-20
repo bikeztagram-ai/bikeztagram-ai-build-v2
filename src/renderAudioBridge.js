@@ -18,7 +18,9 @@ export function applyAudioBeatSyncToPlan(plan) {
     const clampedEnd = Math.min(maxTime, Math.max(minimumEnd, endBeat.time));
     return { ...cut, startTime: Number(startBeat.time.toFixed(3)), duration: Number(Math.max(.5, clampedEnd - startBeat.time).toFixed(3)), endTime: Number(clampedEnd.toFixed(3)), sourceStartTime: cut.sourceStartTime ?? cut.startTime, music: { ...(cut.music || {}), beatAligned: true, startBeat: startBeat.index, endBeat: endBeat.index, startBeatTime: startBeat.time, endBeatTime: endBeat.time, syncSource: plan?.music?.audioAnalysis?.analysis || 'planned-beat-grid' } };
   });
-  return { plan: { ...plan, cuts: syncedCuts, music: { ...(plan.music || {}), beatSyncApplied: true, beatSyncSource: plan?.music?.audioAnalysis?.analysis || 'planned-beat-grid' } }, enabled: true, beats: sorted.length };
+  // The renderer receives the same plan object, so commit the editorial timing in place.
+  plan.cuts = syncedCuts; plan.music = { ...(plan.music || {}), beatSyncApplied: true, beatSyncSource: plan?.music?.audioAnalysis?.analysis || 'planned-beat-grid' };
+  return { plan, enabled: true, beats: sorted.length };
 }
 
 export async function attachPlanAudioToRenderStream(stream, plan, options = {}) {
