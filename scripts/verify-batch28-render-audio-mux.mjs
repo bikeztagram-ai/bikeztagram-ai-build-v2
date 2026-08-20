@@ -12,5 +12,9 @@ assert.match(bridge,/createMediaStreamDestination/);
 assert.match(bridge,/addTrack/);
 assert.match(bridge,/audioDataUrl/);
 assert.match(bridge,/createMediaElementSource/);
+assert.match(bridge,/applyAudioBeatSyncToPlan/);
+assert.match(bridge,/audioAnalysis/);
+assert.match(bridge,/beatAligned/);
+assert.match(bridge,/sourceStartTime/);
 
 console.log('batch28-render-audio-mux: PASS');
