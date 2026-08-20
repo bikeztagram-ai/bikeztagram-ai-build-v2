@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const api=fs.readFileSync(new URL('../api/analyse-library.js',import.meta.url),'utf8');
+assert.match(api,/speechCues/);
+assert.match(api,/attachSpeechToCuts/);
+assert.match(api,/caption-timeline-attachment/);
+assert.match(api,/verified-mixed-media-speech-cues/);
+assert.match(api,/textIn/);
+assert.match(api,/textOut/);
+assert.match(api,/captionConfidence/);
+assert.match(api,/Do not invent speech/);
+console.log('batch38-mixed-media-captions: PASS');
