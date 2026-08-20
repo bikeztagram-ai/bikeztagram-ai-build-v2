@@ -1,8 +1,6 @@
 import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai';
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, Number(value) || min));
-}
+function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || min)); }
 function text(value) { return String(value ?? '').trim(); }
 
 function buildStage2Prompt(prompt, analysis, targetDuration = 15) {
@@ -22,13 +20,14 @@ VERIFIED STAGE 1 ANALYSIS:
 ${JSON.stringify(analysis, null, 2)}
 
 DIRECTOR RULES:
-- Treat the uploaded subject generically: it may be a motorcycle, car, animal, person, travel scene, landscape, product, event, object, or mixed media.
+- Treat the uploaded subject generically: it may be a vehicle, animal, person, travel scene, landscape, product, event, object, architecture, food, or mixed media.
 - Build a coherent story appropriate to the actual material: hook → build → reveal/action/emotion → hero ending where supported.
 - Prefer different timestamps, viewpoints and distinct source moments.
 - Never repeat the same exact moment.
 - Select shots for their editorial ROLE, not merely their score.
 - Never invent a subject, action, location, camera move, object, event or visual detail that Stage 1 did not verify.
-- Preserve subject identity and continuity.
+- Preserve subject identity and continuity using Stage 1's verified identity and attributes as the source of truth.
+- Preserve environment, lighting, screen direction and visible appearance where continuity matters.
 - Keep each cut between 0.5 and 4 seconds.
 - Use 3–6 cuts when enough verified moments exist; maximum 8.
 - Use exact timestamps inside the supplied bestMoments.
@@ -114,35 +113,38 @@ export default async function handler(req, res) {
 Analyse the ACTUAL uploaded media supplied to you.
 
 IMPORTANT:
-- The media may contain ANY subject: motorcycle, car, animal, puppy, person, travel, landscape, product, event, object, or mixed media.
+- The media may contain ANY subject: vehicle, motorcycle, car, animal, puppy, person, travel, landscape, product, event, object, architecture, food, or mixed media.
 - Identify what is actually visible rather than assuming the subject from the filename.
 - Do not invent actions, objects, locations or details.
 - Determine the strongest usable moments from the actual media and give precise timestamps.
 - Evaluate the material as a filmmaker preparing it for a later AI Director stage.
 - Preserve uncertainty when something cannot be confidently identified.
+- The universal subject record is the source of truth for downstream editing. Do not force every subject into a vehicle/person schema.
 
 Analyse:
-1. Primary subject(s) and subject identity
+1. Primary subject(s), identity and defining visual attributes
 2. Secondary subject(s)
-3. Scene/environment
-4. Shot types and composition
-5. Camera movement and angle
-6. Stability
-7. What actually happens
-8. Action/movement intensity
-9. Emotional or narrative moments
-10. Lighting and visual quality
-11. Sharpness and subject visibility
-12. Cinematic potential
-13. Best moments and exact timestamps
-14. Editorial role for each best moment
-15. Suggested duration and speed
-16. Whether slow motion helps
-17. Text recommendation
-18. Transition recommendation
-19. Camera-motion recommendation
-20. Continuity considerations
-21. Any weak/repetitive footage to avoid
+3. Subject category and confidence
+4. Scene/environment and continuity anchors
+5. Shot types and composition
+6. Camera movement, angle and direction
+7. Stability and framing quality
+8. What actually happens, with timestamps where possible
+9. Action/movement intensity
+10. Emotional or narrative moments
+11. Lighting, colour and visual quality
+12. Sharpness and subject visibility
+13. Cinematic potential
+14. Best moments and exact timestamps
+15. Editorial role for each best moment
+16. Suggested duration and speed
+17. Whether slow motion helps
+18. Text recommendation
+19. Transition recommendation
+20. Camera-motion recommendation
+21. Subject continuity considerations
+22. Environment continuity considerations
+23. Weak, repetitive or unusable footage to avoid
 
 USER CREATIVE REQUEST:
 ${prompt}
@@ -152,13 +154,14 @@ Return ONLY valid JSON using this structure:
  "filename":"${filename}",
  "durationSeconds":0,
  "mediaType":"video",
- "subjects":[{"label":"","description":"","confidence":0,"importance":"primary"}],
- "subject":{"primarySubject":"","description":"","confidence":0,"motorcycleVisible":false,"riderVisible":false,"motorcycleModel":""},
- "scene":{"environment":"","locationType":"","timeOfDay":"","lighting":""},
- "shots":[{"type":"","cameraMovement":"","cameraAngle":"","stability":"","composition":""}],
+ "subjects":[{"label":"","category":"","description":"","identity":"","attributes":[],"confidence":0,"importance":"primary"}],
+ "subject":{"primarySubject":"","category":"","description":"","identity":"","attributes":[],"confidence":0},
+ "scene":{"environment":"","locationType":"","timeOfDay":"","lighting":"","continuityAnchors":[]},
+ "shots":[{"start":0,"end":0,"type":"","cameraMovement":"","cameraAngle":"","screenDirection":"","stability":"","composition":"","subjectVisibility":""}],
+ "verifiedEvents":[{"start":0,"end":0,"description":"","confidence":0}],
  "action":"",
  "narrative":{"tone":"","emotion":"","storyPotential":""},
- "visualQuality":{"composition":"","lighting":"","sharpness":"","subjectVisibility":"","cinematicPotential":""},
+ "visualQuality":{"composition":"","lighting":"","colour":"","sharpness":"","subjectVisibility":"","cinematicPotential":""},
  "cinematicScore":0,
  "bestMoments":[{"start":0,"end":0,"description":"","reason":"","editorialRole":"","subject":"","shotType":"","score":0}],
  "editingRecommendation":{"role":"","suggestedDuration":0,"speed":1,"slowMotion":false,"reason":""},
