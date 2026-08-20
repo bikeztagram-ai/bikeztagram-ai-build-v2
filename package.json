@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "verify:core": "node scripts/verify-core-render.mjs"
+    "verify:core": "node scripts/verify-core-render.mjs",
+    "verify:batch3": "node scripts/verify-batch3-intelligent-editing.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
