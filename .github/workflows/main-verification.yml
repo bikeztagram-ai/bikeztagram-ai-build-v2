@@ -1,0 +1,29 @@
+name: Bikeztagram Main Verification
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build production bundle
+        run: npm run build
+      - name: Verify beat-aware production integration
+        run: npm run verify:batch23
+      - name: Verify original music generation bridge
+        run: npm run verify:batch24
