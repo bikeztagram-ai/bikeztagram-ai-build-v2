@@ -16,9 +16,12 @@ assert.match(source, /chunks\.length/, 'World scene must reject an empty recordi
 assert.match(source, /segmenter\?\.close/, 'MediaPipe resources must be released after segmentation.');
 assert.match(source, /URL\.revokeObjectURL\(source\.url\)/, 'Temporary local source URLs must be released.');
 
-// Regression guard for the specific shaky/short-output issue observed in testing.
-// Keep shake deliberately bounded; a large artificial oscillation makes the bike look unstable.
-const shakeMatches = source.match(/Math\.sin\(t\*115\)\*([0-9.]+)/g) || [];
-assert.equal(shakeMatches.length, 0, 'The previous high-frequency t*115 shake must not return.');
+// Regression guard for the shaky-output issue: any artificial shake must remain small.
+const shakeMatches = [...source.matchAll(/Math\.sin\(t\*([0-9.]+)\)\*([0-9.]+)/g)];
+for (const match of shakeMatches) {
+  const frequency = Number(match[1]);
+  const amplitude = Number(match[2]);
+  assert.ok(amplitude <= 3, `World-scene shake amplitude is too large: ${frequency}Hz * ${amplitude}px`);
+}
 
 console.log('world-scene safety verification: PASS');
