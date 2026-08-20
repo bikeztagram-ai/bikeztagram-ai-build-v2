@@ -8,27 +8,30 @@ Updated: 2026-08-20
 - Vercel Blob upload infrastructure.
 - Existing browser renderer and world-bridge infrastructure.
 - GitHub `main` as the protected source of truth.
-- Vercel production project is connected to `main`; deployment-sync has previously been verified on the current project.
+- Vercel production project is connected to `main`; older current production commits have been independently verified as READY.
 
 ## BUILT / TESTED
 - Universal soundtrack director: genre, mood, BPM, energy, sections and beat grid.
 - Beat-aware production timeline integration with source-media timing kept separate from editorial timing.
 - Licensed/trending replacement map for later CapCut/TikTok replacement.
-- Original Lyria music-generation server bridge with safe planning fallback.
+- Original Lyria music-generation bridge with clip/full-song model selection and safe planning fallback.
 - Universal client contract for original music generation.
-- Dedicated Batch 23 and Batch 24 verification scripts.
-- Main-branch CI verification workflow for production build + Batch 23/24 checks.
+- Autonomous timeline quality critic integrated into production-plan generation.
+- Real generated-audio analysis contract using browser Web Audio: BPM estimate, onset detection, beat grid and energy estimate.
+- Dedicated Batch 23–27 verification scripts.
+- Main-branch CI verification workflow for the current feature batches.
 
 ## EXPERIMENTAL
-- Lyria 3 audio generation: the application bridge is implemented, but availability/quotas/model access must be live-tested against the project's Google credentials before it is considered production-trusted.
-- Actual audio-track muxing into the final browser render is not yet marked verified.
+- Lyria 3 live audio generation: bridge is implemented, but live credentials/model availability and quotas still require production verification.
+- Real generated-audio analysis is implemented client-side but not yet used by the final renderer to drive the final muxed video.
+- Timeline critic is integrated at planning time; final rendered-video visual/audio critique and automatic re-render remain to be completed.
 
 ## NOT YET BUILT
-- Automatic final render audio muxing and soundtrack playback from generated audio.
-- Actual beat analysis of the generated/replacement audio signal (as opposed to planned BPM/beat grid).
-- Full self-critique loop that can automatically re-render with improved music/edit decisions.
+- Actual generated soundtrack playback/mux into the final rendered video.
+- Use of real analysed audio beats to drive the final renderer's cuts.
+- Full render → inspect → critique → automatically re-render loop.
 - Fully universal UI for image/video/mixed-media workflows.
 - Final social-export presets and complete live end-to-end acceptance test.
 
 ## Deployment note
-Vercel's Git-connected deployment currently has intermittent build-rate-limit failures on newer pushes. The source remains safely committed to `main`; do not claim a newer commit is live until its Vercel deployment is independently observed as `READY` in production.
+GitHub `main` is receiving the new source commits. Vercel production is currently behind `main`: the latest READY production deployment visible is commit `b126c8c` (universal music generation client contract). Newer commits are currently reporting Vercel build-rate-limit failures. Do not claim newer source changes are live until a corresponding Vercel deployment is independently observed as `READY` in production.
