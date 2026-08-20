@@ -12,7 +12,6 @@ Updated: 2026-08-20
 - Original-music generation bridge and licensed/trending replacement mapping.
 - Browser render QA: decode, playback and sampled-frame inspection.
 - Subject-agnostic architecture: motorcycle remains the stress-test dataset, not the architecture.
-- Vercel project remains intact; Git connection stays disconnected during acceleration so development commits do not trigger deployments.
 - Protected 1080×1920 renderer remains intact; Batch 36 changes only the audio bridge and replacement-map semantics around it.
 
 ## BUILT / TESTED
@@ -30,8 +29,8 @@ Updated: 2026-08-20
 - Batch 34 verified speech-caption bridge: optional automatic speech detection for single uploaded videos, Gemini time-coded caption cues, confidence filtering, and attachment to real AI Director shots without changing source media or renderer infrastructure.
 - Batch 35 licensed/trending-track replacement workflow: exports a copyright-safe rhythm map containing edit timings, source timing, speed, transitions and available beat-grid metadata so the generated/original soundtrack can be swapped later in CapCut/TikTok without losing the intended edit rhythm.
 - Batch 36 beat-sync correctness fix: music alignment now operates on the finished-edit timeline while preserving each real source video's `startTime`; replacement maps distinguish edit timing from source-media offsets; soundtrack playback is explicitly started before MediaRecorder capture.
-- Batch 34, Batch 35 and Batch 36 verification coverage registered in package scripts.
-- Batch 36 regression test executed successfully against the beat-sync and replacement-map logic.
+- Batch 36 production-build regression fix: restored `src/App.jsx` JSX syntax after the previous integration accidentally left an unmatched expression; the Vercel build failure was reproduced from build logs and corrected without changing protected Blob/Gemini/renderer contracts.
+- Batch 36 verification coverage registered in package scripts.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
 - Image end-to-end production render still requires a real browser acceptance run.
@@ -49,8 +48,9 @@ Updated: 2026-08-20
 - Deployment synchronization of the latest `main` commits. Production must not be treated as current until Vercel is deliberately reconnected and a fresh deployment reports READY.
 
 ## Current acceleration priority
-1. Live-verify the accumulated mixed-media + soundtrack + captions + rhythm-map + social-export pipeline.
-2. Add additional output presets without disturbing the protected 9:16 renderer baseline.
-3. Run universal acceptance tests across motorcycle, car, person, animal, travel, landscape and product examples.
-4. Reconnect GitHub → Vercel only at a stable milestone, deploy once, live-test the accumulated product, and verify again.
-5. Only after end-to-end acceptance, move into final UI/product polish.
+1. Restore and verify production build after Batch 36 integration.
+2. Live-verify the accumulated mixed-media + soundtrack + captions + rhythm-map + social-export pipeline.
+3. Add additional output presets without disturbing the protected 9:16 renderer baseline.
+4. Run universal acceptance tests across motorcycle, car, person, animal, travel, landscape and product examples.
+5. Reconnect GitHub → Vercel only at a stable milestone, deploy once, live-test the accumulated product, and verify again.
+6. Only after end-to-end acceptance, move into final UI/product polish.
