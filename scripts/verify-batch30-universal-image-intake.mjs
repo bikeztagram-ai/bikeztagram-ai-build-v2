@@ -14,9 +14,9 @@ assert.match(app,/isImage/);
 assert.match(upload,/image\/jpeg/);
 assert.match(upload,/image\/png/);
 assert.match(upload,/image\/webp/);
-assert.match(imageAnalysis,/mediaType=\"image\"/);
+assert.match(imageAnalysis,/analysis\.mediaType = 'image'/);
 assert.match(imageAnalysis,/universal-ai-filmmaker/);
-assert.doesNotMatch(app,/analyseActualVideo\(\) \{\n    if\(!file\).*requires video/i);
+assert.doesNotMatch(app,/requires video\. Universal image\/mixed-media intake remains/i);
 assert.doesNotMatch(app,/motorcycleModel|ninja1000|kawasaki/i);
 
 console.log('batch30-universal-image-intake: PASS');
