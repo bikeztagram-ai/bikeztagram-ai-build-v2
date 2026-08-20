@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const client=fs.readFileSync(new URL('../src/mediaAnalysisClient.js',import.meta.url),'utf8');
+assert.match(client,/\/api\/analyse-media/);
+assert.match(client,/imageUrl/);
+assert.match(client,/videoUrl/);
+assert.match(client,/startsWith\('image\/'\)/);
+assert.match(client,/startsWith\('video\/'\)/);
+assert.match(client,/universal analysis/);
+console.log('batch19-universal-media-client: PASS');
