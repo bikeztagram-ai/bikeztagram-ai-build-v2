@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const model=fs.readFileSync(new URL('../src/universalMediaModel.js',import.meta.url),'utf8');
+const planner=fs.readFileSync(new URL('../src/aiEditPlanner.js',import.meta.url),'utf8');
+const timeline=fs.readFileSync(new URL('../src/timelineDirector.js',import.meta.url),'utf8');
+assert.match(model,/normalizeUniversalAnalysis/);
+assert.match(model,/normalizeSubject/);
+assert.match(model,/isLikelyAction/);
+assert.match(planner,/normalizeUniversalAnalysis/);
+assert.doesNotMatch(planner,/motorcycleModel/);
+assert.doesNotMatch(planner,/video-0/);
+assert.match(planner,/subjectCategory/);
+assert.match(timeline,/avoidUnnecessaryRepeat/);
+assert.match(timeline,/sourceUsage/);
+console.log('batch15-universal-media-contract: PASS');
