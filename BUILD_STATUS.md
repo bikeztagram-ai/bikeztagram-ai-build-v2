@@ -31,6 +31,7 @@ Updated: 2026-08-20
 - Batch 36 beat-sync correctness fix: music alignment now operates on the finished-edit timeline while preserving each real source video's `startTime`; replacement maps distinguish edit timing from source-media offsets; soundtrack playback is explicitly started before MediaRecorder capture.
 - Batch 36 production-build regression fix: restored `src/App.jsx` JSX syntax after the previous integration accidentally left an unmatched expression; the Vercel build failure was reproduced from build logs and corrected without changing protected Blob/Gemini/renderer contracts.
 - Batch 36 verification coverage registered in package scripts.
+- Batch 37 caption timeline/source timing verification: confidence-filtered speech cues map to overlapping real edit shots with bounded `textIn`/`textOut` timing while preserving the original video `startTime`; registered in main CI.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
 - Image end-to-end production render still requires a real browser acceptance run.
@@ -39,6 +40,7 @@ Updated: 2026-08-20
 - Renderer audio mux + beat sync remains structurally verified and source-offset-safe, but needs independent real-browser generated-audio render verification.
 - Social export/download/share requires a real Android/browser acceptance run; the export helper preserves the renderer's actual MIME type and does not falsely relabel WebM as MP4.
 - Speech captions are structurally integrated and guarded by a UI toggle, but need live verification against real spoken motorcycle/vehicle/person/travel footage and final rendered caption readability.
+- Mixed-media caption integration remains structurally limited until a safe update to `api/analyse-library.js` is made; no forced replacement was performed after a stale-content conflict.
 - Rhythm replacement map needs live acceptance with a real generated soundtrack and an actual licensed/trending replacement track workflow in CapCut/TikTok.
 
 ## NOT YET BUILT
@@ -48,9 +50,9 @@ Updated: 2026-08-20
 - Deployment synchronization of the latest `main` commits. Production must not be treated as current until Vercel is deliberately reconnected and a fresh deployment reports READY.
 
 ## Current acceleration priority
-1. Restore and verify production build after Batch 36 integration.
-2. Live-verify the accumulated mixed-media + soundtrack + captions + rhythm-map + social-export pipeline.
-3. Add additional output presets without disturbing the protected 9:16 renderer baseline.
+1. Safely integrate caption cues into the mixed-media API response path.
+2. Add additional output presets without disturbing the protected 9:16 renderer baseline.
+3. Live-verify the accumulated mixed-media + soundtrack + captions + rhythm-map + social-export pipeline.
 4. Run universal acceptance tests across motorcycle, car, person, animal, travel, landscape and product examples.
 5. Reconnect GitHub → Vercel only at a stable milestone, deploy once, live-test the accumulated product, and verify again.
 6. Only after end-to-end acceptance, move into final UI/product polish.
