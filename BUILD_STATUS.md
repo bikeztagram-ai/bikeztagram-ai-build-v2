@@ -18,6 +18,7 @@ Updated: 2026-08-21
 - Batch 45 end-to-end acceptance contract is registered in the main GitHub verification workflow.
 - Release-hardening acceptance gate checks the critical director, caption, audio, API, QA, social-export and browser-shell contracts together.
 - Production PWA manifest now exists at the path referenced by `index.html`.
+- Release-hardening candidate has been merged into `dev/ai-filmmaker-batch-v2` as merge commit `489189b2aa7df8787cb6da4f6f681893116593b8`.
 
 ## BUILT / TESTED
 - Autonomous render → inspect → revise → re-render orchestration with bounded attempts and deterministic QA revisions.
@@ -48,8 +49,8 @@ Updated: 2026-08-21
 - Controlled GitHub → Vercel production release workflow at the next stable milestone.
 
 ## Current acceleration priority
-1. Obtain a clean GitHub Main Verification run on the audited `main` state.
-2. Perform real browser/Android acceptance of the complete filmmaker flow.
-3. Fix the highest-impact real video-quality failures before adding cosmetic features.
-4. Validate soundtrack, captions, rhythm replacement and alternate social formats with real media.
-5. Reconnect/deploy to Vercel only for a deliberately selected stable release and verify production live.
+1. Perform real browser/Android acceptance of the complete filmmaker flow on the merged development candidate.
+2. Fix the highest-impact real video-quality failures before adding cosmetic features.
+3. Validate soundtrack, captions, rhythm replacement and alternate social formats with real media.
+4. Run the controlled GitHub → Vercel preview deployment for the selected candidate and verify it live.
+5. Promote to production only after the real-media acceptance pass is clean.
