@@ -1,0 +1,7 @@
+/* Universal creative generation schema.
+ * Deliberately subject-agnostic: Bikeztagram is not a motorcycle-only generator.
+ */
+export const GENERATION_TYPES=['text-to-video','image-to-video','multi-image-to-video','subject-scene','world-scene','character-action','object-action','environment','transition','infill','insert','style-transform','story-sequence','product-film','music-video','custom'];
+export function createUniversalGenerationRequest({prompt='',type='custom',assets=[],subjects=[],duration=5,aspectRatio='9:16',style={},camera={},action={},environment={},audio={},constraints={}}={}){return {version:'universal-generation-request-v1',type:GENERATION_TYPES.includes(type)?type:'custom',prompt,assets,subjects,duration:Math.max(.5,Math.min(120,Number(duration)||5)),aspectRatio,style,camera,action,environment,audio,constraints};}
+export function validateUniversalRequest(request){const errors=[];if(!request?.prompt&&!request?.assets?.length)errors.push('prompt-or-assets-required');if(Number(request?.duration)<=0)errors.push('invalid-duration');if(!request?.aspectRatio)errors.push('aspect-ratio-required');return {valid:errors.length===0,errors};}
+export function decomposeCreativeIdea({prompt='',assets=[],subjects=[]}={}){return {intent:String(prompt).trim(),assetIds:assets.map(a=>a.id).filter(Boolean),subjectIds:subjects.map(s=>s.id).filter(Boolean),needs:{story:true,environment:true,action:true,camera:true,style:true,audio:true,continuity:true}};}
