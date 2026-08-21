@@ -1,0 +1,17 @@
+name: Bikeztagram Creative Job Store V2
+on:
+  push:
+    branches: [parallel/batch-27-creative-job-persistence-v2]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: node scripts/verify-creative-job-store-v2.mjs

@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {createJobSnapshot,restoreJobSnapshot,getResumePoint,serialiseJobForLocalStorage,deserialiseJobFromLocalStorage} from '../src/creativeJobStoreV2.js';
+const runtime={stage:'qa',completed:['understand','direct','music','scenes','assemble','render'],outputs:{render:{url:'x'}},attempts:{},errors:[],job:{id:'job-1'}};
+const snap=createJobSnapshot(runtime);
+assert.equal(snap.version,'creative-job-snapshot-v2');
+assert.equal(getResumePoint(runtime),'qa');
+const restored=restoreJobSnapshot(snap);
+assert.equal(restored.version,'creative-runtime-v2');
+assert.equal(deserialiseJobFromLocalStorage(serialiseJobForLocalStorage(runtime)).stage,'qa');
+console.log('Creative job store V2 verification passed');
