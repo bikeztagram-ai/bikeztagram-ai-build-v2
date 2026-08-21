@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const file=fs.readFileSync(new URL('../src/renderAudioBridge.js',import.meta.url),'utf8');
+assert.match(file,/attachDecodedAudio/);
+assert.match(file,/attachPlanAudioToRenderStreamViaElement/);
+assert.match(file,/decodeAudioData/);
+assert.match(file,/createMediaStreamDestination/);
+assert.match(file,/stream\.addTrack/);
+assert.match(file,/Direct generated-audio decode failed/);
+assert.match(file,/Generated soundtrack could not be decoded/);
+assert.match(file,/beatSyncApplied/);
+console.log('batch58-audio-bridge-fallback: PASS');
