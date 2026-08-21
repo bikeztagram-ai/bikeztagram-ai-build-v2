@@ -1,0 +1,3 @@
+/* Adapter boundary for an actual local music-generation runtime. */
+export function createMusicRuntimeAdapter({id,generateMusic,capabilities=[],local=true}={}){return {id:id||'music-runtime',kind:'music',local,capabilities,async generate(request){if(typeof generateMusic!=='function')return {status:'unavailable',reason:'runtime-not-installed',request};return generateMusic(request);}};}
+export function validateMusicRuntimeAdapter(adapter){return {valid:Boolean(adapter?.id&&adapter?.kind==='music'&&Array.isArray(adapter?.capabilities)&&typeof adapter?.generate==='function'),id:adapter?.id||null};}
