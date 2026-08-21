@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { buildRendererPlanFromCreativeJob, buildOriginalMusicForCreativeJob } from '../src/creativeEngineMediaBridgeV2.js';
+import { createVideoGenerationRuntime } from '../src/videoGenerationRuntimeV2.js';
 import { buildCreativeCommandPlan } from '../src/creativeDirectorV2.js';
 
 const command=buildCreativeCommandPlan({
@@ -35,4 +36,12 @@ const music=buildOriginalMusicForCreativeJob(job);
 assert.equal(music.metadata.original,true);
 assert.equal(music.metadata.bpm,116);
 assert.ok(music.audioBlob?.size>1000,'music runtime should return WAV blob');
-console.log('Creative Engine Runtime V2 verification passed:',{cuts:plan.cuts.length,generationRequests:command.plan.generationRequests.length,musicBytes:music.audioBlob.size});
+
+const fakeModel=async request=>({videoBlob:new Blob(['generated-video']),source:'test-model',request});
+const videoRuntime=createVideoGenerationRuntime({modelAdapter:fakeModel,localGenerator:null});
+const generated=await videoRuntime.generate({type:'text-to-video',prompt:'cinematic motorcycle insert',duration:2,timelineRole:'insert'});
+assert.equal(generated.status,'ready');
+assert.equal(generated.source,'test-model');
+assert.equal(generated.request.constraints.originalOnly,true);
+assert.equal(generated.request.timelineRole,'insert');
+console.log('Creative Engine Runtime V2 verification passed:',{cuts:plan.cuts.length,generationRequests:command.plan.generationRequests.length,musicBytes:music.audioBlob.size,videoSource:generated.source});
