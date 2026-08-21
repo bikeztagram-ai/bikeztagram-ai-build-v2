@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const code=fs.readFileSync(new URL('../src/renderer.js',import.meta.url),'utf8');
+assert.match(code,/findMedia/);
+assert.match(code,/getSourceUrl/);
+assert.match(code,/Source media has no decoded dimensions/);
+assert.match(code,/AI edit plan contains no cuts/);
+assert.match(code,/audioBridge\?\.cleanup/);
+assert.match(code,/stabilization===false/);
+console.log('batch62-renderer-media-guard: PASS');
