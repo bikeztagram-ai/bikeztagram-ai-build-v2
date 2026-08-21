@@ -1,0 +1,19 @@
+name: Bikeztagram Creative Audio V2
+on:
+  push:
+    branches: [parallel/batch-26-creative-audio-analysis-v2]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm install
+      - run: node scripts/verify-creative-audio-v2.mjs
