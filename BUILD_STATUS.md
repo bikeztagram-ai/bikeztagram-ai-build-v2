@@ -39,6 +39,10 @@ Updated: 2026-08-21
 - Music Director V2 now plans multi-section original soundtracks with beat grids, drops, candidate ranking, edit/extend/remix/stem intents and a model-agnostic adapter contract.
 - A richer zero-cost local original music runtime now generates kick, snare, hats, bass, melodic plucks, pads, risers and drop impacts from the same beat grid used by the editor.
 - Creative Engine V2 contract verification script covers planning, subject identity, beat alignment, generated-scene requests, local music output and creative QA.
+- Creative Engine Runtime 02 adds an in-house procedural generated-scene runtime using Canvas + MediaRecorder, producing original browser-generated cinematic inserts without external video APIs.
+- Runtime 02 adds a provider-neutral video generation runtime that prefers a supplied model adapter and falls back automatically to the in-house procedural generator.
+- Runtime 02 adds a media bridge that materializes generated scenes into the existing renderer contract and produces the in-house original soundtrack for the same Creative Engine job.
+- Runtime 02 adds dedicated contract verification for the provider-neutral video adapter, renderer-plan mapping and original music runtime.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
 - Premium UI responsive/interaction acceptance on real Android devices.
@@ -54,6 +58,7 @@ Updated: 2026-08-21
 - Controlled GitHub → Vercel release deployment and live production verification.
 - Actual local/open-weight music and video model runtime selection and hardware feasibility.
 - Creative Engine V2 CI/build verification has been added but still requires a successful GitHub Actions run before merge.
+- Creative Engine Runtime 02 browser MediaRecorder generation and generated-scene materialization require live browser acceptance before being treated as production-ready.
 
 ## NOT YET BUILT
 - Full interactive caption styling controls.
@@ -73,3 +78,8 @@ Updated: 2026-08-21
 5. Integrate the Creative Director so one natural-language request can orchestrate real media, generated music, generated scenes, rendering, QA and revision.
 6. Continue real Android/mixed-media acceptance in parallel; fix demonstrated performance or quality failures without destabilising protected contracts.
 7. Only after the integrated candidate is verified: controlled Vercel preview, real-device acceptance, then production promotion.
+
+## Current parallel candidates
+- PR #13 `parallel/creative-engine-integration-01` — Creative Engine Integration 01, draft, not merged.
+- PR #164 `parallel/creative-engine-runtime-02` — Runtime 02, draft, based on Integration 01, not merged.
+- Neither candidate has been deployed to Vercel.
