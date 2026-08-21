@@ -1,0 +1,1 @@
+export function normalizeGenerationResult(raw={}){return {version:'generation-result-v1',jobId:raw.jobId||null,status:raw.status||'unknown',mediaUrl:raw.mediaUrl||raw.outputUrl||null,mediaType:raw.mediaType||raw.type||null,duration:Number(raw.duration)||0,metadata:raw.metadata||{},provenance:raw.provenance||null,error:raw.error||null};}

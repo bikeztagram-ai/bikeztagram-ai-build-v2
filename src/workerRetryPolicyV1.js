@@ -1,0 +1,1 @@
+export function nextRetry({attempt=0,maxAttempts=3,backoffMs=2000,errorCode='unknown'}={}){const retryable=['timeout','busy','temporary','connection'];const canRetry=attempt<maxAttempts&&retryable.includes(errorCode);return {canRetry,nextAttempt:canRetry?attempt+1:attempt,delayMs:canRetry?backoffMs*2**attempt:0};}

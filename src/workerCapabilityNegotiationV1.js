@@ -1,0 +1,1 @@
+export function negotiateWorkerCapabilities({requested=[],available=[]}={}){const supported=requested.filter(x=>available.includes(x));const missing=requested.filter(x=>!available.includes(x));return {supported,missing,compatible:missing.length===0};}
