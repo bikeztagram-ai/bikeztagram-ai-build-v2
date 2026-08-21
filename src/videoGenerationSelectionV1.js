@@ -1,0 +1,2 @@
+export async function generateVideoCandidates({request,generate,count=3,score=async()=>0}={}){const results=[];for(let i=0;i<Math.max(1,count);i++){const output=await generate({...request,candidateIndex:i});const quality=await score(output,request);results.push({candidateIndex:i,output,quality});}return results.sort((a,b)=>b.quality-a.quality);}
+export function selectVideoCandidate(candidates=[]){return candidates[0]||null;}
