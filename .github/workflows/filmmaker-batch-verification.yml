@@ -18,8 +18,8 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: 22
-          cache: npm
+          node-version: 24
+          package-manager-cache: false
       - name: Install dependencies
         run: npm install
       - name: Build production bundle
@@ -36,3 +36,5 @@ jobs:
         run: npm run verify:batch51
       - name: Verify Stage 2 direction preservation
         run: npm run verify:batch52
+      - name: Verify transient API retry runtime
+        run: npm run verify:batch53
