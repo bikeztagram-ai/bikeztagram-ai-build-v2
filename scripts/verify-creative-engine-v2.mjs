@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { planCreativeFilm, createCreativeEngineRuntime, evaluateCreativeFilm } from '../src/creativeEngineRuntimeV2.js';
 import { buildMusicBrief, alignCutsToMusic } from '../src/musicDirectorV2.js';
 import { createVideoGenerationRequest } from '../src/videoGenerationV2.js';
+import { createMusicRuntimeFallback } from '../src/musicProviderV2.js';
 
 const assets=[
  {id:'bike-1',name:'ninja-road-hero.jpg',type:'image/jpeg',subjectId:'bike',subjectLabel:'bike',subjectType:'motorcycle'},
@@ -19,9 +20,12 @@ const cuts=alignCutsToMusic([{start:0,duration:1.1},{start:3.02,duration:1.4}],m
 assert.ok(cuts.every(c=>c.duration>=.25));
 const video=createVideoGenerationRequest({type:'subject-scene',prompt:'Original cinematic city bridge shot',duration:2,subjectIds:['subject-1']});
 assert.equal(video.constraints.preserveSubjectIdentity,true);
+const localMusic=createMusicRuntimeFallback({duration:5,bpm:128,energy:.9});
+assert.equal(localMusic.source,'local-original');
+assert.ok(localMusic.audioBlob.size>44);
 const runtime=createCreativeEngineRuntime(input,{});
 assert.equal(runtime.runtime.stage,'understand');
 const qa=evaluateCreativeFilm({story:70,pacing:75,musicImpact:90,beatUtilisation:85,shotVariety:80,continuity:80,captionQuality:80,technical:95});
 assert.ok(qa.quality.score>0);
 assert.equal(qa.revision.revise,false);
-console.log('Creative Engine V2 verification passed:',JSON.stringify({score:qa.quality.score,generationRequests:plan.plan.generationRequests.length,subjects:plan.plan.subjectManifest.subjects.length}));
+console.log('Creative Engine V2 verification passed:',JSON.stringify({score:qa.quality.score,generationRequests:plan.plan.generationRequests.length,subjects:plan.plan.subjectManifest.subjects.length,localMusicBytes:localMusic.audioBlob.size}));
