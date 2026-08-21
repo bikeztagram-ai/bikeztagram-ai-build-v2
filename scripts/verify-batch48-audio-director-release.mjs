@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const read = (p) => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+const mux = read('src/finalAudioMux.js');
+const loop = read('src/renderQualityLoop.js');
+const qa = read('src/qa.js');
+const music = read('src/musicGenerator.js');
+const bridge = read('src/renderAudioBridge.js');
+
+assert.match(mux, /createMediaStreamDestination/);
+assert.match(mux, /captureStream/);
+assert.match(mux, /MediaRecorder/);
+assert.match(mux, /audioTrack/);
+assert.match(loop, /applyAudioBeatSyncToPlan/);
+assert.match(loop, /attachGeneratedAudioToVideo/);
+assert.match(loop, /requireAudio/);
+assert.match(loop, /FAIL_NO_AUDIO/);
+assert.match(qa, /probeRenderedAudio/);
+assert.match(qa, /audio-signal-detected/);
+assert.match(music, /buildLocalFallback/);
+assert.match(music, /audioDataUrl/);
+assert.match(bridge, /beatGrid/);
+assert.doesNotMatch(loop, /finalAudioMux.*renderProject/);
+console.log('batch48-integrated-audio-director: PASS');
