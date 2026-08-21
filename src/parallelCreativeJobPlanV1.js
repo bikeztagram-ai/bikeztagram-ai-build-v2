@@ -1,0 +1,1 @@
+export function createParallelCreativeJobPlan({music=false,video=false,sharedBrief='',references=[]}={}){const jobs=[];if(music)jobs.push({kind:'music',dependsOn:[]});if(video)jobs.push({kind:'video',dependsOn:[]});return {version:'parallel-creative-job-plan-v1',sharedBrief,references,jobs,parallel:true};}
