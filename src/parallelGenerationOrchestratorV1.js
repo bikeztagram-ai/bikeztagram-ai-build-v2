@@ -1,0 +1,1 @@
+export async function runParallelGeneration({music=null,video=null}={}){const jobs=[];if(music)jobs.push(Promise.resolve().then(()=>music()).then(result=>({kind:'music',result})));if(video)jobs.push(Promise.resolve().then(()=>video()).then(result=>({kind:'video',result})));return Promise.all(jobs);}
