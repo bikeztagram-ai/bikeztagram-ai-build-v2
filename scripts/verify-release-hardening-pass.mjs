@@ -5,6 +5,9 @@ const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), '
 const mustExist = (path) => { assert.ok(fs.existsSync(new URL(`../${path}`, import.meta.url)), `Missing required release file: ${path}`); };
 
 const requiredFiles = [
+  'index.html',
+  'public/manifest.webmanifest',
+  'src/main.jsx',
   'src/App.jsx',
   'src/directorSelection.js',
   'src/timelineDirector.js',
@@ -23,6 +26,9 @@ const requiredFiles = [
 requiredFiles.forEach(mustExist);
 
 const app = read('src/App.jsx');
+const index = read('index.html');
+const manifest = read('public/manifest.webmanifest');
+const main = read('src/main.jsx');
 const director = read('src/directorSelection.js');
 const timeline = read('src/timelineDirector.js');
 const captions = read('src/captionPlanner.js');
@@ -33,6 +39,16 @@ const qa = read('src/renderQualityLoop.js');
 const social = read('src/socialExport.js');
 const formats = read('src/outputFormatEnhancer.jsx');
 const analysis = read('src/mediaAnalysisClient.js');
+const vercel = read('vercel.json');
+
+// PWA/browser shell: the manifest referenced by index.html must actually ship.
+assert.match(index, /manifest\.webmanifest/);
+assert.match(index, /id=\"root\"/);
+assert.match(main, /createRoot/);
+assert.match(main, /<App \/>/);
+assert.match(manifest, /\"display\":\s*\"standalone\"/);
+assert.match(manifest, /\"start_url\":\s*\"\/\"/);
+assert.match(manifest, /\"orientation\":\s*\"portrait-primary\"/);
 
 // Director: real-source selection, diversity and story roles.
 assert.match(director, /selectDirectorMoments/);
@@ -40,11 +56,14 @@ assert.match(director, /usedSources/);
 assert.match(director, /similarity/);
 assert.match(timeline, /hero-ending/);
 assert.match(timeline, /pacingIntent/);
+assert.match(app, /createAIEditPlan/);
+assert.match(app, /renderInspectImprove/);
 
 // Captions: only verified, time-coded speech cues may reach the plan.
 assert.match(captions, /verified-speech-cues/);
 assert.match(captions, /minimumConfidence/);
 assert.match(captions, /captionCueIndex/);
+assert.match(app, /applySpeechCaptionsToPlan/);
 
 // Zero-spend soundtrack safety: the API cannot silently invoke paid Lyria audio.
 assert.match(musicApi, /zero-cost-local-music/);
@@ -65,6 +84,7 @@ assert.match(qa, /maxAttempts/);
 assert.match(social, /downloadSocialFilm/);
 assert.match(social, /shareSocialFilm/);
 assert.match(formats, /OutputFormatEnhancer/);
+assert.match(vercel, /rewrites/);
 
 console.log('release-hardening-pass: PASS');
-console.log(`checked ${requiredFiles.length} required release files and core safety contracts`);
+console.log(`checked ${requiredFiles.length} required release files and core safety/browser contracts`);
