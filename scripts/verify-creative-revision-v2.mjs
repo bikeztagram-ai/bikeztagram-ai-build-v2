@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {buildRevisionActions,buildRevisionJob,applyRevisionPlan} from '../src/creativeRevisionEngineV2.js';
+const quality={score:61,dimensions:{story:80,pacing:55,musicImpact:50,beatUtilisation:58,shotVariety:70,continuity:62,captionQuality:80,technical:95}};
+const actions=buildRevisionActions(quality);
+assert.equal(actions.length,3);
+assert.ok(actions.some(a=>a.operation==='regenerate-music'));
+const job=buildRevisionJob({quality,currentPlan:{revision:{attempts:0}},attempt:0});
+assert.equal(job.shouldRevise,true);
+const plan=applyRevisionPlan({revision:{attempts:0}},{quality});
+assert.equal(plan.revision.requested,true);
+console.log('Creative revision V2 verification passed');
