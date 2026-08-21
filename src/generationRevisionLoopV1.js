@@ -1,0 +1,1 @@
+export function nextGenerationAction({decision='accept',attempt=0,maxAttempts=3}={}){if(decision==='accept')return {action:'accept',attempt};if(decision==='block')return {action:'block',attempt};if(attempt+1<maxAttempts)return {action:'regenerate',attempt:attempt+1};return {action:'block',attempt};}
