@@ -13,7 +13,7 @@ function writeWav(samples,rate){const size=samples.length*2,buf=new ArrayBuffer(
 
 export function createOriginalCinematicWav({seconds=15,bpm=112,energy=.78}={}){
  const rate=44100,total=clamp(Number(seconds)||15,5,60),safeBpm=clamp(Number(bpm)||112,70,150),beat=60/safeBpm,half=beat/2,bar=beat*4,frames=Math.floor(total*rate),samples=new Float32Array(frames),motif=[38,38,41,45,43,41,38,36],lead=[62,65,69,67,65,62,60,57],drops=[bar*2,bar*4,bar*6].filter(t=>t<total-.15),master=clamp(Number(energy)||.78,.2,1);
- for(let i=0;i<frames;i++){const t=i/rate,bi=Math.floor(t/beat),hb=Math.floor(t/half),bb=bi%4,barI=Math.floor(t/bar),local=(t%beat)/beat,halfPos=t%half;let s=0;const phaseEnergy=t<bar*1.5?.6:t<bar*3?.82:t<bar*5?.95:1;const e=clamp(master*phaseEnergy,.15,1);
+ for(let i=0;i<frames;i++){const t=i/rate,bi=Math.floor(t/beat),hb=Math.floor(t/half),bb=bi%4,barI=Math.floor(t/bar),local=(t%beat)/beat,halfPos=t%half;let s=0;const phaseEnergy=t<bar*1.5 ? 0.6 : t<bar*3 ? 0.82 : t<bar*5 ? 0.95 : 1;const e=clamp(master*phaseEnergy,.15,1);
   if(local<.16){s+=bass(t%beat,motif[(barI*2+bb)%motif.length],e);s+=kick(t%beat)*(bb===0?1.12:.86);}
   if(bb===1||bb===3)s+=snare(t%beat,bi)*e;
   if(halfPos<.035)s+=hat(halfPos,hb)*(hb%8===7?1.55:hb%2?.72:.48)*e;
