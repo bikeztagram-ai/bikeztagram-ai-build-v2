@@ -1,0 +1,1 @@
+export function createEditorImport({result,source='generated',role='scene',start=0,duration=null}={}){if(!result?.mediaUrl)throw new Error('generated-media-required');return {version:'generation-editor-import-v1',source,role,mediaUrl:result.mediaUrl,mediaType:result.mediaType||null,start,duration:duration??result.duration??0,provenance:result.provenance||null};}
