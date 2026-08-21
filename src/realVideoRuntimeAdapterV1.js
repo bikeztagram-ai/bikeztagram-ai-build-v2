@@ -1,0 +1,3 @@
+/* Adapter boundary for an actual local video-generation runtime. No provider is hard-coded into the Creative Director. */
+export function createVideoRuntimeAdapter({id,generateScene,capabilities=[],local=true}={}){return {id:id||'video-runtime',kind:'video',local,capabilities,async generate(request){if(typeof generateScene!=='function')return {status:'unavailable',reason:'runtime-not-installed',request};return generateScene(request);}};}
+export function validateVideoRuntimeAdapter(adapter){return {valid:Boolean(adapter?.id&&adapter?.kind==='video'&&Array.isArray(adapter?.capabilities)&&typeof adapter?.generate==='function'),id:adapter?.id||null};}
