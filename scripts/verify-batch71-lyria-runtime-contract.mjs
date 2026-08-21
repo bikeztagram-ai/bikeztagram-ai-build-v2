@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const code=fs.readFileSync(new URL('../api/generate-music.js',import.meta.url),'utf8');
+assert.match(code,/lyria-3-clip-preview/);
+assert.match(code,/lyria-3-pro-preview/);
+assert.match(code,/generateContent/);
+assert.match(code,/responseModalities:\[\s*'AUDIO','TEXT'\s*\]/);
+assert.match(code,/inlineData\?\.data/);
+assert.match(code,/inline_data\?\.data/);
+assert.match(code,/audioDataUrl/);
+assert.match(code,/planning-fallback/);
+console.log('batch71-lyria-runtime-contract: PASS');
