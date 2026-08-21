@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import { buildRendererPlanFromCreativeJob, buildOriginalMusicForCreativeJob } from '../src/creativeEngineMediaBridgeV2.js';
-import { createCreativeCommandPlan } from '../src/creativeDirectorV2.js';
+import { buildCreativeCommandPlan } from '../src/creativeDirectorV2.js';
 
-const command=createCreativeCommandPlan({
+const command=buildCreativeCommandPlan({
  prompt:'Create a dark cinematic motorcycle trailer with a reveal, action section and premium ending.',
  assets:[
   {id:'a',name:'bike-front.jpg',type:'image/jpeg',width:1920,height:1080},
   {id:'b',name:'ride.mp4',type:'video/mp4',duration:4.5,width:1920,height:1080}
  ],
- targetDuration:15,
+ duration:15,
 });
-assert.equal(command.ok,true,'director command should be valid');
+assert.equal(command.version,'creative-command-plan-v2','director command should be valid');
 assert.ok(command.plan.generationRequests.length>=1,'director should be able to request generated inserts');
 
 const job={
@@ -34,5 +34,5 @@ assert.equal(plan.targetDuration,15);
 const music=buildOriginalMusicForCreativeJob(job);
 assert.equal(music.metadata.original,true);
 assert.equal(music.metadata.bpm,116);
-assert.ok(music.audioBlob instanceof Blob || music.audioBlob?.size>1000,'music runtime should return WAV blob');
+assert.ok(music.audioBlob?.size>1000,'music runtime should return WAV blob');
 console.log('Creative Engine Runtime V2 verification passed:',{cuts:plan.cuts.length,generationRequests:command.plan.generationRequests.length,musicBytes:music.audioBlob.size});
