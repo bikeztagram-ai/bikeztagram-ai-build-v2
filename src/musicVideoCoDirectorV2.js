@@ -1,0 +1,4 @@
+/* Maps musical events to creative visual intent without assuming a subject. */
+const VISUALS={intro:'establish',build:'increase-motion',riser:'anticipate',drop:'impact-or-reveal',fill:'transition',break:'breathe',finale:'hero-payoff',energy:'adjust-pacing'};
+export function mapMusicToVisuals(events=[],{maxEvents=20}={}){return events.slice(0,maxEvents).map((e,i)=>({id:`mv-${i+1}`,time:Number(e.time)||0,musicType:e.type||e.kind||'energy',visualDirective:VISUALS[e.type]||VISUALS[e.kind]||'adjust-pacing',strength:Number(e.strength)||0.5}));}
+export function buildCoDirectedTimeline({scenes=[],musicEvents=[],duration=15}={}){const directives=mapMusicToVisuals(musicEvents);return {version:'music-video-co-director-v2',duration,scenes,directives,policy:{preferMeaningfulCuts:true,avoidBeatSpam:true,protectStoryContinuity:true}};}
