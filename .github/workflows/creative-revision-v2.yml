@@ -1,0 +1,17 @@
+name: Bikeztagram Creative Revision V2
+on:
+  push:
+    branches: [parallel/batch-28-creative-revision-v2]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: node scripts/verify-creative-revision-v2.mjs
