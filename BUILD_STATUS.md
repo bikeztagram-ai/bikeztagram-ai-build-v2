@@ -16,7 +16,8 @@ Updated: 2026-08-21
 - Social export/download/share contracts.
 - Source-aware speech-caption integration for single and mixed-media workflows.
 - Batch 45 end-to-end acceptance contract is registered in the main GitHub verification workflow.
-- Release-hardening acceptance gate checks the critical director, caption, audio, API, QA and social-export contracts together.
+- Release-hardening acceptance gate checks the critical director, caption, audio, API, QA, social-export and browser-shell contracts together.
+- Production PWA manifest now exists at the path referenced by `index.html`.
 
 ## BUILT / TESTED
 - Autonomous render → inspect → revise → re-render orchestration with bounded attempts and deterministic QA revisions.
@@ -27,7 +28,7 @@ Updated: 2026-08-21
 - Output-format controls are wired into the finished-film result UI through `OutputFormatEnhancer`; the protected render remains 9:16 and alternate formats are produced as post-render exports.
 - GitHub Main Verification workflow runs the build plus Batch 23–39 and Batch 41–45 acceptance contracts.
 - Production blueprint is consumed by final render-plan construction when available, while preserving the existing local-plan fallback.
-- Release-hardening workflow now performs a production build and consolidated safety/contract gate on the release branch.
+- Release-hardening workflow performs a production build and consolidated safety/contract gate on the release branch.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
 - Premium UI responsive/interaction acceptance on real Android devices.
