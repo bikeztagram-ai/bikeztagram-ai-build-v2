@@ -1,0 +1,1 @@
+export function scoreCreativeOutput({scores={}}={}){const weights={briefFidelity:.2,subjectConsistency:.2,motionOrAudioQuality:.15,structure:.15,eventAlignment:.1,technicalQuality:.1,originality:.1};const total=Object.entries(weights).reduce((sum,[k,w])=>sum+(Number(scores[k])||0)*w,0);return {version:'creative-quality-score-v1',score:Math.round(total*100)/100,weights,scores};}
