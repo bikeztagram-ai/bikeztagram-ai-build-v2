@@ -1,0 +1,2 @@
+/* Bikeztagram-owned adapter. ACE-Step remains a replaceable local inference component. */
+export function createAceStepAdapter({generate=null,version='1.5'}={}){return {id:'ace-step',kind:'music',modelId:'ACE-Step-1.5',version,local:true,capabilities:['text-to-music','lyrics-to-song','long-form','repaint','stem-separation','audio-understanding'],async generate(request){if(typeof generate!=='function')return {status:'unavailable',reason:'ace-step-runtime-not-installed',request};return generate(request);}};}
