@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const generator=fs.readFileSync(new URL('../src/musicGenerator.js',import.meta.url),'utf8');
+const api=fs.readFileSync(new URL('../api/generate-music.js',import.meta.url),'utf8');
+const bridge=fs.readFileSync(new URL('../src/renderAudioBridge.js',import.meta.url),'utf8');
+assert.match(generator,/requestJson\('\/api\/generate-music'/);
+assert.match(generator,/planning-plus-local-audio-fallback/);
+assert.match(generator,/local-audio-fallback/);
+assert.match(generator,/createOriginalPulseWav/);
+assert.match(generator,/audioDataUrl/);
+assert.match(api,/lyria-3-clip-preview/);
+assert.match(api,/lyria-3-pro-preview/);
+assert.match(api,/audioDataUrl:`data:/);
+assert.match(bridge,/music\?\.audioDataUrl/);
+assert.match(bridge,/soundtrack\?\.audioDataUrl/);
+assert.match(bridge,/createMediaStreamDestination/);
+console.log('batch72-music-audibility-fallback: PASS');
