@@ -1,5 +1,6 @@
 /* BIKEZTAGRAM AI — autonomous render/inspect/revise controller. */
 import { renderProject } from './renderer.js';
+import { attachGeneratedAudioToVideo } from './finalAudioMux.js';
 import { validateRenderedVideo, buildDirectorQAReport } from './qa.js';
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
 export function revisePlanAfterQA(plan, qa) {
@@ -22,10 +23,26 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
   const renderMediaItems = mediaItems.map((item) => item?.file ? { ...item, sourceUrl: undefined } : item);
   let currentPlan = plan; const attempts = []; const limit = Math.max(1, Math.min(3, maxAttempts));
   for (let attempt = 1; attempt <= limit; attempt += 1) {
-    const output = await renderProject(renderMediaItems, currentPlan, (value) => onProgress?.({ stage: 'render', attempt, value }));
-    if (!(output instanceof Blob) || output.size === 0) throw new Error(`Render attempt ${attempt} produced an empty video.`);
+    const rendered = await renderProject(renderMediaItems, currentPlan, (value) => onProgress?.({ stage: 'render', attempt, value }));
+    if (!(rendered instanceof Blob) || rendered.size === 0) throw new Error(`Render attempt ${attempt} produced an empty video.`);
+
+    let output = rendered;
+    const audioDataUrl = currentPlan?.music?.audioDataUrl || currentPlan?.soundtrack?.audioDataUrl;
+    if (audioDataUrl) {
+      onProgress?.({ stage: 'audio', attempt, value: 0 });
+      const audioResult = await attachGeneratedAudioToVideo(rendered, audioDataUrl, { onProgress: (value) => onProgress?.({ stage: 'audio', attempt, value }) });
+      if (audioResult.attached && audioResult.blob?.size) {
+        output = audioResult.blob;
+        currentPlan = { ...currentPlan, music: { ...(currentPlan.music || {}), finalAudioAttached: true, finalAudioMimeType: audioResult.mimeType, finalAudioDuration: audioResult.duration } };
+        onProgress?.({ stage: 'audio', attempt, value: 100 });
+      } else {
+        currentPlan = { ...currentPlan, music: { ...(currentPlan.music || {}), finalAudioAttached: false, finalAudioWarning: audioResult.reason || 'Audio mux unavailable; visual render preserved.' } };
+        console.warn('[RENDER] Generated soundtrack could not be attached:', audioResult.reason || 'unknown reason');
+      }
+    }
+
     let qa; try { qa = await validateRenderedVideo(output, expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15); } catch (error) { qa = { passed: false, verdict: 'FAIL_DECODE', error: error?.message || String(error), expectedDurationSeconds: expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15 }; }
-    attempts.push({ attempt, bytes: output.size, qa }); onProgress?.({ stage: 'qa', attempt, value: 100, qa });
+    attempts.push({ attempt, bytes: output.size, qa, audioAttached: Boolean(currentPlan?.music?.finalAudioAttached) }); onProgress?.({ stage: 'qa', attempt, value: 100, qa });
     if (qa.passed && qa.verdict === 'PASS') return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
     if (attempt >= limit) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
     const revision = revisePlanAfterQA(currentPlan, qa); if (!revision.changed) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
