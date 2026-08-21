@@ -1,0 +1,3 @@
+import assert from 'node:assert/strict';
+import {registerCreativeProvider,findProviders,selectProvider} from '../src/creativeProviderDiscoveryV1.js';
+let r={};r=registerCreativeProvider(r,{id:'local-video',capabilities:['image-to-video'],local:true,commercialEligible:true,priority:10});r=registerCreativeProvider(r,{id:'remote-video',capabilities:['image-to-video'],local:false,commercialEligible:true,priority:5});assert.equal(findProviders(r,{capability:'image-to-video',localOnly:true})[0].id,'local-video');assert.equal(selectProvider(r,{capability:'image-to-video',preferLocal:true}).id,'local-video');console.log('Creative provider discovery V1 verification passed');

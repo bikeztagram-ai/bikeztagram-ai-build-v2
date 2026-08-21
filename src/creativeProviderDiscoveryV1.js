@@ -1,0 +1,4 @@
+/* Runtime discovery registry. Providers/models advertise capabilities; the Director remains provider-neutral. */
+export function registerCreativeProvider(registry,provider){const copy={...(registry||{})};copy[provider.id]={...provider,capabilities:[...(provider.capabilities||[])]};return copy;}
+export function findProviders(registry,{capability,localOnly=false,commercialOnly=false}={}){return Object.values(registry||{}).filter(p=>(!capability||p.capabilities?.includes(capability))&&(!localOnly||p.local===true)&&(!commercialOnly||p.commercialEligible===true)).sort((a,b)=>(Number(b.priority)||0)-(Number(a.priority)||0));}
+export function selectProvider(registry,request={}){const candidates=findProviders(registry,{capability:request.capability,localOnly:request.preferLocal,commercialOnly:true});return candidates[0]||null;}
