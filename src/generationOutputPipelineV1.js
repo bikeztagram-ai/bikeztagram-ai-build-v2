@@ -1,0 +1,3 @@
+/* Normalises generated media before it enters the protected timeline/renderer. */
+export function prepareGeneratedMedia({output,type,sourceRequest}={}){if(!output)return {status:'invalid',reason:'missing-output'};return {version:'generated-media-handoff-v1',status:'ready',type:type||'unknown',sourceRequestId:sourceRequest?.id||null,url:output.url||output.videoUrl||output.audioUrl||null,duration:Number(output.duration)||0,width:Number(output.width)||null,height:Number(output.height)||null,metadata:output.metadata||{}};}
+export function validateGeneratedMedia(media){const errors=[];if(!media?.url)errors.push('url');if(!media?.type)errors.push('type');if(!(Number(media?.duration)>0))errors.push('duration');return {valid:errors.length===0,errors};}
