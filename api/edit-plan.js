@@ -15,7 +15,13 @@ export default async function handler(req, res) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-goog-api-key': apiKey }, body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: directorPrompt }] }], generationConfig: { responseMimeType: 'application/json' } }) });
         const responseText = await response.text();
-        if (!response.ok) { failures.push(`${model}: HTTP ${response.status}`); if ([408,425,429,500,502,503,504].includes(response.status)) continue; return res.status(500).json({ success:false,error:`Gemini error ${response.status}: ${responseText.slice(0,500)}` }); }
+        if (!response.ok) {
+          failures.push(`${model}: HTTP ${response.status}`);
+          // 404 is included because a model can be unavailable/retired for a project;
+          // that is exactly the condition the ordered model failover is designed to handle.
+          if ([404, 408, 425, 429, 500, 502, 503, 504].includes(response.status)) continue;
+          return res.status(500).json({ success:false,error:`Gemini error ${response.status}: ${responseText.slice(0,500)}` });
+        }
         try { geminiData = JSON.parse(responseText); } catch { failures.push(`${model}: invalid response JSON`); continue; }
         if (geminiData?.candidates?.[0]?.content?.parts?.some((part) => typeof part.text === 'string')) break;
         failures.push(`${model}: empty response`);
