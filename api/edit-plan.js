@@ -38,18 +38,20 @@ export default async function handler(req, res) {
       const momentStart=Number(moment?.start),momentEnd=Number(moment?.end);
       if(!Number.isFinite(momentStart)||!Number.isFinite(momentEnd)||momentEnd<=momentStart)return null;
       const momentLength=momentEnd-momentStart;
+      if(momentLength<0.5)return null;
       const requestedStart=Number(cut.startTime),requestedEnd=Number(cut.endTime);
       const startTime=Number.isFinite(requestedStart)
-        ? Math.min(momentEnd-0.1,Math.max(momentStart,Math.min(requestedStart,momentEnd-0.1)))
+        ? Math.min(momentEnd-0.5,Math.max(momentStart,Math.min(requestedStart,momentEnd-0.5)))
         : momentStart;
       const endTime=Number.isFinite(requestedEnd)
-        ? Math.max(startTime+Math.min(0.1,momentLength),Math.min(requestedEnd,momentEnd))
+        ? Math.max(startTime+0.5,Math.min(requestedEnd,momentEnd))
         : momentEnd;
-      const safeEndTime=Math.min(momentEnd,Math.max(startTime,endTime));
-      const availableDuration=Math.max(0.1,safeEndTime-startTime);
+      const safeEndTime=Math.min(momentEnd,Math.max(startTime+0.5,endTime));
+      if(safeEndTime>momentEnd||startTime<momentStart||safeEndTime-startTime<0.5)return null;
+      const availableDuration=safeEndTime-startTime;
       const duration=Math.max(0.5,Math.min(4,Number(cut.duration)||Math.min(2,availableDuration),availableDuration));
-      return {momentIndex,startTime,safeEndTime,duration,purpose:String(cut.purpose||'cinematic'),transition:validTransitions.has(String(cut.transition))?String(cut.transition):'hard-cut',motionStyle:validMotionStyles.has(String(cut.motionStyle))?String(cut.motionStyle):'static',speed:Math.max(0.5,Math.min(1.5,Number(cut.speed)||1)),text:String(cut.text||'')};
-    }).map((cut) => cut ? {...cut,endTime:cut.safeEndTime} : null).filter(Boolean).slice(0,8);
+      return {momentIndex,startTime,endTime:safeEndTime,duration,purpose:String(cut.purpose||'cinematic'),transition:validTransitions.has(String(cut.transition))?String(cut.transition):'hard-cut',motionStyle:validMotionStyles.has(String(cut.motionStyle))?String(cut.motionStyle):'static',speed:Math.max(0.5,Math.min(1.5,Number(cut.speed)||1)),text:String(cut.text||'')};
+    }).filter(Boolean).slice(0,8);
     if (!plan.cuts.length) return res.status(500).json({ success:false,error:'Gemini returned no cuts linked to verified media moments.' });
     return res.status(200).json({ success:true,plan });
   } catch (error) { console.error('[EDIT PLAN] Error:',error); return res.status(500).json({ success:false,error:error?.message||'Unknown edit-plan error.' }); }
