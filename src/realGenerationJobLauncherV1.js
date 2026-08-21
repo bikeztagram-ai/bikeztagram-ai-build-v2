@@ -1,0 +1,1 @@
+export async function launchGenerationJobs({music=null,video=null,workerResolver,jobFactory}={}){const jobs=[];for(const request of [music,video].filter(Boolean)){const worker=await workerResolver(request.kind,request.runtimeId);const job=jobFactory(request);jobs.push(worker.createJob(job));}return Promise.all(jobs);}
