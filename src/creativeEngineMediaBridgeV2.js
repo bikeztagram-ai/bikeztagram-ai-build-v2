@@ -1,6 +1,6 @@
 /* Bridge Creative Engine plans into the existing renderer contract. */
 import { createOriginalCinematicWav } from './musicProviderV2.js';
-import { generateProceduralSceneV2 } from './proceduralSceneGeneratorV2.js';
+import { createVideoGenerationRuntime } from './videoGenerationRuntimeV2.js';
 
 const safeNumber=(v,fallback=0)=>Number.isFinite(Number(v))?Number(v):fallback;
 
@@ -24,13 +24,14 @@ export function buildRendererPlanFromCreativeJob(job,{prompt='',targetDuration=1
  return {title:job?.title||'Creative Engine Film',style:job?.style?.name||'cinematic',creativePrompt:prompt,colorGrade:job?.style?.colorGrade||'dark-cinematic',targetDuration:safeNumber(job?.targetDuration,targetDuration),cuts,speechCaptions:job?.captions||[],captioning:job?.captioning||{enabled:false}};
 }
 
-export async function materializeGeneratedScenesV2(job,{onProgress}={}){
- const scenes=Array.isArray(job?.scenes)?job.scenes:[],generated=[];
+export async function materializeGeneratedScenesV2(job,{onProgress,modelAdapter=null}={}){
+ const scenes=Array.isArray(job?.scenes)?job.scenes:[],generated=[];const runtime=createVideoGenerationRuntime({modelAdapter});
  const total=scenes.filter(s=>s.generated||s.sourceType==='generated'||s.sourceType==='procedural'||s.generationPrompt).length;let completed=0;
  for(let i=0;i<scenes.length;i++){
   const scene=scenes[i],needs=Boolean(scene.generated||scene.sourceType==='generated'||scene.sourceType==='procedural'||scene.generationPrompt);if(!needs)continue;
-  const result=await generateProceduralSceneV2({prompt:scene.generationPrompt||scene.prompt||scene.purpose||'',purpose:scene.purpose||'generated scene',duration:scene.duration||4,title:scene.text||'',onProgress:p=>onProgress?.({sceneIndex:i,sceneProgress:p,completed,total})});
-  generated.push({sceneIndex:i,blob:result.blob,url:result.url,sourceUrl:result.url,sourceType:'generated',generated:true,mimeType:result.mimeType,name:`generated-scene-${i+1}.${result.mimeType.includes('webm')?'webm':'mp4'}`,duration:result.duration});completed++;onProgress?.({sceneIndex:i,sceneProgress:100,completed,total});
+  const result=await runtime.generate({type:scene.referenceAssets?.length?'image-to-video':'text-to-video',prompt:scene.generationPrompt||scene.prompt||scene.purpose||'',duration:scene.duration||4,aspectRatio:'9:16',referenceAssets:scene.referenceAssets||[],subjectIds:scene.subjectIds||[],camera:scene.camera||scene.motionStyle||'',motion:scene.motionStyle||'',lighting:scene.lighting||'',environment:scene.environment||'',timelineRole:scene.purpose||'generated scene'},{title:job?.title||'',onProgress:p=>onProgress?.({sceneIndex:i,sceneProgress:p,completed,total})});
+  if(!result?.blob&&!result?.videoBlob&&!result?.videoUrl)throw new Error(`Generated scene ${i+1} returned no media output.`);
+  generated.push({sceneIndex:i,blob:result.blob||result.videoBlob||null,url:result.url||result.videoUrl||'',sourceUrl:result.sourceUrl||result.url||result.videoUrl||'',sourceType:'generated',generated:true,mimeType:result.mimeType||result.blob?.type||result.videoBlob?.type||'video/webm',name:`generated-scene-${i+1}.webm`,duration:result.duration||scene.duration||4,provider:result.source||'local-procedural',request:result.request});completed++;onProgress?.({sceneIndex:i,sceneProgress:100,completed,total});
  }
  return generated;
 }
