@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const code=fs.readFileSync(new URL('../api/generate-music.js',import.meta.url),'utf8');
+assert.match(code,/lyria-3-clip-preview/);
+assert.match(code,/lyria-3-pro-preview/);
+assert.match(code,/audioAvailable:true/);
+assert.match(code,/audioDataUrl/);
+assert.match(code,/planning-fallback/);
+assert.match(code,/Do not reproduce any existing copyrighted recording/);
+console.log('batch65-music-generation-contract: PASS');
