@@ -1,0 +1,1 @@
+export function buildAudioVideoEventSync({audioEvents=[],videoEvents=[]}={}){const events=[...audioEvents.map(e=>({...e,kind:'audio'})),...videoEvents.map(e=>({...e,kind:'video'}))].sort((a,b)=>Number(a.timeMs||0)-Number(b.timeMs||0));return {version:'audio-video-event-sync-v1',events,anchors:events.filter(e=>e.anchor||e.kind==='audio')};}
