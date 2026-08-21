@@ -11,12 +11,12 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout batch branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           package-manager-cache: false
@@ -40,10 +40,14 @@ jobs:
         run: npm run verify:batch53
       - name: Verify Gemini 404 failover and timestamp safety
         run: npm run verify:batch54
+      - name: Verify Stage 2 timestamp safety
+        run: npm run verify:batch55
       - name: Verify music API resilience
         run: npm run verify:batch56
       - name: Verify caption resilience
         run: npm run verify:batch57
+      - name: Verify audio bridge fallback
+        run: npm run verify:batch58
       - name: Verify audio QA contract
         run: npm run verify:batch58
       - name: Verify social export safety
