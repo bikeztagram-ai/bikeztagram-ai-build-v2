@@ -1,0 +1,1 @@
+export function buildRuntimeAvailabilityReport({video=[],music=[]}={}){return {version:'runtime-availability-report-v1',video:video.map(normalise),music:music.map(normalise)};}function normalise(r){return {id:r.id||null,version:r.version||null,available:Boolean(r.available),capabilities:r.capabilities||[],reason:r.available?'ready':'unavailable'};}
