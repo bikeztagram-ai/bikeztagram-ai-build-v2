@@ -1,0 +1,1 @@
+export async function runVideoBenchmark({cases=[],generate,score}={}){const results=[];for(const testCase of cases){const started=Date.now();const output=await generate(testCase);const evaluation=await score(output,testCase);results.push({caseId:testCase.id,output,evaluation,elapsedMs:Date.now()-started});}return {version:'video-benchmark-runner-v1',results};}
