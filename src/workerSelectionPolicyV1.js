@@ -1,0 +1,1 @@
+export function selectGenerationWorker({kind='video',workers=[]}={}){const eligible=workers.filter(w=>w&&w.enabled!==false&&(w.kind===kind||w.kind==='multimodal')).sort((a,b)=>(b.priority||0)-(a.priority||0));return {version:'worker-selection-v1',kind,selected:eligible[0]||null,candidates:eligible.map(w=>w.id||w.name).filter(Boolean)};}
