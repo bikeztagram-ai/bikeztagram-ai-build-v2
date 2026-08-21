@@ -1,6 +1,7 @@
 /* BIKEZTAGRAM AI — autonomous render/inspect/revise controller. */
 import { renderProject } from './renderer.js';
 import { applyAudioBeatSyncToPlan } from './renderAudioBridge.js';
+import { alignCutsToMusic } from './musicDirector.js';
 import { attachGeneratedAudioToVideo } from './finalAudioMux.js';
 import { validateRenderedVideo, buildDirectorQAReport } from './qa.js';
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
@@ -24,6 +25,10 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
     if (currentPlan?.music?.audioAnalysis || currentPlan?.music?.beatGrid || currentPlan?.soundtrack?.audioAnalysis || currentPlan?.soundtrack?.beatGrid) {
       const beatSync = applyAudioBeatSyncToPlan(currentPlan);
       currentPlan = beatSync.plan;
+      if (beatSync.enabled) {
+        const dropSync = alignCutsToMusic(currentPlan.cuts, currentPlan.music || currentPlan.soundtrack);
+        currentPlan = { ...currentPlan, cuts: dropSync };
+      }
       onProgress?.({ stage: 'beat-sync', attempt, value: beatSync.enabled ? 100 : 0, beats: beatSync.beats || 0 });
     }
     const rendered = await renderProject(renderMediaItems, currentPlan, (value) => onProgress?.({ stage: 'render', attempt, value }));
