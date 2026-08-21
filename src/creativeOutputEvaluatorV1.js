@@ -1,0 +1,3 @@
+/* Converts observed generation evidence into benchmark-ready scores. */
+export function evaluateCreativeOutput({observations={},expected={},metadata={}}={}){const scores={};for(const key of Object.keys(expected)){const value=observations[key];scores[key]=typeof value==='number'?Math.max(0,Math.min(100,value)):value===expected[key]?100:0;}const values=Object.values(scores).filter(v=>typeof v==='number');return {version:'creative-output-evaluation-v1',scores,overall:values.length?Math.round(values.reduce((a,b)=>a+b,0)/values.length):0,metadata};}
+export function buildEvidenceRecord({testId,modelId,output,evaluation,notes=[]}={}){return {version:'creative-evidence-v1',testId,modelId,output,evaluation,notes,recordedAt:new Date().toISOString()};}
