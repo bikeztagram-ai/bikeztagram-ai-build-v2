@@ -1,0 +1,3 @@
+/* Chooses execution mode using capability, local availability and explicit user policy. */
+export function routeGeneration({localAvailable=false,remoteAvailable=false,preferLocal=true,allowRemote=false}={}){if(preferLocal&&localAvailable)return 'local';if(allowRemote&&remoteAvailable)return 'remote';if(localAvailable)return 'local';return 'fallback';}
+export function estimateGenerationBudget({duration=5,complexity=1,candidates=1}={}){return {duration:Math.max(0,Number(duration)||0),complexity:Math.max(0,Number(complexity)||1),candidates:Math.max(1,Number(candidates)||1),units:(Math.max(0,Number(duration)||0)*Math.max(0,Number(complexity)||1)*Math.max(1,Number(candidates)||1))};}
