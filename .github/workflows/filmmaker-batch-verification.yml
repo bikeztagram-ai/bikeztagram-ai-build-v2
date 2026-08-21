@@ -38,3 +38,5 @@ jobs:
         run: npm run verify:batch52
       - name: Verify transient API retry runtime
         run: npm run verify:batch53
+      - name: Verify Gemini 404 failover and timestamp safety
+        run: npm run verify:batch54
