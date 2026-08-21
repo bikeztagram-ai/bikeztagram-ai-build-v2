@@ -3,6 +3,38 @@ import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai
 function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || min)); }
 function text(value) { return String(value ?? '').trim(); }
 
+const GEMINI_ANALYSIS_MODELS = [
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+];
+
+function isTransientGeminiError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return message.includes('503') || message.includes('unavailable') || message.includes('high demand') || message.includes('429') || message.includes('resource_exhausted') || message.includes('rate limit') || message.includes('overloaded');
+}
+
+async function generateWithGeminiFailover(ai, request, label) {
+  const failures = [];
+  for (const model of GEMINI_ANALYSIS_MODELS) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        console.log(`[${label}] Trying Gemini model ${model}, attempt ${attempt}`);
+        const response = await ai.models.generateContent({ ...request, model });
+        console.log(`[${label}] Gemini model succeeded: ${model}`);
+        return { response, model };
+      } catch (error) {
+        const message = error?.message || String(error);
+        failures.push(`${model} attempt ${attempt}: ${message}`);
+        console.warn(`[${label}] ${model} failed:`, message);
+        if (!isTransientGeminiError(error)) throw error;
+        if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
+      }
+    }
+  }
+  throw new Error(`Gemini media analysis is temporarily unavailable after trying ${GEMINI_ANALYSIS_MODELS.join(', ')}. ${failures.join(' | ')}`);
+}
+
 function buildStage2Prompt(prompt, analysis, targetDuration = 15) {
   const target = clamp(targetDuration, 5, 60);
   return `You are the final AI edit director for BIKEZTAGRAM AI, a GENERAL-PURPOSE AI FILMMAKER.
@@ -66,7 +98,7 @@ function validateStage2Plan(plan, analysis, targetDuration) {
     const key = `${momentIndex}:${Math.round(startTime * 4) / 4}:${Math.round(endTime * 4) / 4}`;
     if (seen.has(key)) return null;
     seen.add(key);
-    return { momentIndex, startTime:Number(startTime.toFixed(2)), endTime:Number(endTime.toFixed(2)), duration:Number(duration.toFixed(2)), purpose:text(cut?.purpose)||'cinematic', transition:transitions.has(text(cut?.transition))?text(cut.transition):'hard-cut', motionStyle:motions.has(text(cut?.motionStyle))?text(cut.motionStyle):'static', speed:Math.max(0.5,Math.min(1.5,Number(cut?.speed)||1)), text:text(cut?.text) };
+    return { momentIndex, startTime:Number(startTime.toFixed(2)), endTime:Number(endTime.toFixed(2)), duration:Number(duration.toFixed(2)), purpose:text(cut?.purpose)||'cinematic', transition:transitions.has(text(cut?.transition))?text(cut.transition):'hard-cut', motionStyle:motions.has(text(cut?.motionStyle))?text(cut?.motionStyle):'static', speed:Math.max(0.5,Math.min(1.5,Number(cut?.speed)||1)), text:text(cut?.text) };
   }).filter(Boolean).slice(0,8);
   if (!cuts.length) return null;
   return { title:text(plan?.title)||'Bikeztagram AI Cinematic Edit', style:text(plan?.style)||'cinematic', colorGrade:text(plan?.colorGrade)||'cinematic', editorialStructure:Array.isArray(plan?.editorialStructure)?plan.editorialStructure.map(text).filter(Boolean).slice(0,8):[], textOverlay:text(plan?.textOverlay), cuts, targetDuration:target, sourceSelection:{exactMomentCount:cuts.length,uniqueMomentCount:new Set(cuts.map(c=>c.momentIndex)).size}, stage:'two-stage-gemini-director' };
@@ -94,7 +126,6 @@ export default async function handler(req, res) {
     console.log('[ANALYSE] Uploading video to Gemini...');
     let videoFile=await ai.files.upload({file:new Blob([videoBuffer],{type:contentType}),config:{mimeType:contentType,displayName:filename}});
     if(!videoFile?.name)throw new Error('Gemini did not return a valid uploaded file.');
-    console.log('[ANALYSE] Gemini file uploaded:',videoFile.name);
     for(let attempt=0;attempt<60;attempt++){
       const state=String(videoFile?.state||'').toUpperCase();
       console.log('[ANALYSE] Gemini processing state:',state,'attempt:',attempt+1);
@@ -173,23 +204,28 @@ Return ONLY valid JSON using this structure:
  "editorialNotes":""
 }`;
 
-    console.log('[ANALYSE] Sending actual media to Gemini Stage 1...');
-    const response=await ai.models.generateContent({model:'gemini-3.6-flash',contents:createUserContent([createPartFromUri(videoFile.uri,videoFile.mimeType||contentType),analysisPrompt])});
+    console.log('[ANALYSE] Sending actual media to Gemini Stage 1 with automatic model failover...');
+    const stage1 = await generateWithGeminiFailover(ai, {
+      contents:createUserContent([createPartFromUri(videoFile.uri,videoFile.mimeType||contentType),analysisPrompt]),
+    }, 'ANALYSE-STAGE1');
+    const response=stage1.response;
     let modelText=String(response?.text||'').replace(/```json/gi,'').replace(/```/g,'').trim();
     if(!modelText)throw new Error('Gemini returned no analysis.');
     let analysis;try{analysis=JSON.parse(modelText);}catch{console.error('[ANALYSE] Gemini returned:',modelText);throw new Error('Gemini returned invalid analysis JSON.');}
-    console.log('[ANALYSE] Stage 1 analysis completed. Starting Stage 2 director pass...');
+    console.log('[ANALYSE] Stage 1 analysis completed with',stage1.model,'. Starting Stage 2 director pass...');
     let stage2Plan=null;
+    let stage2Model=null;
     try{
-      const stage2Response=await ai.models.generateContent({model:'gemini-3.6-flash',contents:buildStage2Prompt(prompt,analysis,targetDuration),config:{responseMimeType:'application/json'}});
-      const stage2Text=String(stage2Response?.text||'').replace(/```json/gi,'').replace(/```/g,'').trim();
+      const stage2=await generateWithGeminiFailover(ai, {contents:buildStage2Prompt(prompt,analysis,targetDuration),config:{responseMimeType:'application/json'}}, 'ANALYSE-STAGE2');
+      stage2Model=stage2.model;
+      const stage2Text=String(stage2.response?.text||'').replace(/```json/gi,'').replace(/```/g,'').trim();
       if(stage2Text)stage2Plan=validateStage2Plan(JSON.parse(stage2Text),analysis,targetDuration);
       if(!stage2Plan)console.warn('[ANALYSE] Stage 2 produced no valid verified plan; local director fallback remains available.');
-      else console.log('[ANALYSE] Stage 2 verified director plan created:',stage2Plan.cuts.length,'cuts.');
+      else console.log('[ANALYSE] Stage 2 verified director plan created:',stage2Plan.cuts.length,'cuts using',stage2Model);
     }catch(stage2Error){console.warn('[ANALYSE] Stage 2 failed safely; returning Stage 1 analysis for local fallback:',stage2Error?.message||stage2Error);}
     analysis.filename=filename;
     analysis.aiEditPlan=stage2Plan;
-    analysis.directorPipeline={stages:['actual-media-analysis','verified-edit-direction'],stage1:'gemini-3.6-flash-media-analysis',stage2:stage2Plan?'gemini-3.6-flash-verified-director':'unavailable-safe-local-fallback',generatedScenesAllowed:false,sourceOfTruth:'uploaded-media',architecture:'universal-ai-filmmaker'};
+    analysis.directorPipeline={stages:['actual-media-analysis','verified-edit-direction'],stage1:`${stage1.model}-media-analysis`,stage2:stage2Plan?`${stage2Model}-verified-director`:'unavailable-safe-local-fallback',generatedScenesAllowed:false,sourceOfTruth:'uploaded-media',architecture:'universal-ai-filmmaker'};
     console.log('[ANALYSE] Universal two-stage AI filmmaker pipeline completed successfully.');
     return res.status(200).json({success:true,analysis});
   }catch(error){console.error('========================================');console.error('[ANALYSE] BIKEZTAGRAM MEDIA ANALYSIS ERROR');console.error('Message:',error?.message||error);console.error('Stack:',error?.stack||'No stack trace');console.error('========================================');return res.status(500).json({success:false,error:error?.message||'Unknown media analysis error.'});}
