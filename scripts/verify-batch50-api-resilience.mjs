@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const api=fs.readFileSync(new URL('../src/apiRequest.js',import.meta.url),'utf8');
+const media=fs.readFileSync(new URL('../src/mediaAnalysisClient.js',import.meta.url),'utf8');
+const stage2=fs.readFileSync(new URL('../src/twoStageDirector.js',import.meta.url),'utf8');
+const universal=fs.readFileSync(new URL('../src/universalMediaClient.js',import.meta.url),'utf8');
+assert.match(api,/RETRYABLE/); assert.match(api,/429/); assert.match(api,/503/); assert.match(api,/AbortController/); assert.match(api,/response\.ok/);
+assert.match(media,/requestJson/); assert.match(media,/analyse-media/);
+assert.match(stage2,/requestJson/); assert.match(stage2,/edit-plan/);
+assert.match(universal,/handleUploadUrl:\s*'\/api\/upload'/); assert.match(universal,/multipart:\s*false/); assert.match(universal,/requestJson/);
+console.log('batch50-api-resilience: PASS');
