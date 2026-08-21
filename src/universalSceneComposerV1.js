@@ -1,0 +1,4 @@
+/* Turns arbitrary creative intent into model-neutral scene specifications. */
+export function composeScene({idea='',subjects=[],assets=[],duration=5,aspectRatio='9:16',style={},camera={},environment={},action={},audio={}}={}){return {version:'universal-scene-spec-v1',idea,duration,aspectRatio,subjects,assets,style,camera,environment,action,audio,continuity:{subjectIds:subjects.map(s=>s.id).filter(Boolean),preserveIdentity:true,preserveWorldRules:true},generation:{mode:'auto',allowTextToVideo:true,allowImageToVideo:true,allowMultiImage:true,allowGeneratedInsert:true}};}
+export function splitStoryIntoScenes({story=[],defaultDuration=4}={}){return story.map((scene,index)=>({...scene,id:scene.id||`scene-${index+1}`,duration:Number(scene.duration)||defaultDuration,order:index}));}
+export function buildSceneSequence(scenes=[]){return scenes.map((s,i)=>({...s,order:i,start:scenes.slice(0,i).reduce((t,x)=>t+(Number(x.duration)||0),0)}));}
