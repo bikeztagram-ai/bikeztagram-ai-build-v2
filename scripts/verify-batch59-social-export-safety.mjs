@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const exportCode=fs.readFileSync(new URL('../src/socialExport.js',import.meta.url),'utf8');
+const presets=fs.readFileSync(new URL('../src/outputPresets.js',import.meta.url),'utf8');
+assert.match(exportCode,/No finished film is available/);
+assert.match(exportCode,/navigator\.canShare/);
+assert.match(exportCode,/video\/webm/);
+assert.match(presets,/portrait/);
+assert.match(presets,/square/);
+assert.match(presets,/landscape/);
+console.log('batch59-social-export-safety: PASS');
