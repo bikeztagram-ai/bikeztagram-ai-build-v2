@@ -1,0 +1,2 @@
+export function createLocalMusicWorker({id='local-music-worker',generate}){return {id,kind:'music-worker',async run(job){if(typeof generate!=='function')return {status:'unavailable',reason:'worker-not-installed',job};return generate(job);}};}
+export function buildMusicWorkerJob({request,outputDir='./generated-audio',maxSeconds=30}={}){return {version:'local-music-worker-job-v1',request,outputDir,limits:{maxSeconds},return:{audio:true,events:true,metadata:true}};}
