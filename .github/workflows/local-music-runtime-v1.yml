@@ -1,0 +1,17 @@
+name: Bikeztagram Local Music Runtime V1
+on:
+  push:
+    branches: [parallel/batch-32-music-runtime-local-adapter]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: node scripts/verify-local-music-runtime-v1.mjs
