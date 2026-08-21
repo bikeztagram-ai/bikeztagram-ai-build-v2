@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {createCreativeEngineJob,createStagePlan,recordStageResult,nextCreativeStage} from '../src/creativeEngineIntegrationV1.js';
+const job=createCreativeEngineJob({id:'integration-1',brief:'cinematic motorcycle trailer'});
+const plan=createStagePlan(job,{director:'creative-director',music:'music-engine',video:'video-engine',quality:'creative-qa'});
+assert.equal(plan.stages.length,9);
+assert.equal(nextCreativeStage(job),'understand');
+let current=recordStageResult(job,'understand',{subjects:['bike']});
+current=recordStageResult(current,'direct',{shots:3});
+assert.equal(nextCreativeStage(current),'music');
+assert.equal(current.outputs.direct.shots,3);
+const failed=recordStageResult(current,'music',null,{error:'generator unavailable'});
+assert.equal(nextCreativeStage(failed),'music');
+assert.equal(failed.errors.length,1);
+console.log('Creative Engine integration V1 verification passed');
