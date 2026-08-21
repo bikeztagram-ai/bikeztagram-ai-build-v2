@@ -19,6 +19,7 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22
+          cache: npm
       - name: Install dependencies
         run: npm install
       - name: Build production bundle
@@ -29,3 +30,5 @@ jobs:
         run: npm run verify:batch48
       - name: Verify director selection and story coverage
         run: npm run verify:batch49
+      - name: Verify API resilience and protected Blob boundary
+        run: npm run verify:batch50
