@@ -1,0 +1,2 @@
+/* Coordinates Bikeztagram-owned creative systems; it does not expose model/provider details to the user. */
+export function createCreativeDirectorRuntime({planProduction,planMusic,planVideo,qa,revise}={}){return {version:'creative-director-runtime-v1',async direct(input){const production=planProduction?await planProduction(input):null;const music=planMusic?await planMusic(input,production):null;const video=planVideo?await planVideo(input,production):null;return {production,music,video,qa:qa?await qa({input,production,music,video}):null,revise};}};}
