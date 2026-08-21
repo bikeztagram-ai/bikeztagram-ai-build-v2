@@ -1,0 +1,3 @@
+import assert from 'node:assert/strict';
+import {createCreativeJob,advanceCreativeJob,nextCreativeJobPhase} from '../src/creativeJobOrchestratorV2.js';
+let j=createCreativeJob({brief:'Make an original cinematic product film'});assert.equal(nextCreativeJobPhase(j),'understand');j=advanceCreativeJob(j,'understand',{subjects:[]});j=advanceCreativeJob(j,'story',{scenes:2});assert.equal(nextCreativeJobPhase(j),'music');j=advanceCreativeJob(j,'music',null,{error:'model unavailable'});assert.equal(nextCreativeJobPhase(j),'music');assert.equal(j.errors.length,1);console.log('Creative job orchestrator V2 verification passed');

@@ -1,0 +1,5 @@
+/* High-level orchestration state machine. Model execution is injected; no provider is assumed. */
+const PHASES=['understand','story','music','visuals','generation','assembly','qa','revision','export'];
+export function createCreativeJob({brief='',assets=[],subjects=[],duration=15,aspectRatio='9:16'}={}){return {version:'creative-job-v2',id:`creative-${Date.now()}`,brief,assets,subjects,duration,aspectRatio,phase:'understand',completed:[],outputs:{},attempts:{},errors:[]};}
+export function advanceCreativeJob(job,phase,result,{error=null}={}){if(!PHASES.includes(phase))throw new Error(`Unknown phase: ${phase}`);const completed=new Set(job.completed);if(!error)completed.add(phase);return {...job,phase:error?phase:(PHASES[PHASES.indexOf(phase)+1]||'complete'),completed:[...completed],outputs:error?job.outputs:{...job.outputs,[phase]:result},errors:error?[...job.errors,{phase,message:String(error)}]:job.errors,attempts:{...job.attempts,[phase]:(job.attempts[phase]||0)+1}};}
+export function nextCreativeJobPhase(job){return PHASES.find(p=>!job.completed.includes(p))||'complete';}
