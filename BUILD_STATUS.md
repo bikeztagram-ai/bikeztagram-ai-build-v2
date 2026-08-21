@@ -19,6 +19,8 @@ Updated: 2026-08-21
 - Release-hardening acceptance gate checks the critical director, caption, audio, API, QA, social-export and browser-shell contracts together.
 - Production PWA manifest now exists at the path referenced by `index.html`.
 - Release-hardening candidate has been merged into `dev/ai-filmmaker-batch-v2` as merge commit `489189b2aa7df8787cb6da4f6f681893116593b8`.
+- Gemini audit triage is recorded in `PRE_VERCEL_AUDIT.md`; no speculative architectural rewrite is currently justified.
+- Current repository search found no `aiEditPlanner2.js` and no client-side `import.meta.env` usage.
 
 ## BUILT / TESTED
 - Autonomous render → inspect → revise → re-render orchestration with bounded attempts and deterministic QA revisions.
@@ -40,6 +42,8 @@ Updated: 2026-08-21
 - Rhythm-map replacement acceptance with a real licensed/trending track workflow.
 - 1:1 and 16:9 post-render transcoding acceptance, particularly audio retention, crop quality, playback duration and Android performance.
 - Universal acceptance across motorcycle/car/person/animal/travel/landscape/product datasets.
+- Client-side renderer memory behaviour during long/mixed-media sessions.
+- Exact Vercel function/runtime boundary for the largest real media-library workloads.
 - Controlled GitHub → Vercel release deployment and live production verification.
 
 ## NOT YET BUILT
@@ -50,7 +54,8 @@ Updated: 2026-08-21
 
 ## Current acceleration priority
 1. Perform real browser/Android acceptance of the complete filmmaker flow on the merged development candidate.
-2. Fix the highest-impact real video-quality failures before adding cosmetic features.
-3. Validate soundtrack, captions, rhythm replacement and alternate social formats with real media.
-4. Run the controlled GitHub → Vercel preview deployment for the selected candidate and verify it live.
-5. Promote to production only after the real-media acceptance pass is clean.
+2. Test memory behaviour with a mixed 8–12 source library and repeat renders before changing renderer architecture.
+3. Validate mixed-aspect framing, soundtrack sync, caption timing and render-failure recovery with real media.
+4. Fix only demonstrated high-impact failures; do not change protected contracts speculatively.
+5. Run the controlled GitHub → Vercel preview deployment for the selected candidate and verify it live.
+6. Promote to production only after the real-media acceptance pass is clean.
