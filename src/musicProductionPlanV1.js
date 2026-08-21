@@ -1,0 +1,2 @@
+export function createMusicProductionPlan({arrangement,stemPlan=null,mix={},master={},events=[]}={}){return {version:'music-production-plan-v1',arrangement,stems:stemPlan,mix:{targetLoudness:mix.targetLoudness??-14,stereo:mix.stereo??true},master:{enabled:master.enabled??true,ceiling:master.ceiling??-1},events,original:true};}
+export function validateMusicProductionPlan(plan){return {valid:Boolean(plan?.arrangement&&plan?.original&&plan?.master?.enabled),issues:[!plan?.arrangement?'arrangement-required':null,!plan?.original?'original-output-required':null].filter(Boolean)};}
