@@ -1,0 +1,2 @@
+export function scoreGenerationOutput({observations={},expected={}}={}){const weights={promptFidelity:.25,subjectConsistency:.2,motionQuality:.15,visualQuality:.15,continuity:.15,technicalValidity:.1};let total=0,weight=0;for(const [key,w] of Object.entries(weights)){const value=Number(observations[key]);if(Number.isFinite(value)){total+=Math.max(0,Math.min(100,value))*w;weight+=w;}}return {score:weight?Math.round(total/weight):0,weights,expected};}
+export function meetsGenerationGate(score,{minimum=80}={}){return Number(score)>=minimum;}
