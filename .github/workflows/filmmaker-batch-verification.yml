@@ -32,3 +32,5 @@ jobs:
         run: npm run verify:batch49
       - name: Verify API resilience and protected Blob boundary
         run: npm run verify:batch50
+      - name: Verify Gemini director model failover
+        run: npm run verify:batch51
