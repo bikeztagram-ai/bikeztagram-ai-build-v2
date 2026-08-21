@@ -1,0 +1,20 @@
+name: Bikeztagram Creative Engine Contracts V1
+on:
+  push:
+    branches: [parallel/batch-30-creative-engine-integration-v1]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: node scripts/verify-creative-engine-integration-v1.mjs
+      - run: node scripts/verify-creative-asset-manifest-v2.mjs
+      - run: node scripts/verify-creative-brief-v1.mjs
