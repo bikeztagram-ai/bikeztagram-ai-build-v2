@@ -15,9 +15,14 @@ export function revisePlanAfterQA(plan, qa) {
 export async function renderInspectImprove({ mediaItems, plan, expectedDuration, onProgress, maxAttempts = 2 } = {}) {
   if (!Array.isArray(mediaItems) || !mediaItems.length) throw new Error('Render loop requires media items.');
   if (!plan?.cuts?.length && !plan?.scenes?.length) throw new Error('Render loop requires an executable plan.');
+  // Gemini still receives the public Blob URL for analysis, but the browser renderer
+  // should prefer the original local File whenever it is available. This avoids making
+  // final rendering depend on Blob CORS/range/codec behaviour and keeps the upload layer
+  // protected while making the render path deterministic on the user's device.
+  const renderMediaItems = mediaItems.map((item) => item?.file ? { ...item, sourceUrl: undefined } : item);
   let currentPlan = plan; const attempts = []; const limit = Math.max(1, Math.min(3, maxAttempts));
   for (let attempt = 1; attempt <= limit; attempt += 1) {
-    const output = await renderProject(mediaItems, currentPlan, (value) => onProgress?.({ stage: 'render', attempt, value }));
+    const output = await renderProject(renderMediaItems, currentPlan, (value) => onProgress?.({ stage: 'render', attempt, value }));
     if (!(output instanceof Blob) || output.size === 0) throw new Error(`Render attempt ${attempt} produced an empty video.`);
     let qa; try { qa = await validateRenderedVideo(output, expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15); } catch (error) { qa = { passed: false, verdict: 'FAIL_DECODE', error: error?.message || String(error), expectedDurationSeconds: expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15 }; }
     attempts.push({ attempt, bytes: output.size, qa }); onProgress?.({ stage: 'qa', attempt, value: 100, qa });
