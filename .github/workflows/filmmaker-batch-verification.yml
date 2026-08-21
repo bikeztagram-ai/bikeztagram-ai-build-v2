@@ -25,3 +25,5 @@ jobs:
         run: npm run build
       - name: Verify protected audio/render contract
         run: npm run verify:batch47
+      - name: Verify integrated audio director release
+        run: npm run verify:batch48
