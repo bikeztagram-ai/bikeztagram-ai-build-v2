@@ -1,0 +1,2 @@
+export function createSubjectContinuityContract({subjects=[],references=[],constraints=[]}={}){return {version:'subject-continuity-v1',subjects,references,constraints,requirements:{identityConsistency:true,appearanceConsistency:true,geometryConsistency:true,temporalConsistency:true}};}
+export function continuityChecklist(contract={}){return Object.entries(contract.requirements||{}).filter(([,v])=>v).map(([key])=>key);}
