@@ -1,0 +1,2 @@
+/* Bikeztagram-owned adapter for full-song lyrics-to-song experimentation. */
+export function createYueAdapter({generate=null,version='current'}={}){return {id:'yue',kind:'music',modelId:'YuE',version,local:true,capabilities:['lyrics-to-song','full-song','vocals','accompaniment','audio-prompt'],async generate(request){if(typeof generate!=='function')return {status:'unavailable',reason:'yue-runtime-not-installed',request};return generate(request);}};}
