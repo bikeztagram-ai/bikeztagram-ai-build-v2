@@ -1,0 +1,1 @@
+export function recordGenerationBudget({job,startedAt=Date.now(),finishedAt=Date.now(),retries=0,costUnits=0}={}){return {version:'generation-budget-telemetry-v1',jobId:job?.jobId||null,kind:job?.kind||null,elapsedMs:Math.max(0,finishedAt-startedAt),retries,costUnits,status:job?.status||'unknown'};}
