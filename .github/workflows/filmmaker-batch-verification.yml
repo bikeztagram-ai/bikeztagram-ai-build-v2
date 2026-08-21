@@ -27,3 +27,5 @@ jobs:
         run: npm run verify:batch47
       - name: Verify integrated audio director release
         run: npm run verify:batch48
+      - name: Verify director selection and story coverage
+        run: npm run verify:batch49
