@@ -1,0 +1,3 @@
+import assert from 'node:assert/strict';
+import {buildMusicRequest,generateMusicCandidates,rankMusicCandidates} from '../src/musicGenerationOrchestratorV1.js';
+const req=buildMusicRequest({brief:'dark cinematic trailer',duration:20});assert.equal(req.requirements.structured,true);const runtime={async generateMusic(r){return {status:'generated',candidate:r.candidate,score:r.candidate===2?90:70};}};const batch=await generateMusicCandidates(req,{runtime,candidates:3});assert.equal(batch.candidates.length,3);assert.equal(rankMusicCandidates(batch.candidates)[0].candidate,2);console.log('Music generation orchestrator V1 verification passed');
