@@ -1,0 +1,1 @@
+export function buildGeneratedTimelineBridge({before,generated,after}={}){return {version:'generated-timeline-bridge-v1',segments:[before,generated,after].filter(Boolean),requirements:{continuity:true,ordered:true,generatedMarked:true}};}
