@@ -34,3 +34,5 @@ jobs:
         run: npm run verify:batch50
       - name: Verify Gemini director model failover
         run: npm run verify:batch51
+      - name: Verify Stage 2 direction preservation
+        run: npm run verify:batch52
