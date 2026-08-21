@@ -1,0 +1,21 @@
+name: Bikeztagram verification
+
+on:
+  push:
+    branches: [dev/ai-filmmaker-batch-v2]
+  pull_request:
+    branches: [dev/ai-filmmaker-batch-v2]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run verify:release-hardening
+      - run: npm run verify:batch74
