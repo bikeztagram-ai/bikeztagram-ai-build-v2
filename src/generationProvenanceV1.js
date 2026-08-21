@@ -1,0 +1,2 @@
+export function createGenerationProvenance({modelId,modelVersion,runtimeId,runtimeVersion,licence='',promptHash='',seed=null,hardware={},timestamp=new Date().toISOString()}={}){return {version:'generation-provenance-v1',modelId,modelVersion,runtimeId,runtimeVersion,licence,promptHash,seed,hardware,timestamp};}
+export function provenanceReady(p){return Boolean(p?.modelId&&p?.modelVersion&&p?.runtimeId&&p?.licence);}
