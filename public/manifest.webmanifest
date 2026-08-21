@@ -1,0 +1,12 @@
+{
+  "name": "Bikeztagram AI",
+  "short_name": "Bikeztagram AI",
+  "description": "AI-powered cinematic filmmaker for photos and videos.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#040709",
+  "theme_color": "#071014",
+  "categories": ["video", "photo", "entertainment"]
+}
