@@ -5,21 +5,12 @@
 import { inferMusicStyle, buildSoundtrackBrief } from '../src/musicDirector.js';
 
 function text(value){return String(value??'').trim();}
-function clamp(value,min,max){const n=Number(value);return Math.max(min,max(Number.isFinite(n)?n:min));}
+function clamp(value,min,max){const n=Number(value);return Math.max(min,Math.min(max,Number.isFinite(n)?n:min));}
 function cleanMusicRequest(prompt, style, duration, model) {
   const namedSong=/\b(back in black|thunderstruck|hotel california|bohemian rhapsody|smells like teen spirit|billie jean)\b/i.test(prompt);
   const namedArtist=/\b(acdc|ac\/dc|metallica|nirvana|taylor swift|drake|the weeknd|queen)\b/i.test(prompt);
   const length=model.includes('pro')?'Create a complete original song with a coherent intro, development, peak, and ending; target approximately '+duration+' seconds.':'Create an original short music clip suitable for a social-video edit; Lyria Clip supplies a 30-second clip.';
-  return [
-    length,
-    `Genre: ${style.genre}.`,
-    `Target tempo: approximately ${style.bpm} BPM.`,
-    `Mood: ${style.mood}. Energy: ${style.energy}.`,
-    'Instrumental-first unless the creative brief clearly calls for vocals.',
-    namedSong||namedArtist?'Use only generic characteristics implied by the reference request; do not imitate or reproduce the named song, artist performance, melody, lyrics, riff, recording, or distinctive composition.':'Do not reproduce any existing copyrighted recording, melody, lyrics, riff, vocal performance, or distinctive composition.',
-    'Prioritize a strong intro, clear groove, musical sections, transitions and a memorable original hook.',
-    'Keep the result suitable for synchronizing visual cuts to an editorial beat grid.'
-  ].join(' ');
+  return [length,`Genre: ${style.genre}.`,`Target tempo: approximately ${style.bpm} BPM.`,`Mood: ${style.mood}. Energy: ${style.energy}.`,'Instrumental-first unless the creative brief clearly calls for vocals.',namedSong||namedArtist?'Use only generic characteristics implied by the reference request; do not imitate or reproduce the named song, artist performance, melody, lyrics, riff, recording, or distinctive composition.':'Do not reproduce any existing copyrighted recording, melody, lyrics, riff, vocal performance, or distinctive composition.','Prioritize a strong intro, clear groove, musical sections, transitions and a memorable original hook.','Keep the result suitable for synchronizing visual cuts to an editorial beat grid.'].join(' ');
 }
 
 export default async function handler(req,res){
@@ -34,7 +25,7 @@ export default async function handler(req,res){
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),110000);
   try{
-    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify({contents:[{parts:[{text:cleanMusicRequest(text(prompt),style,requestedDuration,model)}]}],generationConfig:{responseModalities:['AUDIO','TEXT']}),signal:controller.signal});
+    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify({contents:[{parts:[{text:cleanMusicRequest(text(prompt),style,requestedDuration,model)}]}],generationConfig:{responseModalities:['AUDIO','TEXT']}},signal:controller.signal});
     const payload=await response.json();
     if(!response.ok)throw new Error(payload?.error?.message||`Lyria returned HTTP ${response.status}`);
     const parts=payload?.candidates?.[0]?.content?.parts||[];
