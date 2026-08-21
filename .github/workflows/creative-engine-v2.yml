@@ -1,0 +1,20 @@
+name: Bikeztagram Creative Engine V2
+on:
+  push:
+    branches: [parallel/creative-engine-integration-01]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm install
+      - run: npm run build
+      - run: node scripts/verify-creative-engine-v2.mjs
