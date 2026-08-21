@@ -1,0 +1,2 @@
+export function routeCreativeBrief(brief){const routes=[];if(brief?.output==='music'||brief?.audio)routes.push('music');if(brief?.output==='video'||brief?.output==='audiovisual')routes.push('video');if(brief?.prompt||brief?.subjects?.length||brief?.world)routes.push('creative-generation');return [...new Set(routes)];}
+export function buildGenerationWorkPlan(brief){const routes=routeCreativeBrief(brief);return {version:'universal-generation-work-plan-v1',routes,parallel:routes.length>1,brief,stages:['plan','generate-candidates','score','revise','assemble','qa']};}
