@@ -1,0 +1,2 @@
+/* Single Bikeztagram-owned orchestration boundary. External/open runtimes are implementation details. */
+export async function runInternalCreativeJob({brief,musicEngine,videoEngine,qa,revision=null}={}){const plan={version:'internal-creative-job-v1',brief,status:'running',music:null,visuals:null,qa:null};if(musicEngine)plan.music=await musicEngine(brief);if(videoEngine)plan.visuals=await videoEngine({...brief,music:plan.music});if(qa)plan.qa=await qa(plan);if(revision&&plan.qa?.score<80)plan.revised=await revision(plan);plan.status='complete';return plan;}
