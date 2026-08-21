@@ -1,0 +1,1 @@
+export function checkGenerationReadiness({workerId=null,brief='',references=[],budgetOk=false,acceptancePolicy=true}={}){const checks={workerConfigured:Boolean(workerId),briefPresent:String(brief).trim().length>0,referencesAvailable:references.length>0,budgetOk,acceptancePolicy};return {version:'generation-readiness-v1',ready:Object.values(checks).every(Boolean),checks};}
