@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const vercel=fs.readFileSync(new URL('../vercel.json',import.meta.url),'utf8');
+const vite=fs.readFileSync(new URL('../vite.config.js',import.meta.url),'utf8');
+const pkg=fs.readFileSync(new URL('../package.json',import.meta.url),'utf8');
+assert.match(vercel,/source.*api/);
+assert.match(vercel,/destination.*\//);
+assert.match(vite,/@ffmpeg\/core/);
+assert.match(vite,/ffmpeg-core\.wasm/);
+assert.match(vite,/Cross-Origin-Opener-Policy/);
+assert.match(vite,/Cross-Origin-Embedder-Policy/);
+assert.match(pkg,/@ffmpeg\/ffmpeg/);
+console.log('batch69-runtime-config-contract: PASS');
