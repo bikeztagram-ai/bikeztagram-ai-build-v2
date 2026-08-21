@@ -1,0 +1,1 @@
+export function createGenerationEvidence({jobId=null,workerId=null,mediaUrl=null,mediaType=null,request={},scores={},validation={},provenance={}}={}){return {version:'generation-evidence-v1',jobId,workerId,mediaUrl,mediaType,request,scores,validation,provenance,complete:Boolean(jobId&&workerId&&mediaUrl&&mediaType)};}
