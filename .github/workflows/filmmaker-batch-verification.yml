@@ -40,3 +40,31 @@ jobs:
         run: npm run verify:batch53
       - name: Verify Gemini 404 failover and timestamp safety
         run: npm run verify:batch54
+      - name: Verify music API resilience
+        run: npm run verify:batch56
+      - name: Verify caption resilience
+        run: npm run verify:batch57
+      - name: Verify audio QA contract
+        run: npm run verify:batch58
+      - name: Verify social export safety
+        run: npm run verify:batch59
+      - name: Verify director creative contract
+        run: npm run verify:batch60
+      - name: Verify universal media analysis
+        run: npm run verify:batch61
+      - name: Verify renderer safety
+        run: npm run verify:batch62
+      - name: Verify analysis routing
+        run: npm run verify:batch63
+      - name: Verify Blob baseline contract
+        run: npm run verify:batch64
+      - name: Verify music generation contract
+        run: npm run verify:batch65
+      - name: Verify two-stage AI analysis
+        run: npm run verify:batch66
+      - name: Verify app pipeline contract
+        run: npm run verify:batch67
+      - name: Verify API boundary contract
+        run: npm run verify:batch68
+      - name: Verify runtime configuration
+        run: npm run verify:batch69
