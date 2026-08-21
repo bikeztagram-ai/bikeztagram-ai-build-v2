@@ -1,0 +1,3 @@
+/* Runtime manifest for reproducible model execution. Keeps model facts separate from orchestration. */
+export function createModelExecutionManifest({providerId,modelId,version,capabilities=[],runtime='unknown',hardware={},license='',inputs={},outputs={}}={}){return {version:'model-execution-manifest-v1',providerId:providerId||null,modelId:modelId||null,modelVersion:version||null,capabilities,runtime,hardware,license,inputs,outputs};}
+export function validateModelExecutionManifest(m){const errors=[];for(const k of ['modelId','modelVersion','runtime'])if(!m?.[k])errors.push(k);if(!Array.isArray(m?.capabilities))errors.push('capabilities');return {valid:errors.length===0,errors};}
