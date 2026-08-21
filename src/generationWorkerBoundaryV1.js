@@ -1,0 +1,1 @@
+export function assertRealWorkerResult(result={}){if(result?.mock===true)throw new Error('mock-generation-result-not-promotable');if(!result?.mediaUrl)throw new Error('real-media-result-required');return {verified:true,mediaUrl:result.mediaUrl,mediaType:result.mediaType||null,provenance:result.provenance||null};}
