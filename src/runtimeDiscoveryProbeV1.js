@@ -1,0 +1,2 @@
+export function probeRuntime({id,kind,version=null,capabilities=[],available=false,hardware={}}={}){return {version:'runtime-discovery-v1',id:id||null,kind:kind||null,versionFound:version,capabilities,available:Boolean(available),hardware};}
+export function runtimeReady(probe,{requiredCapabilities=[]}={}){return Boolean(probe?.available&&probe?.id&&probe?.versionFound&&requiredCapabilities.every(c=>probe.capabilities?.includes(c)));}
