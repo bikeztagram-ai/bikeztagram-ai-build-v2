@@ -35,6 +35,10 @@ Updated: 2026-08-21
 - Production blueprint is consumed by final render-plan construction when available, while preserving the existing local-plan fallback.
 - Release-hardening workflow performs a production build and consolidated safety/contract gate on the release branch.
 - Initial Creative Engine contracts have been prototyped on isolated parallel branches for creative direction, music generation, video generation, subject identity, autonomous job orchestration and creative-quality scoring.
+- Creative Engine Integration 01 adds a unified natural-language Creative Director planner, media-understanding layer, subject identity manifest, generated-scene planning, autonomous job runtime, creative-quality scoring and revision targeting.
+- Music Director V2 now plans multi-section original soundtracks with beat grids, drops, candidate ranking, edit/extend/remix/stem intents and a model-agnostic adapter contract.
+- A richer zero-cost local original music runtime now generates kick, snare, hats, bass, melodic plucks, pads, risers and drop impacts from the same beat grid used by the editor.
+- Creative Engine V2 contract verification script covers planning, subject identity, beat alignment, generated-scene requests, local music output and creative QA.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
 - Premium UI responsive/interaction acceptance on real Android devices.
@@ -49,6 +53,7 @@ Updated: 2026-08-21
 - Exact Vercel function/runtime boundary for the largest real media-library workloads.
 - Controlled GitHub → Vercel release deployment and live production verification.
 - Actual local/open-weight music and video model runtime selection and hardware feasibility.
+- Creative Engine V2 CI/build verification has been added but still requires a successful GitHub Actions run before merge.
 
 ## NOT YET BUILT
 - Full interactive caption styling controls.
@@ -58,6 +63,7 @@ Updated: 2026-08-21
 - Full generative music model integration.
 - Full text-to-video/image-to-video/subject-aware video generation integration.
 - Full Creative Director command-center integration.
+- Real model runtime selection and installation for the local/open music and video adapters.
 
 ## Current acceleration priority
 1. Parallelise Creative Engine work across isolated branches: creative direction, music generation, video generation, subject consistency, orchestration, creative QA and model/runtime evaluation.
