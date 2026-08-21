@@ -1,0 +1,5 @@
+/* Provider/model benchmark harness. It records evidence rather than assuming quality. */
+export const BENCHMARK_DIMENSIONS=['prompt_fidelity','subject_consistency','motion_quality','temporal_consistency','audio_quality','music_structure','generation_latency','memory_pressure','commercial_eligibility'];
+export function createBenchmarkCase({id,type,input,expected=[],constraints={}}={}){return {version:'model-benchmark-v1',id:id||`case-${Date.now()}`,type:type||'unknown',input:input||{},expected,constraints};}
+export function scoreBenchmarkCase(result={}){const scores={};for(const d of BENCHMARK_DIMENSIONS){if(result.scores&&Number.isFinite(Number(result.scores[d])))scores[d]=Math.max(0,Math.min(100,Number(result.scores[d])));}const values=Object.values(scores);return {scores,overall:values.length?Math.round(values.reduce((a,b)=>a+b,0)/values.length):0,evidence:result.evidence||[],passed:values.length>0&&values.every(v=>v>=60)};}
+export function rankModels(results=[]){return [...results].sort((a,b)=>(b.overall||0)-(a.overall||0)).map((r,index)=>({...r,rank:index+1}));}
