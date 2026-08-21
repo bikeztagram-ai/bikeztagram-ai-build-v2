@@ -1,0 +1,2 @@
+export function createMusicSectionRegenerationRequest({trackId,section,feedback='',preserveEvents=true}={}){return {version:'music-section-regeneration-v1',trackId,section,feedback,preserveEvents,originalOnly:true};}
+export function mergeRegeneratedSection(track,section,generated){return {...track,sections:(track.sections||[]).map(s=>s.id===section.id?{...s,...generated,regenerated:true}:s),events:track.events||[]};}
