@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const generator=fs.readFileSync(new URL('../src/musicGenerator.js',import.meta.url),'utf8');
+const request=fs.readFileSync(new URL('../src/apiRequest.js',import.meta.url),'utf8');
+assert.match(generator,/from ['"]\.\/apiRequest\.js['"]/);
+assert.match(generator,/requestJson\('\/api\/generate-music'/);
+assert.match(generator,/timeoutMs:120000/);
+assert.match(generator,/attempts:3/);
+assert.match(generator,/local-audio-fallback/);
+assert.match(request,/RETRYABLE/);
+assert.match(request,/retryableNetwork/);
+console.log('batch56-music-api-resilience: PASS');
