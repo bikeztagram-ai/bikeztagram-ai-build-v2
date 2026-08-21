@@ -41,8 +41,8 @@ export async function attachGeneratedAudioToVideo(videoBlob, audioDataUrl, { onP
   if (!audioDataUrl) return { blob: videoBlob, attached: false, reason: 'no-audio-data' };
   if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined') return { blob: videoBlob, attached: false, reason: 'browser-media-recorder-unavailable' };
 
-  const videoStreamFactory = HTMLMediaElement?.prototype?.captureStream || HTMLVideoElement?.prototype?.captureStream;
-  if (typeof videoStreamFactory !== 'function') return { blob: videoBlob, attached: false, reason: 'video-capture-stream-unavailable' };
+  const videoCaptureSupported = typeof HTMLVideoElement !== 'undefined' && typeof HTMLVideoElement.prototype.captureStream === 'function';
+  if (!videoCaptureSupported) return { blob: videoBlob, attached: false, reason: 'video-capture-stream-unavailable' };
 
   const videoUrl = URL.createObjectURL(videoBlob);
   const video = document.createElement('video');
@@ -84,8 +84,8 @@ export async function attachGeneratedAudioToVideo(videoBlob, audioDataUrl, { onP
     source = context.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(destination);
-    source.connect(context.destination);
 
+    // The soundtrack is routed only into the recording stream, never to speakers.
     const combined = new MediaStream();
     videoStream.getVideoTracks().forEach((track) => combined.addTrack(track));
     const audioTrack = destination.stream.getAudioTracks()[0];
@@ -96,6 +96,9 @@ export async function attachGeneratedAudioToVideo(videoBlob, audioDataUrl, { onP
     recorder.ondataavailable = (event) => {
       if (event.data?.size) chunks.push(event.data);
     };
+
+    await context.resume();
+    if (context.state !== 'running') throw new Error(`Audio context did not start (state: ${context.state}).`);
 
     const result = await new Promise((resolve, reject) => {
       recorder.onerror = () => reject(new Error('Final audio/video recorder failed.'));
@@ -113,7 +116,6 @@ export async function attachGeneratedAudioToVideo(videoBlob, audioDataUrl, { onP
       };
 
       recorder.start(250);
-      context.resume().catch(() => {});
       source.start(0);
       onProgress?.(10);
       video.play().then(() => onProgress?.(25)).catch((error) => reject(new Error(`Rendered video playback was blocked during audio mux: ${error?.message || String(error)}`)));
