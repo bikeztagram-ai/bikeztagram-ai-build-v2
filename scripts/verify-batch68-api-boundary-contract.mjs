@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const code=fs.readFileSync(new URL('../src/apiRequest.js',import.meta.url),'utf8');
+assert.match(code,/408, 425, 429, 500, 502, 503, 504/);
+assert.match(code,/AbortController/);
+assert.match(code,/timeoutMs/);
+assert.match(code,/externalSignal/);
+assert.match(code,/2 \*\* \(attempt - 1\)/);
+assert.match(code,/responseData/);
+console.log('batch68-api-boundary-contract: PASS');
