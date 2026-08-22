@@ -1,16 +1,21 @@
 import { GoogleGenAI, createPartFromUri, createUserContent } from '@google/genai';
+import { issueSignedToken, presignUrl } from '@vercel/blob';
 
 const text=(v)=>String(v??'').trim();
 const num=(v,f=0)=>{const n=Number(v);return Number.isFinite(n)?n:f};
+
+function pathnameFromInput(pathname,url){const supplied=text(pathname);if(supplied)return supplied.replace(/^\/+/, '');try{return decodeURIComponent(new URL(text(url)).pathname).replace(/^\/+/, '');}catch{return '';}}
+async function signedReadUrl(pathname){if(!pathname)throw new Error('No Blob pathname was supplied for signed video read.');const validUntil=Date.now()+10*60*1000;const token=await issueSignedToken({pathname,operations:['get'],validUntil});const {presignedUrl}=await presignUrl(token,{pathname,operation:'get',validUntil,access:'private',useCache:false});return presignedUrl;}
 
 export default async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({success:false,error:'Method not allowed'});
   try{
     const apiKey=process.env.GEMINI_API_KEY;
     if(!apiKey)return res.status(500).json({success:false,error:'GEMINI_API_KEY is missing.'});
-    const{videoUrl='',filename='video.mp4',mimeType='video/mp4'}=req.body||{};
-    if(!videoUrl)return res.status(400).json({success:false,error:'No public Blob video URL was supplied.'});
-    const response=await fetch(videoUrl);
+    const{videoUrl='',pathname='',filename='video.mp4',mimeType='video/mp4'}=req.body||{};
+    if(!videoUrl)return res.status(400).json({success:false,error:'No Blob video URL was supplied.'});
+    const readUrl=await signedReadUrl(pathnameFromInput(pathname,videoUrl));
+    const response=await fetch(readUrl);
     if(!response.ok)throw new Error(`Could not download the uploaded Blob video. HTTP ${response.status}`);
     const contentType=response.headers.get('content-type')||mimeType||'video/mp4';
     const bytes=Buffer.from(await response.arrayBuffer());
@@ -26,15 +31,7 @@ export default async function handler(req,res){
       file=await ai.files.get({name:file.name});
     }
     if(String(file?.state||'').toUpperCase()!=='ACTIVE')throw new Error('Gemini caption analysis timed out.');
-    const prompt=`You are the speech-caption stage of BIKEZTAGRAM AI.
-Analyse ONLY the actual uploaded video.
-If spoken dialogue, narration or clearly audible speech is present, transcribe it into short social-video caption cues with precise timestamps.
-If there is no speech, return an empty cues array.
-Do not invent words. Preserve uncertainty by lowering confidence or omitting unclear speech.
-Do not reproduce song lyrics unless they are spoken dialogue; music vocals must not be transcribed as lyrics.
-Keep each cue short enough for a mobile social caption, normally 2–9 words.
-Return ONLY valid JSON:
-{"hasSpeech":false,"language":"","cues":[{"start":0,"end":1,"text":"","confidence":0.95}],"notes":""}`;
+    const prompt=`You are the speech-caption stage of BIKEZTAGRAM AI.\nAnalyse ONLY the actual uploaded video.\nIf spoken dialogue, narration or clearly audible speech is present, transcribe it into short social-video caption cues with precise timestamps.\nIf there is no speech, return an empty cues array.\nDo not invent words. Preserve uncertainty by lowering confidence or omitting unclear speech.\nDo not reproduce song lyrics unless they are spoken dialogue; music vocals must not be transcribed as lyrics.\nKeep each cue short enough for a mobile social caption, normally 2–9 words.\nReturn ONLY valid JSON:\n{"hasSpeech":false,"language":"","cues":[{"start":0,"end":1,"text":"","confidence":0.95}],"notes":""}`;
     const result=await ai.models.generateContent({model:'gemini-3.6-flash',contents:createUserContent([createPartFromUri(file.uri,file.mimeType||contentType),prompt]),config:{responseMimeType:'application/json'}});
     const raw=text(result?.text).replace(/```json/gi,'').replace(/```/g,'').trim();
     if(!raw)throw new Error('Gemini returned no caption analysis.');
