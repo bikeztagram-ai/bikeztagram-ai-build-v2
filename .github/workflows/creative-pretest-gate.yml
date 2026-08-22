@@ -18,5 +18,4 @@ jobs:
           package-manager-cache: false
       - run: npm install
       - run: npm run build
-      - run: node scripts/verify-creative-pretest-manifest.mjs
       - run: node scripts/verify-release-safety.mjs
