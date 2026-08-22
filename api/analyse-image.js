@@ -1,4 +1,5 @@
 import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai';
+import { readPrivateBlob } from './private-blob-read.js';
 
 const text = (value) => String(value ?? '').trim();
 const num = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
@@ -45,15 +46,13 @@ export default async function handler(req, res) {
     if (!apiKey) return res.status(500).json({ success:false, error:'GEMINI_API_KEY is missing.' });
     const { imageUrl='', blobUrl='', pathname='', filename='image.jpg', mimeType='image/jpeg', prompt='' } = req.body || {};
     const actualImageUrl = imageUrl || blobUrl;
-    if (!actualImageUrl) return res.status(400).json({ success:false, error:'No public Blob image URL was supplied.' });
+    if (!actualImageUrl && !pathname) return res.status(400).json({ success:false, error:'No private Blob image source was supplied.' });
     if (!String(mimeType).startsWith('image/')) return res.status(400).json({ success:false, error:'analyse-image requires an image MIME type.' });
 
-    const source = await fetch(actualImageUrl);
-    if (!source.ok) throw new Error(`Could not download the uploaded Blob image. HTTP ${source.status}`);
-    const contentType = source.headers.get('content-type') || mimeType;
+    const source = await readPrivateBlob({url:actualImageUrl,pathname,label:'uploaded Blob image'});
+    const contentType = source.contentType || mimeType;
     if (!contentType.startsWith('image/')) throw new Error(`Blob returned unsupported content type: ${contentType}`);
-    const bytes = Buffer.from(await source.arrayBuffer());
-    if (!bytes.length) throw new Error('Downloaded Blob image was empty.');
+    const bytes = source.bytes;
 
     const ai = new GoogleGenAI({ apiKey });
     const imageFile = await ai.files.upload({ file:new Blob([bytes], { type:contentType }), config:{ mimeType:contentType, displayName:filename } });
@@ -72,7 +71,7 @@ export default async function handler(req, res) {
     analysis.filename = filename;
     analysis.mediaType = 'image';
     analysis.durationSeconds = 0;
-    analysis.source = { type:'uploaded-image', pathname:text(pathname), mimeType:contentType };
+    analysis.source = { type:'uploaded-image', pathname:source.pathname, mimeType:contentType };
     analysis.directorPipeline = {
       stages:['actual-media-analysis','verified-edit-direction'],
       stage1:'gemini-3.6-flash-image-analysis',

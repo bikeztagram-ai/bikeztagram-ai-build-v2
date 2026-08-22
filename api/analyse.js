@@ -1,4 +1,5 @@
 import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai';
+import { readPrivateBlob } from './private-blob-read.js';
 
 function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || min)); }
 function text(value) { return String(value ?? '').trim(); }
@@ -111,17 +112,15 @@ export default async function handler(req, res) {
     if(!apiKey)return res.status(500).json({success:false,error:'GEMINI_API_KEY is missing.'});
     const {videoUrl='',blobUrl='',pathname='',filename='video.mp4',mimeType='video/mp4',prompt='',targetDuration=15}=req.body||{};
     const actualVideoUrl=videoUrl||blobUrl;
-    if(!actualVideoUrl)return res.status(400).json({success:false,error:'No public Blob video URL was supplied.'});
-    console.log('[ANALYSE] Public Blob video URL received.');
+    if(!actualVideoUrl && !pathname)return res.status(400).json({success:false,error:'No private Blob video source was supplied.'});
+    console.log('[ANALYSE] Private Blob source received.');
     console.log('[ANALYSE] Blob pathname:',pathname);
-    console.log('[ANALYSE] Downloading video from Blob...');
-    const blobResponse=await fetch(actualVideoUrl);
-    if(!blobResponse.ok)throw new Error(`Could not download the uploaded Blob video. HTTP ${blobResponse.status}`);
-    const contentType=blobResponse.headers.get('content-type')||mimeType||'video/mp4';
-    const videoArrayBuffer=await blobResponse.arrayBuffer();
-    const videoBuffer=Buffer.from(videoArrayBuffer);
-    if(!videoBuffer.length)throw new Error('Downloaded Blob video was empty.');
-    console.log('[ANALYSE] Video downloaded successfully:',videoBuffer.length,'bytes');
+    console.log('[ANALYSE] Reading video through authenticated Vercel Blob SDK...');
+    const blob=await readPrivateBlob({url:actualVideoUrl,pathname,label:'uploaded Blob video'});
+    const contentType=blob.contentType||mimeType||'video/mp4';
+    const videoBuffer=blob.bytes;
+    if(!videoBuffer.length)throw new Error('Vercel Blob returned an empty uploaded video.');
+    console.log('[ANALYSE] Video read successfully:',videoBuffer.length,'bytes');
     const ai=new GoogleGenAI({apiKey});
     console.log('[ANALYSE] Uploading video to Gemini...');
     let videoFile=await ai.files.upload({file:new Blob([videoBuffer],{type:contentType}),config:{mimeType:contentType,displayName:filename}});
