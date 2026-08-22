@@ -31,6 +31,7 @@ This is a standing development rule, not a temporary preference.
 - `main` must remain enabled for automatic Vercel production deployments.
 - Development/parallel branches must remain disabled for automatic production deployment unless explicitly approved.
 - We do not manually deploy random feature branches to Production.
+- A change to a Production environment variable requires a fresh Production deployment before the pipeline is considered testable.
 
 ## Critical files
 
