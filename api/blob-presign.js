@@ -39,10 +39,13 @@ export default async function handler(req, res) {
     }
 
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
-    const validUntil = Date.now() + 15 * 60 * 1000;
+    // Keep the upload/read contract stable: the browser needs a valid scoped PUT
+    // URL and the analysis/render pipeline needs a valid scoped GET URL. Never
+    // strip the signature query string from a private Blob URL.
+    const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
     const token = await issueSignedToken({
       pathname,
-      operations: ["put"],
+      operations: ["put", "get"],
       validUntil,
     });
     const { presignedUrl } = await presignUrl(token, {
@@ -50,10 +53,15 @@ export default async function handler(req, res) {
       operation: "put",
       validUntil,
     });
+    const { presignedUrl: readUrl } = await presignUrl(token, {
+      pathname,
+      operation: "get",
+      validUntil,
+    });
 
     return res.status(200).json({
       presignedUrl,
-      url: presignedUrl.split("?")[0],
+      url: readUrl,
       pathname,
       mimeType,
       size,
