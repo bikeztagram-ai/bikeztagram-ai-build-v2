@@ -1,7 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": {
+      "main": true,
+      "dev": false,
+      "parallel/creative-engine-runtime-05": false
+    }
   },
   "rewrites": [
     {
