@@ -1,11 +1,11 @@
 import { GoogleGenAI, createPartFromUri, createUserContent } from '@google/genai';
-import { issueSignedToken, presignUrl } from '@vercel/blob';
+import { get } from '@vercel/blob';
 
 const text=(v)=>String(v??'').trim();
 const num=(v,f=0)=>{const n=Number(v);return Number.isFinite(n)?n:f};
 
 function pathnameFromInput(pathname,url){const supplied=text(pathname);if(supplied)return supplied.replace(/^\/+/, '');try{return decodeURIComponent(new URL(text(url)).pathname).replace(/^\/+/, '');}catch{return '';}}
-async function signedReadUrl(pathname){if(!pathname)throw new Error('No Blob pathname was supplied for signed video read.');const validUntil=Date.now()+10*60*1000;const token=await issueSignedToken({pathname,operations:['get'],validUntil});const {presignedUrl}=await presignUrl(token,{pathname,operation:'get',validUntil,access:'private',useCache:false});return presignedUrl;}
+async function readPrivateBlob(pathname){if(!pathname)throw new Error('No Blob pathname was supplied for private video read.');const result=await get(pathname,{access:'private',useCache:false});if(!result?.stream)throw new Error('Vercel Blob returned no readable stream.');const chunks=[];if(typeof result.stream.getReader==='function'){const reader=result.stream.getReader();try{while(true){const part=await reader.read();if(part.done)break;if(part.value)chunks.push(Buffer.from(part.value));}}finally{reader.releaseLock?.();}}else{for await(const part of result.stream)chunks.push(Buffer.from(part));}const bytes=Buffer.concat(chunks);if(!bytes.length)throw new Error('Private Blob video read returned an empty object.');return{bytes,contentType:text(result?.blob?.contentType)};}
 
 export default async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({success:false,error:'Method not allowed'});
@@ -14,14 +14,10 @@ export default async function handler(req,res){
     if(!apiKey)return res.status(500).json({success:false,error:'GEMINI_API_KEY is missing.'});
     const{videoUrl='',pathname='',filename='video.mp4',mimeType='video/mp4'}=req.body||{};
     if(!videoUrl)return res.status(400).json({success:false,error:'No Blob video URL was supplied.'});
-    const readUrl=await signedReadUrl(pathnameFromInput(pathname,videoUrl));
-    const response=await fetch(readUrl);
-    if(!response.ok)throw new Error(`Could not download the uploaded Blob video. HTTP ${response.status}`);
-    const contentType=response.headers.get('content-type')||mimeType||'video/mp4';
-    const bytes=Buffer.from(await response.arrayBuffer());
-    if(!bytes.length)throw new Error('Downloaded Blob video was empty.');
+    const blob=await readPrivateBlob(pathnameFromInput(pathname,videoUrl));
+    const contentType=blob.contentType||mimeType||'video/mp4';
     const ai=new GoogleGenAI({apiKey});
-    let file=await ai.files.upload({file:new Blob([bytes],{type:contentType}),config:{mimeType:contentType,displayName:filename}});
+    let file=await ai.files.upload({file:new Blob([blob.bytes],{type:contentType}),config:{mimeType:contentType,displayName:filename}});
     if(!file?.name||!file?.uri)throw new Error('Gemini did not return a valid caption-analysis file.');
     for(let attempt=0;attempt<60;attempt++){
       const state=String(file?.state||'').toUpperCase();
