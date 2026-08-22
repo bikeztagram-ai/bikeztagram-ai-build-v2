@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { preparePretestPipeline } from '../src/pretestDirectorPipeline.js';
+const moments=Array.from({length:5},(_,i)=>({mediaIndex:i,directorSelectionScore:100-i*8,qualityScore:95-i*5}));
+const result=preparePretestPipeline({moments,prompt:'dark cinematic reveal',cuts:[{mediaIndex:0,startTime:0,duration:2},{mediaIndex:1,startTime:2,duration:2}],duration:15});
+assert.equal(result.version,'pretest-pipeline-v1');
+assert.equal(result.storyArc.length,5);
+assert.equal(result.soundtrack.original,true);
+assert.ok(result.soundtrack.beatGrid.beats.length>0);
+assert.ok(result.renderPlan.cuts.every(c=>c.guard?.executable));
+console.log('Pre-test pipeline adapter: PASS');
