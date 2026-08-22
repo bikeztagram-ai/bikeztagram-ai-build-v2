@@ -1,0 +1,1 @@
+Temporary marker: the private Blob regression is being corrected using the known-good PR #184 implementation (get(pathname, { access: 'private', useCache: false })).
