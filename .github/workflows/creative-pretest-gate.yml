@@ -1,0 +1,24 @@
+name: Bikeztagram Creative Pre-test Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - integration/creative-engine-pretest-02
+
+permissions:
+  contents: read
+
+jobs:
+  pretest-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm install
+      - run: npm run build
+      - run: node scripts/verify-creative-pretest-manifest.mjs
