@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const file=fs.readFileSync(new URL('../src/aiEditPlanner.js',import.meta.url),'utf8');
+assert.match(file,/const directedMotion=text\(moment\?\.motionStyle\)/);
+assert.match(file,/const directedTransition=text\(moment\?\.transition\)/);
+assert.match(file,/const motionStyle=directedMotion\|\|motionFor/);
+assert.match(file,/const transition=directedTransition\|\|transitionFor/);
+assert.match(file,/analysis\?\.aiEditPlan\?\.cuts\?\.length/);
+assert.match(file,/directedCut\.momentIndex/);
+console.log('batch52-stage2-direction-preservation: PASS');

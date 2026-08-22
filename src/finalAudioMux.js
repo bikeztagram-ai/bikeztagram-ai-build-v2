@@ -1,48 +1,49 @@
-/* BIKEZTAGRAM AI — final browser audio mux.
-   Keeps the protected visual renderer untouched while ensuring a generated/original
-   soundtrack is physically present in the final MediaRecorder output. */
+/* BIKEZTAGRAM AI — final soundtrack mux.
+   This runs after the protected visual renderer and before final QA.
+   Blob/Gemini/upload infrastructure is intentionally untouched. */
 
-function pickMimeType() {
+function recorderMimeType() {
   if (typeof MediaRecorder === 'undefined') return '';
-  const types = [
+  return [
     'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
-    'video/webm',
-  ];
-  return types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+    'video/webm'
+  ].find((type) => MediaRecorder.isTypeSupported(type)) || '';
 }
 
 function waitForVideo(video) {
   return new Promise((resolve, reject) => {
     if (video.readyState >= 2 && video.videoWidth && video.videoHeight) return resolve();
-    const onReady = () => { cleanup(); resolve(); };
-    const onError = () => { cleanup(); reject(new Error('Rendered video could not be decoded for audio mux.')); };
-    const cleanup = () => {
-      video.removeEventListener('loadedmetadata', onReady);
-      video.removeEventListener('canplay', onReady);
-      video.removeEventListener('error', onError);
-    };
-    video.addEventListener('loadedmetadata', onReady, { once: true });
-    video.addEventListener('canplay', onReady, { once: true });
-    video.addEventListener('error', onError, { once: true });
+    const timeout = setTimeout(() => { cleanup(); reject(new Error('Final audio mux: rendered video did not become playable.')); }, 10000);
+    const ready = () => { clearTimeout(timeout); cleanup(); resolve(); };
+    const error = () => { clearTimeout(timeout); cleanup(); reject(new Error('Final audio mux: rendered video could not be decoded.')); };
+    const cleanup = () => { video.removeEventListener('loadedmetadata', ready); video.removeEventListener('canplay', ready); video.removeEventListener('error', error); };
+    video.addEventListener('loadedmetadata', ready, { once: true });
+    video.addEventListener('canplay', ready, { once: true });
+    video.addEventListener('error', error, { once: true });
+    video.load();
   });
 }
 
-async function decodeAudio(audioDataUrl, context) {
-  const response = await fetch(audioDataUrl);
-  if (!response.ok) throw new Error(`Generated soundtrack could not be read (HTTP ${response.status}).`);
-  const buffer = await response.arrayBuffer();
-  if (!buffer.byteLength) throw new Error('Generated soundtrack is empty.');
-  return context.decodeAudioData(buffer.slice(0));
+async function decodeAudio(context, dataUrl) {
+  const response = await fetch(dataUrl, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`Final audio mux: soundtrack fetch failed (HTTP ${response.status}).`);
+  const bytes = await response.arrayBuffer();
+  if (!bytes.byteLength) throw new Error('Final audio mux: soundtrack is empty.');
+  const buffer = await context.decodeAudioData(bytes.slice(0));
+  if (!buffer?.duration) throw new Error('Final audio mux: soundtrack has no duration.');
+  return buffer;
 }
 
 export async function attachGeneratedAudioToVideo(videoBlob, audioDataUrl, { onProgress } = {}) {
-  if (!(videoBlob instanceof Blob) || !videoBlob.size) throw new Error('Cannot mux audio into an empty video.');
+  if (!(videoBlob instanceof Blob) || !videoBlob.size) throw new Error('Final audio mux: empty video.');
   if (!audioDataUrl) return { blob: videoBlob, attached: false, reason: 'no-audio-data' };
-  if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined') return { blob: videoBlob, attached: false, reason: 'browser-media-recorder-unavailable' };
+  if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined') return { blob: videoBlob, attached: false, reason: 'browser-recorder-unavailable' };
 
-  const videoCaptureSupported = typeof HTMLVideoElement !== 'undefined' && typeof HTMLVideoElement.prototype.captureStream === 'function';
-  if (!videoCaptureSupported) return { blob: videoBlob, attached: false, reason: 'video-capture-stream-unavailable' };
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  const mimeType = recorderMimeType();
+  if (!AudioCtx || !mimeType || typeof HTMLVideoElement === 'undefined') return { blob: videoBlob, attached: false, reason: 'browser-audio-mux-unavailable' };
+  if (typeof HTMLVideoElement.prototype.captureStream !== 'function') return { blob: videoBlob, attached: false, reason: 'video-capture-stream-unavailable' };
 
   const videoUrl = URL.createObjectURL(videoBlob);
   const video = document.createElement('video');
@@ -50,21 +51,14 @@ export async function attachGeneratedAudioToVideo(videoBlob, audioDataUrl, { onP
   video.muted = true;
   video.playsInline = true;
   video.preload = 'auto';
-
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  const mimeType = pickMimeType();
-  if (!AudioCtx || !mimeType) {
-    URL.revokeObjectURL(videoUrl);
-    return { blob: videoBlob, attached: false, reason: 'audio-context-or-recorder-unavailable' };
-  }
-
   const context = new AudioCtx();
   let source = null;
   let recorder = null;
-  let stopped = false;
+  let timer = null;
   const chunks = [];
 
   const cleanup = () => {
+    if (timer) clearTimeout(timer);
     try { source?.stop?.(); } catch {}
     try { source?.disconnect?.(); } catch {}
     try { context.close?.(); } catch {}
@@ -75,55 +69,50 @@ export async function attachGeneratedAudioToVideo(videoBlob, audioDataUrl, { onP
 
   try {
     await waitForVideo(video);
-    const duration = Number.isFinite(video.duration) ? video.duration : 0;
-    if (!duration) throw new Error('Rendered video has no usable duration.');
+    const audioBuffer = await decodeAudio(context, audioDataUrl);
+    await context.resume();
+    if (context.state !== 'running') throw new Error(`Final audio mux: audio context did not start (${context.state}).`);
 
-    const audioBuffer = await decodeAudio(audioDataUrl, context);
     const videoStream = video.captureStream(30);
-    const destination = context.createMediaStreamDestination();
+    const audioDestination = context.createMediaStreamDestination();
     source = context.createBufferSource();
     source.buffer = audioBuffer;
-    source.connect(destination);
+    source.connect(audioDestination);
 
-    // The soundtrack is routed only into the recording stream, never to speakers.
+    const audioTrack = audioDestination.stream.getAudioTracks()[0];
+    if (!audioTrack) throw new Error('Final audio mux: no audio track was produced.');
+
     const combined = new MediaStream();
     videoStream.getVideoTracks().forEach((track) => combined.addTrack(track));
-    const audioTrack = destination.stream.getAudioTracks()[0];
-    if (!audioTrack) throw new Error('Generated soundtrack produced no audio track.');
     combined.addTrack(audioTrack);
 
     recorder = new MediaRecorder(combined, { mimeType });
-    recorder.ondataavailable = (event) => {
-      if (event.data?.size) chunks.push(event.data);
-    };
+    recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
 
-    await context.resume();
-    if (context.state !== 'running') throw new Error(`Audio context did not start (state: ${context.state}).`);
-
-    const result = await new Promise((resolve, reject) => {
-      recorder.onerror = () => reject(new Error('Final audio/video recorder failed.'));
+    const output = await new Promise((resolve, reject) => {
+      let finished = false;
+      const stop = () => {
+        if (finished) return;
+        finished = true;
+        try { if (recorder.state !== 'inactive') recorder.stop(); } catch (error) { reject(error); }
+      };
+      recorder.onerror = () => reject(new Error('Final audio mux: MediaRecorder failed.'));
       recorder.onstop = () => {
-        if (stopped) return;
-        stopped = true;
         const blob = new Blob(chunks, { type: mimeType });
-        if (!blob.size) return reject(new Error('Final audio/video mux produced an empty video.'));
+        if (!blob.size) return reject(new Error('Final audio mux: recorder produced an empty video.'));
         resolve(blob);
       };
-
-      video.onended = () => {
-        try { source.stop(); } catch {}
-        if (recorder?.state !== 'inactive') recorder.stop();
-      };
-
+      video.onended = stop;
+      timer = setTimeout(stop, Math.max(1500, Math.ceil((Number(video.duration) || 15) * 1000) + 3000));
       recorder.start(250);
       source.start(0);
       onProgress?.(10);
-      video.play().then(() => onProgress?.(25)).catch((error) => reject(new Error(`Rendered video playback was blocked during audio mux: ${error?.message || String(error)}`)));
+      video.play().then(() => onProgress?.(25)).catch((error) => reject(new Error(`Final audio mux: video playback failed (${error?.message || String(error)}).`)));
     });
 
     onProgress?.(100);
     cleanup();
-    return { blob: result, attached: true, mimeType, duration };
+    return { blob: output, attached: true, mimeType, duration: Number(video.duration || 0) };
   } catch (error) {
     try { if (recorder?.state !== 'inactive') recorder.stop(); } catch {}
     cleanup();

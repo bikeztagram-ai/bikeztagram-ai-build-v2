@@ -1,6 +1,6 @@
 # Bikeztagram AI — Build Status
 
-Updated: 2026-08-20
+Updated: 2026-08-21
 
 ## VERIFIED / PROTECTED
 - Existing verified Vercel Blob/Gemini media intake contract.
@@ -16,6 +16,13 @@ Updated: 2026-08-20
 - Social export/download/share contracts.
 - Source-aware speech-caption integration for single and mixed-media workflows.
 - Batch 45 end-to-end acceptance contract is registered in the main GitHub verification workflow.
+- Release-hardening acceptance gate checks the critical director, caption, audio, API, QA, social-export and browser-shell contracts together.
+- Production PWA manifest now exists at the path referenced by `index.html`.
+- Release-hardening candidate has been merged into `dev/ai-filmmaker-batch-v2` as merge commit `489189b2aa7df8787cb6da4f6f681893116593b8`.
+- Gemini audit triage is recorded in `PRE_VERCEL_AUDIT.md`; no speculative architectural rewrite is currently justified.
+- Current repository search found no `aiEditPlanner2.js` and no client-side `import.meta.env` usage.
+- Current working milestone is protected separately as `baseline/2026-08-21-cinematic-music-working`.
+- Creative Engine parallel acceleration plan is recorded in `CREATIVE_ENGINE_PARALLEL_PLAN.md`.
 
 ## BUILT / TESTED
 - Autonomous render → inspect → revise → re-render orchestration with bounded attempts and deterministic QA revisions.
@@ -25,7 +32,17 @@ Updated: 2026-08-20
 - Output-format adapter for 9:16, 1:1 and 16:9 post-render exports without changing the protected renderer.
 - Output-format controls are wired into the finished-film result UI through `OutputFormatEnhancer`; the protected render remains 9:16 and alternate formats are produced as post-render exports.
 - GitHub Main Verification workflow runs the build plus Batch 23–39 and Batch 41–45 acceptance contracts.
-- Production blueprint is now consumed by the final render-plan construction when available, while preserving the existing local-plan fallback.
+- Production blueprint is consumed by final render-plan construction when available, while preserving the existing local-plan fallback.
+- Release-hardening workflow performs a production build and consolidated safety/contract gate on the release branch.
+- Initial Creative Engine contracts have been prototyped on isolated parallel branches for creative direction, music generation, video generation, subject identity, autonomous job orchestration and creative-quality scoring.
+- Creative Engine Integration 01 adds a unified natural-language Creative Director planner, media-understanding layer, subject identity manifest, generated-scene planning, autonomous job runtime, creative-quality scoring and revision targeting.
+- Music Director V2 now plans multi-section original soundtracks with beat grids, drops, candidate ranking, edit/extend/remix/stem intents and a model-agnostic adapter contract.
+- A richer zero-cost local original music runtime now generates kick, snare, hats, bass, melodic plucks, pads, risers and drop impacts from the same beat grid used by the editor.
+- Creative Engine V2 contract verification script covers planning, subject identity, beat alignment, generated-scene requests, local music output and creative QA.
+- Creative Engine Runtime 02 adds an in-house procedural generated-scene runtime using Canvas + MediaRecorder, producing original browser-generated cinematic inserts without external video APIs.
+- Runtime 02 adds a provider-neutral video generation runtime that prefers a supplied model adapter and falls back automatically to the in-house procedural generator.
+- Runtime 02 adds a media bridge that materializes generated scenes into the existing renderer contract and produces the in-house original soundtrack for the same Creative Engine job.
+- Runtime 02 adds dedicated contract verification for the provider-neutral video adapter, renderer-plan mapping and original music runtime.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
 - Premium UI responsive/interaction acceptance on real Android devices.
@@ -36,17 +53,33 @@ Updated: 2026-08-20
 - Rhythm-map replacement acceptance with a real licensed/trending track workflow.
 - 1:1 and 16:9 post-render transcoding acceptance, particularly audio retention, crop quality, playback duration and Android performance.
 - Universal acceptance across motorcycle/car/person/animal/travel/landscape/product datasets.
+- Client-side renderer memory behaviour during long/mixed-media sessions.
+- Exact Vercel function/runtime boundary for the largest real media-library workloads.
 - Controlled GitHub → Vercel release deployment and live production verification.
+- Actual local/open-weight music and video model runtime selection and hardware feasibility.
+- Creative Engine V2 CI/build verification has been added but still requires a successful GitHub Actions run before merge.
+- Creative Engine Runtime 02 browser MediaRecorder generation and generated-scene materialization require live browser acceptance before being treated as production-ready.
 
 ## NOT YET BUILT
 - Full interactive caption styling controls.
 - Complete universal acceptance matrix with representative real media for every subject category.
 - Final product-name/rebrand migration; keep the current project name until the launch/rebrand milestone.
 - Controlled GitHub → Vercel production release workflow at the next stable milestone.
+- Full generative music model integration.
+- Full text-to-video/image-to-video/subject-aware video generation integration.
+- Full Creative Director command-center integration.
+- Real model runtime selection and installation for the local/open music and video adapters.
 
 ## Current acceleration priority
-1. Obtain a clean GitHub Main Verification run on the audited `main` state.
-2. Perform real browser/Android acceptance of the complete filmmaker flow.
-3. Fix the highest-impact real video-quality failures before adding cosmetic features.
-4. Validate soundtrack, captions, rhythm replacement and alternate social formats with real media.
-5. Reconnect/deploy to Vercel only for a deliberately selected stable release and verify production live.
+1. Parallelise Creative Engine work across isolated branches: creative direction, music generation, video generation, subject consistency, orchestration, creative QA and model/runtime evaluation.
+2. Build the provider-agnostic contracts first so local/open model runtimes can be swapped in without rewriting the product.
+3. Upgrade original music from procedural fallback to genuine generated compositions, with actual beat/drop/energy analysis feeding the video director.
+4. Build text-to-video, image-to-video and subject-aware generation as first-class timeline media, not just gap fillers.
+5. Integrate the Creative Director so one natural-language request can orchestrate real media, generated music, generated scenes, rendering, QA and revision.
+6. Continue real Android/mixed-media acceptance in parallel; fix demonstrated performance or quality failures without destabilising protected contracts.
+7. Only after the integrated candidate is verified: controlled Vercel preview, real-device acceptance, then production promotion.
+
+## Current parallel candidates
+- PR #13 `parallel/creative-engine-integration-01` — Creative Engine Integration 01, draft, not merged.
+- PR #164 `parallel/creative-engine-runtime-02` — Runtime 02, draft, based on Integration 01, not merged.
+- Neither candidate has been deployed to Vercel.

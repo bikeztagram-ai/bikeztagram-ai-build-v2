@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const code=fs.readFileSync(new URL('../api/generate-music.js',import.meta.url),'utf8');
+assert.match(code,/zero-cost-local-music/);
+assert.match(code,/audioAvailable:false/);
+assert.match(code,/generationMode:'procedural-original'/);
+assert.match(code,/paidAiMusicDisabled:true/);
+assert.doesNotMatch(code,/lyria-3-clip-preview/);
+assert.doesNotMatch(code,/lyria-3-pro-preview/);
+assert.doesNotMatch(code,/generativelanguage\.googleapis\.com\/v1beta\/models/);
+console.log('batch65-zero-cost-music-contract: PASS');

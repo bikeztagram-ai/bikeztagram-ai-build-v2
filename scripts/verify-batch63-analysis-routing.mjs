@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const code=fs.readFileSync(new URL('../api/analyse-media.js',import.meta.url),'utf8');
+assert.match(code,/analyseVideo/);
+assert.match(code,/analyseImage/);
+assert.match(code,/mimeType/);
+assert.match(code,/Unsupported or ambiguous media type/);
+assert.match(code,/looksLikeImage/);
+assert.match(code,/looksLikeVideo/);
+console.log('batch63-analysis-routing: PASS');

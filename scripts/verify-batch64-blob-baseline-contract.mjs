@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const code=fs.readFileSync(new URL('../api/upload.js',import.meta.url),'utf8');
+assert.match(code,/handleUpload/);
+assert.match(code,/process\.env\.BLOB_READ_WRITE_TOKEN/);
+assert.match(code,/video\/mp4/);
+assert.match(code,/video\/quicktime/);
+assert.match(code,/video\/webm/);
+assert.match(code,/500 \* 1024 \* 1024/);
+assert.match(code,/addRandomSuffix: true/);
+assert.match(code,/multipart: Boolean\(multipart\)/);
+console.log('batch64-blob-baseline-contract: PASS');

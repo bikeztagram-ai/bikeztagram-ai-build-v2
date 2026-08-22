@@ -38,8 +38,9 @@ export async function requestJson(url, options = {}, { attempts = 3, baseDelayMs
     } catch (error) {
       lastError = error;
       const abortedByCaller = externalSignal?.aborted;
+      const retryableHttp = Number.isInteger(error?.status) && RETRYABLE.has(error.status);
       const retryableNetwork = !error?.status || error?.name === 'TypeError' || error?.name === 'AbortError';
-      if (abortedByCaller || !retryableNetwork || attempt >= maxAttempts) throw error;
+      if (abortedByCaller || (!retryableHttp && !retryableNetwork) || attempt >= maxAttempts) throw error;
     } finally {
       if (timer) clearTimeout(timer);
     }

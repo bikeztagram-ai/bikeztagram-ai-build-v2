@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const code=fs.readFileSync(new URL('../api/analyse.js',import.meta.url),'utf8');
+assert.match(code,/GEMINI_ANALYSIS_MODELS/);
+assert.match(code,/generateWithGeminiFailover/);
+assert.match(code,/createPartFromUri/);
+assert.match(code,/buildStage2Prompt/);
+assert.match(code,/validateStage2Plan/);
+assert.match(code,/aiEditPlan=stage2Plan/);
+assert.match(code,/generatedScenesAllowed:false/);
+console.log('batch66-ai-analysis-contract: PASS');

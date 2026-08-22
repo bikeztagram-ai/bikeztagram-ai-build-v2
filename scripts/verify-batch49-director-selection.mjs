@@ -1,18 +1,13 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { selectDirectorMoments } from '../src/directorSelection.js';
-const moments=[
- {mediaIndex:0,start:0,duration:2,description:'quiet opening establishing shot',score:8},
- {mediaIndex:0,start:2,duration:2,description:'motorbike accelerating fast action',score:9},
- {mediaIndex:1,start:0,duration:2,description:'wide reveal of the bike',score:8},
- {mediaIndex:1,start:3,duration:2,description:'close detail of the bike',score:7},
- {mediaIndex:2,start:0,duration:2,description:'hero landscape final resolution',score:8},
- {mediaIndex:2,start:3,duration:2,description:'similar hero landscape',score:7}
-];
+const selector=fs.readFileSync(new URL('../src/directorSelection.js',import.meta.url),'utf8');
+const planner=fs.readFileSync(new URL('../src/aiEditPlanner.js',import.meta.url),'utf8');
+const timeline=fs.readFileSync(new URL('../src/timelineDirector.js',import.meta.url),'utf8');
+const critic=fs.readFileSync(new URL('../src/editCritic.js',import.meta.url),'utf8');
+assert.match(selector,/selectDirectorMoments/); assert.match(selector,/directorSelectionScore/); assert.match(selector,/usedSources/); assert.match(selector,/similarity/); assert.match(selector,/hero-ending/);
+assert.match(planner,/selectDirectorMoments/); assert.match(planner,/rawMoments\[sourceIndex\]/); assert.match(planner,/directorSelection/); assert.match(timeline,/roleFor/); assert.match(timeline,/pacingIntent/); assert.match(critic,/scoreTimeline/); assert.match(critic,/strengthened story roles/);
+const moments=[{mediaIndex:0,start:0,duration:2,description:'quiet opening establishing shot',score:8},{mediaIndex:0,start:2,duration:2,description:'motorbike accelerating fast action',score:9},{mediaIndex:1,start:0,duration:2,description:'wide reveal of the bike',score:8},{mediaIndex:1,start:3,duration:2,description:'close detail of the bike',score:7},{mediaIndex:2,start:0,duration:2,description:'hero landscape final resolution',score:8},{mediaIndex:2,start:3,duration:2,description:'similar hero landscape',score:7}];
 const result=selectDirectorMoments(moments,{maxCuts:5,targetDuration:15,creativePrompt:'cinematic reveal with energetic action and a powerful ending'});
-assert.equal(result.length,5);
-assert.equal(result[0].editorialRole,'hook');
-assert.equal(result.at(-1).editorialRole,'hero-ending');
-assert.ok(new Set(result.map(x=>x.mediaIndex)).size>=3);
-assert.ok(result.every(x=>Number.isFinite(x.directorSelectionScore)));
-assert.ok(result.every((x,i)=>i===0||Number(x.start)>=Number(result[i-1].start)));
+assert.equal(result.length,5); assert.equal(result[0].editorialRole,'hook'); assert.equal(result.at(-1).editorialRole,'hero-ending'); assert.ok(new Set(result.map(x=>x.mediaIndex)).size>=3); assert.ok(result.every(x=>Number.isFinite(x.directorSelectionScore))); assert.ok(result.every((x,i)=>i===0||Number(x.start)>=Number(result[i-1].start)));
 console.log('batch49-director-selection: PASS');

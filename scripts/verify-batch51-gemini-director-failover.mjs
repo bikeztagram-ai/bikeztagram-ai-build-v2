@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const file=fs.readFileSync(new URL('../api/edit-plan.js',import.meta.url),'utf8');
+assert.match(file,/gemini-3\.7-flash/);
+assert.match(file,/gemini-3\.6-flash/);
+assert.match(file,/gemini-3\.5-flash/);
+assert.match(file,/responseMimeType:\s*'application\/json'/);
+assert.match(file,/408,425,429,500,502,503,504/);
+assert.match(file,/bestMoments/);
+assert.match(file,/momentIndex/);
+assert.match(file,/availableMoments/);
+console.log('batch51-gemini-director-failover: PASS');

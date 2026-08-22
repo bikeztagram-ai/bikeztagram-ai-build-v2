@@ -16,7 +16,7 @@ async function buildLocalFallback({duration=15,bpm=112}={}){
 
 export async function generateOriginalMusic({prompt='',duration=15,genre,mood,energy,bpm}={}){
   try{
-    const { data } = await requestJson('/api/generate-music',{method:'POST',headers:{'Content-Type':'application/json'},timeoutMs:90000,body:JSON.stringify({prompt,duration,genre,mood,energy,bpm})},{attempts:3,baseDelayMs:700});
+    const {data}=await requestJson('/api/generate-music',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,duration,genre,mood,energy,bpm}),timeoutMs:120000},{attempts:3,baseDelayMs:900});
     if(!data?.success)throw new Error(data?.error||'Music generator returned an unsuccessful response.');
     if(data?.soundtrack?.audioAvailable&&data?.soundtrack?.audioDataUrl){try{data.soundtrack.audioAnalysis=await analyseAudioDataUrl(data.soundtrack.audioDataUrl,{targetBpm:data.soundtrack.bpm||bpm||120});}catch(error){data.soundtrack.audioAnalysis={analysis:'unavailable',warning:error?.message||'Actual audio analysis unavailable.'};}}
     if(data?.soundtrack?.audioAvailable&&data?.soundtrack?.audioDataUrl)return data;
