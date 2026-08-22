@@ -1,0 +1,35 @@
+name: Production Contract Guard
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  production-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect protected production changes
+        id: contract
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+          protected='^(vercel\.json|api/blob-presign\.js|api/upload\.js|api/analyse-library\.js|api/render\.js|\.env\.example|docs/PRODUCTION-CONTRACT\.md|\.github/workflows/production-contract-guard\.yml)$'
+          if echo "$changed" | grep -Eq "$protected"; then
+            echo "Protected production contract files changed."
+            echo "This PR requires explicit production-contract approval."
+            echo "Use a commit message containing [production-contract-approved] only when the change has been deliberately reviewed and regression-tested."
+            exit 1
+          fi
+          echo "No protected production contract files changed."
