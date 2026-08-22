@@ -39,13 +39,14 @@ export default async function handler(req, res) {
     }
 
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
-    // Keep the upload/read contract stable: the browser needs a valid scoped PUT
-    // URL and the analysis/render pipeline needs a valid scoped GET URL. Never
-    // strip the signature query string from a private Blob URL.
-    const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
+
+    // IMPORTANT: this project uses the existing PUBLIC Blob store.
+    // The downstream analysis/caption/render pipeline consumes the Blob URL
+    // directly. Do not convert this contract to a private signed GET URL.
+    const validUntil = Date.now() + 15 * 60 * 1000;
     const token = await issueSignedToken({
       pathname,
-      operations: ["put", "get"],
+      operations: ["put"],
       validUntil,
     });
     const { presignedUrl } = await presignUrl(token, {
@@ -53,15 +54,12 @@ export default async function handler(req, res) {
       operation: "put",
       validUntil,
     });
-    const { presignedUrl: readUrl } = await presignUrl(token, {
-      pathname,
-      operation: "get",
-      validUntil,
-    });
 
     return res.status(200).json({
       presignedUrl,
-      url: readUrl,
+      // Public Blob URL is the stable source-of-truth URL used by the
+      // Gemini analysis pipeline. Never include a private GET signature here.
+      url: presignedUrl.split("?")[0],
       pathname,
       mimeType,
       size,
