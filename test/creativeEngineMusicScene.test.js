@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { directOriginalMusic, synthesizeOriginalWav, musicToCutEvents } from '../src/inHouseMusicDirector.js';
+import { materialiseGeneratedScenes, validateCreativeTimeline, beatAlignTimeline } from '../src/creativeSceneTimeline.js';
+const music=directOriginalMusic({request:'dark cinematic trailer',duration:8,bpm:120,energy:.8});
+assert.equal(music.originalOnly,true); assert.ok(music.events.length>0); assert.ok(music.sections.length>=4);
+const wav=synthesizeOriginalWav(music,{sampleRate:8000}); assert.equal(wav.type,'audio/wav'); assert.ok(wav.size>44); assert.ok(musicToCutEvents(music).length>0);
+const built=materialiseGeneratedScenes({uploaded:[{id:'u1',sourceUrl:'blob:u1',duration:3}],generated:[{id:'g1',url:'blob:g1',duration:2}],cuts:[{sourceIndex:0,duration:2},{generated:true,generatedIndex:0,duration:2}]});
+assert.equal(built.timeline.length,2); assert.equal(built.timeline[1].sourceType,'generated'); assert.equal(validateCreativeTimeline(built).ok,true);
+const aligned=beatAlignTimeline([{startTime:.9,duration:2}],[{time:1},{time:2}]); assert.equal(aligned[0].startTime,1); assert.equal(aligned[0].beatLocked,true);
+console.log('creativeEngineMusicScene: PASS');
