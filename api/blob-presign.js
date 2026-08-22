@@ -39,27 +39,38 @@ export default async function handler(req, res) {
     }
 
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
+    const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
-    // IMPORTANT: this project uses the existing PUBLIC Blob store.
-    // The downstream analysis/caption/render pipeline consumes the Blob URL
-    // directly. Do not convert this contract to a private signed GET URL.
-    const validUntil = Date.now() + 15 * 60 * 1000;
-    const token = await issueSignedToken({
+    // Keep browser upload and downstream source reads as two independently
+    // scoped operations. This works with Vercel private Blob stores while
+    // preserving the existing direct signed-PUT upload flow.
+    const putToken = await issueSignedToken({
       pathname,
       operations: ["put"],
       validUntil,
     });
-    const { presignedUrl } = await presignUrl(token, {
+    const { presignedUrl } = await presignUrl(putToken, {
       pathname,
       operation: "put",
       validUntil,
     });
 
+    const getToken = await issueSignedToken({
+      pathname,
+      operations: ["get"],
+      validUntil,
+    });
+    const { presignedUrl: readUrl } = await presignUrl(getToken, {
+      pathname,
+      operation: "get",
+      validUntil,
+    });
+
     return res.status(200).json({
       presignedUrl,
-      // Public Blob URL is the stable source-of-truth URL used by the
-      // Gemini analysis pipeline. Never include a private GET signature here.
-      url: presignedUrl.split("?")[0],
+      // IMPORTANT: keep the GET signature. The analysis pipeline fetches this
+      // URL server-side and must be able to read a private Blob object.
+      url: readUrl,
       pathname,
       mimeType,
       size,
