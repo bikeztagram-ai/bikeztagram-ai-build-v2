@@ -1,0 +1,1 @@
+Known-good Vercel Blob private read contract: get(pathname, { access: 'private', useCache: false }).
