@@ -3,6 +3,8 @@ import { renderProject } from './renderer.js';
 import { applyAudioBeatSyncToPlan } from './renderAudioBridge.js';
 import { attachGeneratedAudioToVideo } from './finalAudioMux.js';
 import { validateRenderedVideo, buildDirectorQAReport } from './qa.js';
+import { guardRenderPlan } from './renderDecisionGuard.js';
+import { alignCutsToMusic } from './musicDirector.js';
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
 export function revisePlanAfterQA(plan, qa) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
@@ -19,13 +21,21 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
   if (!Array.isArray(mediaItems) || !mediaItems.length) throw new Error('Render loop requires media items.');
   if (!plan?.cuts?.length && !plan?.scenes?.length) throw new Error('Render loop requires an executable plan.');
   const renderMediaItems = mediaItems.map((item) => item?.file ? { ...item, sourceUrl: undefined } : item);
-  let currentPlan = plan; const attempts = []; const limit = Math.max(1, Math.min(3, maxAttempts));
+  let currentPlan = guardRenderPlan(plan);
+  if (currentPlan?.cuts?.length && (currentPlan.music?.beatGrid || currentPlan.soundtrack?.beatGrid)) {
+    const soundtrack = currentPlan.music || currentPlan.soundtrack;
+    currentPlan = { ...currentPlan, cuts: alignCutsToMusic(currentPlan.cuts, soundtrack), integrationGuard: { version: 'pretest-runtime-v1', beatAligned: true, renderGuarded: true } };
+  } else {
+    currentPlan = { ...currentPlan, integrationGuard: { version: 'pretest-runtime-v1', beatAligned: false, renderGuarded: true } };
+  }
+  const attempts = []; const limit = Math.max(1, Math.min(3, maxAttempts));
   for (let attempt = 1; attempt <= limit; attempt += 1) {
     if (currentPlan?.music?.audioAnalysis || currentPlan?.music?.beatGrid || currentPlan?.soundtrack?.audioAnalysis || currentPlan?.soundtrack?.beatGrid) {
       const beatSync = applyAudioBeatSyncToPlan(currentPlan);
       currentPlan = beatSync.plan;
       onProgress?.({ stage: 'beat-sync', attempt, value: beatSync.enabled ? 100 : 0, beats: beatSync.beats || 0 });
     }
+    currentPlan = guardRenderPlan(currentPlan);
     const rendered = await renderProject(renderMediaItems, currentPlan, (value) => onProgress?.({ stage: 'render', attempt, value }));
     if (!(rendered instanceof Blob) || rendered.size === 0) throw new Error(`Render attempt ${attempt} produced an empty video.`);
     const musicUrl = currentPlan?.music?.audioDataUrl || currentPlan?.soundtrack?.audioDataUrl || currentPlan?.audio?.url;
@@ -47,7 +57,7 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
     let qa;
     try { qa = await validateRenderedVideo(output, expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15, { requireAudio: Boolean(musicUrl) }); }
     catch (error) { qa = { passed: false, verdict: 'FAIL_DECODE', error: error?.message || String(error), expectedDurationSeconds: expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15 }; }
-    attempts.push({ attempt, bytes: output.size, qa, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied) });
+    attempts.push({ attempt, bytes: output.size, qa, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied), integrationGuard: currentPlan.integrationGuard });
     onProgress?.({ stage: 'qa', attempt, value: 100, qa });
     if (qa.passed && (qa.verdict === 'PASS' || qa.verdict === 'PASS_WITH_DURATION_DIFFERENCE')) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
     if (attempt >= limit) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
