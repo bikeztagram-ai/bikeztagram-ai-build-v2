@@ -1,20 +1,17 @@
 import { GoogleGenAI, createPartFromUri, createUserContent } from '@google/genai';
-import { get } from '@vercel/blob';
 
 const text=(v)=>String(v??'').trim();
 const num=(v,f=0)=>{const n=Number(v);return Number.isFinite(n)?n:f};
 
-function pathnameFromInput(pathname,url){const supplied=text(pathname);if(supplied)return supplied.replace(/^\/+/, '');try{return decodeURIComponent(new URL(text(url)).pathname).replace(/^\/+/, '');}catch{return '';}}
-async function readPrivateBlob(pathname){if(!pathname)throw new Error('No Blob pathname was supplied for private video read.');const result=await get(pathname,{access:'private',useCache:false});if(!result?.stream)throw new Error('Vercel Blob returned no readable stream.');const chunks=[];if(typeof result.stream.getReader==='function'){const reader=result.stream.getReader();try{while(true){const part=await reader.read();if(part.done)break;if(part.value)chunks.push(Buffer.from(part.value));}}finally{reader.releaseLock?.();}}else{for await(const part of result.stream)chunks.push(Buffer.from(part));}const bytes=Buffer.concat(chunks);if(!bytes.length)throw new Error('Private Blob video read returned an empty object.');return{bytes,contentType:text(result?.blob?.contentType)};}
+async function readUploadedBlob(videoUrl){const url=text(videoUrl);if(!url)throw new Error('No Blob video URL was supplied.');const response=await fetch(url);if(!response.ok)throw new Error(`Could not download the uploaded Blob video. HTTP ${response.status}`);const contentType=text(response.headers.get('content-type'));const bytes=Buffer.from(await response.arrayBuffer());if(!bytes.length)throw new Error('Downloaded Blob video was empty.');return{bytes,contentType};}
 
 export default async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({success:false,error:'Method not allowed'});
   try{
     const apiKey=process.env.GEMINI_API_KEY;
     if(!apiKey)return res.status(500).json({success:false,error:'GEMINI_API_KEY is missing.'});
-    const{videoUrl='',pathname='',filename='video.mp4',mimeType='video/mp4'}=req.body||{};
-    if(!videoUrl)return res.status(400).json({success:false,error:'No Blob video URL was supplied.'});
-    const blob=await readPrivateBlob(pathnameFromInput(pathname,videoUrl));
+    const{videoUrl='',filename='video.mp4',mimeType='video/mp4'}=req.body||{};
+    const blob=await readUploadedBlob(videoUrl);
     const contentType=blob.contentType||mimeType||'video/mp4';
     const ai=new GoogleGenAI({apiKey});
     let file=await ai.files.upload({file:new Blob([blob.bytes],{type:contentType}),config:{mimeType:contentType,displayName:filename}});
