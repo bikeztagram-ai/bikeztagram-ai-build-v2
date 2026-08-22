@@ -1,0 +1,1 @@
+export function createReferenceFidelitySpec({references=[],identityFields=[],forbiddenChanges=[],target='strict'}={}){return {version:'reference-fidelity-v1',target,references,identityFields,forbiddenChanges,policy:{preserveIdentity:true,preserveKeyGeometry:true,preserveSignatureDetails:true}};}
