@@ -2,9 +2,6 @@ name: Bikeztagram Creative Pre-test Gate
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - integration/creative-engine-pretest-02
 
 permissions:
   contents: read
