@@ -1,0 +1,10 @@
+import {buildCreativeMusicRequest,attachMusicResultToCreativeContext,musicCanEnterProduction} from '../src/creativeMusicOrchestrationV1.js';
+const request=buildCreativeMusicRequest({job:{duration:360,prompt:'dark cinematic motorcycle film',genre:'cinematic',mood:'dark',filmType:'film'}});
+if(request.duration!==360||request.quality?.target!=='professional-song')throw new Error('Creative music request lost long-form professional target.');
+const result={audio:'provider-audio',audioAvailable:true,duration:360,providerGrade:true,provider:'professional-provider'};
+const context=attachMusicResultToCreativeContext({duration:360},result,request);
+if(!context.music.ready||!context.music.professionalMaster||!context.music.analysisRequired||!context.music.beatSyncRequired)throw new Error('Validated professional music did not enter production context.');
+if(!musicCanEnterProduction(context))throw new Error('Production gate rejected valid full-duration soundtrack.');
+const fallback=attachMusicResultToCreativeContext({duration:360},{audioAvailable:false},request);
+if(musicCanEnterProduction(fallback))throw new Error('Production gate accepted missing provider audio.');
+console.log('PASS: creative runtime can request, validate and gate a full-duration professional soundtrack.');
