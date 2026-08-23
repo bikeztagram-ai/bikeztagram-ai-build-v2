@@ -9,7 +9,7 @@ const assert=(condition,message)=>{if(!condition)failures.push(message);};
 
 const requiredFiles=['src/App.jsx','src/renderer.js','src/musicGenerator.js','src/renderQualityLoop.js','src/finalAudioMux.js','api/blob-presign.js','api/analyse.js','api/analyse-image.js','api/analyse-library.js','api/captions.js','api/generate-music.js','api/render.js'];
 for(const file of requiredFiles)assert(exists(file),`Missing required pipeline file: ${file}`);
-assert(!exists('api/private-blob-read.js'),'Obsolete private Blob helper must not be present; private reads are inline in the mixed-media route.');
+assert(!exists('api/private-blob-read.js'),'Obsolete private Blob helper must not be present.');
 
 if(exists('api/blob-presign.js')){
  const presign=read('api/blob-presign.js');
@@ -17,6 +17,8 @@ if(exists('api/blob-presign.js')){
  assert(presign.includes('operations: ["get"]'),'Blob read token no longer scopes GET correctly.');
  assert(presign.includes('operation: "put"'),'Blob presign endpoint no longer creates a signed PUT URL.');
  assert(presign.includes('operation: "get"'),'Blob presign endpoint no longer creates a signed GET URL.');
+ assert(presign.includes('access: "private"'),'Blob presign endpoint no longer binds signed URLs to the private store access mode.');
+ assert(presign.includes('useCache: false'),'Blob read URL is not explicitly origin-backed.');
  assert(presign.includes('url: readUrl'),'Blob presign endpoint no longer returns the signed read URL.');
  assert(!presign.includes('presignedUrl.split("?")[0]'),'Blob read URL must not have its authentication query stripped.');
 }
@@ -26,12 +28,12 @@ for(const file of ['api/analyse.js','api/analyse-image.js','api/captions.js']){
 }
 if(exists('api/analyse-library.js')){
  const library=read('api/analyse-library.js');
- assert(library.includes("from '@vercel/blob'"),'Mixed-media Gemini analysis no longer uses the Vercel Blob SDK.');
- assert(library.includes("get(pathname,{access:'private',token,useCache:false})"),'Mixed-media Gemini analysis no longer performs an authenticated private Blob SDK read.');
+ assert(!library.includes("from '@vercel/blob'"),'Mixed-media Gemini analysis should consume the signed Blob URL supplied by the upload step, not select a store implicitly.');
+ assert(library.includes('fetch(signedUrl'),'Mixed-media Gemini analysis no longer fetches the signed Blob read URL.');
+ assert(library.includes('cache:\'no-store\''),'Mixed-media Gemini analysis no longer bypasses stale Blob CDN reads.');
  assert(library.includes('createWriteStream'),'Mixed-media Gemini analysis no longer streams Blob data to temporary storage.');
  assert(library.includes('ai.files.upload'),'Mixed-media Gemini analysis does not upload actual source bytes to Gemini.');
  assert(library.includes('generateContent'),'Mixed-media Gemini analysis does not run the Gemini director pass.');
- assert(library.includes('BLOB_READ_WRITE_TOKEN'),'Mixed-media Gemini analysis does not authenticate the private Blob read.');
 }
 if(exists('src/App.jsx')){
  const app=read('src/App.jsx');
@@ -63,4 +65,4 @@ if(exists('package.json')){
 }
 if(failures.length){console.error('WHOLE PIPELINE AUDIT: FAIL');for(const failure of failures)console.error(`- ${failure}`);process.exit(1);}
 console.log('WHOLE PIPELINE AUDIT: PASS');
-console.log('Signed Blob upload/read, authenticated Gemini ingestion, local original audio, renderer/QA and final audio mux contracts are present.');
+console.log('Signed private Blob upload/read URLs, authenticated Gemini ingestion, local original audio, renderer/QA and final audio mux contracts are present.');
