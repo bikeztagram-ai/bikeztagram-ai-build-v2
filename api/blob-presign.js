@@ -20,10 +20,48 @@ export default async function handler(req, res) {
 
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
     const validUntil = Date.now() + 15 * 60 * 1000;
-    const delegation = await issueSignedToken({ token, pathname, operations: ["put"], validUntil, allowedContentTypes: [mimeType], maximumSizeInBytes: size });
-    const { presignedUrl } = await presignUrl(delegation, { pathname, operation: "put", validUntil, allowedContentTypes: [mimeType], maximumSizeInBytes: size });
 
-    return res.status(200).json({ presignedUrl, url: presignedUrl.split("?")[0], pathname, mimeType, size, expiresAt: validUntil });
+    // One delegation explicitly permits both the browser upload and the short-lived
+    // server-side source read. The GET URL is what Gemini uses; it must not be the
+    // PUT URL with its query string stripped off.
+    const delegation = await issueSignedToken({
+      token,
+      pathname,
+      operations: ["put", "get"],
+      validUntil,
+      allowedContentTypes: [mimeType],
+      maximumSizeInBytes: size,
+    });
+
+    const { presignedUrl } = await presignUrl(delegation, {
+      pathname,
+      operation: "put",
+      access: "public",
+      validUntil,
+      allowedContentTypes: [mimeType],
+      maximumSizeInBytes: size,
+    });
+
+    const { presignedUrl: sourceUrl } = await presignUrl(delegation, {
+      pathname,
+      operation: "get",
+      access: "public",
+      validUntil,
+      useCache: false,
+    });
+
+    return res.status(200).json({
+      presignedUrl,
+      // Stable public URL for browser display/metadata.
+      url: sourceUrl.split("?")[0],
+      // Short-lived signed GET URL for server-side Gemini reads. This avoids
+      // relying on a stripped PUT URL and also gives us a deterministic read path.
+      sourceUrl,
+      pathname,
+      mimeType,
+      size,
+      expiresAt: validUntil,
+    });
   } catch (error) {
     console.error("Bikeztagram public Blob upload signing error:", error);
     return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create public Blob upload URL." });
