@@ -1,0 +1,22 @@
+name: Bikeztagram Creative Media Identity
+on:
+  push:
+    branches:
+      - development/from-e2e-working-baseline
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm install
+      - run: npm run build
+      - run: node scripts/verify-creative-media-identity-v1.mjs
+      - run: node scripts/verify-protected-foundation-and-checkpoint.mjs
