@@ -1,5 +1,4 @@
 name: Bikeztagram Creative Engine Batches 78-80
-
 on:
   push:
     branches:
@@ -9,10 +8,8 @@ on:
       - baseline/e2e-blob-gemini-working-2026-08-23
       - main
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   creative-engine:
     runs-on: ubuntu-latest
@@ -38,3 +35,5 @@ jobs:
         run: node scripts/verify-production-bridge.mjs
       - name: Verify app production integration
         run: node scripts/verify-production-integration.mjs
+      - name: Verify render guard and soundtrack V3
+        run: node scripts/verify-batch93-render-guard.mjs
