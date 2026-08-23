@@ -1,12 +1,9 @@
 import { GoogleGenAI, createPartFromUri, createUserContent } from '@google/genai';
-import { readPrivateBlob } from './private-blob-read.js';
 
 const text=(v)=>String(v??'').trim();
 const num=(v,f=0)=>{const n=Number(v);return Number.isFinite(n)?n:f};
 
-async function readUploadedBlob(videoUrl){
-  return readPrivateBlob({url:videoUrl,label:'uploaded Blob video'});
-}
+async function readUploadedBlob(videoUrl){const url=text(videoUrl);if(!url)throw new Error('No Blob video URL was supplied.');const response=await fetch(url);if(!response.ok)throw new Error(`Could not download the uploaded Blob video. HTTP ${response.status}`);const contentType=text(response.headers.get('content-type'));const bytes=Buffer.from(await response.arrayBuffer());if(!bytes.length)throw new Error('Downloaded Blob video was empty.');return{bytes,contentType};}
 
 export default async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({success:false,error:'Method not allowed'});
