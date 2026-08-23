@@ -10,14 +10,8 @@ const plan=buildRendererPlanFromCreativeJob(job,{prompt:'test'});
 assert.equal(plan.cuts.length,3);
 assert.equal(plan.cuts.filter(c=>c.generated).length,2);
 
-const started=[];let peak=0;let active=0;
-const modelAdapter={generate:async()=>{}};
-const fakeRuntime={};
-void fakeRuntime;
-// Inject a deterministic adapter through the runtime boundary by supplying a provider adapter object.
-const adapter={
-  generate:async(request)=>{started.push(request.timelineRole);active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,5));active--;return {blob:new Blob(['x'],{type:'video/webm'}),mimeType:'video/webm',source:'test'};}
-};
+let peak=0;let active=0;
+const adapter=async(request)=>{active++;peak=Math.max(peak,active);await new Promise(r=>setTimeout(r,5));active--;return {blob:new Blob(['x'],{type:'video/webm'}),mimeType:'video/webm',source:'test',duration:request.duration,originalOnly:true};};
 const generated=await materializeGeneratedScenesV2(job,{modelAdapter:adapter});
 assert.equal(generated.length,2);
 assert.deepEqual(generated.map(x=>x.sceneIndex),[1,2]);
