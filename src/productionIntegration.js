@@ -10,5 +10,6 @@ export function prepareCinematicRender({sources=[],plan={},prompt='',targetDurat
  bridge.productionV2=v2;
  if(v2?.render?.cuts?.length)bridge.renderPlan={...bridge.renderPlan,...v2.render,cuts:v2.render.cuts,timeline:v2.render.timeline,renderContract:v2.render};
  if(music?.audioAvailable)bridge.renderPlan.music={...music,...bridge.renderPlan.music};
+ bridge.renderPlan={...(bridge.renderPlan||{}),qaRequired:true,qaContractVersion:'production-qa-v2',qa:{...(bridge.renderPlan?.qa||{}),required:true,noBlackGaps:Boolean(v2?.render?.qa?.noBlackGaps),continuous:Boolean(v2?.render?.continuous)}};
  return bridge;
 }
