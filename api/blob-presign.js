@@ -20,8 +20,6 @@ export default async function handler(req, res) {
     const allowed = new Set(["video/mp4", "video/quicktime", "video/webm", "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"]);
     if (!allowed.has(mimeType)) return res.status(415).json({ error: `Unsupported media type: ${mimeType}` });
 
-    // The pathname is generated once and is reused for both PUT and GET signing.
-    // The UUID already prevents collisions, so Blob must not append another suffix.
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
     const validUntil = Date.now() + 15 * 60 * 1000;
 
@@ -44,15 +42,21 @@ export default async function handler(req, res) {
       addRandomSuffix: false,
     });
 
-    const { presignedUrl: readUrl } = await presignUrl(delegation, {
-      pathname,
-      operation: "get",
-      access: "public",
-      validUntil,
-      useCache: false,
-    });
+    // The store is PUBLIC. After the signed PUT succeeds, the query-string on the
+    // PUT URL is no longer needed. Return the canonical public Blob URL so every
+    // downstream reader (browser, Gemini bridge, captions) uses the same object.
+    const publicUrl = new URL(presignedUrl);
+    publicUrl.search = "";
 
-    return res.status(200).json({ presignedUrl, url: readUrl, pathname, mimeType, size, expiresAt: validUntil, store: "canonical-public" });
+    return res.status(200).json({
+      presignedUrl,
+      url: publicUrl.toString(),
+      pathname,
+      mimeType,
+      size,
+      expiresAt: validUntil,
+      store: "canonical-public",
+    });
   } catch (error) {
     console.error("Bikeztagram public Blob upload signing error:", error);
     return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create public Blob upload URL." });
