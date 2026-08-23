@@ -41,9 +41,9 @@ export default async function handler(req, res) {
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
     const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
-    // Private Blob stores require the access mode to be included when the
-    // presigned URL is created. Keep upload and downstream read operations
-    // separately scoped so the browser never receives a broad token.
+    // Match the documented Vercel Blob signed-URL flow. The store itself
+    // determines whether this is a private Blob; access is not passed to
+    // presignUrl because the signed token already scopes the operation/path.
     const putToken = await issueSignedToken({
       pathname,
       operations: ["put"],
@@ -52,7 +52,6 @@ export default async function handler(req, res) {
     const { presignedUrl } = await presignUrl(putToken, {
       pathname,
       operation: "put",
-      access: "private",
       validUntil,
     });
 
@@ -64,15 +63,11 @@ export default async function handler(req, res) {
     const { presignedUrl: readUrl } = await presignUrl(getToken, {
       pathname,
       operation: "get",
-      access: "private",
       validUntil,
-      useCache: false,
     });
 
     return res.status(200).json({
       presignedUrl,
-      // IMPORTANT: keep the GET signature. The analysis pipeline fetches this
-      // URL server-side and must be able to read a private Blob object.
       url: readUrl,
       pathname,
       mimeType,
