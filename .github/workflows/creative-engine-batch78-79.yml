@@ -1,4 +1,4 @@
-name: Bikeztagram Creative Engine Batches 78-79
+name: Bikeztagram Creative Engine Batches 78-80
 
 on:
   push:
@@ -33,3 +33,5 @@ jobs:
         run: npm run verify:batch78
       - name: Verify complete-film orchestrator
         run: npm run verify:batch79
+      - name: Verify Creative Director API
+        run: npm run verify:batch80
