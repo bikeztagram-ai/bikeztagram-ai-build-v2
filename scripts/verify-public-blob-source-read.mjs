@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync('api/blob-presign.js','utf8');
+assert.match(source,/PUBLIC_BLOB_READ_WRITE_TOKEN/);
+assert.match(source,/operations:\s*\["put",\s*"get"\]/);
+assert.match(source,/operation:\s*"put"/);
+assert.match(source,/operation:\s*"get"/);
+assert.match(source,/access:\s*"public"/);
+assert.match(source,/url:\s*readUrl/);
+assert.doesNotMatch(source,/split\("\?"\)\[0\]/);
+console.log('Public Blob signed source-read contract: PASS');
