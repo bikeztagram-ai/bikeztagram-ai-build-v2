@@ -27,6 +27,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/blob-presign",
+      "destination": "/api/blob-public-presign"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/"
     }
