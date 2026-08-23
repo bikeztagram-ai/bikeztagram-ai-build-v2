@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { suppressUnrequestedGeneratedScenes } from '../src/renderQualityLoop.js';
+import { createOriginalMusicWav } from '../src/musicProviderV3.js';
+const plan={cuts:[{mediaIndex:0,duration:2},{mediaIndex:0,duration:2,generated:true,generationPrompt:'neon city'}]};
+const guarded=suppressUnrequestedGeneratedScenes(plan);
+assert.equal(guarded.cuts[1].generated,undefined);
+assert.equal(guarded.cuts[1].generationPrompt,undefined);
+assert.equal(guarded.cuts[1].sourceType,undefined);
+assert.equal(guarded.generatedScenesSuppressed,true);
+const allowed=suppressUnrequestedGeneratedScenes({...plan,allowGeneratedScenes:true});
+assert.equal(allowed.cuts[1].generated,true);
+const wav=createOriginalMusicWav(15,112,{energy:.85,seed:'batch93'});
+assert.equal(wav.type,'audio/wav');
+assert.ok(wav.size>44000);
+console.log('batch93-render-guard: PASS');
