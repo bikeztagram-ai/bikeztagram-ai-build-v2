@@ -1,4 +1,5 @@
 import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai';
+import { readPrivateBlob, pathnameFromBlobUrl } from './private-blob-read.js';
 
 const text = (v) => String(v ?? '').trim();
 const clamp = (v, min, max) => Math.max(min, Math.min(max, Number(v) || min));
@@ -12,12 +13,30 @@ function retryable(error) {
 
 async function readSignedSource(item) {
   const url = text(item?.url || item?.sourceUrl);
-  if (!url) throw new Error('Source has no signed Blob read URL.');
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Could not download source media. HTTP ${response.status}`);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (!bytes.length) throw new Error('Vercel Blob returned an empty source media.');
-  return { bytes, contentType: response.headers.get('content-type') || text(item?.mimeType) || 'application/octet-stream' };
+  const pathname = text(item?.pathname) || pathnameFromBlobUrl(url);
+  if (!url && !pathname) throw new Error('Source has no Blob read URL or pathname.');
+
+  // Prefer the Blob SDK's authenticated private read. It avoids relying on
+  // server-side fetch support for the signed GET URL and is the most reliable
+  // path for private stores on Vercel.
+  try {
+    return await readPrivateBlob({ url, pathname, label: `source media ${item?.filename || ''}`.trim() });
+  } catch (sdkError) {
+    // Keep the signed GET URL as a compatibility fallback for stores where the
+    // SDK read path is unavailable.
+    if (!url) throw sdkError;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Could not download source media. HTTP ${response.status}`);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (!bytes.length) throw new Error('Vercel Blob returned an empty source media.');
+      return { bytes, contentType: response.headers.get('content-type') || text(item?.mimeType) || 'application/octet-stream' };
+    } catch (fetchError) {
+      const sdkMessage = sdkError?.message || String(sdkError);
+      const fetchMessage = fetchError?.message || String(fetchError);
+      throw new Error(`Blob source read failed. SDK: ${sdkMessage}. Signed URL: ${fetchMessage}`);
+    }
+  }
 }
 
 async function geminiFailover(ai, request) {
