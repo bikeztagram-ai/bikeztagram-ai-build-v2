@@ -1,0 +1,13 @@
+import {buildMusicGenerationRequest,generateMusicWithProvider} from '../src/musicGenerationRouterV2.js';
+import {buildLongFormMusicComposition} from '../src/musicCompositionV3.js';
+import {buildCinematicProductionV2} from '../src/cinematicProductionV2.js';
+const composition=buildLongFormMusicComposition({duration:60,prompt:'original cinematic motorcycle anthem',genre:'cinematic rock',filmType:'song'});composition.bpm=118;
+const req=buildMusicGenerationRequest(composition,{stems:true,allowVocals:true});
+if(req.contract!=='music-provider-v2'||req.duration!==60||!req.outputs.stems)throw new Error('Provider request routing failed.');
+const provided=await generateMusicWithProvider({composition,provider:async request=>({audioUrl:'provider',duration:60,beatMap:[{time:0}],sections:request.sections})});
+if(provided.source!=='professional-provider'||!provided.validation.pass)throw new Error('Professional provider route failed.');
+const fallback=await generateMusicWithProvider({composition});
+if(fallback.source!=='local-fallback'||!fallback.validation.pass)throw new Error('Fallback route failed.');
+const production=buildCinematicProductionV2({duration:60,cuts:[{start:0,duration:10},{start:10,duration:20},{start:30,duration:30}],composition,music:{beatGrid:{beats:[{time:0},{time:2}]}}});
+if(!production.contracts.continuous||!production.contracts.longForm||!production.contracts.providerReady)throw new Error('Production v2 contracts failed.');
+console.log('PASS: professional music routing, safe fallback and cinematic production v2 verified.');
