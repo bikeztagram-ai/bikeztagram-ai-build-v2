@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { buildCreativeCommandPlan } from '../src/creativeDirectorV2.js';
+import { buildRendererPlanFromCreativeJob, buildOriginalMusicForCreativeJob } from '../src/creativeEngineMediaBridgeV2.js';
+import { createVideoGenerationRuntime } from '../src/videoGenerationRuntimeV2.js';
+import { evaluateCreativeFilm } from '../src/creativeEngineRuntimeV2.js';
+
+const input={prompt:'Create a dark cinematic motorcycle trailer with anticipation, a reveal, aggressive action and a powerful hero ending.',duration:15,aspectRatio:'9:16',assets:[{id:'bike',name:'bike.jpg',type:'image/jpeg',subjectId:'bike',subjectType:'motorcycle'},{id:'ride',name:'ride.mp4',type:'video/mp4',duration:5,subjectId:'bike',subjectType:'motorcycle'}]};
+const command=buildCreativeCommandPlan(input);
+assert.ok(command?.plan?.generationRequests?.length>=1,'vertical slice must produce at least one generated-scene request');
+const job={title:command.plan.brief.title||'AI Film',targetDuration:15,style:{name:'cinematic',colorGrade:'dark-cinematic'},music:{genre:'cinematic-electronic',bpm:116,energy:.9},scenes:[{mediaIndex:0,purpose:'hook',duration:2,sourceType:'uploaded'},{purpose:'reveal-insert',duration:3,generated:true,generationPrompt:'original cinematic motorcycle reveal environment'},{mediaIndex:1,purpose:'action',duration:5,sourceType:'uploaded'},{mediaIndex:0,purpose:'hero',duration:3,sourceType:'uploaded'}]};
+const rendererPlan=buildRendererPlanFromCreativeJob(job,{prompt:input.prompt,targetDuration:15});
+assert.equal(rendererPlan.cuts.length,4);assert.ok(rendererPlan.cuts.some(c=>c.generated));
+const music=buildOriginalMusicForCreativeJob(job);assert.equal(music.metadata.original,true);assert.ok(music.audioBlob?.size>1000);
+const fakeModel=async request=>({videoBlob:new Blob(['generated-video']),source:'test-model',request});
+const runtime=createVideoGenerationRuntime({modelAdapter:fakeModel,localGenerator:null});
+const generated=await runtime.generate({type:'text-to-video',prompt:'original cinematic motorcycle reveal',duration:3,timelineRole:'reveal'});
+assert.equal(generated.status,'ready');assert.equal(generated.request.constraints.originalOnly,true);
+const qa=evaluateCreativeFilm({story:90,pacing:88,musicImpact:90,beatUtilisation:86,shotVariety:88,continuity:90,captionQuality:80,technical:96});
+assert.ok(qa.quality.score>=80);assert.equal(qa.revision.revise,false);
+console.log('Creative film vertical slice V1: PASS',{generationRequests:command.plan.generationRequests.length,cuts:rendererPlan.cuts.length,musicBytes:music.audioBlob.size,quality:qa.quality.score});
