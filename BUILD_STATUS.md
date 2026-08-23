@@ -39,8 +39,11 @@ Updated: 2026-08-23
 - Batch 80 exposes the same Creative Director orchestration as a provider-neutral API command endpoint for future command-center UI integration.
 - Video Generation V2 now carries scene blueprints into a provider-neutral adapter and supports an in-house browser-procedural fallback path when no external model output is available.
 - Creative Engine Batches 78–80 have dedicated GitHub Actions verification workflow coverage; no Vercel deployment is part of these changes.
+- Batch 82 implementation adds a parallel materialization bridge so multiple generated scenes can fan out concurrently, preserve source ordering, map generated outputs back into the renderer timeline, and retain the original in-house soundtrack metadata.
+- Blob upload signing now uses the canonical protected `BLOB_READ_WRITE_TOKEN` path and private signed PUT/GET delegation; a dedicated contract guard prevents the legacy `PUBLIC_BLOB_READ_WRITE_TOKEN` path from returning.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
+- Batch 82 parallel generated-scene materialization on the real browser/runtime.
 - New original musical arrangement playback/mux acceptance on the real Android browser.
 - Browser procedural generated-scene MediaRecorder generation and materialization into the existing renderer.
 - Actual provider-backed text-to-video/image-to-video/subject-aware generation when a suitable model/runtime is deliberately selected.
@@ -66,7 +69,7 @@ Updated: 2026-08-23
 - Final local/open model runtime selection and installation for music/video adapters.
 
 ## Current acceleration priority
-1. Verify Batches 77–80 in GitHub Actions before any merge or deployment.
+1. Verify Batches 77–80 and the new Batch 82 bridge before any merge or deployment.
 2. Browser-test the new original soundtrack and procedural generated-scene path on Android using the frozen E2E pipeline as the control.
 3. Integrate the Creative Director API into the app's command-center UI so one request can drive the full job lifecycle.
 4. Upgrade original music from the procedural engine to a genuine generated-composition provider while retaining the local engine as a zero-cost/private fallback.
