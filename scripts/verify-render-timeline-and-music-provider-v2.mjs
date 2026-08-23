@@ -1,0 +1,11 @@
+import {normalizeContinuousTimeline,validateNoBlackGaps} from '../src/cinematicTimelineV2.js';
+import {buildMusicProviderRequest,validateMusicProviderResult} from '../src/musicProviderContractV2.js';
+import {buildLongFormMusicComposition} from '../src/musicCompositionV3.js';
+const timeline=normalizeContinuousTimeline([{start:0,duration:3},{start:4,duration:4},{start:9,duration:3}],12);
+if(!validateNoBlackGaps(timeline).pass||timeline.gaps!==0)throw new Error('Gap-free timeline normalization failed.');
+const composition=buildLongFormMusicComposition({duration:180,prompt:'original cinematic motorcycle film',filmType:'film'});
+const request=buildMusicProviderRequest(composition,{stems:true,allowVocals:true});
+if(request.contract!=='music-provider-v2'||request.duration!==180||!request.outputs.fullMix||!request.outputs.stems||!request.timing.returnBeatMap)throw new Error('Music provider request contract incomplete.');
+const valid=validateMusicProviderResult({audioUrl:'test',duration:180,beatMap:[],sections:[]},180);
+if(!valid.pass)throw new Error('Music provider result validation failed.');
+console.log('PASS: gap-free rendering and long-form professional music provider contracts verified.');
