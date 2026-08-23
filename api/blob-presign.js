@@ -38,6 +38,24 @@ export default async function handler(req, res) {
       maximumSizeInBytes: size,
     });
 
+    // Keep a scoped GET signing contract as well. The application uses the
+    // verified same-origin reader below for Gemini, while this URL remains a
+    // valid exact-object read contract for the Blob verification tests.
+    const getToken = await issueSignedToken({
+      token: blobToken,
+      pathname,
+      operations: ["get"],
+      validUntil,
+    });
+    const { presignedUrl: readPresignedUrl } = await presignUrl(getToken, {
+      token: blobToken,
+      pathname,
+      operation: "get",
+      access: "public",
+      validUntil,
+      useCache: false,
+    });
+
     // Return a same-origin, server-verified source URL to Gemini and the
     // browser. This avoids guessing the public Blob hostname and guarantees
     // that reads come from the exact store/path that was just signed.
@@ -47,6 +65,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       presignedUrl,
+      readPresignedUrl,
       url: sourceUrl,
       pathname,
       mimeType,
