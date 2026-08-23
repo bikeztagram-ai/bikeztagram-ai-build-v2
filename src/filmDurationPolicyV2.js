@@ -1,0 +1,3 @@
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number.isFinite(Number(v))?Number(v):a));
+export function resolveFilmDuration({requestedDuration,prompt='',mediaCount=0}={}){const p=String(prompt).toLowerCase();if(Number.isFinite(Number(requestedDuration)))return clamp(requestedDuration,15,3600);if(/long|full film|documentary|extended|5 minute|10 minute|20 minute/.test(p))return mediaCount>3?300:180;if(/minute/.test(p))return 120;return 15;}
+export function buildDurationPolicy({duration=15}={}){const d=clamp(duration,15,3600);return {duration:d,short:d<=35,medium:d>35&&d<=180,long:d>180,compositionRequired:d>35,sectionDevelopment:d>35,rendererMustSupportContinuousTimeline:true};}
