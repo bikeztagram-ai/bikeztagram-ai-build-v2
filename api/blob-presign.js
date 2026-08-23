@@ -23,6 +23,9 @@ export default async function handler(req, res) {
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
     const validUntil = Date.now() + 15 * 60 * 1000;
 
+    // One short-lived delegation is deliberately scoped to this exact pathname and
+    // exact upload size/type. It can mint both the direct PUT and the immediate
+    // authenticated GET used by Gemini/captions after the upload completes.
     const delegation = await issueSignedToken({
       token,
       pathname,
@@ -32,7 +35,7 @@ export default async function handler(req, res) {
       maximumSizeInBytes: size,
     });
 
-    const { presignedUrl } = await presignUrl(delegation, {
+    const { presignedUrl: uploadUrl } = await presignUrl(delegation, {
       pathname,
       operation: "put",
       access: "public",
@@ -42,23 +45,29 @@ export default async function handler(req, res) {
       addRandomSuffix: false,
     });
 
-    // The store is PUBLIC. After the signed PUT succeeds, the query-string on the
-    // PUT URL is no longer needed. Return the canonical public Blob URL so every
-    // downstream reader (browser, Gemini bridge, captions) uses the same object.
-    const publicUrl = new URL(presignedUrl);
-    publicUrl.search = "";
+    // The preview store is returning 403 for the bare public URL. Do not guess that
+    // the store is publicly readable just because the upload delegation uses public
+    // access. Return a short-lived signed GET URL for the exact same object instead.
+    // The pathname remains canonical, while downstream readers get an authenticated
+    // URL that works whether the backing store is public or private.
+    const { presignedUrl: readUrl } = await presignUrl(delegation, {
+      pathname,
+      operation: "get",
+      validUntil,
+    });
 
     return res.status(200).json({
-      presignedUrl,
-      url: publicUrl.toString(),
+      presignedUrl: uploadUrl,
+      url: readUrl,
+      readUrl,
       pathname,
       mimeType,
       size,
       expiresAt: validUntil,
-      store: "canonical-public",
+      store: "canonical-blob-signed-read",
     });
   } catch (error) {
-    console.error("Bikeztagram public Blob upload signing error:", error);
-    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create public Blob upload URL." });
+    console.error("Bikeztagram Blob upload signing error:", error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create Blob upload URL." });
   }
 }

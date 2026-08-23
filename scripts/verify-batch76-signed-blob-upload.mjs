@@ -15,18 +15,17 @@ assert.match(presign, /issueSignedToken/);
 assert.match(presign, /operations:\s*\["put",\s*"get"\]/);
 assert.match(presign, /presignUrl/);
 assert.match(presign, /operation:\s*"put"/);
-assert.doesNotMatch(presign, /operation:\s*"get"/, 'Public Blob reads use the canonical public URL, not a second signed GET URL');
-assert.match(presign, /publicUrl\.search\s*=\s*""/);
-assert.match(presign, /store:\s*"canonical-public"/);
+assert.match(presign, /operation:\s*"get"/);
+assert.match(presign, /readUrl/);
 assert.match(presign, /validUntil/);
-assert.match(presign, /addRandomSuffix:\s*false/, 'Presigned PUT must keep the pathname stable for the canonical public URL');
+assert.match(presign, /addRandomSuffix:\s*false/, 'Presigned PUT must keep the pathname stable for the following signed GET');
 assert.match(presign, /500\s*\*\s*1024\s*\*\s*1024/);
 assert.match(app, /fetch\('\/api\/blob-presign'/);
 assert.match(app, /XMLHttpRequest/);
 assert.match(app, /xhr\.open\('PUT'/);
 assert.doesNotMatch(app, /from '@vercel\/blob\/client'/, 'App must not use the CORS-prone client-token uploader');
 
-assert.match(privateRead, /from '@vercel\/blob'/, 'Source reader must use the Vercel Blob SDK fallback');
+assert.match(privateRead, /from '@vercel\/blob'/, 'Source reader must retain the Vercel Blob SDK fallback');
 assert.match(privateRead, /pathnameFromBlobUrl/, 'Source reader must recover pathname from Blob URLs');
 assert.match(privateRead, /new Response\(result\.stream\)\.arrayBuffer/, 'Source reader must consume the Blob stream');
 
@@ -35,8 +34,8 @@ for (const [name, source] of Object.entries({analyse, analyseImage, analyseLibra
 }
 
 console.log('Signed Blob upload/read contract: PASS');
-console.log('- time-bound signed PUT delegation with GET capability retained');
-console.log('- canonical public Blob URL returned after upload signing');
+console.log('- time-bound signed PUT + GET delegation');
+console.log('- signed GET URL returned for downstream Gemini/caption reads');
 console.log('- deterministic pathname (no random suffix after presigning)');
 console.log('- browser-to-Blob direct transfer');
 console.log('- XMLHttpRequest upload progress');
