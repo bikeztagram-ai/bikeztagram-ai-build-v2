@@ -41,9 +41,9 @@ export default async function handler(req, res) {
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
     const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
-    // Keep browser upload and downstream source reads as two independently
-    // scoped operations. This works with Vercel private Blob stores while
-    // preserving the existing direct signed-PUT upload flow.
+    // Private Blob stores require the access mode to be included when the
+    // presigned URL is created. Keep upload and downstream read operations
+    // separately scoped so the browser never receives a broad token.
     const putToken = await issueSignedToken({
       pathname,
       operations: ["put"],
@@ -52,6 +52,7 @@ export default async function handler(req, res) {
     const { presignedUrl } = await presignUrl(putToken, {
       pathname,
       operation: "put",
+      access: "private",
       validUntil,
     });
 
@@ -63,7 +64,9 @@ export default async function handler(req, res) {
     const { presignedUrl: readUrl } = await presignUrl(getToken, {
       pathname,
       operation: "get",
+      access: "private",
       validUntil,
+      useCache: false,
     });
 
     return res.status(200).json({
