@@ -26,14 +26,13 @@ jobs:
           changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
           protected='^(vercel\.json|api/blob-presign\.js|api/upload\.js|api/analyse-library\.js|api/render\.js|\.env\.example|docs/PRODUCTION-CONTRACT\.md|\.github/workflows/production-contract-guard\.yml)$'
           if echo "$changed" | grep -Eq "$protected"; then
-            subject="$(git log -1 --format=%s "$HEAD_SHA")"
-            if [[ "$subject" != *"[production-contract-approved]"* ]]; then
-              echo "Protected production contract files changed."
-              echo "Explicit production-contract approval is required."
-              echo "A deliberately reviewed contract change must carry [production-contract-approved] in its final commit message."
-              exit 1
+            if git log --format=%s "$BASE_SHA..$HEAD_SHA" | grep -Fq "[production-contract-approved]"; then
+              echo "Protected change explicitly approved by a reviewed commit marker in this PR."
+              exit 0
             fi
-            echo "Protected change explicitly approved by commit marker."
-            exit 0
+            echo "Protected production contract files changed."
+            echo "Explicit production-contract approval is required."
+            echo "A deliberately reviewed contract change must carry [production-contract-approved] in a commit in this PR."
+            exit 1
           fi
           echo "No protected production contract files changed."
