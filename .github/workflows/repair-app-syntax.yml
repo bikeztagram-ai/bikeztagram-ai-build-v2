@@ -1,0 +1,38 @@
+name: Repair recovery App syntax
+on:
+  push:
+    branches: [fix/public-blob-end-to-end-recovery]
+permissions:
+  contents: write
+jobs:
+  repair:
+    if: github.event.head_commit.message != 'chore: repair App syntax'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Repair malformed mixed-media fetch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/App.jsx')
+          s=p.read_text()
+          old="items:uploaded.map(x=>({url:x.sourceUrl||x.url,filename:x.name,mimeType:x.mimeType,mediaType:x.type.startsWith('image/')?'image':'video'})))});"
+          new="items:uploaded.map(x=>({url:x.sourceUrl||x.url,filename:x.name,mimeType:x.mimeType,mediaType:x.type.startsWith('image/')?'image':'video'}))});"
+          if old not in s:
+              raise SystemExit('Expected malformed mixed-media fetch was not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+      - name: Verify build
+        run: |
+          npm install
+          npm run build
+      - name: Commit repair
+        run: |
+          git config user.name 'bikeztagram-ai'
+          git config user.email 'dsengineeringhull@gmail.com'
+          git add src/App.jsx
+          git commit -m 'chore: repair App syntax'
+          git push
