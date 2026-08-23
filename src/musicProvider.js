@@ -25,20 +25,19 @@ export function createOriginalMusicWav(seconds=15,bpm=112,{genre='cinematic',ene
  for(let b=0;b<bars;b++){
    const bs=b*bar,chordRoot=root+progression[b%progression.length];
    for(let j=0;j<4;j++){const midi=chordRoot+scale[[0,2,4,6][j%4]];chords.push({time:bs,duration:Math.min(bar,total-bs),midi,attack:.08,release:.16,gain:.075+e*.025});}
-   for(let q=0;q<8;q++){const t=bs+q*beat/2;if(t>total)continue;const accent=q%2===0||b%4===3; bass.push({time:t,duration:Math.min(beat*.46,total-t),midi:chordRoot-12+(q===0?0:(q===4?7:0)),attack:.008,release:.08,gain:(.16+e*.07)*(accent?1:.78)});hat.push({time:t,duration:.035,midi:90,attack:0,release:.035,gain:.035+(q%2?0:.018)});}
+   for(let q=0;q<8;q++){const t=bs+q*beat/2;if(t>total)continue;const accent=q%2===0||b%4===3;bass.push({time:t,duration:Math.min(beat*.46,total-t),midi:chordRoot-12+(q===0?0:(q===4?7:0)),attack:.008,release:.08,gain:(.16+e*.07)*(accent?1:.78)});hat.push({time:t,duration:.035,midi:90,attack:0,release:.035,gain:.035+(q%2?0:.018)});}
    kick.push({time:bs,duration:.18,gain:.42+e*.16});kick.push({time:bs+beat*2,duration:.16,gain:.34+e*.12});
    if(b%2===1){snare.push({time:bs+beat,duration:.13,gain:.22+e*.08});snare.push({time:bs+beat*3,duration:.13,gain:.24+e*.08});}
    const motif=[0,2,4,2,3,1,4,6];for(let m=0;m<8;m++){const t=bs+m*beat/2+.01;if(t>=total)break;const degree=motif[(m+b)%motif.length];lead.push({time:t,duration:beat*.36,midi:chordRoot+12+scale[degree%scale.length],attack:.012,release:.09,gain:(.055+e*.025)*(b%4===3?1.2:1)});}
  }
- const padNotes=chords;const master=Math.min(.82,.58+e*.16);
+ const master=Math.min(.82,.58+e*.16);
  for(let i=0;i<frames;i++){
    const t=i/sampleRate;let L=0,R=0;
    const kickHit=kick.reduce((s,k)=>{const x=t-k.time;if(x<0||x>k.duration)return s;const f=110*Math.exp(-x*28)+46;return s+Math.sin(TAU*f*x)*Math.exp(-x*18)*k.gain;},0);
    const snareHit=snare.reduce((s,k)=>{const x=t-k.time;if(x<0||x>k.duration)return s;return s+noise(Math.floor(i*.41)+k.time*1000)*Math.exp(-x*30)*k.gain;},0);
    const hatHit=hat.reduce((s,k)=>{const x=t-k.time;if(x<0||x>k.duration)return s;return s+noise(Math.floor(i*1.7)+k.time*700)*Math.exp(-x*90)*k.gain;},0);
-   const bassHit=renderTone(sampleRate,t,bass,'bass');const padHit=renderTone(sampleRate,t,padNotes,'pad');const leadHit=renderTone(sampleRate,t,lead,'lead');
-   const lift=(t<bar?.0?0:1); // keep the intro restrained without introducing a hard click
-   const arrangement=(t<2?0.72:(t>total-2?0.92:1))*lift+0.001;
+   const bassHit=renderTone(sampleRate,t,bass,'bass');const padHit=renderTone(sampleRate,t,chords,'pad');const leadHit=renderTone(sampleRate,t,lead,'lead');
+   const arrangement=(t<2?0.72:(t>total-2?0.92:1));
    const dry=(kickHit+snareHit+hatHit+bassHit+padHit+leadHit)*arrangement*master;
    const width=leadHit*.12+padHit*.06;L=dry-width;R=dry+width;
    const fadeIn=Math.min(1,t/.08),fadeOut=Math.min(1,(total-t)/.16),gain=fadeIn*fadeOut;
