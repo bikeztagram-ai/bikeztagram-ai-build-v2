@@ -1,42 +1,9 @@
 import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai';
-import { readPrivateBlob } from './private-blob-read.js';
 
 const text = (value) => String(value ?? '').trim();
-const num = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
 
 function promptForImage(userPrompt, filename) {
-  return `You are Stage 1 of a GENERAL-PURPOSE AI FILMMAKER.
-
-Analyse the ACTUAL uploaded image. Do not assume the subject from the filename. It may be a motorcycle, car, puppy, animal, person, travel scene, landscape, product, event, architecture, food, object or anything else.
-
-Identify only what is visibly supported by the image. Preserve uncertainty rather than inventing details.
-
-Return ONLY valid JSON:
-{
-  "filename":"${filename}",
-  "durationSeconds":0,
-  "mediaType":"image",
-  "subjects":[{"label":"","category":"","description":"","identity":"","attributes":[],"confidence":0,"importance":"primary"}],
-  "subject":{"primarySubject":"","category":"","description":"","identity":"","attributes":[],"confidence":0},
-  "scene":{"environment":"","locationType":"","timeOfDay":"","lighting":"","continuityAnchors":[]},
-  "shots":[{"start":0,"end":0,"type":"still-image","cameraMovement":"none","cameraAngle":"","screenDirection":"","stability":"stable","composition":"","subjectVisibility":""}],
-  "verifiedEvents":[],
-  "action":"",
-  "narrative":{"tone":"","emotion":"","storyPotential":""},
-  "visualQuality":{"composition":"","lighting":"","colour":"","sharpness":"","subjectVisibility":"","cinematicPotential":""},
-  "cinematicScore":0,
-  "bestMoments":[{"start":0,"end":2,"description":"","reason":"","editorialRole":"","subject":"","shotType":"still-image","score":0}],
-  "editingRecommendation":{"role":"","suggestedDuration":2,"speed":1,"slowMotion":false,"reason":"Still image; use camera motion only as an editorial treatment."},
-  "textRecommendation":{"useText":false,"text":"","reason":""},
-  "transitionRecommendation":"",
-  "motionRecommendation":"",
-  "continuityNotes":"",
-  "avoid":"",
-  "editorialNotes":""
-}
-
-USER CREATIVE REQUEST:
-${text(userPrompt) || 'Create a cinematic social-media edit from this image.'}`;
+  return `You are Stage 1 of a GENERAL-PURPOSE AI FILMMAKER.\n\nAnalyse the ACTUAL uploaded image. Do not assume the subject from the filename. It may be a motorcycle, car, puppy, animal, person, travel scene, landscape, product, event, architecture, food, object or anything else.\n\nIdentify only what is visibly supported by the image. Preserve uncertainty rather than inventing details.\n\nReturn ONLY valid JSON:\n{\n  "filename":"${filename}",\n  "durationSeconds":0,\n  "mediaType":"image",\n  "subjects":[{"label":"","category":"","description":"","identity":"","attributes":[],"confidence":0,"importance":"primary"}],\n  "subject":{"primarySubject":"","category":"","description":"","identity":"","attributes":[],"confidence":0},\n  "scene":{"environment":"","locationType":"","timeOfDay":"","lighting":"","continuityAnchors":[]},\n  "shots":[{"start":0,"end":0,"type":"still-image","cameraMovement":"none","cameraAngle":"","screenDirection":"","stability":"stable","composition":"","subjectVisibility":""}],\n  "verifiedEvents":[],\n  "action":"",\n  "narrative":{"tone":"","emotion":"","storyPotential":""},\n  "visualQuality":{"composition":"","lighting":"","colour":"","sharpness":"","subjectVisibility":"","cinematicPotential":""},\n  "cinematicScore":0,\n  "bestMoments":[{"start":0,"end":2,"description":"","reason":"","editorialRole":"","subject":"","shotType":"still-image","score":0}],\n  "editingRecommendation":{"role":"","suggestedDuration":2,"speed":1,"slowMotion":false,"reason":"Still image; use camera motion only as an editorial treatment."},\n  "textRecommendation":{"useText":false,"text":"","reason":""},\n  "transitionRecommendation":"",\n  "motionRecommendation":"",\n  "continuityNotes":"",\n  "avoid":"",\n  "editorialNotes":""\n}\n\nUSER CREATIVE REQUEST:\n${text(userPrompt) || 'Create a cinematic social-media edit from this image.'}`;
 }
 
 export default async function handler(req, res) {
@@ -46,13 +13,15 @@ export default async function handler(req, res) {
     if (!apiKey) return res.status(500).json({ success:false, error:'GEMINI_API_KEY is missing.' });
     const { imageUrl='', blobUrl='', pathname='', filename='image.jpg', mimeType='image/jpeg', prompt='' } = req.body || {};
     const actualImageUrl = imageUrl || blobUrl;
-    if (!actualImageUrl && !pathname) return res.status(400).json({ success:false, error:'No private Blob image source was supplied.' });
+    if (!actualImageUrl) return res.status(400).json({ success:false, error:'No public Blob image URL was supplied.' });
     if (!String(mimeType).startsWith('image/')) return res.status(400).json({ success:false, error:'analyse-image requires an image MIME type.' });
 
-    const source = await readPrivateBlob({url:actualImageUrl,pathname,label:'uploaded Blob image'});
-    const contentType = source.contentType || mimeType;
+    const source = await fetch(actualImageUrl);
+    if (!source.ok) throw new Error(`Could not download the uploaded Blob image. HTTP ${source.status}`);
+    const contentType = source.headers.get('content-type') || mimeType;
     if (!contentType.startsWith('image/')) throw new Error(`Blob returned unsupported content type: ${contentType}`);
-    const bytes = source.bytes;
+    const bytes = Buffer.from(await source.arrayBuffer());
+    if (!bytes.length) throw new Error('Downloaded Blob image was empty.');
 
     const ai = new GoogleGenAI({ apiKey });
     const imageFile = await ai.files.upload({ file:new Blob([bytes], { type:contentType }), config:{ mimeType:contentType, displayName:filename } });
@@ -71,7 +40,7 @@ export default async function handler(req, res) {
     analysis.filename = filename;
     analysis.mediaType = 'image';
     analysis.durationSeconds = 0;
-    analysis.source = { type:'uploaded-image', pathname:source.pathname, mimeType:contentType };
+    analysis.source = { type:'uploaded-image', pathname:text(pathname), mimeType:contentType };
     analysis.directorPipeline = {
       stages:['actual-media-analysis','verified-edit-direction'],
       stage1:'gemini-3.6-flash-image-analysis',
