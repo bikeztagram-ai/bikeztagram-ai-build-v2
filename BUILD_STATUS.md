@@ -36,8 +36,9 @@ Updated: 2026-08-23
 - Batch 78 adds an in-house generated-scene blueprint engine with role-aware camera, lighting, environment, motion, subject continuity, originality constraints and procedural-render fallback metadata.
 - Batch 79 adds a complete-film orchestrator that turns one natural-language request plus uploaded assets into a single film plan spanning media understanding, creative direction, original music, generated scenes, beat-aware assembly, render, QA, revision and export.
 - Batch 79 explicitly models generation as parallel work: original music and generated scenes can execute concurrently before assembly.
+- Batch 80 exposes the same Creative Director orchestration as a provider-neutral API command endpoint for future command-center UI integration.
 - Video Generation V2 now carries scene blueprints into a provider-neutral adapter and supports an in-house browser-procedural fallback path when no external model output is available.
-- Creative Engine Batches 78–79 have dedicated GitHub Actions verification workflow coverage; no Vercel deployment is part of these changes.
+- Creative Engine Batches 78–80 have dedicated GitHub Actions verification workflow coverage; no Vercel deployment is part of these changes.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
 - New original musical arrangement playback/mux acceptance on the real Android browser.
@@ -61,13 +62,13 @@ Updated: 2026-08-23
 - Controlled GitHub → Vercel production release workflow at the next stable milestone.
 - Full generative music model integration; current local engine is an original procedural composition runtime and provider-neutral model bridge.
 - Full provider-backed text-to-video/image-to-video/subject-aware video generation integration.
-- Full Creative Director command-center UI integration; the orchestration core now exists as a reusable runtime module.
+- Full Creative Director command-center UI integration; the orchestration core and API command surface now exist as reusable runtime modules.
 - Final local/open model runtime selection and installation for music/video adapters.
 
 ## Current acceleration priority
-1. Verify Batches 77–79 in GitHub Actions before any merge or deployment.
+1. Verify Batches 77–80 in GitHub Actions before any merge or deployment.
 2. Browser-test the new original soundtrack and procedural generated-scene path on Android using the frozen E2E pipeline as the control.
-3. Integrate the Creative Film Orchestrator into the app's command-center UI so one request can drive the full job lifecycle.
+3. Integrate the Creative Director API into the app's command-center UI so one request can drive the full job lifecycle.
 4. Upgrade original music from the procedural engine to a genuine generated-composition provider while retaining the local engine as a zero-cost/private fallback.
 5. Add a real provider-backed text-to-video/image-to-video/subject-aware execution adapter without changing the Creative Engine contracts.
 6. Add creative QA scoring and bounded revision decisions across story, visual continuity, music sync and generated-scene quality.
