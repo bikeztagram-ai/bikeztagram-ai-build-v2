@@ -14,18 +14,45 @@ export default async function handler(req, res) {
     if (size > 500 * 1024 * 1024) return res.status(413).json({ error: "Media exceeds the 500 MB upload limit" });
     const allowed = new Set(["video/mp4","video/quicktime","video/webm","image/jpeg","image/png","image/webp","image/gif","image/heic","image/heif"]);
     if (!allowed.has(mimeType)) return res.status(415).json({ error: `Unsupported media type: ${mimeType}` });
+
+    // This project has a specific private Blob store. Always use the store's
+    // BLOB_READ_WRITE_TOKEN here rather than preferring Vercel's ambient OIDC
+    // token. Mixing authentication contexts can sign a URL against a different
+    // store context and produce a successful-looking PUT followed by a 404 read.
+    const token = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
+    if (!token) throw new Error("BLOB_READ_WRITE_TOKEN is not configured.");
+
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
     const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
-    const staticToken = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
-    const oidcToken = String(process.env.VERCEL_OIDC_TOKEN || "").trim();
-    const storeId = String(process.env.BLOB_STORE_ID || "").trim();
-    if (!staticToken && !oidcToken) throw new Error("No Blob authentication token is configured.");
-    const auth = oidcToken ? { oidcToken, ...(storeId ? { storeId } : {}) } : { token: staticToken };
+    const auth = { token };
+
     const putToken = await issueSignedToken({ pathname, operations: ["put"], validUntil, ...auth });
-    const { presignedUrl } = await presignUrl(putToken, { pathname, operation: "put", access: "private", validUntil, allowedContentTypes: [mimeType], maximumSizeInBytes: 500 * 1024 * 1024 });
+    const { presignedUrl } = await presignUrl(putToken, {
+      pathname,
+      operation: "put",
+      access: "private",
+      validUntil,
+      allowedContentTypes: [mimeType],
+      maximumSizeInBytes: 500 * 1024 * 1024,
+    });
+
     const getToken = await issueSignedToken({ pathname, operations: ["get"], validUntil, ...auth });
-    const { presignedUrl: readUrl } = await presignUrl(getToken, { pathname, operation: "get", access: "private", validUntil, useCache: false });
-    return res.status(200).json({ presignedUrl, url: readUrl, pathname, mimeType, size, expiresAt: validUntil });
+    const { presignedUrl: readUrl } = await presignUrl(getToken, {
+      pathname,
+      operation: "get",
+      access: "private",
+      validUntil,
+      useCache: false,
+    });
+
+    return res.status(200).json({
+      presignedUrl,
+      url: readUrl,
+      pathname,
+      mimeType,
+      size,
+      expiresAt: validUntil,
+    });
   } catch (error) {
     console.error("Bikeztagram signed Blob upload error:", error);
     return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create signed Blob upload URL." });
