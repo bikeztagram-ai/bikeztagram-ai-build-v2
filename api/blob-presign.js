@@ -15,23 +15,30 @@ export default async function handler(req, res) {
     const allowed = new Set(["video/mp4","video/quicktime","video/webm","image/jpeg","image/png","image/webp","image/gif","image/heic","image/heif"]);
     if (!allowed.has(mimeType)) return res.status(415).json({ error: `Unsupported media type: ${mimeType}` });
 
-    // RESTORE THE KNOWN-WORKING BIKEZTAGRAM CONTRACT:
-    // this project uses the existing PUBLIC Blob store. The browser uploads
-    // through a scoped signed PUT URL, then the returned public Blob URL is the
-    // source of truth for Gemini, captions and the renderer. Do not introduce a
-    // private GET/signature layer here.
+    // The deployed Blob store is private. The browser still uploads with a
+    // scoped PUT URL, but downstream Gemini/server reads MUST use a separately
+    // scoped GET URL. Stripping the query string creates a bare private URL and
+    // causes the exact HTTP 403 shown by the live source-library test.
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
-    const validUntil = Date.now() + 15 * 60 * 1000;
-    const token = await issueSignedToken({ pathname, operations: ["put"], validUntil });
-    const { presignedUrl } = await presignUrl(token, {
+    const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
+
+    const putToken = await issueSignedToken({ pathname, operations: ["put"], validUntil });
+    const { presignedUrl } = await presignUrl(putToken, {
       pathname,
       operation: "put",
       validUntil,
     });
 
+    const getToken = await issueSignedToken({ pathname, operations: ["get"], validUntil });
+    const { presignedUrl: readUrl } = await presignUrl(getToken, {
+      pathname,
+      operation: "get",
+      validUntil,
+    });
+
     return res.status(200).json({
       presignedUrl,
-      url: presignedUrl.split("?")[0],
+      url: readUrl,
       pathname,
       mimeType,
       size,
