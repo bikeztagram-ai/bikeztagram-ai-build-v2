@@ -2,6 +2,7 @@ name: Bikeztagram Creative Engine V2
 on:
   push:
     branches:
+      - development/from-e2e-working-baseline
       - parallel/creative-engine-integration-01
       - parallel/creative-engine-runtime-02
   workflow_dispatch:
@@ -21,3 +22,4 @@ jobs:
       - run: npm run build
       - run: node scripts/verify-creative-engine-v2.mjs
       - run: node scripts/verify-creative-engine-runtime-v2.mjs
+      - run: node scripts/verify-protected-foundation-and-checkpoint.mjs
