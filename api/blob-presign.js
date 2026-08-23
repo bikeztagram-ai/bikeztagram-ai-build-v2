@@ -10,29 +10,49 @@ export default async function handler(req, res) {
     const mimeType = String(body?.mimeType || "application/octet-stream");
     const size = Number(body?.size || 0);
     const mediaType = body?.mediaType === "video" ? "video" : "image";
+    const blobToken = String(process.env.PUBLIC_BLOB_READ_WRITE_TOKEN || "").trim();
+
     if (!filename || filename === "media" || !size) return res.status(400).json({ error: "filename and size are required" });
     if (size > 500 * 1024 * 1024) return res.status(413).json({ error: "Media exceeds the 500 MB upload limit" });
+    if (!blobToken) return res.status(500).json({ error: "Public media Blob store is not configured. Expected PUBLIC_BLOB_READ_WRITE_TOKEN in this Vercel environment." });
+
     const allowed = new Set(["video/mp4","video/quicktime","video/webm","image/jpeg","image/png","image/webp","image/gif","image/heic","image/heif"]);
     if (!allowed.has(mimeType)) return res.status(415).json({ error: `Unsupported media type: ${mimeType}` });
 
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
     const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
-    const putToken = await issueSignedToken({ pathname, operations: ["put"], validUntil });
+    // This store is deliberately public because Gemini and the downstream
+    // analysis services consume the stable Blob URL directly. The existing
+    // private Blob store is not used for source media.
+    const putToken = await issueSignedToken({
+      token: blobToken,
+      pathname,
+      operations: ["put"],
+      validUntil,
+    });
     const { presignedUrl } = await presignUrl(putToken, {
+      token: blobToken,
       pathname,
       operation: "put",
-      access: "private",
+      access: "public",
       validUntil,
       allowedContentTypes: [mimeType],
       maximumSizeInBytes: size,
     });
 
-    const getToken = await issueSignedToken({ pathname, operations: ["get"], validUntil });
+    // Return the stable public Blob URL for Gemini/source-library analysis.
+    const getToken = await issueSignedToken({
+      token: blobToken,
+      pathname,
+      operations: ["get"],
+      validUntil,
+    });
     const { presignedUrl: readUrl } = await presignUrl(getToken, {
+      token: blobToken,
       pathname,
       operation: "get",
-      access: "private",
+      access: "public",
       validUntil,
       useCache: false,
     });
@@ -46,7 +66,7 @@ export default async function handler(req, res) {
       expiresAt: validUntil,
     });
   } catch (error) {
-    console.error("Bikeztagram signed Blob upload error:", error);
-    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create signed Blob upload URL." });
+    console.error("Bikeztagram public Blob signing error:", error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create public Blob upload URL." });
   }
 }
