@@ -15,39 +15,23 @@ export default async function handler(req, res) {
     const allowed = new Set(["video/mp4","video/quicktime","video/webm","image/jpeg","image/png","image/webp","image/gif","image/heic","image/heif"]);
     if (!allowed.has(mimeType)) return res.status(415).json({ error: `Unsupported media type: ${mimeType}` });
 
-    // This project has a specific private Blob store. Always use the store's
-    // BLOB_READ_WRITE_TOKEN here rather than preferring Vercel's ambient OIDC
-    // token. Mixing authentication contexts can sign a URL against a different
-    // store context and produce a successful-looking PUT followed by a 404 read.
-    const token = String(process.env.BLOB_READ_WRITE_TOKEN || "").trim();
-    if (!token) throw new Error("BLOB_READ_WRITE_TOKEN is not configured.");
-
+    // RESTORE THE KNOWN-WORKING BIKEZTAGRAM CONTRACT:
+    // this project uses the existing PUBLIC Blob store. The browser uploads
+    // through a scoped signed PUT URL, then the returned public Blob URL is the
+    // source of truth for Gemini, captions and the renderer. Do not introduce a
+    // private GET/signature layer here.
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
-    const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
-    const auth = { token };
-
-    const putToken = await issueSignedToken({ pathname, operations: ["put"], validUntil, ...auth });
-    const { presignedUrl } = await presignUrl(putToken, {
+    const validUntil = Date.now() + 15 * 60 * 1000;
+    const token = await issueSignedToken({ pathname, operations: ["put"], validUntil });
+    const { presignedUrl } = await presignUrl(token, {
       pathname,
       operation: "put",
-      access: "private",
       validUntil,
-      allowedContentTypes: [mimeType],
-      maximumSizeInBytes: 500 * 1024 * 1024,
-    });
-
-    const getToken = await issueSignedToken({ pathname, operations: ["get"], validUntil, ...auth });
-    const { presignedUrl: readUrl } = await presignUrl(getToken, {
-      pathname,
-      operation: "get",
-      access: "private",
-      validUntil,
-      useCache: false,
     });
 
     return res.status(200).json({
       presignedUrl,
-      url: readUrl,
+      url: presignedUrl.split("?")[0],
       pathname,
       mimeType,
       size,
