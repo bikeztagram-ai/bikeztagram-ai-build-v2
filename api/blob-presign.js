@@ -22,7 +22,6 @@ export default async function handler(req, res) {
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
     const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
-    // Upload directly from the browser into the dedicated public media store.
     const putToken = await issueSignedToken({
       token: blobToken,
       pathname,
@@ -39,26 +38,16 @@ export default async function handler(req, res) {
       maximumSizeInBytes: size,
     });
 
-    // Do not guess the public URL for the analysis request. Give the server
-    // a scoped GET URL for this exact object so the upload and read contracts
-    // are cryptographically tied to the same pathname/store.
-    const getToken = await issueSignedToken({
-      token: blobToken,
-      pathname,
-      operations: ["get"],
-      validUntil,
-    });
-    const { presignedUrl: readUrl } = await presignUrl(getToken, {
-      token: blobToken,
-      pathname,
-      operation: "get",
-      access: "public",
-      validUntil,
-    });
+    // Return a same-origin, server-verified source URL to Gemini and the
+    // browser. This avoids guessing the public Blob hostname and guarantees
+    // that reads come from the exact store/path that was just signed.
+    const protocol = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
+    const host = String(req.headers.host || '').trim();
+    const sourceUrl = host ? `${protocol}://${host}/api/blob-source?pathname=${encodeURIComponent(pathname)}` : `/api/blob-source?pathname=${encodeURIComponent(pathname)}`;
 
     return res.status(200).json({
       presignedUrl,
-      url: readUrl,
+      url: sourceUrl,
       pathname,
       mimeType,
       size,
