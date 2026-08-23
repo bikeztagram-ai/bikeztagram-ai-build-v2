@@ -10,28 +10,28 @@ const analyseImage = fs.readFileSync('api/analyse-image.js', 'utf8');
 const analyseLibrary = fs.readFileSync('api/analyse-library.js', 'utf8');
 const captions = fs.readFileSync('api/captions.js', 'utf8');
 
-assert.match(String(pkg.dependencies?.['@vercel/blob'] || ''), /^\\^?2\\.8\\./, 'Blob SDK must be on 2.8.x');
+assert.match(String(pkg.dependencies?.['@vercel/blob'] || ''), /^\^?2\.8\./, 'Blob SDK must be on 2.8.x');
 assert.match(presign, /issueSignedToken/);
-assert.match(presign, /operations:\\s*\["put",\\s*"get"\]/);
+assert.match(presign, /operations:\s*\["put",\s*"get"\]/);
 assert.match(presign, /presignUrl/);
-assert.match(presign, /operation:\\s*"put"/);
-assert.doesNotMatch(presign, /operation:\\s*"get"/, 'Public Blob reads use the canonical public URL, not a second signed GET URL');
-assert.match(presign, /publicUrl\\.search\\s*=\\s*""/);
-assert.match(presign, /store:\\s*"canonical-public"/);
+assert.match(presign, /operation:\s*"put"/);
+assert.doesNotMatch(presign, /operation:\s*"get"/, 'Public Blob reads use the canonical public URL, not a second signed GET URL');
+assert.match(presign, /publicUrl\.search\s*=\s*""/);
+assert.match(presign, /store:\s*"canonical-public"/);
 assert.match(presign, /validUntil/);
-assert.match(presign, /addRandomSuffix:\\s*false/, 'Presigned PUT must keep the pathname stable for the canonical public URL');
-assert.match(presign, /500\\s*\\*\\s*1024\\s*\\*\\s*1024/);
-assert.match(app, /fetch\\('\/api\/blob-presign'/);
+assert.match(presign, /addRandomSuffix:\s*false/, 'Presigned PUT must keep the pathname stable for the canonical public URL');
+assert.match(presign, /500\s*\*\s*1024\s*\*\s*1024/);
+assert.match(app, /fetch\('\/api\/blob-presign'/);
 assert.match(app, /XMLHttpRequest/);
-assert.match(app, /xhr\\.open\\('PUT'/);
-assert.doesNotMatch(app, /from '@vercel\\/blob\\/client'/, 'App must not use the CORS-prone client-token uploader');
+assert.match(app, /xhr\.open\('PUT'/);
+assert.doesNotMatch(app, /from '@vercel\/blob\/client'/, 'App must not use the CORS-prone client-token uploader');
 
-assert.match(privateRead, /from '@vercel\\/blob'/, 'Source reader must use the Vercel Blob SDK fallback');
+assert.match(privateRead, /from '@vercel\/blob'/, 'Source reader must use the Vercel Blob SDK fallback');
 assert.match(privateRead, /pathnameFromBlobUrl/, 'Source reader must recover pathname from Blob URLs');
-assert.match(privateRead, /new Response\\(result\\.stream\\)\\.arrayBuffer/, 'Source reader must consume the Blob stream');
+assert.match(privateRead, /new Response\(result\.stream\)\.arrayBuffer/, 'Source reader must consume the Blob stream');
 
 for (const [name, source] of Object.entries({analyse, analyseImage, analyseLibrary, captions})) {
-  assert.match(source, /private-blob-read\\.js/, `${name} must use the central Blob source reader`);
+  assert.match(source, /private-blob-read\.js/, `${name} must use the central Blob source reader`);
 }
 
 console.log('Signed Blob upload/read contract: PASS');
