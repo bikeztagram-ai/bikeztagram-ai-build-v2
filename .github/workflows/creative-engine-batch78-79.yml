@@ -49,3 +49,5 @@ jobs:
         run: npm run verify:renderer-contract-v2
       - name: Verify music router and production V2
         run: node scripts/verify-music-router-production-v2.mjs
+      - name: Verify extended duration and long-form music
+        run: npm run verify:long-form-v4
