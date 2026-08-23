@@ -12,10 +12,13 @@ const captions = fs.readFileSync('api/captions.js', 'utf8');
 
 assert.match(String(pkg.dependencies?.['@vercel/blob'] || ''), /^\^?2\.8\./, 'Blob SDK must be on 2.8.x');
 assert.match(presign, /issueSignedToken/);
+assert.match(presign, /process\.env\.BLOB_READ_WRITE_TOKEN/, 'Upload signing must use the canonical production Blob token');
+assert.doesNotMatch(presign, /process\.env\.PUBLIC_BLOB_READ_WRITE_TOKEN/, 'Upload signing must not use the legacy PUBLIC Blob token');
 assert.match(presign, /operations:\s*\["put",\s*"get"\]/);
 assert.match(presign, /presignUrl/);
 assert.match(presign, /operation:\s*"put"/);
 assert.match(presign, /operation:\s*"get"/);
+assert.match(presign, /access:\s*"private"/);
 assert.match(presign, /readUrl/);
 assert.match(presign, /validUntil/);
 assert.match(presign, /addRandomSuffix:\s*false/, 'Presigned PUT must keep the pathname stable for the following signed GET');
@@ -34,7 +37,8 @@ for (const [name, source] of Object.entries({analyse, analyseImage, analyseLibra
 }
 
 console.log('Signed Blob upload/read contract: PASS');
-console.log('- time-bound signed PUT + GET delegation');
+console.log('- canonical BLOB_READ_WRITE_TOKEN shared by upload signing and server reads');
+console.log('- private signed PUT + GET delegation');
 console.log('- signed GET URL returned for downstream Gemini/caption reads');
 console.log('- deterministic pathname (no random suffix after presigning)');
 console.log('- browser-to-Blob direct transfer');
