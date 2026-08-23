@@ -6,7 +6,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const body = typeof req.body === "string'" ? JSON.parse(req.body) : req.body;
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const filename = safeName(body?.filename);
     const mimeType = String(body?.mimeType || "application/octet-stream");
     const size = Number(body?.size || 0);
