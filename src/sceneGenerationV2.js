@@ -65,7 +65,7 @@ export function buildGeneratedSceneBlueprint({ prompt = '', role = 'bridge', dur
   const style = text(visual.style) || 'cinematic original film language';
   const action = inferAction(prompt, safeRole);
   const continuityAnchors = Array.isArray(continuity.anchors) ? continuity.anchors : [];
-  const subjectText = subjectIds.length ? `Preserve the appearance, proportions and defining features of subject references ${subjectIds.join(', ')}.` : 'No required identity reference; create an original subject.';
+  const ids=[...new Set(subjectIds)];
   return {
     version:'generated-scene-blueprint-v2',
     id:`scene-${safeRole}-${Math.random().toString(36).slice(2,8)}`,
@@ -74,7 +74,8 @@ export function buildGeneratedSceneBlueprint({ prompt = '', role = 'bridge', dur
     aspectRatio:['9:16','1:1','16:9'].includes(aspectRatio)?aspectRatio:'9:16',
     prompt:text(prompt),
     direction:{style,camera,lighting,environment:env,motion:text(visual.motion)||'controlled cinematic motion',action},
-    subjects:{subjectIds:[...new Set(subjectIds)],preserveIdentity:subjectIds.length>0,referenceAssets:[...new Set(referenceAssets)]},
+    subjectIds:ids,
+    subjects:{subjectIds:ids,preserveIdentity:ids.length>0,referenceAssets:[...new Set(referenceAssets)]},
     continuity:{anchors:continuityAnchors,matchPrevious:true,matchFollowing:true,matchColour:true},
     constraints:{originalOnly:true,noNamedStyleImitation:true,noCopyrightedCharacters:true,noLogosUnlessProvided:true,noTextArtifacts:true},
     negativePrompt:'warped geometry, duplicate subject, identity drift, extra limbs, unstable horizon, unreadable text, accidental logos, flicker, frame-to-frame texture crawl',
