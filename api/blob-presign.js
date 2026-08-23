@@ -20,13 +20,14 @@ export default async function handler(req, res) {
     const allowed = new Set(["video/mp4","video/quicktime","video/webm","image/jpeg","image/png","image/webp","image/gif","image/heic","image/heif"]);
     if (!allowed.has(mimeType)) return res.status(415).json({ error: `Unsupported media type: ${mimeType}` });
 
+    // Keep the pathname deterministic. Vercel Blob's default PUT behaviour may add
+    // a random suffix; if that happens after presigning, the subsequent GET would
+    // target the unsigned/original pathname and correctly return HTTP 404. The
+    // client already gives this pathname a UUID, so an additional suffix is not
+    // needed here.
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
     const validUntil = Date.now() + 15 * 60 * 1000;
 
-    // The connected Bikeztagram media store is PUBLIC. The previous implementation
-    // generated private PUT/GET URLs, which could upload successfully but left the
-    // analysis pipeline unable to read the resulting object. Bind both operations
-    // explicitly to the configured store token and public access mode.
     const delegation = await issueSignedToken({
       token,
       pathname,
@@ -43,6 +44,7 @@ export default async function handler(req, res) {
       validUntil,
       allowedContentTypes: [mimeType],
       maximumSizeInBytes: size,
+      addRandomSuffix: false,
     });
 
     const { presignedUrl: readUrl } = await presignUrl(delegation, {
