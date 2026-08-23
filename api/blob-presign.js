@@ -15,10 +15,6 @@ export default async function handler(req, res) {
     const allowed = new Set(["video/mp4","video/quicktime","video/webm","image/jpeg","image/png","image/webp","image/gif","image/heic","image/heif"]);
     if (!allowed.has(mimeType)) return res.status(415).json({ error: `Unsupported media type: ${mimeType}` });
 
-    // The deployed Blob store is private. The browser still uploads with a
-    // scoped PUT URL, but downstream Gemini/server reads MUST use a separately
-    // scoped GET URL. Stripping the query string creates a bare private URL and
-    // causes the exact HTTP 403 shown by the live source-library test.
     const pathname = `${mediaType === "image" ? "images" : "videos"}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
     const validUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
@@ -26,14 +22,19 @@ export default async function handler(req, res) {
     const { presignedUrl } = await presignUrl(putToken, {
       pathname,
       operation: "put",
+      access: "private",
       validUntil,
+      allowedContentTypes: [mimeType],
+      maximumSizeInBytes: size,
     });
 
     const getToken = await issueSignedToken({ pathname, operations: ["get"], validUntil });
     const { presignedUrl: readUrl } = await presignUrl(getToken, {
       pathname,
       operation: "get",
+      access: "private",
       validUntil,
+      useCache: false,
     });
 
     return res.status(200).json({
