@@ -9,6 +9,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/analyse-library",
+      "destination": "/api/analyse-library-fixed"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/"
     }
