@@ -34,3 +34,7 @@ jobs:
         run: npm run verify:batch79
       - name: Verify Creative Director API
         run: npm run verify:batch80
+      - name: Verify real media production bridge
+        run: node scripts/verify-production-bridge.mjs
+      - name: Verify app production integration
+        run: node scripts/verify-production-integration.mjs
