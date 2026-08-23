@@ -35,9 +35,9 @@ if(exists('api/analyse-library.js')){
 }
 if(exists('src/App.jsx')){
  const app=read('src/App.jsx');
- for(const route of ['/api/blob-presign','/api/analyse-library','/api/generate-music'])assert(app.includes(route),`App pipeline no longer calls ${route}.`);
+ for(const route of ['/api/blob-presign','/api/analyse-library'])assert(app.includes(route),`App pipeline no longer calls ${route}.`);
  assert(app.includes('renderInspectImprove'),'App is no longer connected to the autonomous render/QA loop.');
- assert(app.includes('generateOriginalMusic'),'App is no longer connected to original soundtrack generation.');
+ assert(app.includes('generateOriginalMusic'),'App is no longer connected to local original soundtrack generation.');
 }
 if(exists('src/musicGenerator.js')){
  const music=read('src/musicGenerator.js');
