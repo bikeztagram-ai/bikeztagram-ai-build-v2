@@ -45,3 +45,7 @@ jobs:
         run: npm run verify:music-v3
       - name: Verify content-aware transitions
         run: npm run verify:transitions-v2
+      - name: Verify renderer contract V2
+        run: npm run verify:renderer-contract-v2
+      - name: Verify music router and production V2
+        run: node scripts/verify-music-router-production-v2.mjs
