@@ -5,6 +5,18 @@ import { attachGeneratedAudioToVideo } from './finalAudioMux.js';
 import { validateRenderedVideo, buildDirectorQAReport } from './qa.js';
 import { prepareCinematicRender } from './productionIntegration.js';
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
+function suppressUnrequestedGeneratedScenes(plan) {
+  if (plan?.allowGeneratedScenes === true) return plan;
+  const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
+  return { ...plan, cuts: cuts.map((cut) => {
+    const generated = Boolean(cut?.generated || cut?.sourceType === 'generated' || cut?.sourceType === 'procedural' || cut?.generationPrompt);
+    if (!generated) return cut;
+    const clean = { ...cut };
+    delete clean.generated; delete clean.generationPrompt;
+    if (clean.sourceType === 'generated' || clean.sourceType === 'procedural') clean.sourceType = 'uploaded';
+    return clean;
+  }), generatedScenesSuppressed: true };
+}
 export function revisePlanAfterQA(plan, qa) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
   if (!cuts.length) return { plan, changed: false, reasons: ['no-cuts'] };
@@ -20,10 +32,10 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
   if (!Array.isArray(mediaItems) || !mediaItems.length) throw new Error('Render loop requires media items.');
   if (!plan?.cuts?.length && !plan?.scenes?.length) throw new Error('Render loop requires an executable plan.');
   const renderMediaItems = mediaItems.map((item) => item?.file ? { ...item, sourceUrl: undefined } : item);
-  let currentPlan = plan;
-  if (useCinematicProduction && plan?.cuts?.length) {
-    const integrated = prepareCinematicRender({ sources: renderMediaItems, plan, prompt: plan.creativePrompt || '', targetDuration: expectedDuration || plan.targetDuration || 15, music: plan.music || plan.soundtrack || null });
-    if (integrated?.ready && integrated?.renderPlan) currentPlan = { ...plan, ...integrated.renderPlan, productionBridge: integrated.production, cinematicProduction: true };
+  let currentPlan = suppressUnrequestedGeneratedScenes(plan);
+  if (useCinematicProduction && currentPlan?.cuts?.length) {
+    const integrated = prepareCinematicRender({ sources: renderMediaItems, plan: currentPlan, prompt: currentPlan.creativePrompt || '', targetDuration: expectedDuration || currentPlan.targetDuration || 15, music: currentPlan.music || currentPlan.soundtrack || null });
+    if (integrated?.ready && integrated?.renderPlan) currentPlan = suppressUnrequestedGeneratedScenes({ ...currentPlan, ...integrated.renderPlan, productionBridge: integrated.production, cinematicProduction: true });
   }
   const attempts = []; const limit = Math.max(1, Math.min(3, maxAttempts));
   for (let attempt = 1; attempt <= limit; attempt += 1) {
@@ -32,6 +44,7 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
       currentPlan = beatSync.plan;
       onProgress?.({ stage: 'beat-sync', attempt, value: beatSync.enabled ? 100 : 0, beats: beatSync.beats || 0 });
     }
+    currentPlan = suppressUnrequestedGeneratedScenes(currentPlan);
     const rendered = await renderProject(renderMediaItems, currentPlan, (value) => onProgress?.({ stage: 'render', attempt, value }));
     if (!(rendered instanceof Blob) || rendered.size === 0) throw new Error(`Render attempt ${attempt} produced an empty video.`);
     const musicUrl = currentPlan?.music?.audioDataUrl || currentPlan?.soundtrack?.audioDataUrl || currentPlan?.audio?.url;
@@ -41,19 +54,15 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
       onProgress?.({ stage: 'audio', attempt, value: 0 });
       const audioResult = await attachGeneratedAudioToVideo(rendered, musicUrl, { onProgress: (value) => onProgress?.({ stage: 'audio', attempt, value }) });
       if (audioResult.attached && audioResult.blob?.size) {
-        output = audioResult.blob;
-        audioAttached = true;
+        output = audioResult.blob; audioAttached = true;
         currentPlan = { ...currentPlan, music: { ...(currentPlan.music || {}), finalAudioAttached: true, finalAudioMimeType: audioResult.mimeType, finalAudioDuration: audioResult.duration } };
-      } else {
-        currentPlan = { ...currentPlan, music: { ...(currentPlan.music || {}), finalAudioAttached: false, finalAudioWarning: audioResult.reason || 'audio-mux-unavailable' } };
-        console.warn('[RENDER] Final soundtrack attachment unavailable:', audioResult.reason || 'unknown reason');
-      }
+      } else currentPlan = { ...currentPlan, music: { ...(currentPlan.music || {}), finalAudioAttached: false, finalAudioWarning: audioResult.reason || 'audio-mux-unavailable' } };
       onProgress?.({ stage: 'audio', attempt, value: 100, attached: audioAttached });
     }
     let qa;
     try { qa = await validateRenderedVideo(output, expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15, { requireAudio: Boolean(musicUrl) }); }
     catch (error) { qa = { passed: false, verdict: 'FAIL_DECODE', error: error?.message || String(error), expectedDurationSeconds: expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15 }; }
-    attempts.push({ attempt, bytes: output.size, qa, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied) });
+    attempts.push({ attempt, bytes: output.size, qa, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied), generatedScenesSuppressed: currentPlan?.generatedScenesSuppressed === true });
     onProgress?.({ stage: 'qa', attempt, value: 100, qa });
     if (qa.passed && (qa.verdict === 'PASS' || qa.verdict === 'PASS_WITH_DURATION_DIFFERENCE')) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
     if (attempt >= limit) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
