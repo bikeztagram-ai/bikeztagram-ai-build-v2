@@ -26,9 +26,10 @@ for (const file of requiredFiles) assert(exists(file), `Missing required pipelin
 
 if (exists('api/private-blob-read.js')) {
   const helper = read('api/private-blob-read.js');
-  assert(helper.includes("process.env.BLOB_READ_WRITE_TOKEN"), 'Private Blob reader does not explicitly use BLOB_READ_WRITE_TOKEN.');
   assert(helper.includes("access: 'private'"), 'Private Blob reader is not using private Blob access.');
   assert(helper.includes('get(resolvedPathname'), 'Private Blob reader does not call the Vercel Blob SDK get() path.');
+  // Vercel currently supports both automatic OIDC authentication and legacy
+  // BLOB_READ_WRITE_TOKEN authentication. Do not require one credential mode.
 }
 
 if (exists('api/blob-presign.js')) {
