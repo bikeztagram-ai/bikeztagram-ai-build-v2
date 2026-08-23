@@ -1,0 +1,11 @@
+import { buildCreativeProductionRuntime, executeCreativeProductionRuntime, validateCreativeProductionRuntime } from '../src/creativeProductionRuntimeV1.js';
+const runtime=buildCreativeProductionRuntime({mediaItems:[{id:'bike-1',type:'video'}],prompt:'cinematic motorcycle film',duration:20,subjectIds:['bike'],generatedScenes:[{id:'g1',role:'reveal',start:4,duration:2}]});
+const order=[];const handlers=Object.fromEntries(runtime.stages.map(s=>[s.name,async()=>{order.push(s.name);return{ok:true};}]));
+const completed=await executeCreativeProductionRuntime(runtime,{handlers});
+if(completed.status!=='completed')throw new Error(`Runtime did not complete: ${completed.status}`);
+if(order.join('|')!==runtime.stages.map(s=>s.name).join('|'))throw new Error('Stage execution order changed.');
+if(!validateCreativeProductionRuntime(completed).ok)throw new Error('Completed runtime failed validation.');
+const failing=buildCreativeProductionRuntime({mediaItems:[{id:'bike-1'}],duration:10});
+const failResult=await executeCreativeProductionRuntime(failing,{handlers:{'media-intake':async()=>({ok:true}),'creative-direction':async()=>({ok:false,error:'director unavailable'})}});
+if(failResult.status!=='failed'||failResult.stages[1].status!=='failed')throw new Error('Failure did not stop the runtime correctly.');
+console.log('PASS: production runtime executes stages in order and stops safely on failure.');
