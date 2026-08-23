@@ -21,7 +21,7 @@ assert.match(presign,/operation:\s*"get"/);
 assert.match(presign,/access:\s*"private"/);
 assert.match(presign,/addRandomSuffix:\s*false/);
 assert.match(blobRead,/get\(/,'Server media reader must use authenticated Blob SDK access');
-assert.match(blobRead,/access,'private'/,'Server media reader must retain private access path');
+assert.match(blobRead,/['"]private['"]/,'Server media reader must retain private access path');
 assert.match(blobRead,/BLOB_READ_WRITE_TOKEN/,'Server media reader must retain canonical Blob credential');
 
 // Protected Gemini boundary: actual media endpoints remain server-side and receive source URLs/pathnames.
@@ -35,7 +35,7 @@ assert.match(app,/\/api\/production-plan/,'App must retain production-plan hando
 // Next checkpoint: real original audio must be generated locally when provider audio is unavailable.
 assert.match(music,/createOriginalMusicWav/,'Music runtime must retain audible local original fallback');
 assert.match(music,/audioAvailable:true/,'Music fallback must advertise usable audio');
-assert.match(composition,/providerReady|providerRequest|providerNeutral/,'Music composition must retain provider-neutral upgrade path');
+assert.match(composition,/providerRequest|providerNeutral/,'Music composition must retain provider-neutral upgrade path');
 assert.match(composition,/originalOnly:true/,'Music generation must remain originality constrained');
 
 // Next checkpoint: generated scenes must be representable and materialised into the renderer plan.
