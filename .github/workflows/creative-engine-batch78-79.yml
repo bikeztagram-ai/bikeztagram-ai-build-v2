@@ -37,3 +37,11 @@ jobs:
         run: node scripts/verify-production-integration.mjs
       - name: Verify render guard and soundtrack V3
         run: node scripts/verify-batch93-render-guard.mjs
+      - name: Verify cinematic decision pipeline
+        run: node scripts/verify-cinematic-decision-pipeline.mjs
+      - name: Verify production bridge V2
+        run: node scripts/verify-production-bridge-v2.mjs
+      - name: Verify long-form music composition
+        run: npm run verify:music-v3
+      - name: Verify content-aware transitions
+        run: npm run verify:transitions-v2
