@@ -1,0 +1,5 @@
+import assert from 'node:assert/strict';
+import {buildCreativeRenderPlanV1} from '../src/creativeRenderPlanV1.js';
+const music={duration:10,energy:.9,beatGrid:{beats:[{time:0,downbeat:true},{time:2,downbeat:true},{time:5,downbeat:true},{time:8,downbeat:true}]}};
+const plan=buildCreativeRenderPlanV1({targetDuration:10,cuts:[{id:'a',purpose:'opening',startTime:0,duration:2},{id:'b',purpose:'reveal',startTime:2,duration:3,generated:true},{id:'c',purpose:'action',startTime:5,duration:3},{id:'d',purpose:'hero',startTime:8,duration:2}]},music);
+assert.equal(plan.cuts.length,4);assert.equal(plan.renderContract.editorialEffects,true);assert.equal(plan.renderContract.musicAwareTransitions,true);assert.equal(plan.renderContract.continuousTimeline,true);assert.equal(plan.renderContract.enhancedCuts,true);assert.equal(plan.renderContract.generatedContinuityRequired,true);assert.equal(plan.cuts[1].editorial.effects.emphasis,'reveal');assert.ok(plan.cuts[2].editorial.effects.speed>1);console.log('Creative render plan V1: PASS');
