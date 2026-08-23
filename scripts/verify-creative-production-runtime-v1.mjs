@@ -4,4 +4,6 @@ const checked=validateCreativeProductionRuntime(runtime); if(!checked.ok)throw n
 if(runtime.stages.length!==8)throw new Error('Production runtime stage chain incomplete.');
 if(!runtime.decision?.music?.composition)throw new Error('Music direction missing from runtime.');
 if(!runtime.generatedPlacement?.candidates?.length)throw new Error('Generated placement stage missing.');
-console.log('PASS: media intake through direction, music, generated placement, continuity, transitions, render and QA are represented in one production runtime.');
+if(!runtime.decision?.generatedPlacement?.candidates?.length)throw new Error('Decision pipeline did not receive generated scene blueprints.');
+if(runtime.decision.generatedPlacement.candidates[0].sceneId!=='generated-1')throw new Error('Generated scene identity was lost between runtime and decision pipeline.');
+console.log('PASS: media intake through direction, music, generated placement, continuity, transitions, render and QA are represented in one production runtime, with generated blueprints reaching the decision layer.');
