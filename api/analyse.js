@@ -1,5 +1,4 @@
 import { GoogleGenAI, createUserContent, createPartFromUri } from '@google/genai';
-import { readPrivateBlob } from './private-blob-read.js';
 
 function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || min)); }
 function text(value) { return String(value ?? '').trim(); }
@@ -38,46 +37,7 @@ async function generateWithGeminiFailover(ai, request, label) {
 
 function buildStage2Prompt(prompt, analysis, targetDuration = 15) {
   const target = clamp(targetDuration, 5, 60);
-  return `You are the final AI edit director for BIKEZTAGRAM AI, a GENERAL-PURPOSE AI FILMMAKER.
-
-A separate Gemini stage has already watched the ACTUAL uploaded media. Stage 1 produced the verified analysis below. You are Stage 2.
-
-Your job is NOT to invent footage. Select and direct only moments Stage 1 actually verified.
-
-USER CREATIVE REQUEST:
-${text(prompt) || 'Create an exciting cinematic social-media video.'}
-
-TARGET DURATION: ${target} seconds
-
-VERIFIED STAGE 1 ANALYSIS:
-${JSON.stringify(analysis, null, 2)}
-
-DIRECTOR RULES:
-- Treat the uploaded subject generically: it may be a vehicle, animal, person, travel scene, landscape, product, event, object, architecture, food, or mixed media.
-- Build a coherent story appropriate to the actual material: hook → build → reveal/action/emotion → hero ending where supported.
-- Prefer different timestamps, viewpoints and distinct source moments.
-- Never repeat the same exact moment.
-- Select shots for their editorial ROLE, not merely their score.
-- Never invent a subject, action, location, camera move, object, event or visual detail that Stage 1 did not verify.
-- Preserve subject identity and continuity using Stage 1's verified identity and attributes as the source of truth.
-- Preserve environment, lighting, screen direction and visible appearance where continuity matters.
-- Keep each cut between 0.5 and 4 seconds.
-- Use 3–6 cuts when enough verified moments exist; maximum 8.
-- Use exact timestamps inside the supplied bestMoments.
-- Allowed transitions: hard-cut, fade-in, fade-out, dip-black, crossfade.
-- Allowed motion: static, slow-push, slow-pull, pan-left, pan-right, tilt-up, tilt-down.
-- Speed must be 0.5–1.5.
-- Keep text minimal and relevant to the user's request.
-
-Return ONLY valid JSON in this structure:
-{
-  "title": "",
-  "style": "",
-  "colorGrade": "",
-  "editorialStructure": ["hook", "build", "reveal", "action", "hero"],
-  "textOverlay": "",
-  "cuts": [{"momentIndex":0,"startTime":0,"endTime":2,"duration":2,"purpose":"hook","transition":"fade-in","motionStyle":"static","speed":1,"text":""}]
-}`;
+  return `You are the final AI edit director for BIKEZTAGRAM AI, a GENERAL-PURPOSE AI FILMMAKER.\n\nA separate Gemini stage has already watched the ACTUAL uploaded media. Stage 1 produced the verified analysis below. You are Stage 2.\n\nYour job is NOT to invent footage. Select and direct only moments Stage 1 actually verified.\n\nUSER CREATIVE REQUEST:\n${text(prompt) || 'Create an exciting cinematic social-media video.'}\n\nTARGET DURATION: ${target} seconds\n\nVERIFIED STAGE 1 ANALYSIS:\n${JSON.stringify(analysis, null, 2)}\n\nDIRECTOR RULES:\n- Treat the uploaded subject generically: it may be a vehicle, animal, person, travel scene, landscape, product, event, object, architecture, food, or mixed media.\n- Build a coherent story appropriate to the actual material: hook → build → reveal/action/emotion → hero ending where supported.\n- Prefer different timestamps, viewpoints and distinct source moments.\n- Never repeat the same exact moment.\n- Select shots for their editorial ROLE, not merely their score.\n- Never invent a subject, action, location, camera move, object, event or visual detail that Stage 1 did not verify.\n- Preserve subject identity and continuity using Stage 1's verified identity and attributes as the source of truth.\n- Preserve environment, lighting, screen direction and visible appearance where continuity matters.\n- Keep each cut between 0.5 and 4 seconds.\n- Use 3–6 cuts when enough verified moments exist; maximum 8.\n- Use exact timestamps inside the supplied bestMoments.\n- Allowed transitions: hard-cut, fade-in, fade-out, dip-black, crossfade.\n- Allowed motion: static, slow-push, slow-pull, pan-left, pan-right, tilt-up, tilt-down.\n- Speed must be 0.5–1.5.\n- Keep text minimal and relevant to the user's request.\n\nReturn ONLY valid JSON in this structure:\n{\n  "title": "",\n  "style": "",\n  "colorGrade": "",\n  "editorialStructure": ["hook", "build", "reveal", "action", "hero"],\n  "textOverlay": "",\n  "cuts": [{"momentIndex":0,"startTime":0,"endTime":2,"duration":2,"purpose":"hook","transition":"fade-in","motionStyle":"static","speed":1,"text":""}]\n}`;
 }
 
 function validateStage2Plan(plan, analysis, targetDuration) {
@@ -112,15 +72,17 @@ export default async function handler(req, res) {
     if(!apiKey)return res.status(500).json({success:false,error:'GEMINI_API_KEY is missing.'});
     const {videoUrl='',blobUrl='',pathname='',filename='video.mp4',mimeType='video/mp4',prompt='',targetDuration=15}=req.body||{};
     const actualVideoUrl=videoUrl||blobUrl;
-    if(!actualVideoUrl && !pathname)return res.status(400).json({success:false,error:'No private Blob video source was supplied.'});
-    console.log('[ANALYSE] Private Blob source received.');
+    if(!actualVideoUrl)return res.status(400).json({success:false,error:'No public Blob video URL was supplied.'});
+    console.log('[ANALYSE] Public Blob video URL received.');
     console.log('[ANALYSE] Blob pathname:',pathname);
-    console.log('[ANALYSE] Reading video through authenticated Vercel Blob SDK...');
-    const blob=await readPrivateBlob({url:actualVideoUrl,pathname,label:'uploaded Blob video'});
-    const contentType=blob.contentType||mimeType||'video/mp4';
-    const videoBuffer=blob.bytes;
-    if(!videoBuffer.length)throw new Error('Vercel Blob returned an empty uploaded video.');
-    console.log('[ANALYSE] Video read successfully:',videoBuffer.length,'bytes');
+    console.log('[ANALYSE] Downloading video from Blob...');
+    const blobResponse=await fetch(actualVideoUrl);
+    if(!blobResponse.ok)throw new Error(`Could not download the uploaded Blob video. HTTP ${blobResponse.status}`);
+    const contentType=blobResponse.headers.get('content-type')||mimeType||'video/mp4';
+    const videoArrayBuffer=await blobResponse.arrayBuffer();
+    const videoBuffer=Buffer.from(videoArrayBuffer);
+    if(!videoBuffer.length)throw new Error('Downloaded Blob video was empty.');
+    console.log('[ANALYSE] Video downloaded successfully:',videoBuffer.length,'bytes');
     const ai=new GoogleGenAI({apiKey});
     console.log('[ANALYSE] Uploading video to Gemini...');
     let videoFile=await ai.files.upload({file:new Blob([videoBuffer],{type:contentType}),config:{mimeType:contentType,displayName:filename}});
@@ -138,70 +100,7 @@ export default async function handler(req, res) {
     if(!videoFile?.uri)throw new Error('Gemini returned no video URI.');
     console.log('[ANALYSE] Gemini video is ACTIVE and ready.');
 
-    const analysisPrompt=`You are Stage 1 of the BIKEZTAGRAM AI GENERAL-PURPOSE AI FILMMAKER.
-
-Analyse the ACTUAL uploaded media supplied to you.
-
-IMPORTANT:
-- The media may contain ANY subject: vehicle, motorcycle, car, animal, puppy, person, travel, landscape, product, event, object, architecture, food, or mixed media.
-- Identify what is actually visible rather than assuming the subject from the filename.
-- Do not invent actions, objects, locations or details.
-- Determine the strongest usable moments from the actual media and give precise timestamps.
-- Evaluate the material as a filmmaker preparing it for a later AI Director stage.
-- Preserve uncertainty when something cannot be confidently identified.
-- The universal subject record is the source of truth for downstream editing. Do not force every subject into a vehicle/person schema.
-
-Analyse:
-1. Primary subject(s), identity and defining visual attributes
-2. Secondary subject(s)
-3. Subject category and confidence
-4. Scene/environment and continuity anchors
-5. Shot types and composition
-6. Camera movement, angle and direction
-7. Stability and framing quality
-8. What actually happens, with timestamps where possible
-9. Action/movement intensity
-10. Emotional or narrative moments
-11. Lighting, colour and visual quality
-12. Sharpness and subject visibility
-13. Cinematic potential
-14. Best moments and exact timestamps
-15. Editorial role for each best moment
-16. Suggested duration and speed
-17. Whether slow motion helps
-18. Text recommendation
-19. Transition recommendation
-20. Camera-motion recommendation
-21. Subject continuity considerations
-22. Environment continuity considerations
-23. Weak, repetitive or unusable footage to avoid
-
-USER CREATIVE REQUEST:
-${prompt}
-
-Return ONLY valid JSON using this structure:
-{
- "filename":"${filename}",
- "durationSeconds":0,
- "mediaType":"video",
- "subjects":[{"label":"","category":"","description":"","identity":"","attributes":[],"confidence":0,"importance":"primary"}],
- "subject":{"primarySubject":"","category":"","description":"","identity":"","attributes":[],"confidence":0},
- "scene":{"environment":"","locationType":"","timeOfDay":"","lighting":"","continuityAnchors":[]},
- "shots":[{"start":0,"end":0,"type":"","cameraMovement":"","cameraAngle":"","screenDirection":"","stability":"","composition":"","subjectVisibility":""}],
- "verifiedEvents":[{"start":0,"end":0,"description":"","confidence":0}],
- "action":"",
- "narrative":{"tone":"","emotion":"","storyPotential":""},
- "visualQuality":{"composition":"","lighting":"","colour":"","sharpness":"","subjectVisibility":"","cinematicPotential":""},
- "cinematicScore":0,
- "bestMoments":[{"start":0,"end":0,"description":"","reason":"","editorialRole":"","subject":"","shotType":"","score":0}],
- "editingRecommendation":{"role":"","suggestedDuration":0,"speed":1,"slowMotion":false,"reason":""},
- "textRecommendation":{"useText":false,"text":"","reason":""},
- "transitionRecommendation":"",
- "motionRecommendation":"",
- "continuityNotes":"",
- "avoid":"",
- "editorialNotes":""
-}`;
+    const analysisPrompt=`You are Stage 1 of the BIKEZTAGRAM AI GENERAL-PURPOSE AI FILMMAKER.\n\nAnalyse the ACTUAL uploaded media supplied to you.\n\nIMPORTANT:\n- The media may contain ANY subject: vehicle, motorcycle, car, animal, puppy, person, travel, landscape, product, event, object, architecture, food, or mixed media.\n- Identify what is actually visible rather than assuming the subject from the filename.\n- Do not invent actions, objects, locations or details.\n- Determine the strongest usable moments from the actual media and give precise timestamps.\n- Evaluate the material as a filmmaker preparing it for a later AI Director stage.\n- Preserve uncertainty when something cannot be confidently identified.\n- The universal subject record is the source of truth for downstream editing. Do not force every subject into a vehicle/person schema.\n\nAnalyse:\n1. Primary subject(s), identity and defining visual attributes\n2. Secondary subject(s)\n3. Subject category and confidence\n4. Scene/environment and continuity anchors\n5. Shot types and composition\n6. Camera movement, angle and direction\n7. Stability and framing quality\n8. What actually happens, with timestamps where possible\n9. Action/movement intensity\n10. Emotional or narrative moments\n11. Lighting, colour and visual quality\n12. Sharpness and subject visibility\n13. Cinematic potential\n14. Best moments and exact timestamps\n15. Editorial role for each best moment\n16. Suggested duration and speed\n17. Whether slow motion helps\n18. Text recommendation\n19. Transition recommendation\n20. Camera-motion recommendation\n21. Subject continuity considerations\n22. Environment continuity considerations\n23. Weak, repetitive or unusable footage to avoid\n\nUSER CREATIVE REQUEST:\n${prompt}\n\nReturn ONLY valid JSON using this structure:\n{\n "filename":"${filename}",\n "durationSeconds":0,\n "mediaType":"video",\n "subjects":[{"label":"","category":"","description":"","identity":"","attributes":[],"confidence":0,"importance":"primary"}],\n "subject":{"primarySubject":"","category":"","description":"","identity":"","attributes":[],"confidence":0},\n "scene":{"environment":"","locationType":"","timeOfDay":"","lighting":"","continuityAnchors":[]},\n "shots":[{"start":0,"end":0,"type":"","cameraMovement":"","cameraAngle":"","screenDirection":"","stability":"","composition":"","subjectVisibility":""}],\n "verifiedEvents":[{"start":0,"end":0,"description":"","confidence":0}],\n "action":"",\n "narrative":{"tone":"","emotion":"","storyPotential":""},\n "visualQuality":{"composition":"","lighting":"","colour":"","sharpness":"","subjectVisibility":"","cinematicPotential":""},\n "cinematicScore":0,\n "bestMoments":[{"start":0,"end":0,"description":"","reason":"","editorialRole":"","subject":"","shotType":"","score":0}],\n "editingRecommendation":{"role":"","suggestedDuration":0,"speed":1,"slowMotion":false,"reason":""},\n "textRecommendation":{"useText":false,"text":"","reason":""},\n "transitionRecommendation":"",\n "motionRecommendation":"",\n "continuityNotes":"",\n "avoid":"",\n "editorialNotes":""\n}`;
 
     console.log('[ANALYSE] Sending actual media to Gemini Stage 1 with automatic model failover...');
     const stage1 = await generateWithGeminiFailover(ai, {
