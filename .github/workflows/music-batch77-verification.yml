@@ -1,0 +1,27 @@
+name: Bikeztagram Music Batch 77 Verification
+
+on:
+  push:
+    branches:
+      - development/from-e2e-working-baseline
+  pull_request:
+    branches:
+      - baseline/e2e-blob-gemini-working-2026-08-23
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify-music:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm install
+      - run: npm run build
+      - run: npm run verify:batch77
