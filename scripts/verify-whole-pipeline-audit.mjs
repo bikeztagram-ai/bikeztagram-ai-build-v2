@@ -14,7 +14,6 @@ const requiredFiles = [
   'src/renderQualityLoop.js',
   'src/finalAudioMux.js',
   'api/blob-presign.js',
-  'api/private-blob-read.js',
   'api/analyse.js',
   'api/analyse-image.js',
   'api/analyse-library.js',
@@ -23,32 +22,29 @@ const requiredFiles = [
   'api/render.js',
 ];
 for (const file of requiredFiles) assert(exists(file), `Missing required pipeline file: ${file}`);
-
-if (exists('api/private-blob-read.js')) {
-  const helper = read('api/private-blob-read.js');
-  assert(helper.includes("access: 'private'"), 'Private Blob reader is not using private Blob access.');
-  assert(helper.includes('get(resolvedPathname'), 'Private Blob reader does not call the Vercel Blob SDK get() path.');
-}
+assert(!exists('api/private-blob-read.js'), 'Obsolete private Blob reader must not be present in the public-store production contract.');
 
 if (exists('api/blob-presign.js')) {
   const presign = read('api/blob-presign.js');
   assert(presign.includes('operations: ["put"]'), 'Blob upload token no longer scopes PUT correctly.');
-  assert(presign.includes('operations: ["get"]'), 'Blob read token no longer scopes GET correctly.');
+  assert(!presign.includes('operations: ["get"]'), 'Public Blob contract must not create a private GET delegation token.');
   assert(presign.includes('operation: "put"'), 'Blob presign endpoint no longer creates a signed PUT URL.');
-  assert(presign.includes('operation: "get"'), 'Blob presign endpoint no longer creates a signed GET URL.');
-  assert((presign.match(/access: "private"/g) || []).length >= 2, 'Blob presigned PUT/GET URLs must explicitly use private access.');
-  assert(presign.includes('useCache: false'), 'Blob signed GET URL does not bypass stale CDN cache.');
-  assert(presign.includes('readUrl'), 'Blob presign endpoint no longer returns the read URL.');
+  assert(presign.includes('url: presignedUrl.split("?")[0]'), 'Blob presign endpoint no longer returns the stable public Blob URL.');
+  assert(!presign.includes('access: "private"'), 'Public Blob presign endpoint must not force private access.');
 }
 
 for (const file of ['api/analyse.js', 'api/analyse-image.js', 'api/captions.js']) {
-  if (exists(file)) assert(read(file).includes("./private-blob-read.js"), `${file} is not connected to the shared private Blob reader.`);
+  if (exists(file)) {
+    const source = read(file);
+    assert(!source.includes('./private-blob-read.js'), `${file} still depends on the obsolete private Blob reader.`);
+    assert(source.includes('fetch('), `${file} no longer reads the public Blob URL directly.`);
+  }
 }
 
 if (exists('api/analyse-library.js')) {
   const library = read('api/analyse-library.js');
-  assert(library.includes("./private-blob-read.js"), 'Mixed-media Gemini analysis is not connected to the shared private Blob reader.');
-  assert(library.includes('readPrivateBlob'), 'Mixed-media Gemini analysis does not perform an authenticated Blob read.');
+  assert(!library.includes('./private-blob-read.js'), 'Mixed-media Gemini analysis still depends on the obsolete private Blob reader.');
+  assert(library.includes('fetch(url)'), 'Mixed-media Gemini analysis does not read the public Blob URL directly.');
   assert(library.includes('ai.files.upload'), 'Mixed-media Gemini analysis does not upload actual source bytes to Gemini.');
   assert(library.includes('generateContent'), 'Mixed-media Gemini analysis does not run the Gemini director pass.');
 }
@@ -95,4 +91,4 @@ if (failures.length) {
 }
 
 console.log('WHOLE PIPELINE AUDIT: PASS');
-console.log('Blob upload/read, Gemini analysis, local original audio, renderer/QA and final audio mux contracts are present.');
+console.log('Known-working public Blob upload/read, Gemini analysis, local original audio, renderer/QA and final audio mux contracts are present.');
