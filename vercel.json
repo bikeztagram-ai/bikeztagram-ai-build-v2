@@ -7,6 +7,24 @@
       "parallel/creative-engine-runtime-05": false
     }
   },
+  "functions": {
+    "api/analyse-library.js": {
+      "maxDuration": 300,
+      "memory": 3008
+    },
+    "api/analyse.js": {
+      "maxDuration": 300,
+      "memory": 3008
+    },
+    "api/analyse-image.js": {
+      "maxDuration": 300,
+      "memory": 2048
+    },
+    "api/captions.js": {
+      "maxDuration": 300,
+      "memory": 3008
+    }
+  },
   "rewrites": [
     {
       "source": "/((?!api/).*)",
