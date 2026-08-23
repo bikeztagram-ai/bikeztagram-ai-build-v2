@@ -1,6 +1,6 @@
 import {resolveFilmDuration,buildDurationPolicy} from '../src/filmDurationPolicyV2.js';
 import {createOriginalMusicWav} from '../src/musicProviderV3.js';
-const cases=[['30 sec',30],['5 minute',300],['10 minute',600],['20 minute',1200]];
+const cases=[['30 sec',30],['15 seconds',15],['45 seconds',45],['5 minute',300],['10 minute',600],['20 minute',1200],['1 hour',3600]];
 for(const [prompt,expected] of cases){const got=resolveFilmDuration({prompt,mediaCount:6});if(got!==expected)throw new Error(`Duration policy failed for ${prompt}: ${got}`);}
 const p=buildDurationPolicy({duration:1200});if(!p.long||!p.veryLong||!p.compositionRequired||!p.providerMayNeedExtension)throw new Error('Very-long duration policy incomplete.');
 const wav=createOriginalMusicWav(15,112,{energy:.8,seed:'long-form-test'});if(!(wav instanceof Blob)||wav.size<1000)throw new Error('Local music fallback failed.');
