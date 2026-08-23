@@ -39,9 +39,17 @@ async function readAuthenticatedUrl(url, label) {
 }
 
 async function readSdk(target, label) {
+  // IMPORTANT: this project has one explicit private Blob store. Prefer the
+  // store's read/write token over ambient Vercel OIDC. OIDC can be valid for
+  // the project while resolving against a different storage context, producing
+  // a misleading 404 for a blob that is visibly present in the intended store.
+  const token = text(process.env.BLOB_READ_WRITE_TOKEN);
+  const oidcToken = text(process.env.VERCEL_OIDC_TOKEN);
   const options = { access: 'private' };
-  if (process.env.VERCEL_OIDC_TOKEN) options.oidcToken = process.env.VERCEL_OIDC_TOKEN;
-  else if (process.env.BLOB_READ_WRITE_TOKEN) options.token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (token) options.token = token;
+  else if (oidcToken) options.oidcToken = oidcToken;
+  else throw new Error('No private Blob authentication token is configured.');
+
   const result = await get(target, options);
   if (!result || result.statusCode !== 200 || !result.stream) {
     throw new Error(`Vercel Blob SDK returned status ${result?.statusCode ?? 'no-result'} for ${label}.`);
@@ -59,7 +67,20 @@ export async function readPrivateBlob({ url = '', pathname = '', label = 'source
 
   const failures = [];
 
-  // The browser is given a scoped signed GET URL by /api/blob-presign. Try it first.
+  // The pathname is the authoritative identifier returned by /api/blob-presign.
+  // Read it directly from the intended private store first. This avoids relying
+  // on a browser-facing signed URL whose host/path can obscure the store context.
+  if (resolvedPathname) {
+    try {
+      const sdkByPath = await readSdk(resolvedPathname, label);
+      return { ...sdkByPath, pathname: resolvedPathname };
+    } catch (error) {
+      failures.push(`sdk-path: ${error?.message || error}`);
+    }
+  }
+
+  // Fallbacks are retained for older source records and for compatibility with
+  // already-issued signed URLs.
   if (resolvedUrl) {
     try {
       const signed = await readSignedUrl(resolvedUrl, label);
@@ -68,8 +89,6 @@ export async function readPrivateBlob({ url = '', pathname = '', label = 'source
       failures.push(`signed-url: ${error?.message || error}`);
     }
 
-    // Some private Blob URLs require the store read token even when the URL itself
-    // is otherwise fetchable. Keep the credential strictly server-side.
     if (process.env.BLOB_READ_WRITE_TOKEN) {
       try {
         const authenticated = await readAuthenticatedUrl(resolvedUrl, label);
@@ -79,21 +98,11 @@ export async function readPrivateBlob({ url = '', pathname = '', label = 'source
       }
     }
 
-    // @vercel/blob supports both URL and pathname targets for private reads.
     try {
       const sdkByUrl = await readSdk(resolvedUrl, label);
       return { ...sdkByUrl, pathname: resolvedPathname };
     } catch (error) {
       failures.push(`sdk-url: ${error?.message || error}`);
-    }
-  }
-
-  if (resolvedPathname) {
-    try {
-      const sdkByPath = await readSdk(resolvedPathname, label);
-      return { ...sdkByPath, pathname: resolvedPathname };
-    } catch (error) {
-      failures.push(`sdk-path: ${error?.message || error}`);
     }
   }
 
