@@ -1,0 +1,2 @@
+import {normalizeProductionDuration,buildDurationUiModel} from './productionDurationUI.js';
+export function buildAppProductionConfig({duration,prompt='',music={},filmType='trailer'}={}){const d=normalizeProductionDuration(duration,prompt);return {duration:d.duration,durationLabel:d.label,durationUi:buildDurationUiModel(d.duration,prompt),filmType,prompt,music:{...music,duration:d.duration},director:{targetDuration:d.duration},render:{targetDuration:d.duration,expectedDuration:d.duration},qa:{expectedDuration:d.duration}};}
