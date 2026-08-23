@@ -21,7 +21,7 @@ if(exists('api/blob-presign.js')){
 }
 
 for(const file of ['api/analyse.js','api/analyse-image.js','api/captions.js']){
- if(exists(file)){const source=read(file);assert(!source.includes('./private-blob-read.js'),`${file} still depends on the obsolete private Blob helper.`);assert(source.includes("from '@vercel/blob'"),`${file} no longer uses the Blob SDK for authenticated public-store reads.`);assert(source.includes('access:\'public\''),`${file} no longer declares public Blob access explicitly.`);assert(source.includes('PUBLIC_BLOB_READ_WRITE_TOKEN'),`${file} no longer binds public media reads to the dedicated store token.`);}
+ if(exists(file)){const source=read(file);assert(!source.includes('./private-blob-read.js'),`${file} still depends on the obsolete private Blob helper.`);assert(source.includes('fetch('),`${file} no longer reads its supplied public Blob URL.`);}
 }
 if(exists('api/analyse-library.js')){
  const library=read('api/analyse-library.js');
