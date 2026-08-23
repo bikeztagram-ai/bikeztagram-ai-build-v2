@@ -8,8 +8,6 @@ import { buildSceneGenerationSet, scoreGeneratedScene } from './sceneGenerationV
 import { alignCutsToMusic } from './musicDirectorV2.js';
 import { validateSubjectContinuity } from './subjectManifestV2.js';
 
-const text=v=>String(v??'').trim();
-
 export function planCompleteFilm(input={}){
   const direction=directCreativeRequest(input);
   const generatedScenes=buildSceneGenerationSet({prompt:input.prompt||'',duration:direction.brief.duration,aspectRatio:direction.brief.aspectRatio,subjectIds:direction.subjectManifest.subjects.map(s=>s.id),referenceAssets:direction.media.items.map(i=>i.id||i.sourceId).filter(Boolean),visual:direction.brief.visual,musicEvents:direction.music.events});
@@ -23,7 +21,7 @@ export function planCompleteFilm(input={}){
 
 export async function executeGenerationBatch(plan,{musicGenerator,sceneGenerator}={}){
   const jobs=[];
-  if(typeof musicGenerator==='function') jobs.push(Promise.resolve().then(()=>musicGenerator(plan.music)).then(result=>({kind:'music',result})).catch(error=>({kind:'music',error}))); 
+  if(typeof musicGenerator==='function') jobs.push(Promise.resolve().then(()=>musicGenerator(plan.music)).then(result=>({kind:'music',result})).catch(error=>({kind:'music',error})));
   if(typeof sceneGenerator==='function') for(const scene of plan.generatedScenes||[]) jobs.push(Promise.resolve().then(()=>sceneGenerator(scene)).then(result=>({kind:'scene',sceneId:scene.id,result})).catch(error=>({kind:'scene',sceneId:scene.id,error})));
   const results=await Promise.all(jobs);
   const successful=results.filter(r=>!r.error).length;
