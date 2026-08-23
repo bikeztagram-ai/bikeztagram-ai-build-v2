@@ -28,16 +28,16 @@ if (exists('api/private-blob-read.js')) {
   const helper = read('api/private-blob-read.js');
   assert(helper.includes("access: 'private'"), 'Private Blob reader is not using private Blob access.');
   assert(helper.includes('get(resolvedPathname'), 'Private Blob reader does not call the Vercel Blob SDK get() path.');
-  // Vercel currently supports both automatic OIDC authentication and legacy
-  // BLOB_READ_WRITE_TOKEN authentication. Do not require one credential mode.
 }
 
 if (exists('api/blob-presign.js')) {
   const presign = read('api/blob-presign.js');
   assert(presign.includes('operations: ["put"]'), 'Blob upload token no longer scopes PUT correctly.');
   assert(presign.includes('operations: ["get"]'), 'Blob read token no longer scopes GET correctly.');
+  assert(presign.includes('operation: "put"'), 'Blob presign endpoint no longer creates a signed PUT URL.');
   assert(presign.includes('operation: "get"'), 'Blob presign endpoint no longer creates a signed GET URL.');
-  assert(presign.includes('presignedUrl'), 'Blob presign endpoint no longer returns the upload URL.');
+  assert((presign.match(/access: "private"/g) || []).length >= 2, 'Blob presigned PUT/GET URLs must explicitly use private access.');
+  assert(presign.includes('useCache: false'), 'Blob signed GET URL does not bypass stale CDN cache.');
   assert(presign.includes('readUrl'), 'Blob presign endpoint no longer returns the read URL.');
 }
 
