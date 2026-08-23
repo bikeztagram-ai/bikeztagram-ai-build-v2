@@ -1,0 +1,35 @@
+name: Bikeztagram Creative Engine Batches 78-79
+
+on:
+  push:
+    branches:
+      - development/from-e2e-working-baseline
+  pull_request:
+    branches:
+      - baseline/e2e-blob-gemini-working-2026-08-23
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  creative-engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Install dependencies
+        run: npm install
+      - name: Production build
+        run: npm run build
+      - name: Verify generated scene engine
+        run: npm run verify:batch78
+      - name: Verify complete-film orchestrator
+        run: npm run verify:batch79
