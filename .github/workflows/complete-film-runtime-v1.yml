@@ -1,4 +1,4 @@
-name: Bikeztagram Complete Film Runtime V1
+name: Bikeztagram Canonical Complete Film Verification
 
 on:
   push:
@@ -6,11 +6,16 @@ on:
       - integration/canonical-complete-film-v1-clean
   pull_request:
     branches:
-      - integration/canonical-complete-film-v1-clean
+      - main
+      - baseline/e2e-blob-gemini-working-2026-08-23
+
+permissions:
+  contents: read
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,4 +24,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - run: node scripts/verify-complete-film-runtime-v1.mjs
+      - name: Verify Batch 77 musical arrangement
+        run: npm run verify:batch77
+      - name: Verify Batch 78 generated-scene engine
+        run: npm run verify:batch78
+      - name: Verify Batch 79 complete-film orchestrator
+        run: npm run verify:batch79
+      - name: Verify Batch 80 Creative Director API
+        run: npm run verify:batch80
+      - name: Verify Batch 81 command centre
+        run: npm run verify:batch81
+      - name: Verify Batch 82 parallel generation bridge
+        run: npm run verify:batch82
+      - name: Verify Batch 83 procedural video adapter
+        run: npm run verify:batch83
+      - name: Verify Complete Film Runtime V1
+        run: npm run verify:complete-film
