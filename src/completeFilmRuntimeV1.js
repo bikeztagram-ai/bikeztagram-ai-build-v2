@@ -1,6 +1,7 @@
 /* Complete-film execution bridge. Keeps the existing renderer contract while allowing independent creative branches to run in parallel. */
 
 const PIPELINE = ['understand', 'direct', 'parallel-creative', 'assemble', 'render', 'qa', 'revise', 'export'];
+const REQUIRED_PIPELINE = PIPELINE.filter((stage) => stage !== 'revise');
 
 function nextState(state, patch = {}) {
   return { ...state, ...patch, updatedAt: Date.now() };
@@ -104,12 +105,14 @@ export async function runCompleteFilm(state, context = {}) {
 
 export function getCompleteFilmProgress(state) {
   const completed = state?.completed || [];
+  const requiredCompleted = completed.filter((stage) => REQUIRED_PIPELINE.includes(stage)).length;
   return {
     stage: state?.stage || 'understand',
     completed: completed.length,
-    total: PIPELINE.length,
-    percent: Math.round((completed.length / PIPELINE.length) * 100),
+    total: REQUIRED_PIPELINE.length,
+    percent: Math.min(100, Math.round((requiredCompleted / REQUIRED_PIPELINE.length) * 100)),
     stages: PIPELINE,
+    optionalStages: ['revise'],
     parallelBranches: ['music', 'scenes'],
   };
 }
