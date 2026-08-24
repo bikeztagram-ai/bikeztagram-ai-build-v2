@@ -1,6 +1,6 @@
 # Bikeztagram AI — Build Status
 
-Updated: 2026-08-23
+Updated: 2026-08-24
 
 ## VERIFIED / PROTECTED
 - Existing verified Vercel Blob/Gemini media intake contract.
@@ -21,6 +21,7 @@ Updated: 2026-08-23
 - Gemini audit triage is recorded in `PRE_VERCEL_AUDIT.md`; no speculative rewrite is currently justified.
 - Current working milestone is protected separately as `baseline/e2e-blob-gemini-working-2026-08-23` and has a GitHub read-only branch protection rule.
 - A local ZIP backup of the frozen baseline was downloaded before further development.
+- Batch 77 CI verification passes on the development branch.
 
 ## BUILT / TESTED CONTRACTS
 - Autonomous render → inspect → revise → re-render orchestration with bounded attempts and deterministic QA revisions.
@@ -33,14 +34,14 @@ Updated: 2026-08-23
 - Creative Engine V2 contract covers natural-language direction, media understanding, subject identity, generated-scene planning and provider-neutral execution.
 - Music Director V2 plans multi-section original soundtracks with beat grids, drops, candidate ranking, edit/extend/remix/stem intents and a model-agnostic adapter contract.
 - Batch 77 replaces the old audible beep/pulse fallback with a deterministic original musical arrangement containing drums, bass, chords, lead motif, dynamics and stereo width, while preserving the existing audio contract.
-- Batch 78 adds an in-house generated-scene blueprint engine with role-aware camera, lighting, environment, motion, subject continuity, originality constraints and procedural-render fallback metadata.
+- Batch 78 adds an in-house generated-scene blueprint engine with role-aware camera, lighting, environment, motion, subject continuity, originality constraints, deterministic scene IDs, music-event attachment and procedural-render fallback metadata.
 - Batch 79 adds a complete-film orchestrator that turns one natural-language request plus uploaded assets into a single film plan spanning media understanding, creative direction, original music, generated scenes, beat-aware assembly, render, QA, revision and export.
 - Batch 79 explicitly models generation as parallel work: original music and generated scenes can execute concurrently before assembly.
 - Batch 80 exposes the same Creative Director orchestration as a provider-neutral API command endpoint for future command-center UI integration.
 - Video Generation V2 now carries scene blueprints into a provider-neutral adapter and supports an in-house browser-procedural fallback path when no external model output is available.
-- Creative Engine Batches 78–80 have dedicated GitHub Actions verification workflow coverage; no Vercel deployment is part of these changes.
 - Batch 82 implementation adds a parallel materialization bridge so multiple generated scenes can fan out concurrently, preserve source ordering, map generated outputs back into the renderer timeline, and retain the original in-house soundtrack metadata.
-- Blob upload signing now uses the canonical protected `BLOB_READ_WRITE_TOKEN` path and private signed PUT/GET delegation; a dedicated contract guard prevents the legacy `PUBLIC_BLOB_READ_WRITE_TOKEN` path from returning.
+- A consolidated Creative Engine development verification workflow now builds the project and exercises Batches 77–82 together.
+- Blob upload signing uses the canonical protected `BLOB_READ_WRITE_TOKEN` path and private signed PUT/GET delegation; a dedicated contract guard prevents the legacy `PUBLIC_BLOB_READ_WRITE_TOKEN` path from returning.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
 - Batch 82 parallel generated-scene materialization on the real browser/runtime.
@@ -69,7 +70,7 @@ Updated: 2026-08-23
 - Final local/open model runtime selection and installation for music/video adapters.
 
 ## Current acceleration priority
-1. Verify Batches 77–80 and the new Batch 82 bridge before any merge or deployment.
+1. Finish CI verification of Batches 77–82 before any merge or deliberate live release.
 2. Browser-test the new original soundtrack and procedural generated-scene path on Android using the frozen E2E pipeline as the control.
 3. Integrate the Creative Director API into the app's command-center UI so one request can drive the full job lifecycle.
 4. Upgrade original music from the procedural engine to a genuine generated-composition provider while retaining the local engine as a zero-cost/private fallback.
@@ -78,6 +79,7 @@ Updated: 2026-08-23
 7. Only after the integrated candidate is verified: controlled Vercel preview, real-device acceptance, then production promotion.
 
 ## Protected development model
-- `baseline/e2e-blob-gemini-working-2026-08-23` — frozen known-good E2E baseline. Do not develop directly on this branch.
-- `development/from-e2e-working-baseline` — active development branch for Creative Engine and music work.
-- Vercel production deployment is intentionally not being used as a development test loop; deploy only after the candidate passes local/GitHub/browser acceptance.
+- Never rewrite the frozen E2E Blob/Gemini baseline to accommodate experiments.
+- New Creative Engine work stays on development branches/PRs until verified.
+- Protected production contract files require explicit `[production-contract-approved]` review markers.
+- Vercel is a deliberate acceptance environment, not the development loop.
