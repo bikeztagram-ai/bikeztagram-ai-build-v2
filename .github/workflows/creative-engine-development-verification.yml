@@ -1,0 +1,38 @@
+name: Bikeztagram Creative Engine Development Verification
+
+on:
+  push:
+    branches:
+      - development/from-e2e-working-baseline
+  pull_request:
+    branches:
+      - baseline/e2e-blob-gemini-working-2026-08-23
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  creative-engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm install
+      - run: npm run build
+      - name: Verify original musical arrangement
+        run: npm run verify:batch77
+      - name: Verify generated scene engine
+        run: npm run verify:batch78
+      - name: Verify complete-film orchestrator
+        run: npm run verify:batch79
+      - name: Verify Creative Director API boundary
+        run: npm run verify:batch80
+      - name: Verify command centre contract
+        run: npm run verify:batch81
+      - name: Verify parallel generation bridge
+        run: npm run verify:batch82
