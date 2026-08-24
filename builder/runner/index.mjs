@@ -60,7 +60,10 @@ async function main() {
       runtime: 'node24',
       resources: { vcpus: 2 },
       persistent: false,
-      timeout: MAX_MINUTES * 60 * 1000
+      timeout: MAX_MINUTES * 60 * 1000,
+      // The builder must reach GitHub, npm, and the Gemini API from inside the sandbox.
+      // Vercel Sandbox otherwise may block outbound DNS/network access.
+      networkPolicy: { mode: 'allow-all' }
     });
   } catch (error) {
     throw new Error(`Sandbox.create failed: ${describeSandboxError(error)}`);
@@ -70,8 +73,6 @@ async function main() {
   let commitSha = null;
 
   try {
-    // Vercel Sandbox's writable filesystem is rooted at /vercel/sandbox.
-    // Start from that guaranteed directory before using the repo as cwd.
     await command(sandbox, 'mkdir', ['-p', REPO_DIR], SANDBOX_ROOT);
     const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], SANDBOX_ROOT, gitEnv);
     if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
