@@ -1,0 +1,11 @@
+{
+  "name": "bikeztagram-autonomous-runner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node index.mjs"
+  },
+  "dependencies": {
+    "@vercel/sandbox": "^1.7.0"
+  }
+}
