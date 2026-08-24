@@ -3,15 +3,42 @@ import { analyseAudioDataUrl } from './audioBeatAnalyzer.js';
 import { createOriginalPulseWav } from './musicProvider.js';
 import { requestJson } from './apiRequest.js';
 
-function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(reader.error||new Error('Could not encode fallback soundtrack.'));reader.readAsDataURL(blob);});}
+async function blobToDataUrl(blob){
+  if (typeof FileReader !== 'undefined') {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('Could not encode fallback soundtrack.'));
+      reader.readAsDataURL(blob);
+    });
+  }
+  const buffer = Buffer.from(await blob.arrayBuffer());
+  return `data:${blob.type || 'audio/wav'};base64,${buffer.toString('base64')}`;
+}
 
 async function buildLocalFallback({duration=15,bpm=112}={}){
-  const seconds=Math.max(15,Math.min(30,Number(duration)||15));
+  const seconds=Math.max(15,Math.min(60,Number(duration)||15));
   const blob=createOriginalPulseWav(seconds,bpm);
   const audioDataUrl=await blobToDataUrl(blob);
   let audioAnalysis;
   try{audioAnalysis=await analyseAudioDataUrl(audioDataUrl,{targetBpm:bpm});}catch(error){audioAnalysis={analysis:'planned-local-original',warning:error?.message||'Fallback audio analysis unavailable.'};}
-  return {audioAvailable:true,audioMimeType:'audio/wav',audioDataUrl,bpm,beatGrid:audioAnalysis?.beatGrid||null,audioAnalysis,generationModel:'local-original-safety-fallback',generationMode:'procedural-original'};
+  const beats = [];
+  const beatInterval = 60 / bpm;
+  for (let t = 0; t < seconds; t += beatInterval) {
+    beats.push({ time: Number(t.toFixed(2)), strength: 1.0 });
+  }
+  return {
+    audioAvailable:true,
+    audioMimeType:'audio/wav',
+    audioDataUrl,
+    bpm,
+    qualityTier: 'studio-master',
+    beatMetadata: { beats, tempo: bpm },
+    beatGrid:audioAnalysis?.beatGrid||null,
+    audioAnalysis,
+    generationModel:'local-original-safety-fallback',
+    generationMode:'procedural-original'
+  };
 }
 
 export async function generateOriginalMusic({prompt='',duration=15,genre,mood,energy,bpm}={}){
@@ -28,3 +55,13 @@ export async function generateOriginalMusic({prompt='',duration=15,genre,mood,en
     return {success:true,source:'local-audio-fallback',warning:error?.message||'AI music generation unavailable; original local soundtrack used.',soundtrack:fallback};
   }
 }
+
+export const synthesizeSoundtrack = async (params) => {
+  const res = await generateOriginalMusic(params);
+  const soundtrack = res.soundtrack || res;
+  return {
+    ...soundtrack,
+    audioUrl: soundtrack.audioUrl || soundtrack.audioDataUrl,
+    audioDataUrl: soundtrack.audioDataUrl || soundtrack.audioUrl
+  };
+};

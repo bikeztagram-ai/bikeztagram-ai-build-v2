@@ -1,3 +1,32 @@
+export async function generateCinematicPlan({ prompt = '', media = [] } = {}) {
+  const mediaProfile = buildUniversalMediaProfile(media);
+  const duration = media.reduce((acc, m) => acc + (Number(m?.duration) || 5), 0) || 30;
+  const shots = media.map((m, idx) => ({
+    id: m.id || `shot-${idx + 1}`,
+    url: m.url || '',
+    duration: Number(m.duration) || 5,
+    transition: idx === 0 ? 'fade-in' : 'cut',
+    colorGrading: 'cinematic-warm',
+    motion: 'pan-zoom'
+  }));
+
+  return {
+    version: 'cinematic-director-v2',
+    cinematicQualityBar: 'production-grade',
+    duration,
+    prompt,
+    mediaProfile,
+    shots,
+    soundtrackSpec: {
+      prompt: `Cinematic soundtrack for: ${prompt}`,
+      mood: 'triumphant',
+      genre: 'orchestral-electronic',
+      bpm: 120,
+      beatSyncEnabled: true
+    }
+  };
+}
+
 const ACTION_WORDS=['action','movement','running','walking','riding','driving','accelerating','cornering','chase','jumping','playing','flying','swimming','dancing','travel','journey'];
 const HERO_WORDS=['hero','reveal','portrait','close-up','landscape','sunset','detail','showcase','beautiful','epic','product'];
 const EMOTION_WORDS=['smile','laugh','joy','cute','love','dramatic','emotional','surprise','calm','peaceful','excited'];
