@@ -109,7 +109,9 @@ async function main() {
     const checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
     if (checkout.exitCode) throw new Error(`Branch creation failed: ${checkout.stderr}`);
 
-    const install = await command(sandbox, 'npm', ['install', '--no-audit', '--no-fund']);
+    // The production repo has no committed lockfile. Install into the sandbox,
+    // but do not generate a package-lock that the autonomous change would commit.
+    const install = await command(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
     if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
 
     const basePrompt = [
