@@ -16,8 +16,8 @@ const VERIFY_COMMANDS = (process.env.BUILDER_VERIFY_COMMANDS || 'npm run build,n
 const safeBranch = (value) => value && value !== 'main' && value !== 'master' && !value.startsWith('production/');
 const results = [];
 
-async function command(sandbox, cmd, args = [], cwd = '/workspace/repo') {
-  const r = await sandbox.runCommand({ cmd, args, cwd });
+async function command(sandbox, cmd, args = [], cwd = '/workspace/repo', env = undefined) {
+  const r = await sandbox.runCommand({ cmd, args, cwd, ...(env ? { env } : {}) });
   const result = { command: [cmd, ...args].join(' '), exitCode: r.exitCode, stdout: await r.stdout(), stderr: await r.stderr() };
   results.push(result);
   return result;
@@ -28,6 +28,11 @@ async function main() {
   if (!process.env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required');
   if (!AGENT_CMD?.length) throw new Error('BUILDER_AGENT_CMD is required; the runner will not guess an agent');
 
+  const gitEnv = {
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'http.extraheader',
+    GIT_CONFIG_VALUE_0: `AUTHORIZATION: bearer ${process.env.GITHUB_TOKEN}`
+  };
   const startedAt = new Date().toISOString();
   const sandbox = await Sandbox.create({ persistent: false, timeout: MAX_MINUTES * 60 * 1000 });
   let status = 'FAILED';
@@ -36,8 +41,7 @@ async function main() {
 
   try {
     await command(sandbox, 'mkdir', ['-p', '/workspace']);
-    const auth = `AUTHORIZATION: bearer ${process.env.GITHUB_TOKEN}`;
-    const clone = await command(sandbox, 'git', ['-c', `http.extraheader=${auth}`, 'clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, '/workspace/repo'], '/workspace');
+    const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, '/workspace/repo'], '/workspace', gitEnv);
     if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
 
     const checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
@@ -70,7 +74,7 @@ async function main() {
     if (commit.exitCode) throw new Error(`git commit failed: ${commit.stderr}`);
     const shaResult = await command(sandbox, 'git', ['rev-parse', 'HEAD']);
     commitSha = shaResult.stdout.trim() || null;
-    const push = await command(sandbox, 'git', ['-c', `http.extraheader=${auth}`, 'push', '--set-upstream', 'origin', BRANCH]);
+    const push = await command(sandbox, 'git', ['push', '--set-upstream', 'origin', BRANCH], '/workspace/repo', gitEnv);
     if (push.exitCode) throw new Error(`git push failed: ${push.stderr}`);
 
     status = 'READY_FOR_REVIEW';
