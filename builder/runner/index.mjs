@@ -26,6 +26,19 @@ async function command(sandbox, cmd, args = [], cwd = '/workspace/repo', env = u
   return result;
 }
 
+function describeSandboxError(error) {
+  if (error instanceof Error) {
+    const status = error?.response?.status ?? error?.status ?? error?.response?.statusCode;
+    const body = error?.response?.body ?? error?.response?.data;
+    return [
+      error.message,
+      status ? `status=${status}` : null,
+      body ? `body=${typeof body === 'string' ? body : JSON.stringify(body)}` : null
+    ].filter(Boolean).join(' | ');
+  }
+  return String(error);
+}
+
 async function main() {
   if (!safeBranch(BRANCH)) throw new Error(`Refusing unsafe branch: ${BRANCH}`);
   if (!process.env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required');
@@ -41,14 +54,18 @@ async function main() {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY
   };
   const startedAt = new Date().toISOString();
-  const sandbox = await Sandbox.create({
-    persistent: false,
-    timeout: MAX_MINUTES * 60 * 1000,
-    // Explicit access-token credentials make CI authentication independent of OIDC context.
-    token: process.env.VERCEL_TOKEN,
-    teamId: process.env.VERCEL_TEAM_ID,
-    projectId: process.env.VERCEL_PROJECT_ID
-  });
+  let sandbox;
+  try {
+    // The workflow creates a short-lived Vercel OIDC token immediately before this step.
+    // Let the SDK consume VERCEL_OIDC_TOKEN instead of overriding it with the long-lived
+    // VERCEL_TOKEN credentials, which can be scoped differently and cause Sandbox.create 406s.
+    sandbox = await Sandbox.create({
+      persistent: false,
+      timeout: MAX_MINUTES * 60 * 1000
+    });
+  } catch (error) {
+    throw new Error(`Sandbox.create failed: ${describeSandboxError(error)}`);
+  }
   let status = 'FAILED';
   let failure = null;
   let commitSha = null;
@@ -95,7 +112,9 @@ async function main() {
   } catch (error) {
     failure = error instanceof Error ? error.message : String(error);
   } finally {
-    try { await sandbox.stop(); } catch (error) { failure ??= `Sandbox stop failed: ${String(error)}`; }
+    if (sandbox) {
+      try { await sandbox.stop(); } catch (error) { failure ??= `Sandbox stop failed: ${describeSandboxError(error)}`; }
+    }
     const report = {
       batchId: BATCH_ID,
       objective: OBJECTIVE,
