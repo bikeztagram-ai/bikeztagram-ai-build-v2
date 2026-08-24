@@ -29,6 +29,10 @@ jobs:
       VERCEL_PROJECT_ID: prj_75Uw3YoRkT5XOjXnSaVTnM2wHXte
       GITHUB_TOKEN: ${{ secrets.BUILDER_GITHUB_TOKEN }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GIT_AUTHOR_NAME: Bikeztagram Autonomous Builder
+      GIT_AUTHOR_EMAIL: actions@users.noreply.github.com
+      GIT_COMMITTER_NAME: Bikeztagram Autonomous Builder
+      GIT_COMMITTER_EMAIL: actions@users.noreply.github.com
       BUILDER_REPO_URL: https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git
       BUILDER_BATCH_ID: ${{ inputs.batch_id }}
       BUILDER_WORKING_BRANCH: ${{ inputs.working_branch }}
