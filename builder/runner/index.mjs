@@ -7,6 +7,9 @@ const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
 const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 60), 60);
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD ? JSON.parse(process.env.BUILDER_AGENT_CMD) : null;
+const OBJECTIVE = process.env.BUILDER_OBJECTIVE || 'Prepare the autonomous builder execution layer without changing production application behavior.';
+const ACCEPTANCE = (process.env.BUILDER_ACCEPTANCE || 'Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.')
+  .split(';').map((x) => x.trim()).filter(Boolean);
 const VERIFY_COMMANDS = (process.env.BUILDER_VERIFY_COMMANDS || 'npm run build,npm run verify:batch76')
   .split(',').map((x) => x.trim()).filter(Boolean);
 
@@ -29,6 +32,7 @@ async function main() {
   const sandbox = await Sandbox.create({ persistent: false, timeout: MAX_MINUTES * 60 * 1000 });
   let status = 'FAILED';
   let failure = null;
+  let commitSha = null;
 
   try {
     await command(sandbox, 'mkdir', ['-p', '/workspace']);
@@ -41,11 +45,13 @@ async function main() {
 
     const prompt = [
       `Bikeztagram autonomous builder: execute ${BATCH_ID}.`,
+      `Objective: ${OBJECTIVE}`,
+      `Acceptance criteria: ${ACCEPTANCE.join(' | ')}`,
       `Work only on ${BRANCH}; never touch main, merge, deploy production, or provision paid infrastructure.`,
-      'Read builder/README.md and builder/batch-77.json first.',
-      'Implement the batch objective only. Do not commit or push; the runner owns Git.',
-      'Make the largest coherent in-scope progress possible, then stop.'
-    ].join(' ');
+      'Inspect the existing application and implement the objective using the largest coherent in-scope batch possible.',
+      'Do not commit or push; the runner owns Git.',
+      'Before finishing, run the repository build and relevant verification checks.'
+    ].join('\n');
     const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), prompt]);
     if (agent.exitCode) throw new Error(`Agent failed: ${agent.stderr || agent.stdout}`);
 
@@ -56,12 +62,14 @@ async function main() {
     }
 
     const statusResult = await command(sandbox, 'git', ['status', '--short']);
-    if (statusResult.stdout.includes('builder/reports/')) throw new Error('Runner report must not be generated inside the target worktree before commit');
+    if (!statusResult.stdout.trim()) throw new Error('Agent produced no repository changes');
 
     const add = await command(sandbox, 'git', ['add', '-A']);
     if (add.exitCode) throw new Error(`git add failed: ${add.stderr}`);
     const commit = await command(sandbox, 'git', ['commit', '-m', `builder: complete ${BATCH_ID}`]);
     if (commit.exitCode) throw new Error(`git commit failed: ${commit.stderr}`);
+    const shaResult = await command(sandbox, 'git', ['rev-parse', 'HEAD']);
+    commitSha = shaResult.stdout.trim() || null;
     const push = await command(sandbox, 'git', ['-c', `http.extraheader=${auth}`, 'push', '--set-upstream', 'origin', BRANCH]);
     if (push.exitCode) throw new Error(`git push failed: ${push.stderr}`);
 
@@ -70,7 +78,22 @@ async function main() {
     failure = error instanceof Error ? error.message : String(error);
   } finally {
     try { await sandbox.stop(); } catch (error) { failure ??= `Sandbox stop failed: ${String(error)}`; }
-    const report = { batchId: BATCH_ID, baseBranch: BASE_BRANCH, workingBranch: BRANCH, maxDurationMinutes: MAX_MINUTES, keepAlive: false, status, failure, startedAt, finishedAt: new Date().toISOString(), checks: results };
+    const report = {
+      batchId: BATCH_ID,
+      objective: OBJECTIVE,
+      baseBranch: BASE_BRANCH,
+      workingBranch: BRANCH,
+      commitSha,
+      maxDurationMinutes: MAX_MINUTES,
+      keepAlive: false,
+      autoMerge: false,
+      autoProductionDeploy: false,
+      status,
+      failure,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      checks: results
+    };
     await mkdir('./builder/reports', { recursive: true });
     await writeFile(`./builder/reports/${BATCH_ID}.json`, JSON.stringify(report, null, 2));
     console.log(JSON.stringify(report, null, 2));
