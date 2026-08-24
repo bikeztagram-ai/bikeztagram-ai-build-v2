@@ -70,29 +70,53 @@ export async function runCompleteFilm(state, context = {}) {
       outputs: { ...current.outputs, render: await runAdapter(current, 'render', { ...branchContext, music, scenes, assemble: current.outputs.assemble }) },
     });
 
-    current = nextState(current, { stage: 'qa' });
-    const qa = await runAdapter(current, 'qa', { ...branchContext, render: current.outputs.render });
-    current = nextState(current, {
-      completed: [...new Set([...current.completed, 'qa'])],
-      outputs: { ...current.outputs, qa },
-    });
+    let qa = null;
+    let revisionCount = 0;
+    for (;;) {
+      current = nextState(current, { stage: 'qa' });
+      qa = await runAdapter(current, 'qa', {
+        ...branchContext,
+        render: current.outputs.render,
+        assemble: current.outputs.assemble,
+        revisionCount,
+      });
+      current = nextState(current, {
+        completed: [...new Set([...current.completed, 'qa'])],
+        outputs: { ...current.outputs, qa },
+      });
 
-    if (Number(qa?.score ?? 100) < 80 && Number(current.attempts.qa || 0) < current.maxAttempts && typeof current.adapters?.revise === 'function') {
-      const attempts = { ...current.attempts, qa: Number(current.attempts.qa || 0) + 1 };
-      const revised = await current.adapters.revise({ state: current, context: { ...branchContext, qa } });
+      const score = Number(qa?.score ?? 100);
+      const canRevise = score < 80 && revisionCount < current.maxAttempts && typeof current.adapters?.revise === 'function';
+      if (!canRevise) break;
+
+      revisionCount += 1;
+      const attempts = { ...current.attempts, qa: revisionCount };
+      const revised = await current.adapters.revise({
+        state: current,
+        context: {
+          ...branchContext,
+          qa,
+          render: current.outputs.render,
+          assemble: current.outputs.assemble,
+          revisionCount,
+        },
+      });
+
       current = nextState(current, {
         stage: 'revise',
         attempts,
         completed: [...new Set([...current.completed, 'revise'])],
         outputs: { ...current.outputs, revise: revised },
       });
+
+      if (revised?.assemble) current.outputs.assemble = revised.assemble;
       if (revised?.render) current.outputs.render = revised.render;
     }
 
     current = nextState(current, { stage: 'export' });
     current = nextState(current, {
       completed: [...new Set([...current.completed, 'export'])],
-      outputs: { ...current.outputs, export: await runAdapter(current, 'export', { ...branchContext, render: current.outputs.render, qa: current.outputs.qa }) },
+      outputs: { ...current.outputs, export: await runAdapter(current, 'export', { ...branchContext, render: current.outputs.render, qa }) },
       stage: 'complete',
     });
     return current;
