@@ -1,0 +1,22 @@
+name: Bikeztagram Complete Film Runtime V1
+
+on:
+  push:
+    branches:
+      - integration/canonical-complete-film-v1-clean
+  pull_request:
+    branches:
+      - integration/canonical-complete-film-v1-clean
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/verify-complete-film-runtime-v1.mjs
