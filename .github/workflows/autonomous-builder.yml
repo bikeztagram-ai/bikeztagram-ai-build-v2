@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 70
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TEAM_ID: team_3M95heKqbtDeI1h2dDKBWBtS
+      VERCEL_PROJECT_ID: prj_75Uw3YoRkT5XOjXnSaVTnM2wHXte
       GITHUB_TOKEN: ${{ secrets.BUILDER_GITHUB_TOKEN }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       BUILDER_REPO_URL: https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git
