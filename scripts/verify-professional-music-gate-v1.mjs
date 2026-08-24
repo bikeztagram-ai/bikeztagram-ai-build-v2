@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { assessProfessionalMusic, buildProviderMusicRequest } from '../src/musicProfessionalGateV1.js';
+const blueprint={audioAvailable:true,beatGrid:[0,0.5],composition:{sections:[1,2,3,4],theme:{type:'original-motif',development:true},arrangement:{dynamics:true,stereoDepth:true,master:true}}};
+const result=assessProfessionalMusic(blueprint);
+assert.equal(result.professionalReady,true);
+const request=buildProviderMusicRequest({prompt:'original cinematic song',duration:45,filmType:'song'});
+assert.equal(request.originalOnly,true); assert.equal(request.requiresBeatGrid,true); assert.ok(request.preferredOutputs.includes('stems'));
+const fallback=assessProfessionalMusic({audioAvailable:false,composition:{sections:[]}});
+assert.equal(fallback.professionalReady,false); assert.equal(fallback.fallbackIsFinal,false);
+console.log('professional-music-gate-v1: PASS');
