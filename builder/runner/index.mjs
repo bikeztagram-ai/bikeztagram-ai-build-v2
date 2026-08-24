@@ -173,6 +173,13 @@ async function main() {
     const statusResult = await command(sandbox, 'git', ['status', '--short']);
     if (!statusResult.stdout.trim()) throw new Error('Verification passed but the agent produced no repository changes');
 
+    // Ephemeral Vercel sandboxes have no Git identity by default. Set a local
+    // builder identity so verified isolated batches can be committed non-interactively.
+    const gitIdentity = await command(sandbox, 'git', ['config', 'user.name', 'Bikeztagram Autonomous Builder']);
+    if (gitIdentity.exitCode) throw new Error(`git user.name configuration failed: ${gitIdentity.stderr}`);
+    const gitEmail = await command(sandbox, 'git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+    if (gitEmail.exitCode) throw new Error(`git user.email configuration failed: ${gitEmail.stderr}`);
+
     const add = await command(sandbox, 'git', ['add', '-A']);
     if (add.exitCode) throw new Error(`git add failed: ${add.stderr}`);
     const commit = await command(sandbox, 'git', ['commit', '-m', `builder: complete ${BATCH_ID}`]);
