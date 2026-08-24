@@ -6,6 +6,6 @@
     "run": "node index.mjs"
   },
   "dependencies": {
-    "@vercel/sandbox": "^1.7.0"
+    "@vercel/sandbox": "1.8.0"
   }
 }
