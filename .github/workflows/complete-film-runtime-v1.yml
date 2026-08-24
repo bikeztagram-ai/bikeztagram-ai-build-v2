@@ -26,6 +26,8 @@ jobs:
       - run: npm run build
       - name: Verify director shot diversity and story coverage
         run: npm run verify:director-diversity-v2
+      - name: Verify director-to-editor handoff preserves selection
+        run: npm run verify:director-handoff
       - name: Verify Batch 77 musical arrangement
         run: npm run verify:batch77
       - name: Verify Batch 78 generated-scene engine
