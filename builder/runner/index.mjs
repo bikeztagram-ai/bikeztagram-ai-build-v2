@@ -1,0 +1,81 @@
+import { Sandbox } from '@vercel/sandbox';
+import { mkdir, writeFile } from 'node:fs/promises';
+
+const REPO_URL = process.env.BUILDER_REPO_URL || 'https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git';
+const BATCH_ID = process.env.BUILDER_BATCH_ID || 'batch-77';
+const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH_ID}`;
+const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
+const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 60), 60);
+const AGENT_CMD = process.env.BUILDER_AGENT_CMD ? JSON.parse(process.env.BUILDER_AGENT_CMD) : null;
+const VERIFY_COMMANDS = (process.env.BUILDER_VERIFY_COMMANDS || 'npm run build,npm run verify:batch76')
+  .split(',').map((x) => x.trim()).filter(Boolean);
+
+const safeBranch = (value) => value && value !== 'main' && value !== 'master' && !value.startsWith('production/');
+const results = [];
+
+async function command(sandbox, cmd, args = [], cwd = '/workspace/repo') {
+  const r = await sandbox.runCommand({ cmd, args, cwd });
+  const result = { command: [cmd, ...args].join(' '), exitCode: r.exitCode, stdout: await r.stdout(), stderr: await r.stderr() };
+  results.push(result);
+  return result;
+}
+
+async function main() {
+  if (!safeBranch(BRANCH)) throw new Error(`Refusing unsafe branch: ${BRANCH}`);
+  if (!process.env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required');
+  if (!AGENT_CMD?.length) throw new Error('BUILDER_AGENT_CMD is required; the runner will not guess an agent');
+
+  const startedAt = new Date().toISOString();
+  const sandbox = await Sandbox.create({ persistent: false, timeout: MAX_MINUTES * 60 * 1000 });
+  let status = 'FAILED';
+  let failure = null;
+
+  try {
+    await command(sandbox, 'mkdir', ['-p', '/workspace']);
+    const auth = `AUTHORIZATION: bearer ${process.env.GITHUB_TOKEN}`;
+    const clone = await command(sandbox, 'git', ['-c', `http.extraheader=${auth}`, 'clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, '/workspace/repo'], '/workspace');
+    if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
+
+    const checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
+    if (checkout.exitCode) throw new Error(`Branch creation failed: ${checkout.stderr}`);
+
+    const prompt = [
+      `Bikeztagram autonomous builder: execute ${BATCH_ID}.`,
+      `Work only on ${BRANCH}; never touch main, merge, deploy production, or provision paid infrastructure.`,
+      'Read builder/README.md and builder/batch-77.json first.',
+      'Implement the batch objective only. Do not commit or push; the runner owns Git.',
+      'Make the largest coherent in-scope progress possible, then stop.'
+    ].join(' ');
+    const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), prompt]);
+    if (agent.exitCode) throw new Error(`Agent failed: ${agent.stderr || agent.stdout}`);
+
+    for (const spec of VERIFY_COMMANDS) {
+      const [cmd, ...args] = spec.split(/\s+/);
+      const check = await command(sandbox, cmd, args);
+      if (check.exitCode) throw new Error(`Verification failed: ${spec}`);
+    }
+
+    const statusResult = await command(sandbox, 'git', ['status', '--short']);
+    if (statusResult.stdout.includes('builder/reports/')) throw new Error('Runner report must not be generated inside the target worktree before commit');
+
+    const add = await command(sandbox, 'git', ['add', '-A']);
+    if (add.exitCode) throw new Error(`git add failed: ${add.stderr}`);
+    const commit = await command(sandbox, 'git', ['commit', '-m', `builder: complete ${BATCH_ID}`]);
+    if (commit.exitCode) throw new Error(`git commit failed: ${commit.stderr}`);
+    const push = await command(sandbox, 'git', ['-c', `http.extraheader=${auth}`, 'push', '--set-upstream', 'origin', BRANCH]);
+    if (push.exitCode) throw new Error(`git push failed: ${push.stderr}`);
+
+    status = 'READY_FOR_REVIEW';
+  } catch (error) {
+    failure = error instanceof Error ? error.message : String(error);
+  } finally {
+    try { await sandbox.stop(); } catch (error) { failure ??= `Sandbox stop failed: ${String(error)}`; }
+    const report = { batchId: BATCH_ID, baseBranch: BASE_BRANCH, workingBranch: BRANCH, maxDurationMinutes: MAX_MINUTES, keepAlive: false, status, failure, startedAt, finishedAt: new Date().toISOString(), checks: results };
+    await mkdir('./builder/reports', { recursive: true });
+    await writeFile(`./builder/reports/${BATCH_ID}.json`, JSON.stringify(report, null, 2));
+    console.log(JSON.stringify(report, null, 2));
+    if (status !== 'READY_FOR_REVIEW') process.exitCode = 1;
+  }
+}
+
+main();
