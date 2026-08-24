@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {directMusic} from '../src/musicDirectorV1.js';
+import {generateDirectorMusic} from '../src/musicDirectorRuntimeV1.js';
+import {planMissingShots,mergeGeneratedFillResults,validateFillPlan} from '../src/aiFillPlannerV1.js';
+const shotPlan=[{purpose:'hook',startTime:0,duration:2},{purpose:'reveal',startTime:2,duration:3},{purpose:'action',startTime:5,duration:4},{purpose:'hero',startTime:9,duration:3}];
+const music=directMusic({prompt:'dark cinematic motorcycle trailer with an aggressive reveal and action ending',duration:12,shotPlan});
+assert.equal(music.originalOnly,true);assert.ok(music.sections.length>=4);assert.ok(music.beats.length>10);assert.equal(music.bpm,128);assert.ok(music.shotSync[1].accent);
+const runtime=generateDirectorMusic({prompt:'cinematic motorcycle action',duration:12,shotPlan});
+assert.equal(runtime.metadata.original,true);assert.ok(runtime.audioBlob instanceof Blob);assert.equal(runtime.blueprint.bpm,128);
+const scenes=[{id:'a',purpose:'hook',mediaId:'upload-a',duration:2},{id:'b',purpose:'missing wheel low angle',requiredShot:'low angle close-up of the same motorcycle wheel entering a corner',duration:2.5,subjectIds:['bike-1']},{id:'c',purpose:'hero',mediaId:'upload-c',duration:3}];
+const fills=planMissingShots(scenes,{aspectRatio:'9:16'});assert.equal(validateFillPlan(fills).pass,true);assert.equal(fills.length,1);assert.equal(fills[0].constraints.noCopyrightStyleImitation,true);assert.deepEqual(fills[0].subjectIds,['bike-1']);
+const merged=mergeGeneratedFillResults(scenes,[{sceneIndex:1,id:'generated-1',request:{prompt:fills[0].prompt}}]);assert.equal(merged[1].sourceType,'generated');assert.equal(merged[1].missing,false);
+console.log('Creative Director + Music Director + AI Fill V1: PASS');
