@@ -33,7 +33,7 @@ jobs:
       BUILDER_BATCH_ID: ${{ inputs.batch_id }}
       BUILDER_WORKING_BRANCH: ${{ inputs.working_branch }}
       BUILDER_BASE_BRANCH: main
-      BUILDER_MAX_MINUTES: "60"
+      BUILDER_MAX_MINUTES: "45"
       BUILDER_OBJECTIVE: ${{ inputs.objective }}
       BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76
