@@ -37,6 +37,9 @@ async function main() {
   if (!safeBranch(BRANCH)) throw new Error(`Refusing unsafe branch: ${BRANCH}`);
   if (!process.env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required');
   if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is required');
+  if (!process.env.VERCEL_TOKEN) throw new Error('VERCEL_TOKEN is required');
+  if (!process.env.VERCEL_TEAM_ID) throw new Error('VERCEL_TEAM_ID is required');
+  if (!process.env.VERCEL_PROJECT_ID) throw new Error('VERCEL_PROJECT_ID is required');
   if (!AGENT_CMD?.length) throw new Error('BUILDER_AGENT_CMD is invalid');
 
   const gitEnv = {
@@ -49,6 +52,9 @@ async function main() {
   let sandbox;
   try {
     sandbox = await Sandbox.create({
+      teamId: process.env.VERCEL_TEAM_ID,
+      projectId: process.env.VERCEL_PROJECT_ID,
+      token: process.env.VERCEL_TOKEN,
       runtime: 'node24',
       resources: { vcpus: 2 },
       persistent: false,
