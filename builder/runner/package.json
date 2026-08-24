@@ -1,0 +1,8 @@
+{
+  "name": "bikeztagram-autonomous-runner",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@vercel/sandbox": "^1.7.0"
+  }
+}
