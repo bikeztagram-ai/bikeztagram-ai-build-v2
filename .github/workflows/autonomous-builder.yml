@@ -6,7 +6,7 @@ on:
       batch_id:
         description: Batch identifier
         required: true
-        default: batch-77
+        default: batch-78
       objective:
         description: Objective for this batch
         required: true
@@ -14,7 +14,7 @@ on:
       working_branch:
         description: Isolated branch to write to
         required: true
-        default: autonomous-builder/batch-77
+        default: autonomous-builder/batch-78
 
 permissions:
   contents: write
