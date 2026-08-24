@@ -39,7 +39,7 @@ jobs:
       - name: Checkout runner
         uses: actions/checkout@v6
         with:
-          ref: fix/autonomous-builder-gemini
+          ref: main
           fetch-depth: 1
 
       - name: Validate runner secrets
