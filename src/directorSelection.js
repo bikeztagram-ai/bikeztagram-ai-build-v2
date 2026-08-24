@@ -37,7 +37,7 @@ function similarity(a,b){
  let common=0;for(const x of aw)if(bw.has(x))common++;
  return common/Math.max(1,Math.min(aw.size,bw.size));
 }
-function coveragePenalty(candidate,chosen,position,total){
+function coveragePenalty(candidate,chosen,position,total,mode){
  const s=describe(candidate); const framing=shotType(candidate); const r=role(candidate);
  let penalty=0;
  const details=chosen.filter(m=>/detail|close-up|macro/.test(describe(m))||/detail|close-up|macro/.test(shotType(m))).length;
@@ -47,7 +47,7 @@ function coveragePenalty(candidate,chosen,position,total){
  if(details>=Math.max(2,Math.floor(total*.3))&&/detail|close-up|macro/.test(s+' '+framing))penalty+=28;
  if(position<Math.max(1,Math.floor(total*.35))&&details>=2&&/detail|close-up|macro/.test(s+' '+framing))penalty+=18;
  if(wides===0&&position>=1&&!/wide|establishing|environment|landscape/.test(s+' '+framing))penalty+=8;
- if(modeAction(s) && actions>=Math.max(2,Math.floor(total*.5)))penalty+=12;
+ if(mode.action&&actions>=Math.max(2,Math.floor(total*.5))&&modeAction(s))penalty+=12;
  if(/reveal|unveil|showcase/.test(s)&&reveals>=1)penalty+=14;
  if(r==='detail'&&details>=2)penalty+=18;
  return penalty;
@@ -68,7 +68,7 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
  const limit=Math.min(Math.max(1,maxCuts),ranked.length); const chosen=[]; const usedSources=new Set(); const usedDescriptions=[];
  const ordered=[...ranked];
  while(chosen.length<limit&&ordered.length){let bestIndex=0,best=-Infinity;for(let i=0;i<ordered.length;i++){
-  const m=ordered[i]; const position=chosen.length; let value=m.__directorScore+roleBonus(m,position,limit,mode)-coveragePenalty(m,chosen,position,limit);
+  const m=ordered[i]; const position=chosen.length; let value=m.__directorScore+roleBonus(m,position,limit,mode)-coveragePenalty(m,chosen,position,limit,mode);
   const source=String(m.mediaId??m.mediaIndex??'unknown');
   if(usedSources.has(source))value-=18;
   if(usedDescriptions.some(d=>d===describe(m)))value-=35;
