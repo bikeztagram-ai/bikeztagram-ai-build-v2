@@ -1,0 +1,65 @@
+name: Autonomous Builder Batch
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_id:
+        description: Batch identifier
+        required: true
+        default: batch-77
+      objective:
+        description: Objective for this batch
+        required: true
+        default: Prepare the autonomous builder execution layer without changing production application behavior.
+      working_branch:
+        description: Isolated branch to write to
+        required: true
+        default: autonomous-builder/batch-77
+
+permissions:
+  contents: write
+
+jobs:
+  run-batch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.BUILDER_GITHUB_TOKEN }}
+      BUILDER_REPO_URL: https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git
+      BUILDER_BATCH_ID: ${{ inputs.batch_id }}
+      BUILDER_WORKING_BRANCH: ${{ inputs.working_branch }}
+      BUILDER_BASE_BRANCH: main
+      BUILDER_MAX_MINUTES: "60"
+      BUILDER_OBJECTIVE: ${{ inputs.objective }}
+      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.
+      BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76
+      BUILDER_AGENT_CMD: ${{ secrets.BUILDER_AGENT_CMD_JSON }}
+    steps:
+      - name: Checkout runner
+        uses: actions/checkout@v6
+        with:
+          ref: autonomous-builder/batch-77
+          fetch-depth: 1
+
+      - name: Validate runner secrets
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo "VERCEL_TOKEN is missing"; exit 1; }
+          test -n "$GITHUB_TOKEN" || { echo "BUILDER_GITHUB_TOKEN is missing"; exit 1; }
+          test -n "$BUILDER_AGENT_CMD" || { echo "BUILDER_AGENT_CMD_JSON is missing"; exit 1; }
+
+      - name: Install runner
+        working-directory: builder/runner
+        run: npm install --no-audit --no-fund
+
+      - name: Run one bounded batch
+        working-directory: .
+        run: node builder/runner/index.mjs
+
+      - name: Upload runner report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-builder-${{ inputs.batch_id }}
+          path: builder/reports/${{ inputs.batch_id }}.json
+          if-no-files-found: ignore
