@@ -1,0 +1,1 @@
+CI trigger marker for the canonical Complete Film consolidation candidate.
