@@ -61,9 +61,9 @@ async function main() {
       resources: { vcpus: 2 },
       persistent: false,
       timeout: MAX_MINUTES * 60 * 1000,
-      // The builder must reach GitHub, npm, and the Gemini API from inside the sandbox.
-      // Vercel Sandbox otherwise may block outbound DNS/network access.
-      networkPolicy: { mode: 'allow-all' }
+      // Vercel documents full-internet mode as the string "allow-all".
+      // The builder needs outbound access to GitHub, npm, and the Gemini API.
+      networkPolicy: 'allow-all'
     });
   } catch (error) {
     throw new Error(`Sandbox.create failed: ${describeSandboxError(error)}`);
