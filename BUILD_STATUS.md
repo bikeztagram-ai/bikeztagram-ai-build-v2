@@ -1,6 +1,6 @@
 # Bikeztagram AI — Build Status
 
-Updated: 2026-08-21
+Updated: 2026-08-24
 
 ## VERIFIED / PROTECTED
 - Existing verified Vercel Blob/Gemini media intake contract.
@@ -44,6 +44,14 @@ Updated: 2026-08-21
 - Runtime 02 adds a media bridge that materializes generated scenes into the existing renderer contract and produces the in-house original soundtrack for the same Creative Engine job.
 - Runtime 02 adds dedicated contract verification for the provider-neutral video adapter, renderer-plan mapping and original music runtime.
 
+## NEW CANDIDATE — COMPLETE FILM LOOP
+- Added a provider-neutral AI Fill Planner V1 that detects missing editorial shots, creates continuity-aware generation jobs and merges generated media back into scene plans.
+- Added a Complete Film Runtime V1 bridge that executes understand → direct → parallel creative branches → assemble → render → QA → optional revise → export.
+- Music and scene-generation branches now execute concurrently at the orchestration layer and converge before assembly.
+- The assembly contract explicitly carries the original soundtrack alongside generated scenes so generated media cannot silently replace the soundtrack.
+- Added `verify:complete-film` coverage for parallel execution, AI-fill planning/merge, original soundtrack retention and final completion.
+- Candidate is isolated on `creative-engine-complete-film-loop`; it has not been merged or deployed.
+
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
 - Premium UI responsive/interaction acceptance on real Android devices.
 - Image and mixed-media end-to-end render acceptance with real user media.
@@ -57,8 +65,9 @@ Updated: 2026-08-21
 - Exact Vercel function/runtime boundary for the largest real media-library workloads.
 - Controlled GitHub → Vercel release deployment and live production verification.
 - Actual local/open-weight music and video model runtime selection and hardware feasibility.
-- Creative Engine V2 CI/build verification has been added but still requires a successful GitHub Actions run before merge.
+- Creative Engine V2 CI/build verification requires a successful GitHub Actions run before merge.
 - Creative Engine Runtime 02 browser MediaRecorder generation and generated-scene materialization require live browser acceptance before being treated as production-ready.
+- Complete Film Runtime V1 verification has been added to the isolated candidate but still requires executable CI/browser/live-media acceptance.
 
 ## NOT YET BUILT
 - Full interactive caption styling controls.
@@ -71,15 +80,15 @@ Updated: 2026-08-21
 - Real model runtime selection and installation for the local/open music and video adapters.
 
 ## Current acceleration priority
-1. Parallelise Creative Engine work across isolated branches: creative direction, music generation, video generation, subject consistency, orchestration, creative QA and model/runtime evaluation.
-2. Build the provider-agnostic contracts first so local/open model runtimes can be swapped in without rewriting the product.
-3. Upgrade original music from procedural fallback to genuine generated compositions, with actual beat/drop/energy analysis feeding the video director.
-4. Build text-to-video, image-to-video and subject-aware generation as first-class timeline media, not just gap fillers.
-5. Integrate the Creative Director so one natural-language request can orchestrate real media, generated music, generated scenes, rendering, QA and revision.
-6. Continue real Android/mixed-media acceptance in parallel; fix demonstrated performance or quality failures without destabilising protected contracts.
-7. Only after the integrated candidate is verified: controlled Vercel preview, real-device acceptance, then production promotion.
+1. Connect the complete-film bridge to the existing real media-understanding, Gemini, Blob, renderer and music runtime adapters.
+2. Execute the new complete-film verification in CI and browser acceptance, fixing failures before merge.
+3. Build text-to-video, image-to-video and subject-aware generation as first-class timeline media, not just gap fillers.
+4. Integrate the Creative Director so one natural-language request can orchestrate real media, generated music, generated scenes, rendering, QA and revision.
+5. Continue real Android/mixed-media acceptance in parallel; fix demonstrated performance or quality failures without destabilising protected contracts.
+6. Only after the integrated candidate is verified: controlled Vercel preview, real-device acceptance, then production promotion.
 
 ## Current parallel candidates
 - PR #13 `parallel/creative-engine-integration-01` — Creative Engine Integration 01, draft, not merged.
 - PR #164 `parallel/creative-engine-runtime-02` — Runtime 02, draft, based on Integration 01, not merged.
-- Neither candidate has been deployed to Vercel.
+- `creative-engine-complete-film-loop` — Complete Film Loop candidate, isolated and not yet deployed.
+- No candidate from this batch has been deployed to Vercel.
