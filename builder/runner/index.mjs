@@ -9,6 +9,7 @@ const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
 const MAX_PASSES = Math.min(Math.max(Number(process.env.BUILDER_MAX_PASSES || 8), 1), 8);
 const SANDBOX_ROOT = '/vercel/sandbox';
 const REPO_DIR = `${SANDBOX_ROOT}/repo`;
+const ASKPASS_PATH = `${SANDBOX_ROOT}/git-askpass.sh`;
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD
   ? JSON.parse(process.env.BUILDER_AGENT_CMD)
   : ['npx', '-y', '@google/gemini-cli', '--yolo'];
@@ -73,9 +74,9 @@ async function main() {
   if (!AGENT_CMD?.length) throw new Error('BUILDER_AGENT_CMD is invalid');
 
   const gitEnv = {
-    GIT_CONFIG_COUNT: '1',
-    GIT_CONFIG_KEY_0: 'http.extraheader',
-    GIT_CONFIG_VALUE_0: `AUTHORIZATION: bearer ${process.env.GITHUB_TOKEN}`
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+    GIT_ASKPASS: ASKPASS_PATH,
+    GIT_TERMINAL_PROMPT: '0'
   };
   const agentEnv = { GEMINI_API_KEY: process.env.GEMINI_API_KEY };
   const startedAt = new Date().toISOString();
@@ -103,6 +104,18 @@ async function main() {
     }
 
     await command(sandbox, 'mkdir', ['-p', REPO_DIR], SANDBOX_ROOT);
+
+    // Git's auth configuration needs to exist inside the sandbox process.
+    // Use GIT_ASKPASS so the token never appears in the command log or report.
+    const askpass = await command(
+      sandbox,
+      'sh',
+      ['-lc', `cat > '${ASKPASS_PATH}' <<'EOF'\n#!/bin/sh\ncase "$1" in\n  *Username*) printf '%s\\n' 'x-access-token' ;;\n  *) printf '%s\\n' "$GITHUB_TOKEN" ;;\nesac\nEOF\nchmod 700 '${ASKPASS_PATH}'`],
+      SANDBOX_ROOT,
+      gitEnv,
+    );
+    if (askpass.exitCode) throw new Error(`Git auth helper setup failed: ${askpass.stderr}`);
+
     const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], SANDBOX_ROOT, gitEnv);
     if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
 
