@@ -6,6 +6,7 @@ const BATCH_ID = process.env.BUILDER_BATCH_ID || 'batch-77';
 const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH_ID}`;
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
 const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
+const MAX_PASSES = Math.min(Math.max(Number(process.env.BUILDER_MAX_PASSES || 8), 1), 8);
 const SANDBOX_ROOT = '/vercel/sandbox';
 const REPO_DIR = `${SANDBOX_ROOT}/repo`;
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD
@@ -22,7 +23,12 @@ const results = [];
 
 async function command(sandbox, cmd, args = [], cwd = REPO_DIR, env = undefined) {
   const r = await sandbox.runCommand({ cmd, args, cwd, ...(env ? { env } : {}) });
-  const result = { command: [cmd, ...args].join(' '), exitCode: r.exitCode, stdout: await r.stdout(), stderr: await r.stderr() };
+  const result = {
+    command: [cmd, ...args].join(' '),
+    exitCode: r.exitCode,
+    stdout: await r.stdout(),
+    stderr: await r.stderr()
+  };
   results.push(result);
   return result;
 }
@@ -33,6 +39,28 @@ function describeSandboxError(error) {
   const details = body ? (typeof body === 'string' ? body : JSON.stringify(body)) : null;
   return [error?.message || String(error), status ? `status=${status}` : null, details ? `body=${details}` : null]
     .filter(Boolean).join(' | ');
+}
+
+function compact(text, limit = 6000) {
+  const value = String(text || '').trim();
+  return value.length <= limit ? value : `${value.slice(0, limit)}\n...[truncated]`;
+}
+
+async function runVerification(sandbox) {
+  const failures = [];
+
+  const diffCheck = await command(sandbox, 'git', ['diff', '--check']);
+  if (diffCheck.exitCode) failures.push(`git diff --check failed:\n${compact(diffCheck.stderr || diffCheck.stdout)}`);
+
+  for (const spec of VERIFY_COMMANDS) {
+    const [cmd, ...args] = spec.split(/\s+/);
+    const check = await command(sandbox, cmd, args);
+    if (check.exitCode) {
+      failures.push(`${spec} failed (exit ${check.exitCode}).\nstdout:\n${compact(check.stdout)}\nstderr:\n${compact(check.stderr)}`);
+    }
+  }
+
+  return failures;
 }
 
 async function main() {
@@ -52,27 +80,28 @@ async function main() {
   const agentEnv = { GEMINI_API_KEY: process.env.GEMINI_API_KEY };
   const startedAt = new Date().toISOString();
   let sandbox;
-  try {
-    sandbox = await Sandbox.create({
-      teamId: process.env.VERCEL_TEAM_ID,
-      projectId: process.env.VERCEL_PROJECT_ID,
-      token: process.env.VERCEL_TOKEN,
-      runtime: 'node24',
-      resources: { vcpus: 2 },
-      persistent: false,
-      timeout: MAX_MINUTES * 60 * 1000,
-      // Vercel documents full-internet mode as the string "allow-all".
-      // The builder needs outbound access to GitHub, npm, and the Gemini API.
-      networkPolicy: 'allow-all'
-    });
-  } catch (error) {
-    throw new Error(`Sandbox.create failed: ${describeSandboxError(error)}`);
-  }
   let status = 'FAILED';
   let failure = null;
   let commitSha = null;
+  let passes = 0;
+  let lastFailures = [];
 
   try {
+    try {
+      sandbox = await Sandbox.create({
+        teamId: process.env.VERCEL_TEAM_ID,
+        projectId: process.env.VERCEL_PROJECT_ID,
+        token: process.env.VERCEL_TOKEN,
+        runtime: 'node24',
+        resources: { vcpus: 2 },
+        persistent: false,
+        timeout: MAX_MINUTES * 60 * 1000,
+        networkPolicy: 'allow-all'
+      });
+    } catch (error) {
+      throw new Error(`Sandbox.create failed: ${describeSandboxError(error)}`);
+    }
+
     await command(sandbox, 'mkdir', ['-p', REPO_DIR], SANDBOX_ROOT);
     const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], SANDBOX_ROOT, gitEnv);
     if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
@@ -80,26 +109,46 @@ async function main() {
     const checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
     if (checkout.exitCode) throw new Error(`Branch creation failed: ${checkout.stderr}`);
 
-    const prompt = [
+    const install = await command(sandbox, 'npm', ['install', '--no-audit', '--no-fund']);
+    if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
+
+    const basePrompt = [
       `Bikeztagram autonomous builder: execute ${BATCH_ID}.`,
       `Objective: ${OBJECTIVE}`,
       `Acceptance criteria: ${ACCEPTANCE.join(' | ')}`,
       `Work only on ${BRANCH}; never touch main, merge, deploy production, or provision paid infrastructure.`,
       'Inspect the existing application and implement the objective using the largest coherent in-scope batch possible.',
+      'Work on independent in-scope tasks in parallel where safe, but never create conflicting edits.',
       'Do not commit or push; the runner owns Git.',
-      'Before finishing, run the repository build and relevant verification checks.'
+      'You are part of a recovery loop: make real changes, then stop so the runner can verify them.',
+      'If previous verification failures are supplied below, diagnose and fix those failures rather than merely reporting them.'
     ].join('\n');
-    const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--prompt', prompt], REPO_DIR, agentEnv);
-    if (agent.exitCode) throw new Error(`Agent failed: ${agent.stderr || agent.stdout}`);
 
-    for (const spec of VERIFY_COMMANDS) {
-      const [cmd, ...args] = spec.split(/\s+/);
-      const check = await command(sandbox, cmd, args);
-      if (check.exitCode) throw new Error(`Verification failed: ${spec}`);
+    for (passes = 1; passes <= MAX_PASSES; passes += 1) {
+      const failureContext = lastFailures.length
+        ? `\nPrevious verification failures to fix now:\n${lastFailures.map(compact).join('\n\n')}`
+        : '';
+      const prompt = `${basePrompt}\n\nPass ${passes} of ${MAX_PASSES}.${failureContext}\n\nBefore ending this pass, inspect your changes and make sure the next verification run has a concrete chance of passing.`;
+
+      const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--prompt', prompt], REPO_DIR, agentEnv);
+      if (agent.exitCode) {
+        lastFailures = [`Agent failed (exit ${agent.exitCode}).\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
+        continue;
+      }
+
+      lastFailures = await runVerification(sandbox);
+      if (lastFailures.length === 0) {
+        status = 'VERIFIED';
+        break;
+      }
+    }
+
+    if (status !== 'VERIFIED') {
+      throw new Error(`Autonomous work loop exhausted after ${MAX_PASSES} passes. Last failures:\n${lastFailures.map(compact).join('\n\n')}`);
     }
 
     const statusResult = await command(sandbox, 'git', ['status', '--short']);
-    if (!statusResult.stdout.trim()) throw new Error('Agent produced no repository changes');
+    if (!statusResult.stdout.trim()) throw new Error('Verification passed but the agent produced no repository changes');
 
     const add = await command(sandbox, 'git', ['add', '-A']);
     if (add.exitCode) throw new Error(`git add failed: ${add.stderr}`);
@@ -124,6 +173,8 @@ async function main() {
       workingBranch: BRANCH,
       commitSha,
       maxDurationMinutes: MAX_MINUTES,
+      maxPasses: MAX_PASSES,
+      passesCompleted: Math.min(passes, MAX_PASSES),
       keepAlive: false,
       autoMerge: false,
       autoProductionDeploy: false,
