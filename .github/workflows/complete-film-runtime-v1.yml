@@ -24,6 +24,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Verify director shot diversity and story coverage
+        run: npm run verify:director-diversity-v2
       - name: Verify Batch 77 musical arrangement
         run: npm run verify:batch77
       - name: Verify Batch 78 generated-scene engine
@@ -40,3 +42,5 @@ jobs:
         run: npm run verify:batch83
       - name: Verify Complete Film Runtime V1
         run: npm run verify:complete-film
+      - name: Verify Complete Film App Bridge V1
+        run: npm run verify:complete-film-bridge
