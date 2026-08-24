@@ -11,6 +11,8 @@ const GEMINI_MODEL = process.env.BUILDER_GEMINI_MODEL || 'gemini-2.5-flash-lite'
 const SANDBOX_ROOT = '/vercel/sandbox';
 const REPO_DIR = `${SANDBOX_ROOT}/repo`;
 const ASKPASS_PATH = `${SANDBOX_ROOT}/git-askpass.sh`;
+const PROTECTED_PATH_PREFIXES = (process.env.BUILDER_PROTECTED_PATHS || '.github/workflows/')
+  .split(',').map((x) => x.trim()).filter(Boolean);
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD
   ? JSON.parse(process.env.BUILDER_AGENT_CMD)
   : ['npx', '-y', '@google/gemini-cli', '--yolo', '--skip-trust', '--model', GEMINI_MODEL];
@@ -51,6 +53,34 @@ function compact(text, limit = 6000) {
 function isQuotaFailure(result) {
   const text = `${result?.stdout || ''}\n${result?.stderr || ''}`.toLowerCase();
   return /terminalquot(a|e)error|quota exceeded|exhausted your daily quota|generate_content_free_tier_requests|resource_exhausted/.test(text);
+}
+
+function isProtectedPath(path) {
+  const normalized = String(path || '').replace(/^\s*[MADRCU?!]{1,2}\s+/, '').trim();
+  return PROTECTED_PATH_PREFIXES.some((prefix) => normalized === prefix || normalized.startsWith(prefix));
+}
+
+async function protectControlPlaneFiles(sandbox) {
+  const statusResult = await command(sandbox, 'git', ['status', '--short']);
+  if (statusResult.exitCode) throw new Error(`git status failed: ${statusResult.stderr}`);
+
+  const changedFiles = statusResult.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const protectedChanges = changedFiles
+    .map((line) => line.replace(/^[MADRCU?!]{1,2}\s+/, '').trim())
+    .filter(isProtectedPath);
+
+  if (!protectedChanges.length) return [];
+
+  const restore = await command(sandbox, 'git', ['restore', '--source=HEAD', '--staged', '--worktree', '--', '.github/workflows']);
+  if (restore.exitCode) throw new Error(`Protected workflow restore failed: ${restore.stderr}`);
+
+  const clean = await command(sandbox, 'git', ['clean', '-fd', '--', '.github/workflows']);
+  if (clean.exitCode) throw new Error(`Protected workflow cleanup failed: ${clean.stderr}`);
+
+  return protectedChanges;
 }
 
 async function runVerification(sandbox) {
@@ -95,6 +125,7 @@ async function main() {
   let commitSha = null;
   let passes = 0;
   let lastFailures = [];
+  let protectedChangesReset = [];
 
   try {
     try {
@@ -140,6 +171,7 @@ async function main() {
       'Inspect the existing application and implement the objective using the largest coherent in-scope batch possible.',
       'Work on independent in-scope tasks in parallel where safe, but never create conflicting edits.',
       'Do not commit or push; the runner owns Git.',
+      'Protected control-plane paths: .github/workflows/**. Do not modify GitHub Actions workflow files during application/product batches; the runner will preserve them unchanged.',
       'You are part of a recovery loop: make real changes, then stop so the runner can verify them.',
       'If previous verification failures are supplied below, diagnose and fix those failures rather than merely reporting them.'
     ].join('\n');
@@ -170,11 +202,11 @@ async function main() {
       throw new Error(`Autonomous work loop exhausted after ${MAX_PASSES} passes. Last failures:\n${lastFailures.map(compact).join('\n\n')}`);
     }
 
-    const statusResult = await command(sandbox, 'git', ['status', '--short']);
-    if (!statusResult.stdout.trim()) throw new Error('Verification passed but the agent produced no repository changes');
+    protectedChangesReset = await protectControlPlaneFiles(sandbox);
 
-    // Ephemeral Vercel sandboxes have no Git identity by default. Set a local
-    // builder identity so verified isolated batches can be committed non-interactively.
+    const statusResult = await command(sandbox, 'git', ['status', '--short']);
+    if (!statusResult.stdout.trim()) throw new Error('Verification passed but the agent produced no repository changes outside protected control-plane paths');
+
     const gitIdentity = await command(sandbox, 'git', ['config', 'user.name', 'Bikeztagram Autonomous Builder']);
     if (gitIdentity.exitCode) throw new Error(`git user.name configuration failed: ${gitIdentity.stderr}`);
     const gitEmail = await command(sandbox, 'git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
@@ -203,6 +235,8 @@ async function main() {
       workingBranch: BRANCH,
       commitSha,
       geminiModel: GEMINI_MODEL,
+      protectedPaths: PROTECTED_PATH_PREFIXES,
+      protectedChangesReset,
       maxDurationMinutes: MAX_MINUTES,
       maxPasses: MAX_PASSES,
       passesCompleted: Math.min(passes, MAX_PASSES),
