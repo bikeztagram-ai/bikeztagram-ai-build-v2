@@ -5,7 +5,8 @@ const REPO_URL = process.env.BUILDER_REPO_URL || 'https://github.com/bikeztagram
 const BATCH_ID = process.env.BUILDER_BATCH_ID || 'batch-77';
 const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH_ID}`;
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
-const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 60), 60);
+// Vercel Hobby sandboxes have a 45-minute maximum lifetime.
+const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD
   ? JSON.parse(process.env.BUILDER_AGENT_CMD)
   : ['npx', '-y', '@google/gemini-cli', '--yolo'];
@@ -40,7 +41,14 @@ async function main() {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY
   };
   const startedAt = new Date().toISOString();
-  const sandbox = await Sandbox.create({ persistent: false, timeout: MAX_MINUTES * 60 * 1000 });
+  const sandbox = await Sandbox.create({
+    persistent: false,
+    timeout: MAX_MINUTES * 60 * 1000,
+    // Explicit access-token credentials make CI authentication independent of OIDC context.
+    token: process.env.VERCEL_TOKEN,
+    teamId: process.env.VERCEL_TEAM_ID,
+    projectId: process.env.VERCEL_PROJECT_ID
+  });
   let status = 'FAILED';
   let failure = null;
   let commitSha = null;
