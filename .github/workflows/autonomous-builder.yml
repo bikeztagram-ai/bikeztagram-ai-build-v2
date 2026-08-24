@@ -6,15 +6,16 @@ on:
       batch_id:
         description: Batch identifier
         required: true
-        default: batch-78
+        default: batch-81
       objective:
         description: Objective for this batch
         required: true
-        default: Prepare the autonomous builder execution layer without changing production application behavior.
+        default: >-
+          Advance Bikeztagram AI toward its end-game product by building the music/audio subsystem as a real production capability, not a mock. Inspect the existing musicProvider, director, renderer, App, and related code first. Implement the largest coherent safe batch covering an original/copyright-safe music source/generation abstraction, soundtrack selection, timeline-aware timing, beat/energy metadata, fades/ducking, integration with the director edit plan and final render pipeline, deterministic fallback when generation is unavailable, and appropriate UI/status handling and verification. Preserve the working signed Blob upload/read contract, Gemini/director pipeline, browser renderer, existing video generation, PWA behaviour, and production safety. Do not modify .github/workflows/** or autonomous-runner infrastructure in this product batch. No automatic merge or production deploy. Build and run all relevant verification checks before review.
       working_branch:
         description: Isolated branch to write to
         required: true
-        default: autonomous-builder/batch-78
+        default: autonomous-builder/batch-81
 
 permissions:
   contents: write
@@ -36,7 +37,7 @@ jobs:
       BUILDER_MAX_MINUTES: "45"
       BUILDER_GEMINI_MODEL: gemini-3.5-flash-lite
       BUILDER_OBJECTIVE: ${{ inputs.objective }}
-      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.
+      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;Do not modify .github/workflows/** during product batches.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76
     steps:
       - name: Checkout runner
