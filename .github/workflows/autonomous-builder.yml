@@ -47,6 +47,8 @@ jobs:
       - name: Validate runner secrets
         run: |
           test -n "$VERCEL_TOKEN" || { echo "VERCEL_TOKEN is missing"; exit 1; }
+          test -n "$VERCEL_TEAM_ID" || { echo "VERCEL_TEAM_ID is missing"; exit 1; }
+          test -n "$VERCEL_PROJECT_ID" || { echo "VERCEL_PROJECT_ID is missing"; exit 1; }
           test -n "$GITHUB_TOKEN" || { echo "BUILDER_GITHUB_TOKEN is missing"; exit 1; }
           test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY is missing"; exit 1; }
 
@@ -54,24 +56,8 @@ jobs:
         working-directory: builder/runner
         run: npm install --no-audit --no-fund
 
-      - name: Generate Vercel Sandbox OIDC token
-        id: vercel-oidc
-        run: |
-          set -euo pipefail
-          response=$(curl --fail-with-body --silent --show-error \
-            -X POST "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/token?teamId=${VERCEL_TEAM_ID}" \
-            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-            -H "Content-Type: application/json" \
-            --data '{"source":"github-actions:autonomous-builder"}')
-          token=$(node -e 'const fs=require("fs"); const x=JSON.parse(fs.readFileSync(0,"utf8")); if (!x.token) process.exit(1); process.stdout.write(x.token)' <<< "$response")
-          echo "token<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$token" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
       - name: Run one bounded batch
         working-directory: .
-        env:
-          VERCEL_OIDC_TOKEN: ${{ steps.vercel-oidc.outputs.token }}
         run: node builder/runner/index.mjs
 
       - name: Upload runner report
