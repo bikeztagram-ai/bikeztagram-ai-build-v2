@@ -36,3 +36,5 @@ jobs:
         run: npm run verify:batch81
       - name: Verify parallel generation bridge
         run: npm run verify:batch82
+      - name: Verify procedural video adapter
+        run: npm run verify:batch83
