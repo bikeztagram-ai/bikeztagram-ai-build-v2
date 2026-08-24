@@ -7,12 +7,13 @@ const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
 const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
 const MAX_PASSES = Math.min(Math.max(Number(process.env.BUILDER_MAX_PASSES || 8), 1), 8);
+const GEMINI_MODEL = process.env.BUILDER_GEMINI_MODEL || 'gemini-2.5-flash-lite';
 const SANDBOX_ROOT = '/vercel/sandbox';
 const REPO_DIR = `${SANDBOX_ROOT}/repo`;
 const ASKPASS_PATH = `${SANDBOX_ROOT}/git-askpass.sh`;
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD
   ? JSON.parse(process.env.BUILDER_AGENT_CMD)
-  : ['npx', '-y', '@google/gemini-cli', '--yolo', '--skip-trust'];
+  : ['npx', '-y', '@google/gemini-cli', '--yolo', '--skip-trust', '--model', GEMINI_MODEL];
 const OBJECTIVE = process.env.BUILDER_OBJECTIVE || 'Prepare the autonomous builder execution layer without changing production application behavior.';
 const ACCEPTANCE = (process.env.BUILDER_ACCEPTANCE || 'Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.')
   .split(';').map((x) => x.trim()).filter(Boolean);
@@ -47,6 +48,11 @@ function compact(text, limit = 6000) {
   return value.length <= limit ? value : `${value.slice(0, limit)}\n...[truncated]`;
 }
 
+function isQuotaFailure(result) {
+  const text = `${result?.stdout || ''}\n${result?.stderr || ''}`.toLowerCase();
+  return /terminalquot(a|e)error|quota exceeded|exhausted your daily quota|generate_content_free_tier_requests|resource_exhausted/.test(text);
+}
+
 async function runVerification(sandbox) {
   const failures = [];
 
@@ -78,7 +84,10 @@ async function main() {
     GIT_ASKPASS: ASKPASS_PATH,
     GIT_TERMINAL_PROMPT: '0'
   };
-  const agentEnv = { GEMINI_API_KEY: process.env.GEMINI_API_KEY };
+  const agentEnv = {
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GEMINI_MODEL
+  };
   const startedAt = new Date().toISOString();
   let sandbox;
   let status = 'FAILED';
@@ -105,8 +114,6 @@ async function main() {
 
     await command(sandbox, 'mkdir', ['-p', REPO_DIR], SANDBOX_ROOT);
 
-    // Git's auth configuration needs to exist inside the sandbox process.
-    // Use GIT_ASKPASS so the token never appears in the command log or report.
     const askpass = await command(
       sandbox,
       'sh',
@@ -122,8 +129,6 @@ async function main() {
     const checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
     if (checkout.exitCode) throw new Error(`Branch creation failed: ${checkout.stderr}`);
 
-    // The production repo has no committed lockfile. Install into the sandbox,
-    // but do not generate a package-lock that the autonomous change would commit.
     const install = await command(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
     if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
 
@@ -148,6 +153,9 @@ async function main() {
       const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--prompt', prompt], REPO_DIR, agentEnv);
       if (agent.exitCode) {
         lastFailures = [`Agent failed (exit ${agent.exitCode}).\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
+        if (isQuotaFailure(agent)) {
+          throw new Error(`Gemini quota exhausted for model ${GEMINI_MODEL}. The autonomous loop stopped immediately instead of wasting remaining passes.\n${lastFailures[0]}`);
+        }
         continue;
       }
 
@@ -187,6 +195,7 @@ async function main() {
       baseBranch: BASE_BRANCH,
       workingBranch: BRANCH,
       commitSha,
+      geminiModel: GEMINI_MODEL,
       maxDurationMinutes: MAX_MINUTES,
       maxPasses: MAX_PASSES,
       passesCompleted: Math.min(passes, MAX_PASSES),
