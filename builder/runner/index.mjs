@@ -6,6 +6,8 @@ const BATCH_ID = process.env.BUILDER_BATCH_ID || 'batch-77';
 const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH_ID}`;
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
 const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
+const SANDBOX_ROOT = '/vercel/sandbox';
+const REPO_DIR = `${SANDBOX_ROOT}/repo`;
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD
   ? JSON.parse(process.env.BUILDER_AGENT_CMD)
   : ['npx', '-y', '@google/gemini-cli', '--yolo'];
@@ -18,7 +20,7 @@ const VERIFY_COMMANDS = (process.env.BUILDER_VERIFY_COMMANDS || 'npm run build,n
 const safeBranch = (value) => value && value !== 'main' && value !== 'master' && !value.startsWith('production/');
 const results = [];
 
-async function command(sandbox, cmd, args = [], cwd = '/workspace/repo', env = undefined) {
+async function command(sandbox, cmd, args = [], cwd = REPO_DIR, env = undefined) {
   const r = await sandbox.runCommand({ cmd, args, cwd, ...(env ? { env } : {}) });
   const result = { command: [cmd, ...args].join(' '), exitCode: r.exitCode, stdout: await r.stdout(), stderr: await r.stderr() };
   results.push(result);
@@ -68,8 +70,10 @@ async function main() {
   let commitSha = null;
 
   try {
-    await command(sandbox, 'mkdir', ['-p', '/workspace'], '/workspace');
-    const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, '/workspace/repo'], '/workspace', gitEnv);
+    // Vercel Sandbox's writable filesystem is rooted at /vercel/sandbox.
+    // Start from that guaranteed directory before using the repo as cwd.
+    await command(sandbox, 'mkdir', ['-p', REPO_DIR], SANDBOX_ROOT);
+    const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], SANDBOX_ROOT, gitEnv);
     if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
 
     const checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
@@ -84,7 +88,7 @@ async function main() {
       'Do not commit or push; the runner owns Git.',
       'Before finishing, run the repository build and relevant verification checks.'
     ].join('\n');
-    const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--prompt', prompt], '/workspace/repo', agentEnv);
+    const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--prompt', prompt], REPO_DIR, agentEnv);
     if (agent.exitCode) throw new Error(`Agent failed: ${agent.stderr || agent.stdout}`);
 
     for (const spec of VERIFY_COMMANDS) {
@@ -102,7 +106,7 @@ async function main() {
     if (commit.exitCode) throw new Error(`git commit failed: ${commit.stderr}`);
     const shaResult = await command(sandbox, 'git', ['rev-parse', 'HEAD']);
     commitSha = shaResult.stdout.trim() || null;
-    const push = await command(sandbox, 'git', ['push', '--set-upstream', 'origin', BRANCH], '/workspace/repo', gitEnv);
+    const push = await command(sandbox, 'git', ['push', '--set-upstream', 'origin', BRANCH], REPO_DIR, gitEnv);
     if (push.exitCode) throw new Error(`git push failed: ${push.stderr}`);
 
     status = 'READY_FOR_REVIEW';
