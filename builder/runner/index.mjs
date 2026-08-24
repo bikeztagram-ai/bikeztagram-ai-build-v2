@@ -68,7 +68,7 @@ async function main() {
   let commitSha = null;
 
   try {
-    await command(sandbox, 'mkdir', ['-p', '/workspace']);
+    await command(sandbox, 'mkdir', ['-p', '/workspace'], '/workspace');
     const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, '/workspace/repo'], '/workspace', gitEnv);
     if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
 
