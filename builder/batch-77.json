@@ -6,18 +6,22 @@
   "keepAlive": false,
   "autoMerge": false,
   "autoProductionDeploy": false,
-  "objective": "Prepare the autonomous builder execution layer without changing production application behavior.",
+  "objective": "Perform a safe first real build batch: inspect the current application architecture, improve the autonomous builder execution layer and its validation/reporting where needed, and leave the repository in a clearly reviewable state without changing production application behavior.",
   "acceptanceCriteria": [
-    "Runner configuration is explicit and bounded.",
+    "Runner configuration remains explicit and bounded.",
     "No automatic merge to main is possible from the runner contract.",
-    "No new paid storage service is provisioned by the runner.",
-    "Build and relevant verification commands are required before READY_FOR_REVIEW."
+    "No production deployment is performed.",
+    "No new paid storage service is provisioned.",
+    "Build and relevant verification commands pass before READY_FOR_REVIEW.",
+    "All changes remain on the isolated batch branch.",
+    "A machine-readable report identifies changed files, checks, failures, and review status."
   ],
   "stopConditions": [
     "60 minute execution limit reached",
     "required credential unavailable",
-    "verification command fails outside the permitted fix scope",
-    "attempt to modify main or deploy production"
+    "verification command fails outside permitted scope",
+    "attempt to modify main or deploy production",
+    "agent proposes work outside the batch objective"
   ],
   "status": "READY_TO_RUN"
 }
