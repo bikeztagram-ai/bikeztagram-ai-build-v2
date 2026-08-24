@@ -5,7 +5,6 @@ const REPO_URL = process.env.BUILDER_REPO_URL || 'https://github.com/bikeztagram
 const BATCH_ID = process.env.BUILDER_BATCH_ID || 'batch-77';
 const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH_ID}`;
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
-// Vercel Hobby sandboxes have a 45-minute maximum lifetime.
 const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD
   ? JSON.parse(process.env.BUILDER_AGENT_CMD)
@@ -27,16 +26,11 @@ async function command(sandbox, cmd, args = [], cwd = '/workspace/repo', env = u
 }
 
 function describeSandboxError(error) {
-  if (error instanceof Error) {
-    const status = error?.response?.status ?? error?.status ?? error?.response?.statusCode;
-    const body = error?.response?.body ?? error?.response?.data;
-    return [
-      error.message,
-      status ? `status=${status}` : null,
-      body ? `body=${typeof body === 'string' ? body : JSON.stringify(body)}` : null
-    ].filter(Boolean).join(' | ');
-  }
-  return String(error);
+  const status = error?.response?.status ?? error?.status ?? error?.response?.statusCode;
+  const body = error?.response?.body ?? error?.response?.data ?? error?.json;
+  const details = body ? (typeof body === 'string' ? body : JSON.stringify(body)) : null;
+  return [error?.message || String(error), status ? `status=${status}` : null, details ? `body=${details}` : null]
+    .filter(Boolean).join(' | ');
 }
 
 async function main() {
@@ -50,16 +44,13 @@ async function main() {
     GIT_CONFIG_KEY_0: 'http.extraheader',
     GIT_CONFIG_VALUE_0: `AUTHORIZATION: bearer ${process.env.GITHUB_TOKEN}`
   };
-  const agentEnv = {
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY
-  };
+  const agentEnv = { GEMINI_API_KEY: process.env.GEMINI_API_KEY };
   const startedAt = new Date().toISOString();
   let sandbox;
   try {
-    // The workflow creates a short-lived Vercel OIDC token immediately before this step.
-    // Let the SDK consume VERCEL_OIDC_TOKEN instead of overriding it with the long-lived
-    // VERCEL_TOKEN credentials, which can be scoped differently and cause Sandbox.create 406s.
     sandbox = await Sandbox.create({
+      runtime: 'node24',
+      resources: { vcpus: 2 },
       persistent: false,
       timeout: MAX_MINUTES * 60 * 1000
     });
