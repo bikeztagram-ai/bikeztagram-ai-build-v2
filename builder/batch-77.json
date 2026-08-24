@@ -1,0 +1,23 @@
+{
+  "id": "batch-77",
+  "baseBranch": "main",
+  "workingBranch": "autonomous-builder/batch-77",
+  "maxDurationMinutes": 60,
+  "keepAlive": false,
+  "autoMerge": false,
+  "autoProductionDeploy": false,
+  "objective": "Prepare the autonomous builder execution layer without changing production application behavior.",
+  "acceptanceCriteria": [
+    "Runner configuration is explicit and bounded.",
+    "No automatic merge to main is possible from the runner contract.",
+    "No new paid storage service is provisioned by the runner.",
+    "Build and relevant verification commands are required before READY_FOR_REVIEW."
+  ],
+  "stopConditions": [
+    "60 minute execution limit reached",
+    "required credential unavailable",
+    "verification command fails outside the permitted fix scope",
+    "attempt to modify main or deploy production"
+  ],
+  "status": "READY_TO_RUN"
+}
