@@ -12,7 +12,7 @@ const REPO_DIR = `${SANDBOX_ROOT}/repo`;
 const ASKPASS_PATH = `${SANDBOX_ROOT}/git-askpass.sh`;
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD
   ? JSON.parse(process.env.BUILDER_AGENT_CMD)
-  : ['npx', '-y', '@google/gemini-cli', '--yolo'];
+  : ['npx', '-y', '@google/gemini-cli', '--yolo', '--skip-trust'];
 const OBJECTIVE = process.env.BUILDER_OBJECTIVE || 'Prepare the autonomous builder execution layer without changing production application behavior.';
 const ACCEPTANCE = (process.env.BUILDER_ACCEPTANCE || 'Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.')
   .split(';').map((x) => x.trim()).filter(Boolean);
