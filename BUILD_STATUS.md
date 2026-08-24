@@ -42,12 +42,15 @@ Updated: 2026-08-24
 - Batch 82 implementation adds a parallel materialization bridge so multiple generated scenes can fan out concurrently, preserve source ordering, map generated outputs back into the renderer timeline, and retain the original in-house soundtrack metadata.
 - A consolidated Creative Engine development verification workflow now builds the project and exercises Batches 77–82 together.
 - Blob upload signing uses the canonical protected `BLOB_READ_WRITE_TOKEN` path and private signed PUT/GET delegation; a dedicated contract guard prevents the legacy `PUBLIC_BLOB_READ_WRITE_TOKEN` path from returning.
+- Complete Film Runtime V1 is now consolidated onto the canonical branch without duplicating the existing AI Fill Planner.
+- Complete Film Runtime V1 verification covers parallel music/scenes execution, canonical AI-fill planning/merge, soundtrack retention and 100% completion.
 
 ## EXPERIMENTAL / REQUIRES LIVE ACCEPTANCE
 - Batch 82 parallel generated-scene materialization on the real browser/runtime.
 - New original musical arrangement playback/mux acceptance on the real Android browser.
 - Browser procedural generated-scene MediaRecorder generation and materialization into the existing renderer.
 - Actual provider-backed text-to-video/image-to-video/subject-aware generation when a suitable model/runtime is deliberately selected.
+- Complete Film Runtime V1 integration with the live media-understanding, Gemini, Blob, renderer and music adapters.
 - Premium UI responsive/interaction acceptance on real Android devices.
 - Image and mixed-media end-to-end render acceptance with real user media.
 - Caption readability and timing on real spoken footage.
@@ -70,8 +73,8 @@ Updated: 2026-08-24
 - Final local/open model runtime selection and installation for music/video adapters.
 
 ## Current acceleration priority
-1. Finish CI verification of Batches 77–82 before any merge or deliberate live release.
-2. Browser-test the new original soundtrack and procedural generated-scene path on Android using the frozen E2E pipeline as the control.
+1. Finish CI verification of the canonical Creative Engine plus Complete Film Runtime before any merge or deliberate live release.
+2. Connect the Complete Film Runtime to the existing real media-understanding, Gemini, Blob, renderer and music adapters, then exercise it in browser acceptance.
 3. Integrate the Creative Director API into the app's command-center UI so one request can drive the full job lifecycle.
 4. Upgrade original music from the procedural engine to a genuine generated-composition provider while retaining the local engine as a zero-cost/private fallback.
 5. Add a real provider-backed text-to-video/image-to-video/subject-aware execution adapter without changing the Creative Engine contracts.
