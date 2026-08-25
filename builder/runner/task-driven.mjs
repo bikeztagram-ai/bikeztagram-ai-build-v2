@@ -7,7 +7,7 @@ const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
 const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
 const MAX_PASSES = Math.min(Math.max(Number(process.env.BUILDER_MAX_PASSES || 8), 1), 8);
-const GEMINI_MODEL = process.env.BUILDER_GEMINI_MODEL || 'gemini-3.5-flash-lite';
+const GEMINI_MODEL = process.env.BUILDER_GEMINI_MODEL || 'flash-lite';
 const SANDBOX_ROOT = '/vercel/sandbox';
 const REPO_DIR = `${SANDBOX_ROOT}/repo`;
 const ASKPASS_PATH = `${SANDBOX_ROOT}/git-askpass.sh`;
@@ -15,7 +15,7 @@ const PROTECTED_PATH_PREFIXES = (process.env.BUILDER_PROTECTED_PATHS || '.github
   .split(',').map((x) => x.trim()).filter(Boolean);
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD
   ? JSON.parse(process.env.BUILDER_AGENT_CMD)
-  : ['npx', '-y', '@google/gemini-cli', '--yolo', '--skip-trust', '--model', GEMINI_MODEL];
+  : ['npx', '--yes', '@google/gemini-cli@0.55.1', '--skip-trust', '--approval-mode', 'yolo', '--model', GEMINI_MODEL];
 const AGENT_PROVIDER = process.env.BUILDER_AGENT_PROVIDER || (process.env.BUILDER_AGENT_CMD ? 'external' : 'legacy-gemini');
 const OBJECTIVE = process.env.BUILDER_OBJECTIVE || '';
 const ACCEPTANCE = (process.env.BUILDER_ACCEPTANCE || '').split(';').map((x) => x.trim()).filter(Boolean);
@@ -26,7 +26,14 @@ const results = [];
 
 async function command(sandbox, cmd, args = [], cwd = REPO_DIR, env) {
   const r = await sandbox.runCommand({ cmd, args, cwd, ...(env ? { env } : {}) });
-  const result = { command: [cmd, ...args].join(' '), exitCode: r.exitCode, stdout: await r.stdout(), stderr: await r.stderr() };
+  const stdout = await r.stdout();
+  const stderr = await r.stderr();
+  const result = {
+    command: [cmd, ...args].join(' '),
+    exitCode: r.exitCode,
+    stdout: compact(stdout, 12000),
+    stderr: compact(stderr, 12000),
+  };
   results.push(result);
   return result;
 }
@@ -36,9 +43,17 @@ function compact(text, limit = 5000) {
   return value.length <= limit ? value : `${value.slice(0, limit)}\n...[truncated]`;
 }
 
+function providerText(result) {
+  return `${result?.stdout || ''}\n${result?.stderr || ''}`.toLowerCase();
+}
+
 function isQuotaFailure(result) {
-  const text = `${result?.stdout || ''}\n${result?.stderr || ''}`.toLowerCase();
-  return /terminalquot(a|e)error|quota exceeded|exhausted your daily quota|generate_content_free_tier|resource_exhausted|rate limit exceeded/.test(text);
+  return /terminalquot(a|e)error|quota exceeded|exhausted your daily quota|generate_content_free_tier|resource_exhausted|rate limit exceeded|429/.test(providerText(result));
+}
+
+function isProviderConfigurationFailure(result) {
+  const text = providerText(result);
+  return result?.exitCode === 42 || /unknown argument|unknown option|invalid argument|invalid model|model .*not found|api key|authentication|unauthenticated|permission denied|forbidden|401|403|404|fataluntrustedworkspace|not running in a trusted directory|no api key/.test(text);
 }
 
 function retryHint(result) {
@@ -60,8 +75,13 @@ async function protectControlPlaneFiles(sandbox) {
   if (!protectedChanges.length) return [];
   const restore = await command(sandbox, 'git', ['restore', '--source=HEAD', '--staged', '--worktree', '--', '.github/workflows']);
   if (restore.exitCode) throw new Error(`Protected workflow restore failed: ${restore.stderr}`);
-  await command(sandbox, 'git', ['clean', '-fd', '--', '.github/workflows']);
+  const clean = await command(sandbox, 'git', ['clean', '-fd', '--', '.github/workflows']);
+  if (clean.exitCode) throw new Error(`Protected workflow cleanup failed: ${clean.stderr}`);
   return protectedChanges;
+}
+
+async function writeCheckpoint(sandbox, checkpointPath, content) {
+  await sandbox.writeFiles([{ path: checkpointPath, content: Buffer.from(content) }]);
 }
 
 async function verify(sandbox) {
@@ -77,8 +97,13 @@ async function verify(sandbox) {
 }
 
 async function publish(sandbox, gitEnv) {
-  await command(sandbox, 'git', ['config', 'user.name', 'Bikeztagram Autonomous Builder']);
-  await command(sandbox, 'git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+  for (const [key, value] of [
+    ['user.name', 'Bikeztagram Autonomous Builder'],
+    ['user.email', '41898282+github-actions[bot]@users.noreply.github.com'],
+  ]) {
+    const config = await command(sandbox, 'git', ['config', key, value]);
+    if (config.exitCode) throw new Error(`git ${key} configuration failed: ${config.stderr}`);
+  }
   const add = await command(sandbox, 'git', ['add', '-A']);
   if (add.exitCode) throw new Error(`git add failed: ${add.stderr}`);
   const commit = await command(sandbox, 'git', ['commit', '-m', `builder: complete ${BATCH_ID}`]);
@@ -128,59 +153,154 @@ async function main() {
   if (!AGENT_CMD?.length) throw new Error('BUILDER_AGENT_CMD is invalid');
 
   const gitEnv = { GITHUB_TOKEN: process.env.GITHUB_TOKEN, GIT_ASKPASS: ASKPASS_PATH, GIT_TERMINAL_PROMPT: '0' };
-  const agentEnv = process.env.GEMINI_API_KEY ? { GEMINI_API_KEY: process.env.GEMINI_API_KEY, GEMINI_MODEL } : undefined;
+  const agentEnv = process.env.GEMINI_API_KEY
+    ? { GEMINI_API_KEY: process.env.GEMINI_API_KEY, GEMINI_MODEL }
+    : undefined;
   const startedAt = new Date().toISOString();
-  const checkpointPath = `builder/working/${BATCH_ID}.md`;
-  let sandbox; let status = 'FAILED'; let failure = null; let commitSha = null; let passes = 0; let failures = []; let quotaDetected = false; let quotaHint = null; let protectedChangesReset = [];
+  const checkpointPath = `/vercel/sandbox/repo/builder/working/${BATCH_ID}.md`;
+  let sandbox;
+  let status = 'FAILED';
+  let failure = null;
+  let commitSha = null;
+  let passes = 0;
+  let failures = [];
+  let quotaDetected = false;
+  let quotaHint = null;
+  let providerFailure = false;
+  let noChangesProduced = false;
+  let protectedChangesReset = [];
 
   try {
-    sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 2 }, persistent: false, timeout: MAX_MINUTES * 60 * 1000, networkPolicy: 'allow-all' });
-    await command(sandbox, 'sh', ['-lc', `cat > '${ASKPASS_PATH}' <<'EOF'\n#!/bin/sh\ncase "$1" in\n *Username*) printf '%s\\n' 'x-access-token' ;;\n *) printf '%s\\n' "$GITHUB_TOKEN" ;;\nesac\nEOF\nchmod 700 '${ASKPASS_PATH}'`], SANDBOX_ROOT, gitEnv);
-    // Clone into a genuinely empty path first. The working/checkpoint directory must only be created after clone.
+    sandbox = await Sandbox.create({
+      teamId: process.env.VERCEL_TEAM_ID,
+      projectId: process.env.VERCEL_PROJECT_ID,
+      token: process.env.VERCEL_TOKEN,
+      runtime: 'node24',
+      resources: { vcpus: 2 },
+      persistent: false,
+      timeout: MAX_MINUTES * 60 * 1000,
+      networkPolicy: 'allow-all',
+    });
+
+    const askpass = await command(sandbox, 'sh', ['-lc', `cat > '${ASKPASS_PATH}' <<'EOF'\n#!/bin/sh\ncase "$1" in\n *Username*) printf '%s\\n' 'x-access-token' ;;\n *) printf '%s\\n' "$GITHUB_TOKEN" ;;\nesac\nEOF\nchmod 700 '${ASKPASS_PATH}'`], SANDBOX_ROOT, gitEnv);
+    if (askpass.exitCode) throw new Error(`Git auth helper setup failed: ${askpass.stderr}`);
+
     const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], SANDBOX_ROOT, gitEnv);
     if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
+
     const checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
     if (checkout.exitCode) throw new Error(`Branch creation failed: ${checkout.stderr}`);
-    await command(sandbox, 'mkdir', ['-p', `${REPO_DIR}/builder/working`]);
+
+    const workingDir = await command(sandbox, 'mkdir', ['-p', `${REPO_DIR}/builder/working`]);
+    if (workingDir.exitCode) throw new Error(`Working directory creation failed: ${workingDir.stderr}`);
+
     const install = await command(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
     if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
 
-    await writeFile(`${REPO_DIR}/${checkpointPath}`, `# ${BATCH_ID}\n\n## Objective\n${OBJECTIVE}\n\n## Status\nStarted.\n\n## Working rule\nExecute the supplied objective; do not invent roadmap work.\n`);
+    await writeCheckpoint(sandbox, checkpointPath, `# ${BATCH_ID}\n\n## Objective\n${OBJECTIVE}\n\n## Status\nStarted.\n\n## Working rule\nExecute the supplied objective; do not invent roadmap work.\n`);
 
     for (passes = 1; passes <= MAX_PASSES; passes += 1) {
-      const prompt = executionPrompt(passes, failures, checkpointPath);
+      const prompt = executionPrompt(passes, failures, `builder/working/${BATCH_ID}.md`);
       const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--prompt', prompt], REPO_DIR, agentEnv);
+
       if (isQuotaFailure(agent)) {
         quotaDetected = true;
         quotaHint = retryHint(agent);
-        failures = [`Provider quota detected during pass ${passes}. ${quotaHint}`];
+        failures = [`Provider quota detected during pass ${passes}. ${quotaHint}\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
         break;
       }
+
+      if (isProviderConfigurationFailure(agent)) {
+        providerFailure = true;
+        failures = [`Execution provider failed before a reliable build pass could run (exit ${agent.exitCode}).\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
+        break;
+      }
+
       if (agent.exitCode) {
         failures = [`Agent failed (exit ${agent.exitCode}).\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
         continue;
       }
+
+      const changed = await command(sandbox, 'git', ['status', '--short']);
+      if (changed.exitCode) throw new Error(`git status failed after agent pass: ${changed.stderr}`);
+      if (!changed.stdout.trim()) {
+        noChangesProduced = true;
+        failures = ['Agent completed without producing repository changes. Refusing to burn additional passes on a no-op response.'];
+        break;
+      }
+
+      protectedChangesReset = await protectControlPlaneFiles(sandbox);
       failures = await verify(sandbox);
-      if (!failures.length) { status = 'VERIFIED'; break; }
+      if (!failures.length) {
+        status = 'VERIFIED';
+        break;
+      }
     }
 
     if (quotaDetected) {
       const postQuota = await verify(sandbox);
-      if (!postQuota.length) { status = 'VERIFIED'; failures = []; }
-      else { failures.push(`Post-quota verification incomplete:\n${postQuota.join('\n\n')}`); status = 'PAUSED_FOR_QUOTA'; failure = `Provider quota detected; stopped further agent passes and preserved the branch. ${quotaHint || ''}`.trim(); }
+      if (!postQuota.length) {
+        status = 'VERIFIED';
+        failures = [];
+      } else {
+        failures.push(`Post-quota verification incomplete:\n${postQuota.join('\n\n')}`);
+        status = 'PAUSED_FOR_QUOTA';
+        failure = `Provider quota detected; stopped further agent passes and preserved the branch. ${quotaHint || ''}`.trim();
+      }
     }
 
-    if (!['VERIFIED', 'PAUSED_FOR_QUOTA'].includes(status)) throw new Error(`Task loop exhausted after ${MAX_PASSES} passes.\n${failures.map(compact).join('\n\n')}`);
-    protectedChangesReset = await protectControlPlaneFiles(sandbox);
-    const statusResult = await command(sandbox, 'git', ['status', '--short']);
-    if (!statusResult.stdout.trim()) throw new Error('No repository changes were produced. Refusing to publish an empty batch.');
+    if (providerFailure) {
+      status = 'PAUSED_FOR_PROVIDER';
+      failure = 'Execution provider configuration/authentication failed. No repeated provider retries were attempted.';
+    }
+
+    if (noChangesProduced) {
+      status = 'PAUSED_FOR_AGENT';
+      failure = 'The execution agent completed without producing repository changes; no additional passes were spent on a no-op response.';
+    }
+
+    if (!['VERIFIED', 'PAUSED_FOR_QUOTA'].includes(status)) {
+      throw new Error(`Task loop did not reach a publishable state after ${Math.min(passes, MAX_PASSES)} pass(es).\n${failures.map(compact).join('\n\n')}`);
+    }
+
+    const finalStatus = await command(sandbox, 'git', ['status', '--short']);
+    if (finalStatus.exitCode) throw new Error(`Final git status failed: ${finalStatus.stderr}`);
+    if (!finalStatus.stdout.trim()) throw new Error('Verification passed but no repository changes remain. Refusing to publish an empty batch.');
+
     commitSha = await publish(sandbox, gitEnv);
     if (status === 'VERIFIED') status = 'READY_FOR_REVIEW';
-  } catch (error) { failure = error instanceof Error ? error.message : String(error); }
-  finally {
-    if (sandbox) { try { await sandbox.stop(); } catch (error) { failure ||= String(error); } }
+  } catch (error) {
+    failure = failure || (error instanceof Error ? error.message : String(error));
+  } finally {
+    if (sandbox) {
+      try { await sandbox.stop(); } catch (error) { failure ||= String(error); }
+    }
     await mkdir('./builder/reports', { recursive: true });
-    const report = { batchId: BATCH_ID, objective: OBJECTIVE, agentProvider: AGENT_PROVIDER, geminiModel: AGENT_PROVIDER === 'legacy-gemini' ? GEMINI_MODEL : null, baseBranch: BASE_BRANCH, workingBranch: BRANCH, commitSha, maxDurationMinutes: MAX_MINUTES, maxPasses: MAX_PASSES, passesCompleted: Math.min(passes, MAX_PASSES), quotaDetected, quotaHint, protectedChangesReset, autoMerge: false, autoProductionDeploy: false, status, failure, verificationFailures: failures, startedAt, finishedAt: new Date().toISOString(), checks: results };
+    const report = {
+      batchId: BATCH_ID,
+      objective: OBJECTIVE,
+      agentProvider: AGENT_PROVIDER,
+      geminiModel: AGENT_PROVIDER === 'legacy-gemini' || AGENT_PROVIDER === 'external' ? GEMINI_MODEL : null,
+      baseBranch: BASE_BRANCH,
+      workingBranch: BRANCH,
+      commitSha,
+      maxDurationMinutes: MAX_MINUTES,
+      maxPasses: MAX_PASSES,
+      passesCompleted: Math.min(passes, MAX_PASSES),
+      quotaDetected,
+      quotaHint,
+      providerFailure,
+      noChangesProduced,
+      protectedChangesReset,
+      autoMerge: false,
+      autoProductionDeploy: false,
+      status,
+      failure,
+      verificationFailures: failures,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      checks: results,
+    };
     await writeFile(`./builder/reports/${BATCH_ID}.json`, JSON.stringify(report, null, 2));
     console.log(JSON.stringify(report, null, 2));
     if (!['READY_FOR_REVIEW', 'PAUSED_FOR_QUOTA'].includes(status)) process.exitCode = 1;
