@@ -5,7 +5,7 @@
 import { inferMusicStyle, buildSoundtrackBrief } from '../src/musicDirector.js';
 import { createOriginalCinematicWav } from '../src/musicProviderV2.js';
 
-function clamp(value,min,max){const n=Number(value);return Math.max(min,Math.min(b,min:Number.isFinite(n)?n:min));}
+function clamp(value,min,max){const n=Number(value);return Math.max(min,Math.min(max,Number.isFinite(n)?n:min));}
 
 export default async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({success:false,error:'Method not allowed'});
