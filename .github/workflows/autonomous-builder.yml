@@ -10,6 +10,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   run-batch:
@@ -61,6 +62,25 @@ jobs:
       - name: Run task-driven bounded batch
         working-directory: .
         run: node builder/runner/task-driven.mjs
+
+      - name: Create or confirm review PR
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.BUILDER_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          existing_pr=$(gh pr view "$BUILDER_WORKING_BRANCH" --repo "$GITHUB_REPOSITORY" --json number --jq '.number' 2>/dev/null || true)
+          if [ -n "$existing_pr" ]; then
+            echo "Review PR #$existing_pr already exists for $BUILDER_WORKING_BRANCH."
+            exit 0
+          fi
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base main \
+            --head "$BUILDER_WORKING_BRANCH" \
+            --draft \
+            --title "Autonomous Builder: $BUILDER_BATCH_ID" \
+            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the task-driven builder completed its bounded execution.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nThe objective and acceptance criteria come from the durable autonomous-builder queue. Review the generated changes and checks before marking this PR ready or merging. No automatic merge or production deployment is performed."
 
       - name: Upload runner report
         if: always()
