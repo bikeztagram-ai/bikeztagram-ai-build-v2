@@ -14,17 +14,30 @@ export function buildCreativeBrief({ prompt = '', duration = 15, aspectRatio = '
     music:{ request:'', genre:'', bpm:null, mood:'', energy:null, sections:[], events:[] },
     assets:{ realMedia:Array.isArray(assets)?assets:[], generatedScenes:[], generatedInserts:[] },
     generation:{ allowTextToVideo:true, allowImageToVideo:true, allowSubjectReference:true, allowGeneratedAudio:true },
-    constraints:{ preserveIdentity:true, preserveUserAssets:true, originalGeneration:true },
+    constraints:{ 
+      preserveIdentity:true, 
+      preserveUserAssets:true, 
+      originalGeneration:true,
+      worldConsistency:true,
+      copyrightSafety:true,
+      forbiddenThemes:['protected-game-assets','copyrighted-characters','third-party-logos']
+    },
     revision:{ requested:false, reasons:[], attempts:0 }
   };
 }
 
-export function buildGenerationRequest({ type, prompt='', duration=3, assets=[], subjectIds=[], timelineSlot=null, direction={} } = {}) {
+export function buildGenerationRequest({ type, prompt='', duration=3, assets=[], subjectIds=[], timelineSlot=null, direction={}, constraints={} } = {}) {
   const allowed=['music','text-to-video','image-to-video','subject-scene','infill','transition','establishing-shot','insert'];
   if(!allowed.includes(type)) throw new Error(`Unsupported creative generation type: ${type}`);
   return { version:'generation-request-v2', id:`gen-${Date.now()}-${Math.random().toString(36).slice(2,8)}`, type,
     prompt:text(prompt), duration:clamp(duration,.5,120,3), assets:Array.isArray(assets)?assets:[], subjectIds:Array.isArray(subjectIds)?subjectIds:[], timelineSlot,
     direction:{camera:text(direction.camera),motion:text(direction.motion),lighting:text(direction.lighting),environment:text(direction.environment)},
+    constraints:{
+        preserveIdentity:true,
+        worldConsistency:true,
+        copyrightSafety:true,
+        ...constraints
+    },
     originalOnly:true, status:'queued' };
 }
 
