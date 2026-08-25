@@ -5,7 +5,8 @@ const planner=fs.readFileSync(new URL('../src/captionPlanner.js',import.meta.url
 const api=fs.readFileSync(new URL('../api/captions.js',import.meta.url),'utf8');
 assert.match(app,/applySpeechCaptionsToPlan/);
 assert.match(app,/\/api\/captions/);
-assert.match(app,/Auto-detect spoken dialogue/);
+assert.match(app,/autoCaptions/);
+assert.match(app,/setCaptionResult/);
 assert.match(app,/speechCaptions/);
 assert.match(planner,/normaliseSpeechCaptions/);
 assert.match(planner,/captionCueIndex/);
