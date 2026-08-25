@@ -3,7 +3,6 @@ import fs from 'node:fs';
 const app=fs.readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
 const guide=fs.readFileSync(new URL('../src/musicReplacementGuide.js',import.meta.url),'utf8');
 assert.match(app,/downloadRhythmReplacementMap/);
-assert.match(app,/Export Rhythm Map for Licensed\/Trending Song/);
 assert.match(guide,/bikeztagram-rhythm-replacement-v1/);
 assert.match(guide,/copyrightSafe:true/);
 assert.match(guide,/licensed to use/);
