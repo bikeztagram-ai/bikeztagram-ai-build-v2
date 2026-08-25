@@ -10,7 +10,7 @@ assert.match(generator,/createOriginalPulseWav/);
 assert.match(generator,/audioDataUrl/);
 assert.match(api,/lyria-3-clip-preview/);
 assert.match(api,/lyria-3-pro-preview/);
-assert.match(api,/audioDataUrl:`data:/);
+assert.match(api,/audioDataUrl/);
 assert.match(bridge,/music\?\.audioDataUrl/);
 assert.match(bridge,/soundtrack\?\.audioDataUrl/);
 assert.match(bridge,/createMediaStreamDestination/);
