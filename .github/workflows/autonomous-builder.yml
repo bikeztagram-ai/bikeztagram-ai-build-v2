@@ -29,8 +29,8 @@ jobs:
       BUILDER_GEMINI_CLI_VERSION: "0.55.1"
       BUILDER_GEMINI_MODEL: flash-lite
       BUILDER_AGENT_CMD: '["node","builder/runner/gemini-agent.mjs"]'
-      BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
-      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.
+      BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
+      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply its durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
     steps:
       - name: Checkout runner
@@ -56,7 +56,7 @@ jobs:
           test -n "$VERCEL_TEAM_ID" || { echo "VERCEL_TEAM_ID is missing"; exit 1; }
           test -n "$VERCEL_PROJECT_ID" || { echo "VERCEL_PROJECT_ID is missing"; exit 1; }
           test -n "$GITHUB_TOKEN" || { echo "BUILDER_GITHUB_TOKEN is missing"; exit 1; }
-          test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY is missing for the legacy execution-agent fallback"; exit 1; }
+          test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY is missing for the bounded architecture and execution passes"; exit 1; }
 
       - name: Install runner
         working-directory: builder/runner
@@ -66,6 +66,7 @@ jobs:
         run: |
           node --check builder/runner/task-driven.mjs
           node --check builder/runner/gemini-agent.mjs
+          node --check builder/runner/quality-architect.mjs
           node --check scripts/prepare-autonomous-batch.mjs
 
       - name: Preflight Gemini execution adapter
@@ -77,6 +78,18 @@ jobs:
         run: |
           node builder/runner/gemini-agent.mjs --version
           node builder/runner/gemini-agent.mjs --help >/dev/null
+
+      - name: Gemini architecture quality pass
+        working-directory: .
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ env.BUILDER_GEMINI_MODEL }}
+          BUILDER_GEMINI_CLI_VERSION: ${{ env.BUILDER_GEMINI_CLI_VERSION }}
+        run: |
+          mkdir -p builder/working
+          node builder/runner/quality-architect.mjs
+          echo "Gemini produced an implementation-ready quality brief."
+          echo "The brief has been appended to BUILDER_OBJECTIVE for the bounded builder passes."
 
       - name: Run task-driven bounded batch
         working-directory: .
@@ -99,7 +112,7 @@ jobs:
             --head "$BUILDER_WORKING_BRANCH" \
             --draft \
             --title "Autonomous Builder: $BUILDER_BATCH_ID" \
-            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the task-driven builder completed its bounded execution.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nThe objective and acceptance criteria come from the durable autonomous-builder queue. Review the generated changes and checks before marking this PR ready or merging. No automatic merge or production deployment is performed."
+            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the task-driven builder completed its bounded execution.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nThe objective was sharpened by one bounded Gemini architecture/quality pass using the durable lessons in builder/quality/lessons.md. Review the generated changes and checks before marking this PR ready or merging. No automatic merge or production deployment is performed."
 
       - name: Upload runner report
         if: always()
