@@ -6,7 +6,7 @@ import { buildUniversalProductionBlueprint, describeBlueprint } from './universa
 export function createDirectedEditPlan(analysis, options = {}) {
   const blueprint = buildUniversalProductionBlueprint(analysis, options.creativePrompt || '', { targetDuration: options.targetDuration || 15 });
   const enrichedAnalysis = { ...analysis, productionBlueprint: blueprint };
-  const base = createAIEditPlan(enrichedAnalysis, options);
+  const base = createAIEditPlan(enrichedAnalysis, { ...options, musicAnalysis: options.musicAnalysis });
   if (!base?.cuts?.length) return { ...base, productionBlueprint: blueprint, blueprintSummary: describeBlueprint(blueprint) };
   const prompt = options.creativePrompt || '';
   const flags = {
