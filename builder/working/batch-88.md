@@ -1,0 +1,10 @@
+# batch-88
+
+## Objective
+Make the complete Bikeztagram AI creative pipeline behave as one coherent production system: natural-language brief -> media profiling -> prompt-driven director -> original music selection/generation -> beat-aware edit plan -> cinematic render -> final validation/export. Inspect all existing contracts and preserve working behaviour before changes. Integrate the strongest existing capabilities so the system makes deliberate, prompt-specific decisions, chooses the strongest diverse media, constructs a compelling hook/build/reveal/action/hero/outro story, synchronises picture and music, renders reliably and produces a social-ready result. Ensure truthful graceful failover when AI/music/provider capabilities are unavailable. Add end-to-end behavioural verification using representative motorcycle cinematic and original game-inspired scene briefs. Check actual output contracts, timing, audio, continuity and rendering, not only object schemas. Use check-fix-check-continue and production improvements. Preserve copyright-safe original generation. Do not modify .github/workflows/** or autonomous-runner infrastructure; do not automatically merge, deploy production or provision paid infrastructure. This is a production integration gate, not a contract-writing exercise. It MUST make substantive changes in the runtime paths connecting director, media selection, music/beat logic, renderer and final validation/export. Prompt/schema/documentation/test-fixture-only changes do not satisfy completion. Do not claim completion from wiring that is never exercised by the real pipeline. For each representative brief, acceptance must identify the changed production paths and demonstrate materially different runtime decisions and resulting edit/render behaviour. Final evidence must include at least one genuine end-to-end execution path, not only unit-level checks. If a capability is unavailable, expose a truthful fallback rather than fabricating premium behaviour.
+
+## Status
+Started.
+
+## Working rule
+Execute the supplied objective; do not invent roadmap work.

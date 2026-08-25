@@ -21,7 +21,7 @@ const job={
  music:{genre:'cinematic-electronic',bpm:116,energy:.9},
  scenes:[
   {mediaIndex:0,purpose:'hook',duration:2,motionStyle:'slow-push',sourceType:'uploaded'},
-  {purpose:'generated-establishing',duration:3,generated:true,generationPrompt:'neon night city road, cinematic motorcycle atmosphere'},
+  {purpose:'generated-establishing',duration:3,generated:true,sourceType:'generated',generationPrompt:'neon night city road, cinematic motorcycle atmosphere'},
   {mediaIndex:1,purpose:'action',duration:4,sourceType:'uploaded',motionStyle:'pan-right'},
  ]
 };
