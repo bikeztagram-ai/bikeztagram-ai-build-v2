@@ -1,1 +1,0 @@
-Verification-only fix for stale batch 30 assertion.
