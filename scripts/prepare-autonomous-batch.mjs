@@ -50,7 +50,7 @@ async function getCommit(sha) {
 
 async function deleteStaleBranch(branch) {
   await api(`/repos/${owner}/${name}/git/refs/heads/${encodeURIComponent(branch)}`, { method: 'DELETE' });
-  console.log(`Deleted stale builder branch ${branch}; no active PR existed.`);
+  console.log(`Deleted stale builder branch ${branch}.`);
 }
 
 for (const batch of queue.batches) {
@@ -70,21 +70,24 @@ for (const batch of queue.batches) {
     throw new Error(`${batch.id} is already in progress in PR #${open.number}. Merge/review that batch before starting the next queued batch.`);
   }
 
+  if (batch.status === 'rejected' || batch.status === 'skipped') {
+    if (ref) await deleteStaleBranch(branch);
+    console.log(`${batch.id}: marked ${batch.status}; not retrying automatically. Advancing queue.`);
+    continue;
+  }
+
+  if (closedUnmerged) {
+    throw new Error(`${batch.id} has a closed PR #${closedUnmerged.number} that was not merged. Review the result and explicitly mark the batch as rejected/skipped or reopen the PR before starting another batch.`);
+  }
+
   if (ref) {
-    // A previously completed branch with a closed/unmerged PR is explicitly retryable.
-    // Delete it before inspecting its old completion commit so the queue can recreate a clean branch.
-    if (closedUnmerged) {
-      console.log(`${batch.id}: previous PR #${closedUnmerged.number} was closed without merge; deleting its completed/stale branch and retrying from main.`);
-      await deleteStaleBranch(branch);
-    } else {
-      const commit = await getCommit(ref.object.sha);
-      const subject = String(commit.commit?.message || '').split('\n')[0];
-      if (subject === `builder: complete ${batch.id}`) {
-        throw new Error(`${batch.id} has completed builder work on ${branch} but no open PR is visible yet. Wait for the PR-preparation check to appear before starting another batch.`);
-      }
-      console.log(`${batch.id}: stale/partial builder branch found with no active PR; retrying from a clean branch.`);
-      await deleteStaleBranch(branch);
+    const commit = await getCommit(ref.object.sha);
+    const subject = String(commit.commit?.message || '').split('\n')[0];
+    if (subject === `builder: complete ${batch.id}`) {
+      throw new Error(`${batch.id} has completed builder work on ${branch} but no open PR is visible yet. Wait for the PR-preparation check to appear before starting another batch.`);
     }
+    console.log(`${batch.id}: stale/partial builder branch found with no active PR; retrying from a clean branch.`);
+    await deleteStaleBranch(branch);
   }
 
   const env = [
