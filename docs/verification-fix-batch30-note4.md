@@ -1,1 +1,0 @@
-Current verification contract uses data.url from direct Blob upload.
