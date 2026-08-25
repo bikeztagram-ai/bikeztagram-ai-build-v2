@@ -3,7 +3,6 @@ name: Autonomous Builder Batch
 on:
   workflow_dispatch:
 
-# Prevent two manual clicks from dispatching competing product batches at once.
 concurrency:
   group: autonomous-builder-queue
   cancel-in-progress: false
@@ -94,6 +93,14 @@ jobs:
       - name: Run task-driven bounded batch
         working-directory: .
         run: node builder/runner/task-driven.mjs
+
+      - name: Prepare builder branch for quality review
+        working-directory: .
+        run: |
+          set -euo pipefail
+          git fetch origin main "$BUILDER_WORKING_BRANCH"
+          git checkout -B "$BUILDER_WORKING_BRANCH" "origin/$BUILDER_WORKING_BRANCH"
+          mkdir -p builder/working
 
       - name: Conditional Gemini quality gate
         working-directory: .
