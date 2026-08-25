@@ -3,7 +3,6 @@ name: Autonomous Builder Batch
 on:
   workflow_dispatch:
 
-# Prevent two manual clicks from dispatching competing product batches at once.
 concurrency:
   group: autonomous-builder-queue
   cancel-in-progress: false
@@ -29,8 +28,8 @@ jobs:
       BUILDER_GEMINI_CLI_VERSION: "0.55.1"
       BUILDER_GEMINI_MODEL: flash-lite
       BUILDER_AGENT_CMD: '["node","builder/runner/gemini-agent.mjs"]'
-      BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
-      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.
+      BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
+      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply its durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
     steps:
       - name: Checkout runner
@@ -56,7 +55,7 @@ jobs:
           test -n "$VERCEL_TEAM_ID" || { echo "VERCEL_TEAM_ID is missing"; exit 1; }
           test -n "$VERCEL_PROJECT_ID" || { echo "VERCEL_PROJECT_ID is missing"; exit 1; }
           test -n "$GITHUB_TOKEN" || { echo "BUILDER_GITHUB_TOKEN is missing"; exit 1; }
-          test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY is missing for the legacy execution-agent fallback"; exit 1; }
+          test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY is missing for the bounded architecture, execution and conditional review passes"; exit 1; }
 
       - name: Install runner
         working-directory: builder/runner
@@ -66,6 +65,8 @@ jobs:
         run: |
           node --check builder/runner/task-driven.mjs
           node --check builder/runner/gemini-agent.mjs
+          node --check builder/runner/quality-architect.mjs
+          node --check builder/runner/quality-review-gate.mjs
           node --check scripts/prepare-autonomous-batch.mjs
 
       - name: Preflight Gemini execution adapter
@@ -78,9 +79,38 @@ jobs:
           node builder/runner/gemini-agent.mjs --version
           node builder/runner/gemini-agent.mjs --help >/dev/null
 
+      - name: Gemini architecture quality pass
+        working-directory: .
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ env.BUILDER_GEMINI_MODEL }}
+          BUILDER_GEMINI_CLI_VERSION: ${{ env.BUILDER_GEMINI_CLI_VERSION }}
+        run: |
+          mkdir -p builder/working
+          node builder/runner/quality-architect.mjs
+          echo "Gemini produced an implementation-ready quality brief."
+
       - name: Run task-driven bounded batch
         working-directory: .
         run: node builder/runner/task-driven.mjs
+
+      - name: Prepare builder branch for quality review
+        working-directory: .
+        run: |
+          set -euo pipefail
+          git fetch origin main "$BUILDER_WORKING_BRANCH"
+          git checkout -B "$BUILDER_WORKING_BRANCH" "origin/$BUILDER_WORKING_BRANCH"
+          mkdir -p builder/working
+
+      - name: Conditional Gemini quality gate
+        working-directory: .
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ env.BUILDER_GEMINI_MODEL }}
+          BUILDER_GEMINI_CLI_VERSION: ${{ env.BUILDER_GEMINI_CLI_VERSION }}
+        run: |
+          node builder/runner/quality-review-gate.mjs
+          echo "Conditional quality gate completed."
 
       - name: Create or confirm review PR
         if: success()
@@ -99,12 +129,15 @@ jobs:
             --head "$BUILDER_WORKING_BRANCH" \
             --draft \
             --title "Autonomous Builder: $BUILDER_BATCH_ID" \
-            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the task-driven builder completed its bounded execution.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nThe objective and acceptance criteria come from the durable autonomous-builder queue. Review the generated changes and checks before marking this PR ready or merging. No automatic merge or production deployment is performed."
+            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the task-driven builder completed its bounded execution and passed the conditional quality gate.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nThe objective was sharpened by one bounded Gemini architecture/quality pass using the durable lessons in builder/quality/lessons.md. High-risk batches also receive a separate read-only Gemini quality gate; low-risk batches skip that extra call to conserve quota. Review the generated changes and checks before marking this PR ready or merging. No automatic merge or production deployment is performed."
 
-      - name: Upload runner report
+      - name: Upload runner and quality reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: autonomous-builder-${{ env.BUILDER_BATCH_ID }}
-          path: builder/reports/${{ env.BUILDER_BATCH_ID }}.json
+          path: |
+            builder/reports/${{ env.BUILDER_BATCH_ID }}.json
+            builder/working/${{ env.BUILDER_BATCH_ID }}-architect-brief.md
+            builder/working/${{ env.BUILDER_BATCH_ID }}-quality-review.md
           if-no-files-found: ignore
