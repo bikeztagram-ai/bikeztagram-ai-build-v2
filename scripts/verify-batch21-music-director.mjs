@@ -18,7 +18,7 @@ assert.equal(grid.beats[1].time,0.5);
 assert.equal(grid.beats[4].downbeat,true);
 
 const plan=attachSoundtrackToPlan({creativePrompt:'energetic edit',targetDuration:8,cuts:[{startTime:0.11,endTime:1.03,duration:.92},{startTime:1.56,endTime:2.47,duration:.91}]},brief);
-assert.equal(plan.musicSyncVersion,'beat-aware-v1');
+assert.equal(plan.musicSyncVersion,'beat-aware-v2');
 assert.equal(plan.music.enabled,true);
 assert.ok(plan.cuts.every(c=>c.music?.beatAligned===true));
 
