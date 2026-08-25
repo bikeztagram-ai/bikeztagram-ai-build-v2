@@ -5,7 +5,7 @@ const token = process.env.GITHUB_TOKEN || process.env.BUILDER_GITHUB_TOKEN;
 const apiBase = process.env.GITHUB_API_URL || 'https://api.github.com';
 const queuePath = 'config/autonomous-builder-queue.json';
 
-if (!token) throw new Error('A GitHub token is required to inspect autonomous-builder PR state.');
+if (!token) throw new Error('A GitHub token is required to inspect autonomous-builder state.');
 
 const queue = JSON.parse(await fs.readFile(queuePath, 'utf8'));
 if (!Array.isArray(queue.batches) || !queue.batches.length) throw new Error('Autonomous builder queue is empty or invalid.');
@@ -35,19 +35,22 @@ async function pullRequestsFor(branch) {
   return api(`/repos/${owner}/${name}/pulls?state=all&head=${encodeURIComponent(`${owner}:${branch}`)}&per_page=20`);
 }
 
-async function branchExists(branch) {
+async function getBranch(branch) {
   try {
-    await api(`/repos/${owner}/${name}/git/ref/heads/${encodeURIComponent(branch)}`);
-    return true;
+    return await api(`/repos/${owner}/${name}/git/ref/heads/${encodeURIComponent(branch)}`);
   } catch (error) {
-    if (error.status === 404) return false;
+    if (error.status === 404) return null;
     throw error;
   }
 }
 
+async function getCommit(sha) {
+  return api(`/repos/${owner}/${name}/commits/${sha}`);
+}
+
 async function deleteStaleBranch(branch) {
   await api(`/repos/${owner}/${name}/git/refs/heads/${encodeURIComponent(branch)}`, { method: 'DELETE' });
-  console.log(`Deleted stale builder branch ${branch}; no open PR existed.`);
+  console.log(`Deleted stale builder branch ${branch}; no active PR existed.`);
 }
 
 for (const batch of queue.batches) {
@@ -55,6 +58,8 @@ for (const batch of queue.batches) {
   const prs = await pullRequestsFor(branch);
   const merged = prs.find(pr => pr.merged_at);
   const open = prs.find(pr => pr.state === 'open');
+  const closedUnmerged = prs.find(pr => pr.state === 'closed' && !pr.merged_at);
+  const ref = await getBranch(branch);
 
   if (merged) {
     console.log(`${batch.id}: already merged in PR #${merged.number}; advancing queue.`);
@@ -65,10 +70,14 @@ for (const batch of queue.batches) {
     throw new Error(`${batch.id} is already in progress in PR #${open.number}. Merge/review that batch before starting the next queued batch.`);
   }
 
-  if (await branchExists(branch)) {
-    const closed = prs.find(pr => pr.state === 'closed' && !pr.merged_at);
-    if (closed) console.log(`${batch.id}: previous PR #${closed.number} was closed without merge; retrying from a clean branch.`);
-    else console.log(`${batch.id}: stale branch found with no PR; retrying from a clean branch.`);
+  if (ref) {
+    const commit = await getCommit(ref.object.sha);
+    const subject = String(commit.commit?.message || '').split('\n')[0];
+    if (subject === `builder: complete ${batch.id}`) {
+      throw new Error(`${batch.id} has completed builder work on ${branch} but no open PR is visible yet. Wait for the PR-preparation check to appear before starting another batch.`);
+    }
+    if (closedUnmerged) console.log(`${batch.id}: previous PR #${closedUnmerged.number} was closed without merge; retrying from a clean branch.`);
+    else console.log(`${batch.id}: stale/partial builder branch found with no active PR; retrying from a clean branch.`);
     await deleteStaleBranch(branch);
   }
 
