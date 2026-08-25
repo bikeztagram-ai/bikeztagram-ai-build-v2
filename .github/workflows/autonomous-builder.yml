@@ -62,6 +62,12 @@ jobs:
         working-directory: builder/runner
         run: npm install --no-audit --no-fund
 
+      - name: Validate runner syntax
+        run: |
+          node --check builder/runner/task-driven.mjs
+          node --check builder/runner/gemini-agent.mjs
+          node --check scripts/prepare-autonomous-batch.mjs
+
       - name: Preflight Gemini execution adapter
         working-directory: .
         env:
