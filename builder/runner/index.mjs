@@ -46,7 +46,16 @@ function compact(text, limit = 6000) {
 
 function isQuotaFailure(result) {
   const text = `${result?.stdout || ''}\n${result?.stderr || ''}`.toLowerCase();
-  return /terminalquot(a|e)error|quota exceeded|exhausted your daily quota|generate_content_free_tier_requests|resource_exhausted/.test(text);
+  return /terminalquot(a|e)error|quota exceeded|exhausted your daily quota|generate_content_free_tier_requests|generate_content_free_tier_input_token_count|generativelanguage\.googleapis\.com\/generate_content_free_tier|resource_exhausted|rate limit exceeded/.test(text);
+}
+
+function quotaRetryHint(result) {
+  const text = `${result?.stdout || ''}\n${result?.stderr || ''}`;
+  const seconds = text.match(/retry(?:ing)? after\s+(\d+(?:\.\d+)?)\s*s/i)?.[1];
+  const milliseconds = text.match(/retry(?:ing)? after\s+(\d+)\s*ms/i)?.[1];
+  if (seconds) return `Suggested retry delay: ${seconds}s.`;
+  if (milliseconds) return `Suggested retry delay: ${Math.ceil(Number(milliseconds) / 1000)}s.`;
+  return 'No retry delay was supplied by the provider.';
 }
 
 function isProtectedPath(path) {
@@ -94,6 +103,21 @@ async function pushWorkingBranch(sandbox, gitEnv) {
   if (push.exitCode) throw new Error(`git push failed: ${push.stderr}`);
 }
 
+async function commitAndPublish(sandbox, gitEnv, batchId) {
+  const gitIdentity = await command(sandbox, 'git', ['config', 'user.name', 'Bikeztagram Autonomous Builder']);
+  if (gitIdentity.exitCode) throw new Error(`git user.name configuration failed: ${gitIdentity.stderr}`);
+  const gitEmail = await command(sandbox, 'git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+  if (gitEmail.exitCode) throw new Error(`git user.email configuration failed: ${gitEmail.stderr}`);
+  const add = await command(sandbox, 'git', ['add', '-A']);
+  if (add.exitCode) throw new Error(`git add failed: ${add.stderr}`);
+  const commit = await command(sandbox, 'git', ['commit', '-m', `builder: complete ${batchId}`]);
+  if (commit.exitCode) throw new Error(`git commit failed: ${commit.stderr}`);
+  const shaResult = await command(sandbox, 'git', ['rev-parse', 'HEAD']);
+  const commitSha = shaResult.stdout.trim() || null;
+  await pushWorkingBranch(sandbox, gitEnv);
+  return commitSha;
+}
+
 async function main() {
   if (!safeBranch(BRANCH)) throw new Error(`Refusing unsafe branch: ${BRANCH}`);
   if (!process.env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required');
@@ -107,6 +131,7 @@ async function main() {
   const agentEnv = { GEMINI_API_KEY: process.env.GEMINI_API_KEY, GEMINI_MODEL };
   const startedAt = new Date().toISOString();
   let sandbox; let status = 'FAILED'; let failure = null; let commitSha = null; let passes = 0; let lastFailures = []; let protectedChangesReset = [];
+  let quotaDetected = false; let quotaHint = null;
 
   try {
     try {
@@ -130,45 +155,57 @@ async function main() {
       'Do not commit or push; the runner owns Git.',
       'Protected control-plane paths: .github/workflows/**. Do not modify GitHub Actions workflow files during application/product batches; the runner will preserve them unchanged.',
       'You are part of a recovery loop: make real changes, then stop so the runner can verify them.',
-      'If previous verification failures are supplied below, diagnose and fix those failures rather than merely reporting them.'
+      'If previous verification failures are supplied below, diagnose and fix those failures rather than merely reporting them.',
+      'Keep context efficient: inspect only files relevant to the objective, avoid rereading generated/dependency files, and do not paste the whole repository into your response.'
     ].join('\n');
 
     for (passes = 1; passes <= MAX_PASSES; passes += 1) {
       const failureContext = lastFailures.length ? `\nPrevious verification failures to fix now:\n${lastFailures.map(compact).join('\n\n')}` : '';
       const prompt = `${basePrompt}\n\nPass ${passes} of ${MAX_PASSES}.${failureContext}\n\nBefore ending this pass, inspect your changes and make sure the next verification run has a concrete chance of passing.`;
       const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--prompt', prompt], REPO_DIR, agentEnv);
+      if (isQuotaFailure(agent)) {
+        quotaDetected = true;
+        quotaHint = quotaRetryHint(agent);
+        lastFailures = [`Gemini quota detected during pass ${passes}; stopping the autonomous retry loop immediately. ${quotaHint}\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
+        break;
+      }
       if (agent.exitCode) {
         lastFailures = [`Agent failed (exit ${agent.exitCode}).\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
-        if (isQuotaFailure(agent)) throw new Error(`Gemini quota exhausted for model ${GEMINI_MODEL}. The autonomous loop stopped immediately instead of wasting remaining passes.\n${lastFailures[0]}`);
         continue;
       }
       lastFailures = await runVerification(sandbox);
       if (lastFailures.length === 0) { status = 'VERIFIED'; break; }
     }
-    if (status !== 'VERIFIED') throw new Error(`Autonomous work loop exhausted after ${MAX_PASSES} passes. Last failures:\n${lastFailures.map(compact).join('\n\n')}`);
+
+    if (quotaDetected) {
+      const quotaVerification = await runVerification(sandbox);
+      if (quotaVerification.length === 0) {
+        status = 'VERIFIED';
+        lastFailures = [];
+      } else {
+        lastFailures.push(`Post-quota verification is incomplete:\n${quotaVerification.join('\n\n')}`);
+        status = 'PAUSED_FOR_QUOTA';
+        failure = `Gemini input/rate quota was detected. The runner stopped further Gemini passes and preserved the current branch state instead of wasting remaining retries. ${quotaHint || ''}`.trim();
+      }
+    }
+
+    if (status !== 'VERIFIED' && status !== 'PAUSED_FOR_QUOTA') throw new Error(`Autonomous work loop exhausted after ${MAX_PASSES} passes. Last failures:\n${lastFailures.map(compact).join('\n\n')}`);
     protectedChangesReset = await protectControlPlaneFiles(sandbox);
     const statusResult = await command(sandbox, 'git', ['status', '--short']);
-    if (!statusResult.stdout.trim()) throw new Error('Verification passed but the agent produced no repository changes outside protected control-plane paths');
-    const gitIdentity = await command(sandbox, 'git', ['config', 'user.name', 'Bikeztagram Autonomous Builder']);
-    if (gitIdentity.exitCode) throw new Error(`git user.name configuration failed: ${gitIdentity.stderr}`);
-    const gitEmail = await command(sandbox, 'git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
-    if (gitEmail.exitCode) throw new Error(`git user.email configuration failed: ${gitEmail.stderr}`);
-    const add = await command(sandbox, 'git', ['add', '-A']);
-    if (add.exitCode) throw new Error(`git add failed: ${add.stderr}`);
-    const commit = await command(sandbox, 'git', ['commit', '-m', `builder: complete ${BATCH_ID}`]);
-    if (commit.exitCode) throw new Error(`git commit failed: ${commit.stderr}`);
-    const shaResult = await command(sandbox, 'git', ['rev-parse', 'HEAD']);
-    commitSha = shaResult.stdout.trim() || null;
-    await pushWorkingBranch(sandbox, gitEnv);
-    status = 'READY_FOR_REVIEW';
-  } catch (error) { failure = error instanceof Error ? error.message : String(error); }
+    if (!statusResult.stdout.trim()) {
+      if (status === 'PAUSED_FOR_QUOTA') throw new Error(`${failure} No repository changes were produced to preserve.`);
+      throw new Error('Verification passed but the agent produced no repository changes outside protected control-plane paths');
+    }
+    commitSha = await commitAndPublish(sandbox, gitEnv, BATCH_ID);
+    if (status === 'VERIFIED') status = 'READY_FOR_REVIEW';
+  } catch (error) { failure = failure || (error instanceof Error ? error.message : String(error)); }
   finally {
     if (sandbox) { try { await sandbox.stop(); } catch (error) { failure ??= `Sandbox stop failed: ${describeSandboxError(error)}`; } }
-    const report = { batchId: BATCH_ID, objective: OBJECTIVE, baseBranch: BASE_BRANCH, workingBranch: BRANCH, commitSha, geminiModel: GEMINI_MODEL, protectedPaths: PROTECTED_PATH_PREFIXES, protectedChangesReset, maxDurationMinutes: MAX_MINUTES, maxPasses: MAX_PASSES, passesCompleted: Math.min(passes, MAX_PASSES), keepAlive: false, autoMerge: false, autoProductionDeploy: false, status, failure, startedAt, finishedAt: new Date().toISOString(), checks: results };
+    const report = { batchId: BATCH_ID, objective: OBJECTIVE, baseBranch: BASE_BRANCH, workingBranch: BRANCH, commitSha, geminiModel: GEMINI_MODEL, protectedPaths: PROTECTED_PATH_PREFIXES, protectedChangesReset, maxDurationMinutes: MAX_MINUTES, maxPasses: MAX_PASSES, passesCompleted: Math.min(passes, MAX_PASSES), quotaDetected, quotaHint, keepAlive: false, autoMerge: false, autoProductionDeploy: false, status, failure, startedAt, finishedAt: new Date().toISOString(), checks: results };
     await mkdir('./builder/reports', { recursive: true });
     await writeFile(`./builder/reports/${BATCH_ID}.json`, JSON.stringify(report, null, 2));
     console.log(JSON.stringify(report, null, 2));
-    if (status !== 'READY_FOR_REVIEW') process.exitCode = 1;
+    if (!['READY_FOR_REVIEW', 'PAUSED_FOR_QUOTA'].includes(status)) process.exitCode = 1;
   }
 }
 
