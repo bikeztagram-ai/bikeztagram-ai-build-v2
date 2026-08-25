@@ -13,6 +13,20 @@ The music system should aim for genuinely exciting, memorable, original and copy
 ## Generated-scene direction
 The long-term creation engine must support original generated scenes/clips from photos and prompts. Example target: a user can provide a photo of themselves and their motorcycle and request an original open-world crime/action-game-inspired cinematic scene. The system should preserve subject identity, physical continuity, plausible camera/motion, lighting and world consistency while avoiding direct reproduction of protected game assets or copyrighted characters/worlds.
 
+## Autonomous batch specification standard
+Every product batch supplied to the autonomous builder is an implementation specification, not a vague feature request. Before a batch is executed, its objective must explicitly define:
+
+- **Outcome:** the concrete user/product capability that must exist when the batch is complete.
+- **Behaviour:** how the capability should make decisions and behave across representative inputs, including meaningful differences between different creative briefs where applicable.
+- **Implementation direction:** which existing systems/contracts should be inspected and how the new capability should integrate with them without unnecessary rewrites.
+- **Quality bar:** what professional/end-game behaviour looks like in this specific feature; passing a schema check or adding a helper function is not sufficient evidence.
+- **Constraints and non-goals:** what must remain intact, what must not be invented, and what infrastructure is out of scope.
+- **Acceptance scenarios:** concrete behavioural scenarios that demonstrate the intended capability rather than merely proving that functions execute.
+- **Regression protection:** existing contracts and important behaviour that must continue to work.
+- **Completion evidence:** the builder must verify the actual production behaviour and must not claim completion solely because tests pass or code compiles.
+
+The builder should implement the full intended outcome rather than selecting the narrowest technically valid subset. If the objective requires creative or behavioural intelligence, verification must demonstrate that intelligence through representative contrasting inputs/briefs, not only fixed happy-path assertions. The objective is to make one coherent, durable improvement toward the end-game product, not to accumulate superficial feature labels.
+
 ## Engineering rules
 - Inspect existing code and contracts before changing them.
 - Preserve working Blob upload/read, Gemini/director failover, renderer, PWA and existing generation behaviour unless the batch specifically improves them.
