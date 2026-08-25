@@ -71,14 +71,20 @@ for (const batch of queue.batches) {
   }
 
   if (ref) {
-    const commit = await getCommit(ref.object.sha);
-    const subject = String(commit.commit?.message || '').split('\n')[0];
-    if (subject === `builder: complete ${batch.id}`) {
-      throw new Error(`${batch.id} has completed builder work on ${branch} but no open PR is visible yet. Wait for the PR-preparation check to appear before starting another batch.`);
+    // A previously completed branch with a closed/unmerged PR is explicitly retryable.
+    // Delete it before inspecting its old completion commit so the queue can recreate a clean branch.
+    if (closedUnmerged) {
+      console.log(`${batch.id}: previous PR #${closedUnmerged.number} was closed without merge; deleting its completed/stale branch and retrying from main.`);
+      await deleteStaleBranch(branch);
+    } else {
+      const commit = await getCommit(ref.object.sha);
+      const subject = String(commit.commit?.message || '').split('\n')[0];
+      if (subject === `builder: complete ${batch.id}`) {
+        throw new Error(`${batch.id} has completed builder work on ${branch} but no open PR is visible yet. Wait for the PR-preparation check to appear before starting another batch.`);
+      }
+      console.log(`${batch.id}: stale/partial builder branch found with no active PR; retrying from a clean branch.`);
+      await deleteStaleBranch(branch);
     }
-    if (closedUnmerged) console.log(`${batch.id}: previous PR #${closedUnmerged.number} was closed without merge; retrying from a clean branch.`);
-    else console.log(`${batch.id}: stale/partial builder branch found with no active PR; retrying from a clean branch.`);
-    await deleteStaleBranch(branch);
   }
 
   const env = [
