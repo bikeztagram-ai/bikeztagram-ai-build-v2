@@ -1,0 +1,1 @@
+Verification-only fix: align the universal image intake check with the current direct Blob response shape.
