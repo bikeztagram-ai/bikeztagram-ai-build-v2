@@ -36,9 +36,15 @@ async function main() {
 
   const fetch = await exec('git', ['fetch', 'origin', 'main', branch]);
   if (fetch.code !== 0) throw new Error(`Could not fetch builder branch: ${fetch.stderr}`);
-  const changed = await exec('git', ['diff', '--name-only', 'origin/main...', `origin/${branch}`]);
-  const stat = await exec('git', ['diff', '--shortstat', 'origin/main...', `origin/${branch}`]);
-  if (changed.code !== 0 || stat.code !== 0) throw new Error('Could not inspect builder diff.');
+
+  // Use a two-dot tree diff here. The runner checks out main with a shallow
+  // history, so a three-dot merge-base diff can fail even when the builder
+  // branch is valid and is directly based on main.
+  const changed = await exec('git', ['diff', '--name-only', 'origin/main', `origin/${branch}`]);
+  const stat = await exec('git', ['diff', '--shortstat', 'origin/main', `origin/${branch}`]);
+  if (changed.code !== 0 || stat.code !== 0) {
+    throw new Error(`Could not inspect builder diff.\nchanged: ${compact(changed.stderr, 2000)}\nstat: ${compact(stat.stderr, 2000)}`);
+  }
 
   const paths = changed.stdout.split('\n').map((x) => x.trim()).filter(Boolean);
   const match = stat.stdout.match(/(\d+) insertions?\(\+\).*?(\d+) deletions?\(-\)/);
