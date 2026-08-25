@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { selectDirectorMoments } from '../src/directorSelection.js';
+const source=fs.readFileSync(new URL('../src/directorSelection.js',import.meta.url),'utf8');
+assert.match(source,/export function selectDirectorMoments/);
+assert.match(source,/directorSelectionScore/); assert.match(source,/usedSources/); assert.match(source,/similarity/); assert.match(source,/hero-ending/);
+const moments=[{mediaIndex:0,start:0,duration:2,description:'opening shot',score:8},{mediaIndex:1,start:0,duration:2,description:'action reveal',score:9},{mediaIndex:2,start:0,duration:2,description:'hero ending',score:8}];
+const result=selectDirectorMoments(moments,{maxCuts:3,targetDuration:6,creativePrompt:'cinematic action'});
+assert.equal(result.length,3); assert.equal(result[0].editorialRole,'hook'); assert.equal(result.at(-1).editorialRole,'hero-ending'); assert.ok(result.every(x=>Number.isFinite(x.directorSelectionScore)));
+console.log('batch48-director-selection: PASS');
