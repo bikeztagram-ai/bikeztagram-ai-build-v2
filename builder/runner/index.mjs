@@ -81,10 +81,16 @@ async function runVerification(sandbox) {
 
 async function pushWorkingBranch(sandbox, gitEnv) {
   const fetch = await command(sandbox, 'git', ['fetch', 'origin', `${BRANCH}:refs/remotes/origin/${BRANCH}`], REPO_DIR, gitEnv);
+  const remoteBranchExists = fetch.exitCode === 0;
   if (fetch.exitCode && !/couldn't find remote ref|could not find remote ref/i.test(fetch.stderr)) {
     throw new Error(`git fetch existing working branch failed: ${fetch.stderr}`);
   }
-  const push = await command(sandbox, 'git', ['push', '--force-with-lease=refs/heads/' + BRANCH + ':refs/remotes/origin/' + BRANCH, '--set-upstream', 'origin', `HEAD:${BRANCH}`], REPO_DIR, gitEnv);
+
+  const pushArgs = remoteBranchExists
+    ? ['push', '--force-with-lease=refs/heads/' + BRANCH + ':refs/remotes/origin/' + BRANCH, '--set-upstream', 'origin', `HEAD:${BRANCH}`]
+    : ['push', '--set-upstream', 'origin', `HEAD:refs/heads/${BRANCH}`];
+
+  const push = await command(sandbox, 'git', pushArgs, REPO_DIR, gitEnv);
   if (push.exitCode) throw new Error(`git push failed: ${push.stderr}`);
 }
 
