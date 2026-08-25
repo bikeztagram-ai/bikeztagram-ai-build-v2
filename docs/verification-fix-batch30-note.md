@@ -1,0 +1,1 @@
+The universal image intake verification is aligned with the current direct Blob upload response contract. No product runtime behaviour is changed by this fix.
