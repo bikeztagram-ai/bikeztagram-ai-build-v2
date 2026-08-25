@@ -56,7 +56,7 @@ jobs:
           test -n "$VERCEL_TEAM_ID" || { echo "VERCEL_TEAM_ID is missing"; exit 1; }
           test -n "$VERCEL_PROJECT_ID" || { echo "VERCEL_PROJECT_ID is missing"; exit 1; }
           test -n "$GITHUB_TOKEN" || { echo "BUILDER_GITHUB_TOKEN is missing"; exit 1; }
-          test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY is missing for the bounded architecture and execution passes"; exit 1; }
+          test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY is missing for the bounded architecture, execution and conditional review passes"; exit 1; }
 
       - name: Install runner
         working-directory: builder/runner
@@ -67,6 +67,7 @@ jobs:
           node --check builder/runner/task-driven.mjs
           node --check builder/runner/gemini-agent.mjs
           node --check builder/runner/quality-architect.mjs
+          node --check builder/runner/quality-review-gate.mjs
           node --check scripts/prepare-autonomous-batch.mjs
 
       - name: Preflight Gemini execution adapter
@@ -89,11 +90,20 @@ jobs:
           mkdir -p builder/working
           node builder/runner/quality-architect.mjs
           echo "Gemini produced an implementation-ready quality brief."
-          echo "The brief has been appended to BUILDER_OBJECTIVE for the bounded builder passes."
 
       - name: Run task-driven bounded batch
         working-directory: .
         run: node builder/runner/task-driven.mjs
+
+      - name: Conditional Gemini quality gate
+        working-directory: .
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ env.BUILDER_GEMINI_MODEL }}
+          BUILDER_GEMINI_CLI_VERSION: ${{ env.BUILDER_GEMINI_CLI_VERSION }}
+        run: |
+          node builder/runner/quality-review-gate.mjs
+          echo "Conditional quality gate completed."
 
       - name: Create or confirm review PR
         if: success()
@@ -112,12 +122,15 @@ jobs:
             --head "$BUILDER_WORKING_BRANCH" \
             --draft \
             --title "Autonomous Builder: $BUILDER_BATCH_ID" \
-            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the task-driven builder completed its bounded execution.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nThe objective was sharpened by one bounded Gemini architecture/quality pass using the durable lessons in builder/quality/lessons.md. Review the generated changes and checks before marking this PR ready or merging. No automatic merge or production deployment is performed."
+            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the task-driven builder completed its bounded execution and passed the conditional quality gate.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nThe objective was sharpened by one bounded Gemini architecture/quality pass using the durable lessons in builder/quality/lessons.md. High-risk batches also receive a separate read-only Gemini quality gate; low-risk batches skip that extra call to conserve quota. Review the generated changes and checks before marking this PR ready or merging. No automatic merge or production deployment is performed."
 
-      - name: Upload runner report
+      - name: Upload runner and quality reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: autonomous-builder-${{ env.BUILDER_BATCH_ID }}
-          path: builder/reports/${{ env.BUILDER_BATCH_ID }}.json
+          path: |
+            builder/reports/${{ env.BUILDER_BATCH_ID }}.json
+            builder/working/${{ env.BUILDER_BATCH_ID }}-architect-brief.md
+            builder/working/${{ env.BUILDER_BATCH_ID }}-quality-review.md
           if-no-files-found: ignore
