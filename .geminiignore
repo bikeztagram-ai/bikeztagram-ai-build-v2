@@ -1,0 +1,41 @@
+# Keep the autonomous builder focused on source and relevant project configuration.
+# Gemini CLI respects this file when searching/reading workspace context.
+
+# Dependencies and generated output
+node_modules/
+dist/
+build/
+coverage/
+.vercel/
+.git/
+
+# Builder reports/history are execution artifacts, not product source.
+builder/reports/
+
+# Archives and binary/media artifacts should not be injected into coding context.
+*.zip
+*.tar
+*.gz
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.mp3
+*.wav
+*.flac
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# Local secrets/configuration
+.env
+.env.*
+!.env.example
+
+# Large generated caches
+.cache/
+.tmp/
+tmp/
