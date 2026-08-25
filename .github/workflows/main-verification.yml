@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout main
         uses: actions/checkout@v6
@@ -23,47 +23,5 @@ jobs:
         run: npm install
       - name: Build production bundle
         run: npm run build
-      - name: Verify beat-aware production integration
-        run: npm run verify:batch23
-      - name: Verify original music generation bridge
-        run: npm run verify:batch24
-      - name: Verify autonomous quality loop
-        run: npm run verify:batch25
-      - name: Verify real audio analysis
-        run: npm run verify:batch26
-      - name: Verify Lyria song modes
-        run: npm run verify:batch27
-      - name: Verify renderer audio mux and beat sync
-        run: npm run verify:batch28
-      - name: Verify render quality loop
-        run: npm run verify:batch29
-      - name: Verify universal image intake
-        run: npm run verify:batch30
-      - name: Verify mixed-media source library
-        run: npm run verify:batch31
-      - name: Verify automatic soundtrack attachment
-        run: npm run verify:batch32
-      - name: Verify social export
-        run: npm run verify:batch33
-      - name: Verify speech caption integration
-        run: npm run verify:batch34
-      - name: Verify licensed-track rhythm replacement
-        run: npm run verify:batch35
-      - name: Verify beat-sync source-offset preservation
-        run: npm run verify:batch36
-      - name: Verify caption timeline/source timing preservation
-        run: npm run verify:batch37
-      - name: Verify mixed-media caption integration
-        run: npm run verify:batch38
-      - name: Verify premium filmmaker UI
-        run: npm run verify:batch39
-      - name: Verify output preset transcoder
-        run: npm run verify:batch41
-      - name: Verify Batch 42 output transcoder module
-        run: npm run verify:batch42
-      - name: Verify Batch 43 social output contract
-        run: npm run verify:batch43
-      - name: Verify social output UI integration
-        run: npm run verify:batch44
-      - name: Verify Batch 45 complete filmmaker acceptance contract
-        run: npm run verify:batch45
+      - name: Audit all active verification batches
+        run: node scripts/verify-main-suite.mjs
