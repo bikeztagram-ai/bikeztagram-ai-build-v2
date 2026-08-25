@@ -2,20 +2,11 @@ name: Autonomous Builder Batch
 
 on:
   workflow_dispatch:
-    inputs:
-      batch_id:
-        description: Batch identifier
-        required: true
-        default: batch-83
-      objective:
-        description: Objective for this batch
-        required: true
-        default: >-
-          Execute the next production-quality director upgrade for Bikeztagram AI using the durable end-game specification in docs/AUTONOMOUS_BUILDER_ENDGAME_SPEC.md. First inspect Batch 82's existing director.js media profiling/scoring and all connected director/renderer/App contracts. Preserve working behaviour and improve it in place; do not replace useful foundations. Build a real prompt-driven cinematic decision layer: parse the user's natural-language creative brief into explicit creative intent such as subject, action, mood, energy, genre, pacing, reveal/hero requirements, camera language, colour treatment, text requirements and desired ending; rank available media using the existing profile plus prompt relevance; select a diverse set of strongest shots rather than upload order; construct an intentional story arc (hook, setup/mystery, build, reveal/escalation, action/peak, hero/outro) appropriate to the prompt and available media; choose shot durations based on content and pacing; choose varied transitions rather than one generic transition; choose motion/crop/zoom/pan/speed decisions appropriate to the shot and prompt; avoid repetitive adjacent shots; include music/beat/energy cues that can drive edit timing; preserve continuity and ensure a strong ending. The implementation must degrade safely when metadata is sparse and must not invent impossible media facts. Keep the architecture compatible with future generated-scene/video creation from photos and prompts, including identity/continuity/world/camera requirements. Do not merely add tests, labels or documentation: make substantive production-code improvements to the director and directly connected integration points. Add behavioural verification that proves two materially different creative prompts produce meaningfully different plans, that shot ordering is not simply upload order when better alternatives exist, that adjacent shots have diversity, that story beats/durations/transitions/motion respond to intent, and that existing build/Blob/music checks still pass. Use check-fix-check-continue: after implementation run all relevant checks, diagnose failures, fix them, rerun, and continue until the bounded batch is genuinely complete. Do not modify .github/workflows/** or autonomous-runner infrastructure, do not automatically merge to main, do not deploy production, and do not provision paid infrastructure.
-      working_branch:
-        description: Isolated branch to write to
-        required: true
-        default: autonomous-builder/batch-83
+
+# Prevent two manual clicks from dispatching competing product batches at once.
+concurrency:
+  group: autonomous-builder-queue
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -31,13 +22,10 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.BUILDER_GITHUB_TOKEN }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       BUILDER_REPO_URL: https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git
-      BUILDER_BATCH_ID: ${{ inputs.batch_id }}
-      BUILDER_WORKING_BRANCH: ${{ inputs.working_branch }}
       BUILDER_BASE_BRANCH: main
       BUILDER_MAX_MINUTES: "45"
       BUILDER_GEMINI_MODEL: gemini-3.5-flash-lite
-      BUILDER_OBJECTIVE: ${{ inputs.objective }}
-      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;Do not modify .github/workflows/** during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Verify prompt-specific plan variation, shot selection/diversity, story beats, timing, transitions, motion and continuity.;Run check-fix-check-continue verification across relevant existing contracts.
+      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
     steps:
       - name: Checkout runner
@@ -45,6 +33,17 @@ jobs:
         with:
           ref: main
           fetch-depth: 1
+
+      - name: Select next queued batch
+        working-directory: .
+        run: node scripts/prepare-autonomous-batch.mjs
+
+      - name: Show selected batch
+        run: |
+          echo "Selected batch: $BUILDER_BATCH_ID"
+          echo "Working branch: $BUILDER_WORKING_BRANCH"
+          echo "Objective loaded from queue:"
+          printf '%s\n' "$BUILDER_OBJECTIVE"
 
       - name: Validate runner secrets
         run: |
@@ -66,6 +65,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: autonomous-builder-${{ inputs.batch_id }}
-          path: builder/reports/${{ inputs.batch_id }}.json
+          name: autonomous-builder-${{ env.BUILDER_BATCH_ID }}
+          path: builder/reports/${{ env.BUILDER_BATCH_ID }}.json
           if-no-files-found: ignore
