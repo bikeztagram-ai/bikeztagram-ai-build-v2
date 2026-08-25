@@ -85,9 +85,9 @@ jobs:
       - name: Create or confirm review PR
         if: success()
         env:
-          # Use the workflow's built-in token for PR creation. The builder PAT remains
-          # reserved for the sandbox agent's branch push operations.
-          GH_TOKEN: ${{ github.token }}
+          # Use the dedicated builder PAT rather than github.token. The repository's
+          # Actions policy currently blocks GITHUB_TOKEN from creating pull requests.
+          GH_TOKEN: ${{ secrets.BUILDER_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           existing_pr=$(gh pr view "$BUILDER_WORKING_BRANCH" --repo "$GITHUB_REPOSITORY" --json number --jq '.number' 2>/dev/null || true)
