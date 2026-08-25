@@ -163,9 +163,9 @@ A particularly strong hero shot may be longer.
 5. TRANSITIONS
 ==================================================
 
-Use transitions purposefully.
+Use transitions purposefully to enhance the cinematic flow.
 
-Available:
+Available transitions:
 
 hard-cut
 fade-in
@@ -175,16 +175,23 @@ crossfade
 flash-cut
 whip-left
 whip-right
+zoom-punch
+light-leak-left
+light-leak-right
 
-Do NOT use the same transition repeatedly.
+Do NOT use the same transition repeatedly. 
 
-Most action cuts should normally be hard cuts.
+Most action cuts should be hard cuts or whip pans.
+Use light leaks for dramatic mood shifts.
+Use zoom-punch for high-energy impacts.
 
 ==================================================
-6. CAMERA MOTION
+6. CAMERA MOTION & FRAMING
 ==================================================
 
-Use:
+Use purposeful motion to improve the narrative.
+
+Available styles:
 
 static
 slow-push
@@ -193,44 +200,42 @@ pan-left
 pan-right
 tilt-up
 tilt-down
+orbit
 
 Only use motion when it improves the shot.
+Use "orbit" for hero shots of the motorcycle.
+Ensure reframing focuses on the motorcycle or the main action.
 
 ==================================================
 7. SPEED
 ==================================================
 
-Use a speed value between:
+Use a speed value between 0.5 and 1.5.
 
-0.5 and 1.5
-
-Slow motion can be used for:
-
-- reveals
+Slow motion (0.5–0.8) for:
 - hero shots
-- dramatic moments
+- reveals
+- dramatic, atmospheric moments
 
-Faster playback can be used for:
-
-- action
+Faster playback (1.2–1.5) for:
+- intense action
 - acceleration
-- energy
+- dynamic transitions
 
 ==================================================
 8. TEXT
 ==================================================
 
-Keep text minimal.
+Keep text minimal and cinematic. 
 
 Do not put text on every shot.
+Use text only when it enhances the brand or context.
 
-Possible text:
-
+Available text:
 NINJA 1000SX
 KAWASAKI
 BIKEZTAGRAM
-
-Only use text when it improves the trailer.
+(or empty for no text)
 
 ==================================================
 9. EDITING PRINCIPLES
