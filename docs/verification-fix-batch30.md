@@ -1,0 +1,1 @@
+Batch 30 verification was stale: the test expected `imageUrl:blob.url`, but the current direct Blob intake returns `data.url` and exposes it as `sourceUrl`/`url`. The production implementation already uses the current contract. The verification was updated to assert the current runtime shape without changing product code.
