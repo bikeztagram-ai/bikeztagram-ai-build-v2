@@ -7,10 +7,11 @@ const imageAnalysis=fs.readFileSync(new URL('../api/analyse-image.js',import.met
 
 assert.match(app,/accept=\"video\/\*,image\/\*\"/);
 assert.match(app,/\/api\/analyse-image/);
-assert.match(app,/imageUrl:blob\.url/);
+assert.match(app,/if\(!data\.url\)throw new Error\(`Blob upload completed without a public URL/);
+assert.match(app,/sourceUrl:data\.url,url:data\.url/);
 assert.match(app,/mediaId:worldBridge\?'world-fill-0':'source-0'/);
-assert.match(app,/id:'source-0'/);
-assert.match(app,/isImage/);
+assert.match(app,/id:`source-\$\{index\}`/);
+assert.match(app,/type:file\.type/);
 assert.match(upload,/image\/jpeg/);
 assert.match(upload,/image\/png/);
 assert.match(upload,/image\/webp/);
