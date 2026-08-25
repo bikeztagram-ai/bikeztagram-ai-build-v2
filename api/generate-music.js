@@ -5,7 +5,7 @@
 import { inferMusicStyle, buildSoundtrackBrief } from '../src/musicDirector.js';
 import { createOriginalCinematicWav } from '../src/musicProviderV2.js';
 
-function clamp(value,min,max){const n=Number(value);return Math.max(min,Math.min(max,Number.isFinite(n)?n:min));}
+function clamp(value,min,max){const n=Number(value);return Math.max(min,Math.min(b,min:Number.isFinite(n)?n:min));}
 
 export default async function handler(req,res){
   if(req.method!=='POST')return res.status(405).json({success:false,error:'Method not allowed'});
@@ -41,8 +41,6 @@ export default async function handler(req,res){
       }
     }catch(e){}
 
-    const generationModel = requestedDuration > 30 ? 'lyria-3-pro-preview' : 'lyria-3-clip-preview';
-
     clearTimeout(timeoutId);
     return res.status(200).json({
       success:true,
@@ -52,7 +50,7 @@ export default async function handler(req,res){
         ...brief,
         audioAvailable:Boolean(audioDataUrl),
         audioDataUrl,
-        generationModel,
+        generationModel:'procedural-cinematic-v2',
         generationMode:'procedural-original',
         paidAiMusicDisabled:true,
         instrumentation:['synth-bass','punchy-drums','cinematic-pad','arpeggiated-lead','sub-drop']
@@ -67,7 +65,7 @@ export default async function handler(req,res){
         warning:'Music generation timed out; returning planning fallback.',
         soundtrack:{
           audioAvailable:false,
-          generationModel:'lyria-3-clip-preview',
+          generationModel:'procedural-cinematic-v2',
           generationMode:'planning-fallback',
           paidAiMusicDisabled:true
         }
