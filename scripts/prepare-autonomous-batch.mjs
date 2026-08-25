@@ -60,6 +60,7 @@ for (const batch of queue.batches) {
   const open = prs.find(pr => pr.state === 'open');
   const closedUnmerged = prs.find(pr => pr.state === 'closed' && !pr.merged_at);
   const ref = await getBranch(branch);
+  let resumeExisting = false;
 
   if (merged) {
     console.log(`${batch.id}: already merged in PR #${merged.number}; advancing queue.`);
@@ -84,21 +85,24 @@ for (const batch of queue.batches) {
     const commit = await getCommit(ref.object.sha);
     const subject = String(commit.commit?.message || '').split('\n')[0];
     if (subject === `builder: complete ${batch.id}`) {
-      throw new Error(`${batch.id} has completed builder work on ${branch} but no open PR is visible yet. Wait for the PR-preparation check to appear before starting another batch.`);
+      console.log(`${batch.id}: builder work is already complete on ${branch}; resuming from the quality-review stage.`);
+      resumeExisting = true;
+    } else {
+      console.log(`${batch.id}: stale/partial builder branch found with no active PR; retrying from a clean branch.`);
+      await deleteStaleBranch(branch);
     }
-    console.log(`${batch.id}: stale/partial builder branch found with no active PR; retrying from a clean branch.`);
-    await deleteStaleBranch(branch);
   }
 
   const env = [
     `BUILDER_BATCH_ID=${batch.id}`,
     `BUILDER_WORKING_BRANCH=${branch}`,
+    `BUILDER_RESUME_EXISTING=${resumeExisting ? 'true' : 'false'}`,
     `BUILDER_OBJECTIVE<<__AUTONOMOUS_BUILDER_OBJECTIVE__`,
     batch.objective,
     `__AUTONOMOUS_BUILDER_OBJECTIVE__`
   ].join('\n');
   await fs.appendFile(process.env.GITHUB_ENV, `${env}\n`);
-  await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, `## Autonomous Builder Queue\n\n**Selected:** ${batch.id} — ${batch.title}\n\n**Branch:** \`${branch}\`\n\n**Objective loaded automatically from the durable queue.**\n`);
+  await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, `## Autonomous Builder Queue\n\n**Selected:** ${batch.id} — ${batch.title}\n\n**Branch:** \`${branch}\`\n\n**Mode:** ${resumeExisting ? 'Resume completed builder work for quality review.' : 'Start a new bounded builder pass.'}\n\n**Objective loaded automatically from the durable queue.**\n`);
   console.log(`Selected ${batch.id}: ${batch.title}`);
   process.exit(0);
 }
