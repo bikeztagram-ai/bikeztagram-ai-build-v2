@@ -135,12 +135,13 @@ async function main() {
 
   try {
     sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 2 }, persistent: false, timeout: MAX_MINUTES * 60 * 1000, networkPolicy: 'allow-all' });
-    await command(sandbox, 'mkdir', ['-p', `${REPO_DIR}/builder/working`], SANDBOX_ROOT);
     await command(sandbox, 'sh', ['-lc', `cat > '${ASKPASS_PATH}' <<'EOF'\n#!/bin/sh\ncase "$1" in\n *Username*) printf '%s\\n' 'x-access-token' ;;\n *) printf '%s\\n' "$GITHUB_TOKEN" ;;\nesac\nEOF\nchmod 700 '${ASKPASS_PATH}'`], SANDBOX_ROOT, gitEnv);
+    // Clone into a genuinely empty path first. The working/checkpoint directory must only be created after clone.
     const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], SANDBOX_ROOT, gitEnv);
     if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
     const checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
     if (checkout.exitCode) throw new Error(`Branch creation failed: ${checkout.stderr}`);
+    await command(sandbox, 'mkdir', ['-p', `${REPO_DIR}/builder/working`]);
     const install = await command(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
     if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
 
