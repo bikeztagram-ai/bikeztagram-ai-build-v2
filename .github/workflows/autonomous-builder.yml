@@ -26,7 +26,10 @@ jobs:
       BUILDER_BASE_BRANCH: main
       BUILDER_MAX_MINUTES: "45"
       BUILDER_MAX_PASSES: "8"
-      BUILDER_GEMINI_MODEL: gemini-3.5-flash-lite
+      BUILDER_GEMINI_CLI_VERSION: "0.55.1"
+      BUILDER_GEMINI_MODEL: flash-lite
+      BUILDER_AGENT_CMD: '["node","builder/runner/gemini-agent.mjs"]'
+      BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
       BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
     steps:
@@ -58,6 +61,22 @@ jobs:
       - name: Install runner
         working-directory: builder/runner
         run: npm install --no-audit --no-fund
+
+      - name: Validate runner syntax
+        run: |
+          node --check builder/runner/task-driven.mjs
+          node --check builder/runner/gemini-agent.mjs
+          node --check scripts/prepare-autonomous-batch.mjs
+
+      - name: Preflight Gemini execution adapter
+        working-directory: .
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ env.BUILDER_GEMINI_MODEL }}
+          BUILDER_GEMINI_CLI_VERSION: ${{ env.BUILDER_GEMINI_CLI_VERSION }}
+        run: |
+          node builder/runner/gemini-agent.mjs --version
+          node builder/runner/gemini-agent.mjs --help >/dev/null
 
       - name: Run task-driven bounded batch
         working-directory: .
