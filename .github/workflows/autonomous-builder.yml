@@ -29,6 +29,7 @@ jobs:
       BUILDER_GEMINI_CLI_VERSION: "0.55.1"
       BUILDER_GEMINI_MODEL: flash-lite
       BUILDER_AGENT_CMD: '["node","builder/runner/gemini-agent.mjs"]'
+      BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
       BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
     steps:
