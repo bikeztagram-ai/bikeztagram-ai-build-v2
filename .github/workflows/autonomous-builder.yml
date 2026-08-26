@@ -2,12 +2,8 @@ name: Autonomous Builder Batch
 
 on:
   workflow_dispatch:
-  # Automatic queue polling. The queue script exits cleanly when the current
-  # batch is waiting for review/merge, so this does not create noisy failures.
-  # Offset from the hour to reduce GitHub schedule-load collisions and to
-  # reactivate the scheduled trigger if GitHub had previously disabled it.
-  schedule:
-    - cron: '1,16,31,46 * * * *'
+  # Scheduling is owned by the AutoBot Control Center. Keeping one scheduler
+  # prevents duplicate builder runs and keeps queue state deterministic.
 
 # [production-contract-approved] Reviewed provider migration: the workflow no longer
 # calls OpenAI/Codex and instead uses the free Gemini CLI path. Product runtime is unchanged.
