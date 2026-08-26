@@ -7,7 +7,7 @@ SMOKE TEST ONLY. Make one harmless, clearly identifiable code change in the exis
 OpenAI Codex (gpt-5.6-terra).
 
 ## Resume mode
-Starting a new builder branch.
+Resuming existing builder branch.
 
 ## Status
 Started.
