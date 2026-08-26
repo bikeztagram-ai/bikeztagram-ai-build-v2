@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { appendFile, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile } from 'node:fs/promises';
 
 const model = process.env.BUILDER_GEMINI_MODEL || 'flash-lite';
 const cliVersion = process.env.BUILDER_GEMINI_CLI_VERSION || '0.55.1';
@@ -11,9 +11,12 @@ const reportPath = `builder/working/${batchId}-quality-review.md`;
 function exec(command, args) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'], env: process.env });
-    let stdout = ''; let stderr = '';
-    child.stdout.on('data', (x) => { stdout += x; }); child.stderr.on('data', (x) => { stderr += x; });
-    child.on('error', reject); child.on('close', (code) => resolve({ code, stdout, stderr }));
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (x) => { stdout += x; });
+    child.stderr.on('data', (x) => { stderr += x; });
+    child.on('error', reject);
+    child.on('close', (code) => resolve({ code, stdout, stderr }));
   });
 }
 
@@ -31,66 +34,128 @@ function highRisk(paths, insertions, deletions) {
 
 async function writeFailure(message) {
   try {
+    await mkdir('builder/working', { recursive: true });
     await appendFile(reportPath, `# ${batchId} — Quality Gate\n\n**Result:** ERROR\n\n${message}\n`);
   } catch {
     // The workflow's main failure remains the authoritative signal.
   }
 }
 
+function acceptableDiffExit(code) {
+  // git diff --no-index returns 0 for identical trees and 1 when differences exist.
+  return code === 0 || code === 1;
+}
+
+function normalizePath(value, prefixes) {
+  let text = String(value || '').trim();
+  for (const prefix of prefixes) {
+    const token = `${prefix}/`;
+    if (text.startsWith(token)) {
+      text = text.slice(token.length);
+      break;
+    }
+  }
+  return text;
+}
+
 async function main() {
   if (!branch) throw new Error('BUILDER_WORKING_BRANCH is required');
   if (!objective) throw new Error('BUILDER_OBJECTIVE is required');
 
-  // The workflow checks out the exact builder branch immediately before this gate.
-  // Only refresh origin/main here; compare that ref with the checked-out HEAD.
-  // This avoids every remote-tracking-ref and merge-base dependency when reviewing
-  // a resumed batch whose builder branch may have been created from an older main.
-  const fetch = await exec('git', ['fetch', '--prune', 'origin', 'main']);
-  if (fetch.code !== 0) {
-    const message = `Could not refresh origin/main for quality review.\nstdout: ${compact(fetch.stdout, 2000)}\nstderr: ${compact(fetch.stderr, 4000)}`;
+  // Resumed builder branches can be based on an older main revision. Avoid every
+  // merge-base, shallow-ref and remote-tracking assumption by comparing two
+  // materialized committed trees directly.
+  const mainDir = '/tmp/bikeztagram-quality-main';
+  const branchDir = '/tmp/bikeztagram-quality-branch';
+  const clean = await exec('rm', ['-rf', mainDir, branchDir]);
+  if (clean.code !== 0) {
+    const message = `Could not prepare quality-gate temp directories.\nstderr: ${compact(clean.stderr, 3000)}`;
     await writeFailure(message);
     throw new Error(message);
   }
 
-  const verifyMain = await exec('git', ['rev-parse', '--verify', 'origin/main']);
-  const verifyHead = await exec('git', ['rev-parse', '--verify', 'HEAD']);
-  if (verifyMain.code !== 0 || verifyHead.code !== 0) {
+  const makeDirs = await exec('mkdir', ['-p', mainDir, branchDir]);
+  if (makeDirs.code !== 0) {
+    const message = `Could not create quality-gate temp directories.\nstderr: ${compact(makeDirs.stderr, 3000)}`;
+    await writeFailure(message);
+    throw new Error(message);
+  }
+
+  const fetchMain = await exec('git', ['fetch', 'origin', 'main']);
+  const fetchBranch = await exec('git', ['fetch', 'origin', branch]);
+  if (fetchMain.code !== 0 || fetchBranch.code !== 0) {
     const message = [
-      'Could not resolve quality-gate comparison refs.',
-      `origin/main: ${compact(verifyMain.stderr || verifyMain.stdout, 2000)}`,
-      `HEAD: ${compact(verifyHead.stderr || verifyHead.stdout, 2000)}`,
+      'Could not fetch quality-gate refs.',
+      `main fetch stdout: ${compact(fetchMain.stdout, 1500)}`,
+      `main fetch stderr: ${compact(fetchMain.stderr, 2500)}`,
+      `branch fetch stdout: ${compact(fetchBranch.stdout, 1500)}`,
+      `branch fetch stderr: ${compact(fetchBranch.stderr, 2500)}`,
     ].join('\n');
     await writeFailure(message);
     throw new Error(message);
   }
 
-  const mainSha = verifyMain.stdout.trim();
-  const headSha = verifyHead.stdout.trim();
+  const mainSha = await exec('git', ['rev-parse', 'origin/main^{commit}']);
+  const branchSha = await exec('git', ['rev-parse', 'HEAD^{commit}']);
+  if (mainSha.code !== 0 || branchSha.code !== 0) {
+    const message = [
+      'Could not resolve quality-gate commits.',
+      `main: ${compact(mainSha.stderr || mainSha.stdout, 2000)}`,
+      `builder HEAD: ${compact(branchSha.stderr || branchSha.stdout, 2000)}`,
+    ].join('\n');
+    await writeFailure(message);
+    throw new Error(message);
+  }
 
-  const changed = await exec('git', ['diff', '--no-ext-diff', '--no-renames', '--name-only', mainSha, headSha]);
-  const stat = await exec('git', ['diff', '--no-ext-diff', '--no-renames', '--shortstat', mainSha, headSha]);
-  if (changed.code !== 0 || stat.code !== 0) {
+  const mainCommit = mainSha.stdout.trim();
+  const branchCommit = branchSha.stdout.trim();
+
+  const archiveMain = await exec('sh', ['-lc', `git archive --format=tar '${mainCommit}' | tar -xf - -C '${mainDir}'`]);
+  const archiveBranch = await exec('sh', ['-lc', `git archive --format=tar '${branchCommit}' | tar -xf - -C '${branchDir}'`]);
+  if (archiveMain.code !== 0 || archiveBranch.code !== 0) {
+    const message = [
+      'Could not materialize quality-gate trees.',
+      `main archive stdout: ${compact(archiveMain.stdout, 1500)}`,
+      `main archive stderr: ${compact(archiveMain.stderr, 2500)}`,
+      `branch archive stdout: ${compact(archiveBranch.stdout, 1500)}`,
+      `branch archive stderr: ${compact(archiveBranch.stderr, 2500)}`,
+    ].join('\n');
+    await writeFailure(message);
+    throw new Error(message);
+  }
+
+  const changed = await exec('git', ['diff', '--no-index', '--name-only', '--', mainDir, branchDir]);
+  const stat = await exec('git', ['diff', '--no-index', '--shortstat', '--', mainDir, branchDir]);
+  if (!acceptableDiffExit(changed.code) || !acceptableDiffExit(stat.code)) {
     const message = [
       'Could not inspect builder diff.',
-      `main: ${mainSha}`,
-      `head: ${headSha}`,
-      `changed stdout: ${compact(changed.stdout, 2000)}`,
+      `main commit: ${mainCommit}`,
+      `builder commit: ${branchCommit}`,
+      `changed exit: ${changed.code}`,
+      `changed stdout: ${compact(changed.stdout, 3000)}`,
       `changed stderr: ${compact(changed.stderr, 3000)}`,
-      `stat stdout: ${compact(stat.stdout, 2000)}`,
+      `stat exit: ${stat.code}`,
+      `stat stdout: ${compact(stat.stdout, 3000)}`,
       `stat stderr: ${compact(stat.stderr, 3000)}`,
     ].join('\n');
     await writeFailure(message);
     throw new Error(message);
   }
 
-  const paths = changed.stdout.split('\n').map((x) => x.trim()).filter(Boolean);
+  const prefixes = [mainDir, branchDir];
+  const paths = changed.stdout
+    .split('\n')
+    .map((x) => normalizePath(x, prefixes))
+    .filter(Boolean);
+
   const match = stat.stdout.match(/(\d+) insertions?\(\+\).*?(\d+) deletions?\(-\)/);
   const insertions = Number(match?.[1] || 0);
   const deletions = Number(match?.[2] || 0);
 
   if (!highRisk(paths, insertions, deletions)) {
     await appendFile(reportPath, `# ${batchId} — Quality Gate\n\n**Result:** SKIPPED\n\nLow-risk diff; no additional Gemini review was spent.\n`);
-    console.log('Quality review skipped: low-risk batch.'); return;
+    console.log('Quality review skipped: low-risk batch.');
+    return;
   }
 
   if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is required for the conditional quality review.');
@@ -102,8 +167,10 @@ async function main() {
     'BIKEZTAGRAM AI — CONDITIONAL QUALITY GATE',
     `BATCH: ${batchId}`,
     `BRANCH: ${branch}`,
+    `MAIN COMMIT: ${mainCommit}`,
+    `BUILDER COMMIT: ${branchCommit}`,
     'You are an independent, read-only production quality reviewer. Do not edit, commit, push, merge, or invent roadmap work.',
-    'Inspect the git tree diff from origin/main to the checked-out builder HEAD and the relevant existing source files. Follow the real runtime path where the objective requires observable behaviour.',
+    'Inspect the checked-out repository and the committed-tree delta described below. Follow the real runtime path where the objective requires observable behaviour.',
     'A green build/test result is NOT sufficient. Reject superficial changes, prompt-only claims, unused contracts, dead code, placeholders, tests that do not prove the requested behaviour, and changes that do not reach the user-facing path.',
     'Approve only if the implementation materially satisfies the objective and preserves existing working behaviour.',
     `OBJECTIVE:\n${objective}`,
