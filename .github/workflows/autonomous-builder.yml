@@ -36,7 +36,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: main
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Select next queued batch
         working-directory: .
@@ -46,6 +46,7 @@ jobs:
         run: |
           echo "Selected batch: $BUILDER_BATCH_ID"
           echo "Working branch: $BUILDER_WORKING_BRANCH"
+          echo "Resume existing builder work: $BUILDER_RESUME_EXISTING"
           echo "Objective loaded from durable queue:"
           printf '%s\n' "$BUILDER_OBJECTIVE"
 
@@ -80,6 +81,7 @@ jobs:
           node builder/runner/gemini-agent.mjs --help >/dev/null
 
       - name: Gemini architecture quality pass
+        if: env.BUILDER_RESUME_EXISTING != 'true'
         working-directory: .
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -91,9 +93,9 @@ jobs:
           echo "Gemini produced an implementation-ready quality brief."
 
       - name: Run task-driven bounded batch
+        if: env.BUILDER_RESUME_EXISTING != 'true'
         working-directory: .
         env:
-          # Vercel Sandbox currently exposes a broken CA bundle to git. Limit the TLS bypass to the ephemeral builder sandbox.
           GIT_SSL_NO_VERIFY: "1"
         run: node builder/runner/task-driven.mjs
 
@@ -112,7 +114,12 @@ jobs:
           GEMINI_MODEL: ${{ env.BUILDER_GEMINI_MODEL }}
           BUILDER_GEMINI_CLI_VERSION: ${{ env.BUILDER_GEMINI_CLI_VERSION }}
         run: |
-          node builder/runner/quality-review-gate.mjs
+          # The builder branch can be intentionally old/resumed. Always execute the
+          # authoritative quality gate from the current main checkout, rather than
+          # accidentally running a stale copy committed on the builder branch.
+          git show origin/main:builder/runner/quality-review-gate.mjs > /tmp/quality-review-gate.mjs
+          node --check /tmp/quality-review-gate.mjs
+          node /tmp/quality-review-gate.mjs
           echo "Conditional quality gate completed."
 
       - name: Create or confirm review PR
