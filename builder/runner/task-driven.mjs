@@ -7,7 +7,6 @@ const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
 const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
 const MAX_PASSES = Math.min(Math.max(Number(process.env.BUILDER_MAX_PASSES || 8), 1), 8);
-const GEMINI_MODEL = process.env.BUILDER_GEMINI_MODEL || 'flash-lite';
 const SANDBOX_ROOT = '/vercel/sandbox';
 const REPO_DIR = `${SANDBOX_ROOT}/repo`;
 const ASKPASS_PATH = `${SANDBOX_ROOT}/git-askpass.sh`;
@@ -15,8 +14,9 @@ const PROTECTED_PATH_PREFIXES = (process.env.BUILDER_PROTECTED_PATHS || '.github
   .split(',').map((x) => x.trim()).filter(Boolean);
 const AGENT_CMD = process.env.BUILDER_AGENT_CMD
   ? JSON.parse(process.env.BUILDER_AGENT_CMD)
-  : ['npx', '--yes', '@google/gemini-cli@0.55.1', '--skip-trust', '--approval-mode', 'yolo', '--model', GEMINI_MODEL];
-const AGENT_PROVIDER = process.env.BUILDER_AGENT_PROVIDER || (process.env.BUILDER_AGENT_CMD ? 'external' : 'legacy-gemini');
+  : ['npx', '--yes', '@openai/codex@0.139.0', 'exec', '--ephemeral', '--sandbox', 'workspace-write', '--config', 'sandbox_workspace_write.network_access=true'];
+const AGENT_PROVIDER = process.env.BUILDER_AGENT_PROVIDER || 'openai-codex';
+const AGENT_MODEL = process.env.BUILDER_AGENT_MODEL || 'gpt-5.6-terra';
 const OBJECTIVE = process.env.BUILDER_OBJECTIVE || '';
 const ACCEPTANCE = (process.env.BUILDER_ACCEPTANCE || '').split(';').map((x) => x.trim()).filter(Boolean);
 const VERIFY_COMMANDS = (process.env.BUILDER_VERIFY_COMMANDS || 'npm run build').split(',').map((x) => x.trim()).filter(Boolean);
@@ -48,12 +48,12 @@ function providerText(result) {
 }
 
 function isQuotaFailure(result) {
-  return /terminalquot(a|e)error|quota exceeded|exhausted your daily quota|generate_content_free_tier|resource_exhausted|rate limit exceeded|429/.test(providerText(result));
+  return /quota|rate limit|too many requests|resource exhausted|429|insufficient quota|usage limit/.test(providerText(result));
 }
 
 function isProviderConfigurationFailure(result) {
   const text = providerText(result);
-  return result?.exitCode === 42 || /unknown argument|unknown option|invalid argument|invalid model|model .*not found|api key|authentication|unauthenticated|permission denied|forbidden|401|403|404|fataluntrustedworkspace|not running in a trusted directory|no api key/.test(text);
+  return result?.exitCode === 42 || /unknown argument|unknown option|invalid argument|invalid model|model .*not found|api key|authentication|unauthenticated|permission denied|forbidden|401|403|404|no api key/.test(text);
 }
 
 function retryHint(result) {
@@ -73,10 +73,12 @@ async function protectControlPlaneFiles(sandbox) {
   const changed = status.stdout.split('\n').filter(Boolean);
   const protectedChanges = changed.map((line) => line.replace(/^[MADRCU?!]{1,2}\s+/, '').trim()).filter(protectedPath);
   if (!protectedChanges.length) return [];
-  const restore = await command(sandbox, 'git', ['restore', '--source=HEAD', '--staged', '--worktree', '--', '.github/workflows']);
-  if (restore.exitCode) throw new Error(`Protected workflow restore failed: ${restore.stderr}`);
-  const clean = await command(sandbox, 'git', ['clean', '-fd', '--', '.github/workflows']);
-  if (clean.exitCode) throw new Error(`Protected workflow cleanup failed: ${clean.stderr}`);
+  for (const prefix of PROTECTED_PATH_PREFIXES) {
+    const restore = await command(sandbox, 'git', ['restore', '--source=HEAD', '--staged', '--worktree', '--', prefix]);
+    if (restore.exitCode) throw new Error(`Protected path restore failed for ${prefix}: ${restore.stderr}`);
+    const clean = await command(sandbox, 'git', ['clean', '-fd', '--', prefix]);
+    if (clean.exitCode) throw new Error(`Protected path cleanup failed for ${prefix}: ${clean.stderr}`);
+  }
   return protectedChanges;
 }
 
@@ -123,9 +125,10 @@ async function publish(sandbox, gitEnv) {
 function executionPrompt(pass, failures, checkpointPath) {
   return [
     `BIKEZTAGRAM AUTONOMOUS ENGINEERING WORKER — ${BATCH_ID}`,
+    'You are the primary OpenAI Codex engineering worker for this repository.',
     'You are executing a pre-approved engineering task. You are NOT responsible for deciding the product roadmap.',
     `OBJECTIVE:\n${OBJECTIVE}`,
-    `ACCEPTANCE:\n${ACCEPTANCE.join('\n- ')}`,
+    `ACCEPTANCE:\n- ${ACCEPTANCE.join('\n- ')}`,
     `PASS: ${pass}/${MAX_PASSES}`,
     `CHECKPOINT: ${checkpointPath}`,
     '',
@@ -140,7 +143,8 @@ function executionPrompt(pass, failures, checkpointPath) {
     '- If a previous verification failure is supplied, fix it first.',
     '- Never modify .github/workflows/** or autonomous-runner infrastructure during a product batch.',
     '- Never commit, push, merge, deploy production or provision paid infrastructure. The runner owns Git and release control.',
-    '- Keep your response short; durable state belongs in the repository, not the chat output.',
+    '- Do not merely add tests or documentation when the objective requires production behaviour.',
+    '- Keep your final response short; durable state belongs in the repository, not the chat output.',
     failures.length ? `\nPREVIOUS VERIFICATION FAILURES:\n${failures.map(compact).join('\n\n')}` : '',
   ].join('\n');
 }
@@ -149,13 +153,12 @@ async function main() {
   if (!safeBranch(BRANCH)) throw new Error(`Refusing unsafe branch: ${BRANCH}`);
   if (!OBJECTIVE) throw new Error('BUILDER_OBJECTIVE is required');
   if (!process.env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required');
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is required for the Codex builder');
   if (!process.env.VERCEL_TOKEN || !process.env.VERCEL_TEAM_ID || !process.env.VERCEL_PROJECT_ID) throw new Error('Vercel sandbox credentials are required');
   if (!AGENT_CMD?.length) throw new Error('BUILDER_AGENT_CMD is invalid');
 
   const gitEnv = { GITHUB_TOKEN: process.env.GITHUB_TOKEN, GIT_ASKPASS: ASKPASS_PATH, GIT_TERMINAL_PROMPT: '0' };
-  const agentEnv = process.env.GEMINI_API_KEY
-    ? { GEMINI_API_KEY: process.env.GEMINI_API_KEY, GEMINI_MODEL }
-    : undefined;
+  const agentEnv = { OPENAI_API_KEY: process.env.OPENAI_API_KEY };
   const startedAt = new Date().toISOString();
   const checkpointPath = `/vercel/sandbox/repo/builder/working/${BATCH_ID}.md`;
   let sandbox;
@@ -197,27 +200,27 @@ async function main() {
     const install = await command(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
     if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
 
-    await writeCheckpoint(sandbox, checkpointPath, `# ${BATCH_ID}\n\n## Objective\n${OBJECTIVE}\n\n## Status\nStarted.\n\n## Working rule\nExecute the supplied objective; do not invent roadmap work.\n`);
+    await writeCheckpoint(sandbox, checkpointPath, `# ${BATCH_ID}\n\n## Objective\n${OBJECTIVE}\n\n## Provider\nOpenAI Codex (${AGENT_MODEL}).\n\n## Status\nStarted.\n\n## Working rule\nExecute the supplied objective; do not invent roadmap work.\n`);
 
     for (passes = 1; passes <= MAX_PASSES; passes += 1) {
       const prompt = executionPrompt(passes, failures, `builder/working/${BATCH_ID}.md`);
-      const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--prompt', prompt], REPO_DIR, agentEnv);
+      const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--model', AGENT_MODEL, prompt], REPO_DIR, agentEnv);
 
       if (isQuotaFailure(agent)) {
         quotaDetected = true;
         quotaHint = retryHint(agent);
-        failures = [`Provider quota detected during pass ${passes}. ${quotaHint}\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
+        failures = [`OpenAI/Codex quota or rate limit detected during pass ${passes}. ${quotaHint}\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
         break;
       }
 
       if (isProviderConfigurationFailure(agent)) {
         providerFailure = true;
-        failures = [`Execution provider failed before a reliable build pass could run (exit ${agent.exitCode}).\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
+        failures = [`OpenAI/Codex provider failed before a reliable build pass could run (exit ${agent.exitCode}).\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
         break;
       }
 
       if (agent.exitCode) {
-        failures = [`Agent failed (exit ${agent.exitCode}).\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
+        failures = [`Codex agent failed (exit ${agent.exitCode}).\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
         continue;
       }
 
@@ -225,7 +228,7 @@ async function main() {
       if (changed.exitCode) throw new Error(`git status failed after agent pass: ${changed.stderr}`);
       if (!changed.stdout.trim()) {
         noChangesProduced = true;
-        failures = ['Agent completed without producing repository changes. Refusing to burn additional passes on a no-op response.'];
+        failures = ['Codex completed without producing repository changes. Refusing to burn additional passes on a no-op response.'];
         break;
       }
 
@@ -245,18 +248,18 @@ async function main() {
       } else {
         failures.push(`Post-quota verification incomplete:\n${postQuota.join('\n\n')}`);
         status = 'PAUSED_FOR_QUOTA';
-        failure = `Provider quota detected; stopped further agent passes and preserved the branch. ${quotaHint || ''}`.trim();
+        failure = `OpenAI/Codex quota detected; stopped further agent passes and preserved the branch. ${quotaHint || ''}`.trim();
       }
     }
 
     if (providerFailure) {
       status = 'PAUSED_FOR_PROVIDER';
-      failure = 'Execution provider configuration/authentication failed. No repeated provider retries were attempted.';
+      failure = 'OpenAI/Codex configuration or authentication failed. No repeated provider retries were attempted.';
     }
 
     if (noChangesProduced) {
       status = 'PAUSED_FOR_AGENT';
-      failure = 'The execution agent completed without producing repository changes; no additional passes were spent on a no-op response.';
+      failure = 'Codex completed without producing repository changes; no additional passes were spent on a no-op response.';
     }
 
     if (!['VERIFIED', 'PAUSED_FOR_QUOTA'].includes(status)) {
@@ -280,7 +283,7 @@ async function main() {
       batchId: BATCH_ID,
       objective: OBJECTIVE,
       agentProvider: AGENT_PROVIDER,
-      geminiModel: AGENT_PROVIDER === 'legacy-gemini' || AGENT_PROVIDER === 'external' ? GEMINI_MODEL : null,
+      agentModel: AGENT_MODEL,
       baseBranch: BASE_BRANCH,
       workingBranch: BRANCH,
       commitSha,
