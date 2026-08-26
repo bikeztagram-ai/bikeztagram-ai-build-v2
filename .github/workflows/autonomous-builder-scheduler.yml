@@ -1,0 +1,43 @@
+name: Autonomous Builder Scheduler
+
+on:
+  workflow_dispatch:
+  # Dedicated scheduler for the autonomous builder. This workflow dispatches
+  # the real builder so the queue worker remains independently observable.
+  schedule:
+    - cron: '2,17,32,47 * * * *'
+
+concurrency:
+  group: autonomous-builder-scheduler
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-builder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch autonomous builder
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "/repos/${GITHUB_REPOSITORY}/actions/workflows/autonomous-builder.yml/dispatches" \
+            -f ref=main
+          echo "Autonomous Builder dispatch accepted for main."
+
+      - name: Scheduler status
+        if: always()
+        run: |
+          {
+            echo "## 🤖 Autonomous Builder Scheduler"
+            echo "- **Status:** Dispatch requested"
+            echo "- **Target:** autonomous-builder.yml"
+            echo "- **Ref:** main"
+            echo "- **Schedule:** every 15 minutes at :02, :17, :32 and :47 UTC"
+          } >> "$GITHUB_STEP_SUMMARY"
