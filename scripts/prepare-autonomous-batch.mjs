@@ -53,18 +53,62 @@ async function deleteStaleBranch(branch) {
   console.log(`Deleted stale builder branch ${branch}.`);
 }
 
-function markNoWork(reason) {
-  return fs.appendFile(process.env.GITHUB_ENV, `BUILDER_NO_WORK=true\nBUILDER_NO_WORK_REASON=${reason.replace(/\n/g, ' ')}\n`)
-    .then(() => fs.appendFile(
-      process.env.GITHUB_STEP_SUMMARY,
-      `## Autonomous Builder Queue\n\n**Automatic runner idle:** ${reason}\n\nNo builder work was started. The scheduled runner will check again automatically.\n`
-    ))
-    .then(() => console.log(`Autonomous builder idle: ${reason}`));
+function safe(value) {
+  return String(value ?? '').replace(/[\r\n|]/g, ' ').trim();
 }
 
-for (const batch of queue.batches) {
-  const branch = `autonomous-builder/${batch.id}`;
-  const prs = await pullRequestsFor(branch);
+function statusFor(batch, prs, ref) {
+  const merged = prs.find(pr => pr.merged_at);
+  const open = prs.find(pr => pr.state === 'open');
+  const closedUnmerged = prs.find(pr => pr.state === 'closed' && !pr.merged_at);
+  if (merged) return `MERGED (#${merged.number})`;
+  if (open) return `IN PROGRESS (#${open.number})`;
+  if (batch.status === 'rejected' || batch.status === 'skipped') return String(batch.status).toUpperCase();
+  if (closedUnmerged) return `NEEDS RESOLUTION (#${closedUnmerged.number})`;
+  if (ref) return 'BRANCH READY / RESUME';
+  return 'READY';
+}
+
+async function collectQueueState() {
+  return Promise.all(queue.batches.map(async batch => {
+    const branch = `autonomous-builder/${batch.id}`;
+    const [prs, ref] = await Promise.all([pullRequestsFor(branch), getBranch(branch)]);
+    return { batch, branch, prs, ref, status: statusFor(batch, prs, ref) };
+  }));
+}
+
+async function appendQueueDashboard(states) {
+  const active = states.filter(({ status }) => !/^(MERGED|REJECTED|SKIPPED)$/.test(status));
+  const current = active.find(({ status }) => status.startsWith('IN PROGRESS'));
+  const lines = [
+    '## 🤖 Autonomous Builder — Live Queue',
+    '',
+    current ? `**Current:** ${current.batch.id} — ${current.batch.title} — **${current.status}**` : '**Current:** No batch currently in progress',
+    '',
+    '| Batch | Objective | Status |',
+    '|---|---|---|',
+    ...states.map(({ batch, status }) => `| \`${batch.id}\` | ${safe(batch.title)} | **${safe(status)}** |`),
+    '',
+    '> Status is calculated from the durable queue plus the live GitHub branch/PR state at run time. A closed unmerged PR is intentionally shown as **NEEDS RESOLUTION** instead of being mistaken for active work.',
+    ''
+  ];
+  await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+}
+
+async function markNoWork(reason) {
+  const cleanReason = safe(reason);
+  await fs.appendFile(process.env.GITHUB_ENV, `BUILDER_NO_WORK=true\nBUILDER_NO_WORK_REASON=${cleanReason}\n`);
+  await fs.appendFile(
+    process.env.GITHUB_STEP_SUMMARY,
+    `### Queue selection\n\n**Status:** 💤 IDLE\n\n**Reason:** ${cleanReason}\n\nNo builder work was started. The scheduled runner will check again automatically.\n`
+  );
+  console.log(`Autonomous builder idle: ${cleanReason}`);
+}
+
+const states = await collectQueueState();
+await appendQueueDashboard(states);
+
+for (const { batch, branch, prs } of states) {
   const merged = prs.find(pr => pr.merged_at);
   const open = prs.find(pr => pr.state === 'open');
   const closedUnmerged = prs.find(pr => pr.state === 'closed' && !pr.merged_at);
@@ -113,7 +157,7 @@ for (const batch of queue.batches) {
     `__AUTONOMOUS_BUILDER_OBJECTIVE__`
   ].join('\n');
   await fs.appendFile(process.env.GITHUB_ENV, `${env}\n`);
-  await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, `## Autonomous Builder Queue\n\n**Selected:** ${batch.id} — ${batch.title}\n\n**Branch:** \`${branch}\`\n\n**Mode:** ${resumeExisting ? 'Resume completed builder work for quality review.' : 'Start a new bounded builder pass.'}\n\n**Objective loaded automatically from the durable queue.**\n`);
+  await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, `### Queue selection\n\n**Selected:** ${batch.id} — ${batch.title}\n\n**Branch:** \`${branch}\`\n\n**Mode:** ${resumeExisting ? 'Resume completed builder work for quality review.' : 'Start a new bounded builder pass.'}\n\n**Objective loaded automatically from the durable queue.**\n`);
   console.log(`Selected ${batch.id}: ${batch.title}`);
   process.exit(0);
 }
