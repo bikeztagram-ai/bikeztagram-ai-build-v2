@@ -41,49 +41,46 @@ async function main() {
   if (!branch) throw new Error('BUILDER_WORKING_BRANCH is required');
   if (!objective) throw new Error('BUILDER_OBJECTIVE is required');
 
-  // Actions may start with a shallow checkout. Fetch the exact remote refs we
-  // compare and verify them explicitly. The gate intentionally uses a two-tree
-  // diff rather than a three-dot merge-base diff: a resumed builder branch may
-  // legitimately have an older base, and the reviewer needs the complete tree
-  // delta from current main to the builder branch without depending on merge-base
-  // availability in the runner checkout.
-  const mainRef = 'refs/remotes/origin/main';
-  const branchRef = `refs/remotes/origin/${branch}`;
-  const fetch = await exec('git', [
-    'fetch', '--prune', 'origin',
-    `+refs/heads/main:${mainRef}`,
-    `+refs/heads/${branch}:${branchRef}`,
-  ]);
+  // The workflow checks out the exact builder branch immediately before this gate.
+  // Only refresh origin/main here; compare that ref with the checked-out HEAD.
+  // This avoids every remote-tracking-ref and merge-base dependency when reviewing
+  // a resumed batch whose builder branch may have been created from an older main.
+  const fetch = await exec('git', ['fetch', '--prune', 'origin', 'main']);
   if (fetch.code !== 0) {
-    const message = `Could not fetch exact quality-gate refs.\nstdout: ${compact(fetch.stdout, 2000)}\nstderr: ${compact(fetch.stderr, 4000)}`;
-    await writeFailure(message); throw new Error(message);
+    const message = `Could not refresh origin/main for quality review.\nstdout: ${compact(fetch.stdout, 2000)}\nstderr: ${compact(fetch.stderr, 4000)}`;
+    await writeFailure(message);
+    throw new Error(message);
   }
 
-  const verifyMain = await exec('git', ['rev-parse', '--verify', mainRef]);
-  const verifyBranch = await exec('git', ['rev-parse', '--verify', branchRef]);
-  if (verifyMain.code !== 0 || verifyBranch.code !== 0) {
+  const verifyMain = await exec('git', ['rev-parse', '--verify', 'origin/main']);
+  const verifyHead = await exec('git', ['rev-parse', '--verify', 'HEAD']);
+  if (verifyMain.code !== 0 || verifyHead.code !== 0) {
     const message = [
-      'Could not resolve quality-gate refs after fetch.',
-      `main: ${compact(verifyMain.stderr || verifyMain.stdout, 2000)}`,
-      `branch: ${compact(verifyBranch.stderr || verifyBranch.stdout, 2000)}`,
+      'Could not resolve quality-gate comparison refs.',
+      `origin/main: ${compact(verifyMain.stderr || verifyMain.stdout, 2000)}`,
+      `HEAD: ${compact(verifyHead.stderr || verifyHead.stdout, 2000)}`,
     ].join('\n');
-    await writeFailure(message); throw new Error(message);
+    await writeFailure(message);
+    throw new Error(message);
   }
 
-  // Compare the two committed trees directly. This does not require a merge base
-  // and is therefore safe for resumed batches whose branch was created from an
-  // earlier main revision.
-  const changed = await exec('git', ['diff', '--name-only', mainRef, branchRef]);
-  const stat = await exec('git', ['diff', '--shortstat', mainRef, branchRef]);
+  const mainSha = verifyMain.stdout.trim();
+  const headSha = verifyHead.stdout.trim();
+
+  const changed = await exec('git', ['diff', '--no-ext-diff', '--no-renames', '--name-only', mainSha, headSha]);
+  const stat = await exec('git', ['diff', '--no-ext-diff', '--no-renames', '--shortstat', mainSha, headSha]);
   if (changed.code !== 0 || stat.code !== 0) {
     const message = [
       'Could not inspect builder diff.',
+      `main: ${mainSha}`,
+      `head: ${headSha}`,
       `changed stdout: ${compact(changed.stdout, 2000)}`,
       `changed stderr: ${compact(changed.stderr, 3000)}`,
       `stat stdout: ${compact(stat.stdout, 2000)}`,
       `stat stderr: ${compact(stat.stderr, 3000)}`,
     ].join('\n');
-    await writeFailure(message); throw new Error(message);
+    await writeFailure(message);
+    throw new Error(message);
   }
 
   const paths = changed.stdout.split('\n').map((x) => x.trim()).filter(Boolean);
@@ -106,7 +103,7 @@ async function main() {
     `BATCH: ${batchId}`,
     `BRANCH: ${branch}`,
     'You are an independent, read-only production quality reviewer. Do not edit, commit, push, merge, or invent roadmap work.',
-    'Inspect the git tree diff from origin/main to the builder branch and the relevant existing source files. Follow the real runtime path where the objective requires observable behaviour.',
+    'Inspect the git tree diff from origin/main to the checked-out builder HEAD and the relevant existing source files. Follow the real runtime path where the objective requires observable behaviour.',
     'A green build/test result is NOT sufficient. Reject superficial changes, prompt-only claims, unused contracts, dead code, placeholders, tests that do not prove the requested behaviour, and changes that do not reach the user-facing path.',
     'Approve only if the implementation materially satisfies the objective and preserves existing working behaviour.',
     `OBJECTIVE:\n${objective}`,
