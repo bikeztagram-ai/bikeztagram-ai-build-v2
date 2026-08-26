@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import OutputFormatEnhancer from './outputFormatEnhancer.jsx';
 import PromptSceneStudio from './promptSceneStudio.jsx';
+import PromptSceneSequenceStudio from './promptSceneSequenceStudio.jsx';
 import './styles.css';
 import './qa.js';
 import './exportTools.js';
@@ -20,5 +21,6 @@ createRoot(document.getElementById('root')).render(
     <App />
     <OutputFormatEnhancer />
     <PromptSceneStudio />
+    <PromptSceneSequenceStudio />
   </React.StrictMode>
 );
