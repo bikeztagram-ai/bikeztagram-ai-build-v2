@@ -3,7 +3,8 @@ name: 🤖 AutoBot Control Center
 on:
   workflow_dispatch:
   schedule:
-    - cron: '2,17,32,47 * * * *'
+    # Deliberately changed from the previous cron so GitHub reactivates the scheduled workflow.
+    - cron: '7,22,37,52 * * * *'
   push:
     branches:
       - main
@@ -110,7 +111,7 @@ jobs:
             echo "- **Scheduler run:** #${GITHUB_RUN_NUMBER}"
             echo "- **Started:** ${{ steps.heartbeat.outputs.started_utc }}"
             echo "- **Trigger:** ${{ github.event_name }}"
-            echo "- **Schedule:** :02, :17, :32, :47 UTC"
+            echo "- **Schedule:** :07, :22, :37, :52 UTC"
             if [ "${{ steps.inspect.outputs.builder_active }}" = "true" ]; then
               echo "- **Dispatch:** skipped — builder already queued/running"
             else
