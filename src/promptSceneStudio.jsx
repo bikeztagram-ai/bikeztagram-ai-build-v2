@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { generateProceduralSceneV2 } from './proceduralSceneGeneratorV2.js';
-import { downloadSocialFilm, getSocialExportInfo } from './socialExport.js';
 
 const PRESETS = [
   ['cinematic night city', 'A cinematic night city with neon reflections, atmospheric depth and a slow dramatic reveal.'],
@@ -63,14 +62,31 @@ export default function PromptSceneStudio() {
 
   function download() {
     if (!scene?.blob) return setStatus('Generate a scene first.');
-    const info = downloadSocialFilm(scene.blob, {
-      presetId: 'portrait',
-      name: title.trim() || 'bikeztagram-original-scene'
-    });
-    setStatus(`Downloaded ${info.formatLabel} • ${info.width}×${info.height}`);
+    const url = URL.createObjectURL(scene.blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${(title.trim() || 'bikeztagram-original-scene').replace(/[^a-z0-9._-]+/gi, '-')}-${scene.width}x${scene.height}.webm`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setStatus(`Scene exported • ${scene.width}×${scene.height}`);
   }
 
-  const info = scene?.blob ? getSocialExportInfo(scene.blob, 'portrait') : null;
+  function useInFilm() {
+    if (!scene?.blob) return setStatus('Generate a scene first.');
+    const input = document.querySelector('#media-file');
+    if (!(input instanceof HTMLInputElement)) return setStatus('Film media input is not available yet.');
+    if (typeof DataTransfer === 'undefined') return setStatus('This browser cannot add the generated scene to the media library.');
+    const transfer = new DataTransfer();
+    for (const file of Array.from(input.files || [])) transfer.items.add(file);
+    if (transfer.items.length >= 12) return setStatus('The film library already contains 12 sources. Remove one before adding the generated scene.');
+    const filename = `${(title.trim() || 'generated-scene').replace(/[^a-z0-9._-]+/gi, '-').slice(0, 50)}-${Date.now()}.webm`;
+    transfer.items.add(new File([scene.blob], filename, { type: scene.blob.type || 'video/webm' }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    setStatus('✓ Original scene added to the film media library.');
+  }
 
   return (
     <section style={shell} aria-label="Original prompt scene studio">
@@ -106,8 +122,9 @@ export default function PromptSceneStudio() {
 
       <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:12}}>
         <button type="button" onClick={generate} disabled={busy} style={{border:0,borderRadius:10,padding:'11px 15px',fontWeight:900,cursor:busy?'default':'pointer',background:'#6ed8ff',color:'#041019'}}>{busy ? `GENERATING ${progress}%` : '✦ GENERATE ORIGINAL SCENE'}</button>
-        {scene && <button type="button" onClick={download} disabled={busy} style={{border:'1px solid rgba(255,255,255,.14)',borderRadius:10,padding:'10px 14px',fontWeight:800,cursor:'pointer',background:'rgba(255,255,255,.05)',color:'inherit'}}>⬇ DOWNLOAD SCENE</button>}
-        <span style={{fontSize:12,opacity:.7}}>{status}{info ? ` • ${info.formatLabel}` : ''}</span>
+        {scene && <button type="button" onClick={useInFilm} disabled={busy} style={{border:'1px solid rgba(110,216,255,.28)',borderRadius:10,padding:'10px 14px',fontWeight:900,cursor:'pointer',background:'rgba(110,216,255,.08)',color:'inherit'}}>＋ USE IN MY FILM</button>}
+        {scene && <button type="button" onClick={download} disabled={busy} style={{border:'1px solid rgba(255,255,255,.14)',borderRadius:10,padding:'10px 14px',fontWeight:800,cursor:'pointer',background:'rgba(255,255,255,.05)',color:'inherit'}}>⬇ EXPORT SCENE</button>}
+        <span style={{fontSize:12,opacity:.7}}>{status}</span>
       </div>
 
       {busy && <div style={{height:5,background:'rgba(255,255,255,.08)',borderRadius:99,overflow:'hidden',marginTop:12}}><div style={{height:'100%',width:`${progress}%`,background:'#6ed8ff',transition:'width .12s linear'}} /></div>}
