@@ -2,8 +2,10 @@ name: 🤖 AutoBot Control Center
 
 on:
   workflow_dispatch:
+  # Deliberately offset from the hour. Changing the cron also reactivates a
+  # previously deactivated scheduled workflow on GitHub.
   schedule:
-    - cron: '2,17,32,47 * * * *'
+    - cron: '7,22,37,52 * * * *'
 
 concurrency:
   group: autobot-control-center
@@ -23,7 +25,24 @@ jobs:
           echo "started_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
           echo "started_utc=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
 
-      - name: Dispatch autonomous builder
+      - name: Inspect current builder state
+        id: inspect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          runs=$(gh run list --workflow autonomous-builder.yml --branch main --limit 10 --json databaseId,status,conclusion,createdAt,updatedAt,displayTitle,url,event)
+          active=$(echo "$runs" | jq '[.[] | select(.status == "in_progress" or .status == "queued")][0] // empty')
+          if [ -n "$active" ]; then
+            echo "builder_active=true" >> "$GITHUB_OUTPUT"
+            echo "$active" > /tmp/builder.json
+          else
+            echo "builder_active=false" >> "$GITHUB_OUTPUT"
+            echo '{}' > /tmp/builder.json
+          fi
+
+      - name: Dispatch autonomous builder when idle
+        if: steps.inspect.outputs.builder_active != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -35,7 +54,8 @@ jobs:
             -f ref=main
           echo "dispatch_requested=true" >> "$GITHUB_ENV"
 
-      - name: Wait for builder run to appear
+      - name: Wait for dispatched builder to appear
+        if: steps.inspect.outputs.builder_active != 'true'
         id: observe
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,8 +63,8 @@ jobs:
         run: |
           set -euo pipefail
           found=""
-          for attempt in $(seq 1 12); do
-            run_json=$(gh run list --workflow autonomous-builder.yml --branch main --limit 5 --json databaseId,status,conclusion,createdAt,displayTitle,url,event)
+          for attempt in $(seq 1 24); do
+            run_json=$(gh run list --workflow autonomous-builder.yml --branch main --limit 10 --json databaseId,status,conclusion,createdAt,updatedAt,displayTitle,url,event)
             found=$(echo "$run_json" | jq -r --argjson started "$STARTED_EPOCH" '[.[] | select((.createdAt | fromdateiso8601) >= $started)] | .[0] // empty')
             if [ -n "$found" ]; then
               break
@@ -61,8 +81,6 @@ jobs:
 
       - name: Publish live AutoBot status
         if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           builder=$(cat /tmp/builder.json)
@@ -77,8 +95,12 @@ jobs:
             echo "## Scheduler heartbeat"
             echo "- **Scheduler run:** #${GITHUB_RUN_NUMBER}"
             echo "- **Started:** ${{ steps.heartbeat.outputs.started_utc }}"
-            echo "- **Schedule:** :02, :17, :32, :47 UTC"
-            echo "- **Dispatch:** requested"
+            echo "- **Schedule:** :07, :22, :37, :52 UTC"
+            if [ "${{ steps.inspect.outputs.builder_active }}" = "true" ]; then
+              echo "- **Dispatch:** skipped — builder already queued/running"
+            else
+              echo "- **Dispatch:** requested"
+            fi
             echo
             echo "## Builder observation"
             echo "- **Builder run:** ${builder_id}"
@@ -90,9 +112,11 @@ jobs:
             echo "## What this means"
             if [ "$builder_status" = "completed" ]; then
               echo "Builder run was observed and completed. Open it above for the queue/batch result."
-            elif [ "$builder_status" = "in_progress" ]; then
-              echo "Builder run is currently working. Refresh this scheduler run to see the latest observation."
+            elif [ "$builder_status" = "in_progress" ] || [ "$builder_status" = "queued" ]; then
+              echo "Builder run is currently queued or working. The next scheduler heartbeat will re-check it."
+            elif [ "${{ steps.inspect.outputs.builder_active }}" = "true" ]; then
+              echo "An existing builder run is active; no duplicate run was dispatched."
             else
-              echo "Dispatch was requested, but a new builder run was not observed within 60 seconds. This is now visible instead of silently looking idle."
+              echo "Dispatch was requested, but a new builder run was not observed within 120 seconds. This is an explicit fault state, not a silent idle state."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
