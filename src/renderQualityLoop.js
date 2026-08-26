@@ -4,7 +4,7 @@ import { applyAudioBeatSyncToPlan } from './renderAudioBridge.js';
 import { attachGeneratedAudioToVideo } from './finalAudioMux.js';
 import { validateRenderedVideo, buildDirectorQAReport } from './qa.js';
 import { resolveOutputPreset } from './outputPresets.js';
-import { transcodeSocialFormat } from './socialFormatTranscoder.js';
+import { transcodeRenderedFilmToPreset } from './outputPresetTranscoder.js';
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
 export function revisePlanAfterQA(plan, qa) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
@@ -50,7 +50,7 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
     if (outputPreset.id !== 'portrait') {
       onProgress?.({ stage: 'format', attempt, value: 0, preset: outputPreset.id });
       try {
-        output = await transcodeSocialFormat(output, outputPreset.id, (value) => onProgress?.({ stage: 'format', attempt, value, preset: outputPreset.id }));
+        output = await transcodeRenderedFilmToPreset(output, outputPreset.id, currentPlan?.creativePrompt || '');
       } catch (error) {
         throw new Error(`Requested ${outputPreset.label} output could not be created: ${error?.message || String(error)}`);
       }
