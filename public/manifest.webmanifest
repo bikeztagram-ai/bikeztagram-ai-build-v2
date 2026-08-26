@@ -1,12 +1,15 @@
 {
   "name": "Bikeztagram AI",
-  "short_name": "Bikeztagram AI",
-  "description": "AI-powered cinematic filmmaker for photos and videos.",
+  "short_name": "Bikeztagram",
+  "description": "Free-first cinematic motorcycle video editor.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "portrait-primary",
-  "background_color": "#040709",
+  "background_color": "#071014",
   "theme_color": "#071014",
-  "categories": ["video", "photo", "entertainment"]
+  "lang": "en-GB",
+  "categories": ["video", "photo", "productivity"],
+  "icons": [{"src":"/icons/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
 }
