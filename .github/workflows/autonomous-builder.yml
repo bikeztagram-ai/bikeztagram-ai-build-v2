@@ -25,6 +25,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.BUILDER_GITHUB_TOKEN }}
       OPENAI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_CLI_TRUST_WORKSPACE: "true"
       BUILDER_REPO_URL: https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git
       BUILDER_BASE_BRANCH: main
       BUILDER_MAX_MINUTES: "45"
