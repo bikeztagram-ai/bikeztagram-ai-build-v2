@@ -4,8 +4,10 @@ on:
   workflow_dispatch:
   # Automatic queue polling. The queue script exits cleanly when the current
   # batch is waiting for review/merge, so this does not create noisy failures.
+  # Offset from the hour to reduce GitHub schedule-load collisions and to
+  # reactivate the scheduled trigger if GitHub had previously disabled it.
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '1,16,31,46 * * * *'
 
 # [production-contract-approved] Reviewed provider migration: the workflow no longer
 # calls OpenAI/Codex and instead uses the free Gemini CLI path. Product runtime is unchanged.
@@ -38,7 +40,7 @@ jobs:
       BUILDER_AGENT_MODEL: ""
       BUILDER_AGENT_CMD: '["sh","-lc","MODEL=\"$2\"; PROMPT=\"$3\"; if [ -n \"$MODEL\" ]; then GEMINI_API_KEY=\"$OPENAI_API_KEY\" exec npx --yes @google/gemini-cli@latest --yolo --skip-trust --model \"$MODEL\" -p \"$PROMPT\"; else GEMINI_API_KEY=\"$OPENAI_API_KEY\" exec npx --yes @google/gemini-cli@latest --yolo --skip-trust -p \"$PROMPT\"; fi","_"]'
       BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
-      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply its durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.
+      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply those durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
     steps:
       - name: Checkout runner
