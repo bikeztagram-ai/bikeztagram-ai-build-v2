@@ -34,14 +34,14 @@ async function main() {
   if (!branch) throw new Error('BUILDER_WORKING_BRANCH is required');
   if (!objective) throw new Error('BUILDER_OBJECTIVE is required');
 
-  const fetch = await exec('git', ['fetch', 'origin', 'main', branch]);
-  if (fetch.code !== 0) throw new Error(`Could not fetch builder branch: ${fetch.stderr}`);
+  // The Actions checkout is intentionally shallow. A plain tree diff can fail
+  // when the builder branch and origin/main do not have enough shared history
+  // locally. Make the comparison deterministic by fetching the complete refs
+  // before inspecting the diff. This is runner-only work and does not rerun
+  // the builder or spend another Gemini architecture pass.
+  const fetch = await exec('git', ['fetch', '--unshallow', 'origin', 'main', branch]);
+  if (fetch.code !== 0) throw new Error(`Could not fetch builder branch history: ${fetch.stderr}`);
 
-  // The workflow checks out the builder branch immediately before this gate.
-  // Compare the checked-out HEAD directly with origin/main instead of naming
-  // origin/$branch again. This avoids remote-tracking-ref resolution failures
-  // in shallow GitHub Actions checkouts while still comparing the exact branch
-  // contents that the gate is about to review.
   const changed = await exec('git', ['diff', '--name-only', 'origin/main', 'HEAD']);
   const stat = await exec('git', ['diff', '--shortstat', 'origin/main', 'HEAD']);
   if (changed.code !== 0 || stat.code !== 0) {
