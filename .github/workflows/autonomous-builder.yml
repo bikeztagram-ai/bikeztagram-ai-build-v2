@@ -20,17 +20,16 @@ jobs:
       VERCEL_TEAM_ID: team_3M95heKqbtDeI1h2dDKBWBtS
       VERCEL_PROJECT_ID: prj_75Uw3YoRkT5XOjXnSaVTnM2wHXte
       GITHUB_TOKEN: ${{ secrets.BUILDER_GITHUB_TOKEN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       BUILDER_REPO_URL: https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git
       BUILDER_BASE_BRANCH: main
       BUILDER_MAX_MINUTES: "45"
-      BUILDER_MAX_PASSES: "8"
-      BUILDER_CODEX_CLI_VERSION: "0.148.0"
-      BUILDER_AGENT_PROVIDER: openai-codex
-      BUILDER_AGENT_MODEL: gpt-5.6-terra
-      BUILDER_AGENT_CMD: '["sh","-lc","CODEX_API_KEY=\"$OPENAI_API_KEY\" exec npx --yes @openai/codex@0.148.0 exec --ephemeral --sandbox workspace-write --config sandbox_workspace_write.network_access=true \"$@\"","_"]'
+      BUILDER_MAX_PASSES: "6"
+      BUILDER_AGENT_PROVIDER: gemini-cli-free
+      BUILDER_AGENT_MODEL: ""
+      BUILDER_AGENT_CMD: '["npx","--yes","@google/gemini-cli@latest","--yolo"]'
       BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
-      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply its durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.
+      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply its durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
     steps:
       - name: Checkout runner
@@ -58,21 +57,14 @@ jobs:
           test -n "$VERCEL_TEAM_ID" || { echo "VERCEL_TEAM_ID is missing"; exit 1; }
           test -n "$VERCEL_PROJECT_ID" || { echo "VERCEL_PROJECT_ID is missing"; exit 1; }
           test -n "$GITHUB_TOKEN" || { echo "BUILDER_GITHUB_TOKEN is missing"; exit 1; }
-          test -n "$OPENAI_API_KEY" || { echo "OPENAI_API_KEY is missing for the Codex builder"; exit 1; }
+          test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY is missing for the free Gemini CLI builder"; exit 1; }
 
-      - name: Preflight OpenAI API authentication
+      - name: Preflight Gemini CLI authentication
+        working-directory: .
         run: |
           set -euo pipefail
-          http_code=$(curl -sS -o /tmp/openai-models.json -w '%{http_code}' \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            -H "Content-Type: application/json" \
-            https://api.openai.com/v1/models)
-          if [ "$http_code" != "200" ]; then
-            echo "OpenAI API authentication preflight failed with HTTP $http_code."
-            echo "The Codex worker will not be started until the API key is accepted."
-            exit 1
-          fi
-          echo "OpenAI API authentication preflight: PASS"
+          npx --yes @google/gemini-cli@latest --version
+          echo "Gemini CLI authentication is delegated to GEMINI_API_KEY; the worker will be stopped immediately if Google rejects the key."
 
       - name: Install runner
         working-directory: builder/runner
@@ -82,12 +74,6 @@ jobs:
         run: |
           node --check builder/runner/task-driven.mjs
           node --check scripts/prepare-autonomous-batch.mjs
-
-      - name: Preflight Codex execution adapter
-        working-directory: .
-        run: |
-          npx --yes "@openai/codex@${BUILDER_CODEX_CLI_VERSION}" --version
-          npx --yes "@openai/codex@${BUILDER_CODEX_CLI_VERSION}" exec --help >/dev/null
 
       - name: Run task-driven bounded batch
         working-directory: .
@@ -131,7 +117,7 @@ jobs:
             --head "$BUILDER_WORKING_BRANCH" \
             --draft \
             --title "Autonomous Builder: $BUILDER_BATCH_ID" \
-            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the bounded OpenAI Codex worker completed and the deterministic production quality gate passed.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nOpenAI Codex is the primary engineering worker. GitHub Actions verification is the authoritative quality gate. No automatic merge or production deployment is performed. Review the generated changes and checks before merging."
+            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the bounded free Gemini CLI worker completed and the deterministic production quality gate passed.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nGemini CLI is the zero-cost API-tier engineering worker. GitHub Actions verification is the authoritative quality gate. No automatic merge or production deployment is performed. Review the generated changes and checks before merging."
 
       - name: Upload runner report
         if: always()
