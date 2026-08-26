@@ -15,14 +15,9 @@ on:
     types:
       - completed
 
-# Only one control-centre/watchdog may exist at a time. A fresh push, scheduled
-# heartbeat, or completed builder run replaces the old watcher instead of
-# allowing duplicate builders to be dispatched.
 concurrency:
   group: autobot-control-center
   cancel-in-progress: true
-
-timeout-minutes: 350
 
 permissions:
   actions: write
@@ -31,6 +26,7 @@ permissions:
 jobs:
   control-center:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
       - name: Capture scheduler heartbeat
         id: heartbeat
@@ -157,18 +153,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
-          # Keep one watcher alive for almost six hours. GitHub's schedule and
-          # push/workflow triggers refresh it, while this loop covers missed
-          # scheduled ticks and immediately continues the queue after a builder
-          # finishes. Each pass is visible in the Actions log.
           echo "## Persistent watchdog started at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-
           for cycle in $(seq 1 21); do
             sleep 780
             now=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
             runs=$(gh run list --workflow autonomous-builder.yml --branch main --limit 10 --json databaseId,status,conclusion,createdAt,updatedAt,displayTitle,url,event 2>/tmp/watchdog-error || true)
-
             if [ -z "$runs" ] || ! echo "$runs" | jq -e . >/dev/null 2>&1; then
               echo "[$now] Watchdog cycle $cycle: Builder inspection failed; attempting recovery dispatch."
               echo "::warning title=AutoBot watchdog::Inspection failed during cycle $cycle; attempting recovery dispatch."
@@ -179,7 +168,6 @@ jobs:
                 -f ref=main || echo "[$now] Recovery dispatch failed."
               continue
             fi
-
             active=$(echo "$runs" | jq '[.[] | select(.status == "in_progress" or .status == "queued")][0] // empty')
             if [ -n "$active" ]; then
               id=$(echo "$active" | jq -r '.databaseId')
@@ -201,7 +189,6 @@ jobs:
                 echo "::warning title=AutoBot watchdog::Dispatch failed during cycle $cycle; will retry."
               fi
             fi
-
             {
               echo ""
               echo "### Watchdog cycle $cycle"
@@ -209,5 +196,4 @@ jobs:
               echo "- **Result:** $(if [ -n "$active" ]; then echo "Builder active"; else echo "Builder idle — dispatch attempted"; fi)"
             } >> "$GITHUB_STEP_SUMMARY"
           done
-
           echo "## Persistent watchdog window completed; next scheduler/push trigger will start a fresh watcher."
