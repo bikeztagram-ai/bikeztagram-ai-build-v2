@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { applyAudioBeatSyncToPlan } from '../src/renderAudioBridge.js';
+const beats=[0,0.5,1,1.5,2,2.5,3,3.5].map((time,index)=>({time,index}));
+const plan={targetDuration:4,music:{audioAnalysis:{beats,duration:4,analysis:'test'}},cuts:[{mediaIndex:0,startTime:0,duration:0.9},{mediaIndex:1,startTime:1.1,duration:1.1},{mediaIndex:2,startTime:2.4,duration:0.8}]};
+const result=applyAudioBeatSyncToPlan(plan);
+assert.equal(result.enabled,true);
+assert.equal(plan.cuts[0].timelineStartTime,0);
+assert.equal(plan.cuts[0].timelineEndTime,1);
+assert.equal(plan.cuts[1].timelineStartTime,1);
+assert.equal(plan.cuts[2].timelineStartTime,2);
+assert.ok(plan.cuts.every(c=>c.music?.beatAligned===true));
+assert.equal(plan.music.beatSyncApplied,true);
+console.log('beat-sync-runtime-alignment: PASS');
