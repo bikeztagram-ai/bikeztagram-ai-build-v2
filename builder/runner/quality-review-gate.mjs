@@ -37,11 +37,13 @@ async function main() {
   const fetch = await exec('git', ['fetch', 'origin', 'main', branch]);
   if (fetch.code !== 0) throw new Error(`Could not fetch builder branch: ${fetch.stderr}`);
 
-  // Use a two-dot tree diff here. The runner checks out main with a shallow
-  // history, so a three-dot merge-base diff can fail even when the builder
-  // branch is valid and is directly based on main.
-  const changed = await exec('git', ['diff', '--name-only', 'origin/main', `origin/${branch}`]);
-  const stat = await exec('git', ['diff', '--shortstat', 'origin/main', `origin/${branch}`]);
+  // The workflow checks out the builder branch immediately before this gate.
+  // Compare the checked-out HEAD directly with origin/main instead of naming
+  // origin/$branch again. This avoids remote-tracking-ref resolution failures
+  // in shallow GitHub Actions checkouts while still comparing the exact branch
+  // contents that the gate is about to review.
+  const changed = await exec('git', ['diff', '--name-only', 'origin/main', 'HEAD']);
+  const stat = await exec('git', ['diff', '--shortstat', 'origin/main', 'HEAD']);
   if (changed.code !== 0 || stat.code !== 0) {
     throw new Error(`Could not inspect builder diff.\nchanged: ${compact(changed.stderr, 2000)}\nstat: ${compact(stat.stderr, 2000)}`);
   }
