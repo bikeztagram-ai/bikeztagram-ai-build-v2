@@ -100,6 +100,10 @@ jobs:
           git fetch origin main "$BUILDER_WORKING_BRANCH"
           git checkout -B "$BUILDER_WORKING_BRANCH" "origin/$BUILDER_WORKING_BRANCH"
 
+      - name: Install production dependencies for quality gate
+        working-directory: .
+        run: npm install --no-audit --no-fund --no-package-lock
+
       - name: Deterministic production quality gate
         working-directory: .
         run: |
