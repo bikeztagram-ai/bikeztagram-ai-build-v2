@@ -1,14 +1,12 @@
-name: Autonomous Builder Scheduler
+name: 🤖 AutoBot Control Center
 
 on:
   workflow_dispatch:
-  # Dedicated scheduler for the autonomous builder. This workflow dispatches
-  # the real builder so the queue worker remains independently observable.
   schedule:
     - cron: '2,17,32,47 * * * *'
 
 concurrency:
-  group: autonomous-builder-scheduler
+  group: autobot-control-center
   cancel-in-progress: false
 
 permissions:
@@ -16,9 +14,15 @@ permissions:
   contents: read
 
 jobs:
-  dispatch-builder:
+  control-center:
     runs-on: ubuntu-latest
     steps:
+      - name: Capture scheduler heartbeat
+        id: heartbeat
+        run: |
+          echo "started_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
+          echo "started_utc=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
+
       - name: Dispatch autonomous builder
         env:
           GH_TOKEN: ${{ github.token }}
@@ -29,15 +33,66 @@ jobs:
             -H "X-GitHub-Api-Version: 2026-03-10" \
             "/repos/${GITHUB_REPOSITORY}/actions/workflows/autonomous-builder.yml/dispatches" \
             -f ref=main
-          echo "Autonomous Builder dispatch accepted for main."
+          echo "dispatch_requested=true" >> "$GITHUB_ENV"
 
-      - name: Scheduler status
-        if: always()
+      - name: Wait for builder run to appear
+        id: observe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STARTED_EPOCH: ${{ steps.heartbeat.outputs.started_epoch }}
         run: |
+          set -euo pipefail
+          found=""
+          for attempt in $(seq 1 12); do
+            run_json=$(gh run list --workflow autonomous-builder.yml --branch main --limit 5 --json databaseId,status,conclusion,createdAt,displayTitle,url,event)
+            found=$(echo "$run_json" | jq -r --argjson started "$STARTED_EPOCH" '[.[] | select((.createdAt | fromdateiso8601) >= $started)] | .[0] // empty')
+            if [ -n "$found" ]; then
+              break
+            fi
+            sleep 5
+          done
+          if [ -n "$found" ]; then
+            echo "builder_observed=true" >> "$GITHUB_OUTPUT"
+            echo "$found" > /tmp/builder.json
+          else
+            echo "builder_observed=false" >> "$GITHUB_OUTPUT"
+            echo '{}' > /tmp/builder.json
+          fi
+
+      - name: Publish live AutoBot status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          builder=$(cat /tmp/builder.json)
+          builder_id=$(echo "$builder" | jq -r '.databaseId // "not observed"')
+          builder_status=$(echo "$builder" | jq -r '.status // "not observed"')
+          builder_conclusion=$(echo "$builder" | jq -r '.conclusion // "pending"')
+          builder_title=$(echo "$builder" | jq -r '.displayTitle // "not observed"')
+          builder_url=$(echo "$builder" | jq -r '.url // ""')
           {
-            echo "## 🤖 Autonomous Builder Scheduler"
-            echo "- **Status:** Dispatch requested"
-            echo "- **Target:** autonomous-builder.yml"
-            echo "- **Ref:** main"
-            echo "- **Schedule:** every 15 minutes at :02, :17, :32 and :47 UTC"
+            echo "# 🤖 AutoBot Control Center"
+            echo
+            echo "## Scheduler heartbeat"
+            echo "- **Scheduler run:** #${GITHUB_RUN_NUMBER}"
+            echo "- **Started:** ${{ steps.heartbeat.outputs.started_utc }}"
+            echo "- **Schedule:** :02, :17, :32, :47 UTC"
+            echo "- **Dispatch:** requested"
+            echo
+            echo "## Builder observation"
+            echo "- **Builder run:** ${builder_id}"
+            echo "- **Status:** ${builder_status}"
+            echo "- **Conclusion:** ${builder_conclusion}"
+            echo "- **Title:** ${builder_title}"
+            if [ -n "$builder_url" ]; then echo "- **Open builder run:** ${builder_url}"; fi
+            echo
+            echo "## What this means"
+            if [ "$builder_status" = "completed" ]; then
+              echo "Builder run was observed and completed. Open it above for the queue/batch result."
+            elif [ "$builder_status" = "in_progress" ]; then
+              echo "Builder run is currently working. Refresh this scheduler run to see the latest observation."
+            else
+              echo "Dispatch was requested, but a new builder run was not observed within 60 seconds. This is now visible instead of silently looking idle."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
