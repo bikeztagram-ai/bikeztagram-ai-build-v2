@@ -1,0 +1,1 @@
+The persistent project memory feature is intended to make autonomous batches cumulative rather than fresh-start sessions.
