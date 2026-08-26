@@ -3,7 +3,8 @@ name: 🤖 AutoBot Control Center
 on:
   workflow_dispatch:
   schedule:
-    # Deliberately changed from the previous cron so GitHub reactivates the scheduled workflow.
+    # GitHub's scheduler is a fallback. The persistent watchdog below keeps
+    # AutoBot alive even when scheduled events are delayed or skipped.
     - cron: '7,22,37,52 * * * *'
   push:
     branches:
@@ -14,9 +15,14 @@ on:
     types:
       - completed
 
+# Only one control-centre/watchdog may exist at a time. A fresh push, scheduled
+# heartbeat, or completed builder run replaces the old watcher instead of
+# allowing duplicate builders to be dispatched.
 concurrency:
   group: autobot-control-center
-  cancel-in-progress: false
+  cancel-in-progress: true
+
+timeout-minutes: 350
 
 permissions:
   actions: write
@@ -43,7 +49,7 @@ jobs:
           if [ -z "$runs" ] || ! echo "$runs" | jq -e . >/dev/null 2>&1; then
             echo "builder_active=false" >> "$GITHUB_OUTPUT"
             echo "inspect_failed=true" >> "$GITHUB_OUTPUT"
-            echo "{}" > /tmp/builder.json
+            echo '{}' > /tmp/builder.json
             echo "AutoBot inspection could not read Builder runs; using recovery dispatch." >&2
             exit 0
           fi
@@ -70,6 +76,7 @@ jobs:
             "/repos/${GITHUB_REPOSITORY}/actions/workflows/autonomous-builder.yml/dispatches" \
             -f ref=main
           echo "dispatch_requested=true" >> "$GITHUB_ENV"
+          echo "::notice title=AutoBot::Builder dispatch requested at $(date -u '+%H:%M:%S UTC')"
 
       - name: Wait for dispatched builder to appear
         if: steps.inspect.outputs.builder_active != 'true'
@@ -89,9 +96,11 @@ jobs:
           if [ -n "$found" ]; then
             echo "builder_observed=true" >> "$GITHUB_OUTPUT"
             echo "$found" > /tmp/builder.json
+            echo "::notice title=AutoBot::Builder run observed: $(echo "$found" | jq -r '.databaseId')"
           else
             echo "builder_observed=false" >> "$GITHUB_OUTPUT"
             echo '{}' > /tmp/builder.json
+            echo "::warning title=AutoBot::Builder dispatch was not observed within 120 seconds"
           fi
 
       - name: Publish live AutoBot status
@@ -130,12 +139,75 @@ jobs:
               echo "Initial Builder inspection failed; AutoBot continued through the recovery dispatch path."
             fi
             echo
-            echo "## What this means"
             if [ "$builder_status" = "completed" ]; then
+              echo "## What this means"
               echo "Builder run was observed and completed."
             elif [ "$builder_status" = "in_progress" ] || [ "$builder_status" = "queued" ]; then
+              echo "## What this means"
               echo "Builder run is currently queued or working."
             else
+              echo "## What this means"
               echo "Dispatch was requested, but a new builder run was not observed within 120 seconds."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Persistent AutoBot watchdog
+        id: watchdog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Keep one watcher alive for almost six hours. GitHub's schedule and
+          # push/workflow triggers refresh it, while this loop covers missed
+          # scheduled ticks and immediately continues the queue after a builder
+          # finishes. Each pass is visible in the Actions log.
+          echo "## Persistent watchdog started at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+          for cycle in $(seq 1 21); do
+            sleep 780
+            now=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            runs=$(gh run list --workflow autonomous-builder.yml --branch main --limit 10 --json databaseId,status,conclusion,createdAt,updatedAt,displayTitle,url,event 2>/tmp/watchdog-error || true)
+
+            if [ -z "$runs" ] || ! echo "$runs" | jq -e . >/dev/null 2>&1; then
+              echo "[$now] Watchdog cycle $cycle: Builder inspection failed; attempting recovery dispatch."
+              echo "::warning title=AutoBot watchdog::Inspection failed during cycle $cycle; attempting recovery dispatch."
+              gh api --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2026-03-10" \
+                "/repos/${GITHUB_REPOSITORY}/actions/workflows/autonomous-builder.yml/dispatches" \
+                -f ref=main || echo "[$now] Recovery dispatch failed."
+              continue
+            fi
+
+            active=$(echo "$runs" | jq '[.[] | select(.status == "in_progress" or .status == "queued")][0] // empty')
+            if [ -n "$active" ]; then
+              id=$(echo "$active" | jq -r '.databaseId')
+              status=$(echo "$active" | jq -r '.status')
+              title=$(echo "$active" | jq -r '.displayTitle')
+              echo "[$now] Watchdog cycle $cycle: Builder #$id is $status — $title"
+              echo "::notice title=AutoBot watchdog::Cycle $cycle — Builder #$id is $status."
+            else
+              echo "[$now] Watchdog cycle $cycle: Builder idle — dispatching next queued batch."
+              echo "::notice title=AutoBot watchdog::Cycle $cycle — Builder idle; dispatching next queued batch."
+              if gh api --method POST \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2026-03-10" \
+                "/repos/${GITHUB_REPOSITORY}/actions/workflows/autonomous-builder.yml/dispatches" \
+                -f ref=main; then
+                echo "[$now] Watchdog cycle $cycle: dispatch accepted."
+              else
+                echo "[$now] Watchdog cycle $cycle: dispatch failed; next cycle will retry."
+                echo "::warning title=AutoBot watchdog::Dispatch failed during cycle $cycle; will retry."
+              fi
+            fi
+
+            {
+              echo ""
+              echo "### Watchdog cycle $cycle"
+              echo "- **Time:** $now"
+              echo "- **Result:** $(if [ -n "$active" ]; then echo "Builder active"; else echo "Builder idle — dispatch attempted"; fi)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          echo "## Persistent watchdog window completed; next scheduler/push trigger will start a fresh watcher."
