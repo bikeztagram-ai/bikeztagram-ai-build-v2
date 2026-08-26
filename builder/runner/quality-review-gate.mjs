@@ -139,13 +139,29 @@ async function main() {
   const mainCommit = mainSha.stdout.trim();
   const branchCommit = branchSha.stdout.trim();
 
-  const archiveMain = await exec('sh', ['-lc', `set -o pipefail; git archive --format=tar '${mainCommit}' | tar -xf - -C '${mainDir}'`]);
-  const archiveBranch = await exec('sh', ['-lc', `set -o pipefail; git archive --format=tar '${branchCommit}' | tar -xf - -C '${branchDir}'`]);
+  const mainArchivePath = '/tmp/bikeztagram-quality-main.tar';
+  const branchArchivePath = '/tmp/bikeztagram-quality-branch.tar';
+  const archiveMain = await exec('git', ['archive', '--format=tar', '-o', mainArchivePath, mainCommit]);
+  const archiveBranch = await exec('git', ['archive', '--format=tar', '-o', branchArchivePath, branchCommit]);
   if (archiveMain.code !== 0 || archiveBranch.code !== 0) {
     const message = [
       'Could not materialize quality-gate trees.',
+      `main archive stdout: ${compact(archiveMain.stdout, 1500)}`,
       `main archive stderr: ${compact(archiveMain.stderr, 2500)}`,
+      `branch archive stdout: ${compact(archiveBranch.stdout, 1500)}`,
       `branch archive stderr: ${compact(archiveBranch.stderr, 2500)}`,
+    ].join('\n');
+    await writeFailure(message);
+    throw new Error(message);
+  }
+
+  const extractMain = await exec('tar', ['-xf', mainArchivePath, '-C', mainDir]);
+  const extractBranch = await exec('tar', ['-xf', branchArchivePath, '-C', branchDir]);
+  if (extractMain.code !== 0 || extractBranch.code !== 0) {
+    const message = [
+      'Could not extract quality-gate trees.',
+      `main extract stderr: ${compact(extractMain.stderr, 2500)}`,
+      `branch extract stderr: ${compact(extractBranch.stderr, 2500)}`,
     ].join('\n');
     await writeFailure(message);
     throw new Error(message);
