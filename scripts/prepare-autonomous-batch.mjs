@@ -53,6 +53,21 @@ async function deleteStaleBranch(branch) {
   console.log(`Deleted stale builder branch ${branch}.`);
 }
 
+async function clearStaleProviderPr(pr, branch, ref) {
+  const body = String(pr?.body || '');
+  const staleProvider = /OpenAI Codex|gpt-5\.6-terra/i.test(body);
+  if (!pr || pr.state !== 'open' || !pr.draft || !staleProvider) return false;
+
+  await api(`/repos/${owner}/${name}/pulls/${pr.number}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state: 'closed' })
+  });
+  console.log(`Closed stale provider-mismatch draft PR #${pr.number} for ${branch}.`);
+  if (ref) await deleteStaleBranch(branch);
+  return true;
+}
+
 function safe(value) {
   return String(value ?? '').replace(/[\r\n|]/g, ' ').trim();
 }
@@ -109,10 +124,11 @@ const states = await collectQueueState();
 await appendQueueDashboard(states);
 
 for (const { batch, branch, prs } of states) {
-  const merged = prs.find(pr => pr.merged_at);
-  const open = prs.find(pr => pr.state === 'open');
-  const closedUnmerged = prs.find(pr => pr.state === 'closed' && !pr.merged_at);
   const ref = await getBranch(branch);
+  const merged = prs.find(pr => pr.merged_at);
+  let open = prs.find(pr => pr.state === 'open');
+  const closedUnmerged = prs.find(pr => pr.state === 'closed' && !pr.merged_at);
+  let staleProviderPrCleared = false;
   let resumeExisting = false;
 
   if (merged) {
@@ -121,23 +137,32 @@ for (const { batch, branch, prs } of states) {
   }
 
   if (open) {
-    await markNoWork(`${batch.id} is already in progress in PR #${open.number}; waiting for review/merge.`);
-    process.exit(0);
+    staleProviderPrCleared = await clearStaleProviderPr(open, branch, ref);
+    if (!staleProviderPrCleared) {
+      await markNoWork(`${batch.id} is already in progress in PR #${open.number}; waiting for review/merge.`);
+      process.exit(0);
+    }
+    open = null;
+  }
+
+  if (staleProviderPrCleared) {
+    console.log(`${batch.id}: stale Codex-era draft PR cleared; retrying the batch with the active Gemini CLI builder.`);
   }
 
   if (batch.status === 'rejected' || batch.status === 'skipped') {
-    if (ref) await deleteStaleBranch(branch);
+    if (ref && !staleProviderPrCleared) await deleteStaleBranch(branch);
     console.log(`${batch.id}: marked ${batch.status}; not retrying automatically. Advancing queue.`);
     continue;
   }
 
-  if (closedUnmerged) {
+  if (!staleProviderPrCleared && closedUnmerged) {
     await markNoWork(`${batch.id} has closed unmerged PR #${closedUnmerged.number}; waiting for that batch to be explicitly rejected/skipped or reopened.`);
     process.exit(0);
   }
 
-  if (ref) {
-    const commit = await getCommit(ref.object.sha);
+  const freshRef = staleProviderPrCleared ? null : ref;
+  if (freshRef) {
+    const commit = await getCommit(freshRef.object.sha);
     const subject = String(commit.commit?.message || '').split('\n')[0];
     if (subject === `builder: complete ${batch.id}`) {
       console.log(`${batch.id}: builder work is already complete on ${branch}; resuming from the quality-review stage.`);
