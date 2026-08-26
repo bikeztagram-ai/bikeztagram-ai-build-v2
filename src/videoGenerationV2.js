@@ -1,5 +1,43 @@
 /* Video Generation V2 — first-class generated timeline media. */
 const text=v=>String(v??'').trim(); const n=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
 export function createVideoGenerationRequest({type='text-to-video',prompt='',duration=3,aspectRatio='9:16',referenceAssets=[],subjectIds=[],camera='',motion='',lighting='',environment='',timelineRole='insert'}={}){const allowed=['text-to-video','image-to-video','subject-scene','infill','transition','establishing-shot','insert'];if(!allowed.includes(type))throw new Error(`Unsupported video generation type: ${type}`);return{version:'video-generation-request-v2',id:`video-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,type,prompt:text(prompt),duration:Math.max(.5,Math.min(60,n(duration,3))),aspectRatio:['9:16','1:1','16:9'].includes(aspectRatio)?aspectRatio:'9:16',referenceAssets:Array.isArray(referenceAssets)?referenceAssets:[],subjectIds:Array.isArray(subjectIds)?subjectIds:[],direction:{camera:text(camera),motion:text(motion),lighting:text(lighting),environment:text(environment)},timelineRole,constraints:{preserveSubjectIdentity:subjectIds.length>0,originalOnly:true},status:'queued'};}
-export function buildScenePlan({brief,media=[],musicEvents=[],subjectManifest=null}={}){const b=brief||{}, slots=[];const duration=n(b.duration,15);const events=Array.isArray(musicEvents)?musicEvents:[];if(duration>0)slots.push({role:'opening',start:0,duration:Math.min(2,duration),generation:'optional'});for(const e of events.filter(x=>x.type==='drop'))slots.push({role:'music-drop-insert',start:n(e.time),duration:Math.min(2,Math.max(.75,duration*.12)),generation:'preferred'});return{version:'scene-plan-v2',slots,mediaCount:Array.isArray(media)?media.length:0,subjectIds:(subjectManifest?.subjects||[]).map(s=>s.id),strategy:'use real media first; generate only where it improves story, continuity or impact'};}
+export function buildScenePlan({brief,media=[],musicEvents=[],subjectManifest=null}={}){
+ const b=brief||{}, slots=[];
+ const duration=n(b.duration,15);
+ const story=b.story||{};
+ const musicSections=b.music?.sections||[];
+
+ // Define story beats and map to timeline
+ const beats = [
+   {role:'hook', purpose:story.hook, start:0, duration:duration*0.15},
+   {role:'build', purpose:story.build, start:duration*0.15, duration:duration*0.2},
+   {role:'reveal', purpose:story.reveal, start:duration*0.35, duration:duration*0.2},
+   {role:'action', purpose:story.escalation, start:duration*0.55, duration:duration*0.25},
+   {role:'hero', purpose:story.climax, start:duration*0.8, duration:duration*0.15},
+   {role:'outro', purpose:story.outro, start:duration*0.95, duration:duration*0.05}
+ ];
+
+ beats.forEach(beat => {
+   slots.push({
+     role: beat.role,
+     purpose: beat.purpose,
+     start: beat.start,
+     duration: beat.duration,
+     generation: 'preferred'
+   });
+ });
+
+ // Overlay music drop points
+ musicEvents.filter(x=>x.type==='drop').forEach(e => {
+   slots.push({
+     role:'music-drop-insert',
+     purpose:'synchronised-impact',
+     start:n(e.time),
+     duration:Math.min(1.5, Math.max(.75, duration*.1)),
+     generation:'preferred'
+   });
+ });
+
+ return{version:'scene-plan-v2',slots,mediaCount:Array.isArray(media)?media.length:0,subjectIds:(subjectManifest?.subjects||[]).map(s=>s.id),strategy:'narrative-driven; slot-based beat alignment'};
+}
 export function buildVideoGenerationAdapter({generate}={}){return{async generateScene(request,context={}){if(typeof generate!=='function')return{request,status:'unavailable',source:null};const result=await generate(request,context);if(!result?.videoUrl&&!result?.videoBlob&&!result?.blob)throw new Error('Video generation adapter returned no video output.');return{...result,request,status:'ready',source:result.source||'model'};}};}
