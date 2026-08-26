@@ -1,0 +1,1 @@
+Persistent project memory is loaded by the autonomous worker before each product batch. See `project-memory.md`, `lessons.md`, and `memory-loading.md` for the durable context and loading contract.
