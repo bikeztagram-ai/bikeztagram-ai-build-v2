@@ -1,0 +1,1 @@
+Persistent project memory is now wired into the autonomous worker prompt and must be loaded before coding.
