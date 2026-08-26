@@ -14,7 +14,7 @@ for (const id of ['portrait', 'square', 'landscape']) {
   assert.match(buildSocialFilename('My Bike Film', info), new RegExp(`${info.width}x${info.height}\\.webm$`));
 }
 
-assert.throws(() => validateSocialExport(new Blob([new Uint8Array(2048)], { type: 'text/plain' }), 'portrait'), /supported video MIME/i);
+assert.throws(() => validateSocialExport(new Blob([new Uint8Array(2048)], { type: 'text/plain' }), 'portrait'), /supported video file/i);
 assert.throws(() => validateSocialExport(new Blob([new Uint8Array(10)], { type: 'video/webm' }), 'portrait'), /unexpectedly small/i);
 
 console.log('social-export-hardening: PASS');
