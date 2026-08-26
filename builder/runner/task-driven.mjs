@@ -94,7 +94,7 @@ async function main() {
   if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is required for the configured Gemini worker');
   if (!process.env.VERCEL_TOKEN || !process.env.VERCEL_TEAM_ID || !process.env.VERCEL_PROJECT_ID) throw new Error('Vercel sandbox credentials are required');
   const gitEnv = { GITHUB_TOKEN: process.env.GITHUB_TOKEN, GIT_ASKPASS: ASKPASS, GIT_TERMINAL_PROMPT: '0' };
-  const agentEnv = { OPENAI_API_KEY: process.env.OPENAI_API_KEY };
+  const agentEnv = { OPENAI_API_KEY: process.env.OPENAI_API_KEY, GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY };
   let sandbox;
   let status = 'FAILED';
   let failure = null;
@@ -122,6 +122,9 @@ async function main() {
     const install = await run(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
     if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
     for (passes = 1; passes <= MAX_PASSES; passes++) {
+      // The configured command uses `sh -lc`. Its positional arguments are:
+      // $0=dummy, $1=--model, $2=model, $3=-p, $4=prompt. The previous code
+      // read $3 as the prompt, which passed the literal "-p" to Gemini.
       const agent = await run(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--model', AGENT_MODEL, '-p', prompt(passes, failures)], REPO_DIR, agentEnv);
       if (quotaFailure(agent)) { quotaDetected = true; quotaHint = retryHint(agent); failures = [`Provider quota/rate limit detected. ${quotaHint}`]; break; }
       if (providerFailure(agent)) { providerFailed = true; failures = [`Provider/model configuration failure (exit ${agent.exitCode}).\n${compact(agent.stderr || agent.stdout)}`]; break; }
