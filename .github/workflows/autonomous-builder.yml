@@ -20,14 +20,15 @@ jobs:
       VERCEL_TEAM_ID: team_3M95heKqbtDeI1h2dDKBWBtS
       VERCEL_PROJECT_ID: prj_75Uw3YoRkT5XOjXnSaVTnM2wHXte
       GITHUB_TOKEN: ${{ secrets.BUILDER_GITHUB_TOKEN }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       BUILDER_REPO_URL: https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git
       BUILDER_BASE_BRANCH: main
       BUILDER_MAX_MINUTES: "45"
       BUILDER_MAX_PASSES: "8"
-      BUILDER_GEMINI_CLI_VERSION: "0.55.1"
-      BUILDER_GEMINI_MODEL: flash-lite
-      BUILDER_AGENT_CMD: '["node","builder/runner/gemini-agent.mjs"]'
+      BUILDER_CODEX_CLI_VERSION: "0.139.0"
+      BUILDER_AGENT_PROVIDER: openai-codex
+      BUILDER_AGENT_MODEL: gpt-5.6-terra
+      BUILDER_AGENT_CMD: '["npx","--yes","@openai/codex@0.139.0","exec","--ephemeral","--sandbox","workspace-write","--config","sandbox_workspace_write.network_access=true"]'
       BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
       BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply its durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
@@ -52,11 +53,12 @@ jobs:
 
       - name: Validate runner secrets
         run: |
+          set -euo pipefail
           test -n "$VERCEL_TOKEN" || { echo "VERCEL_TOKEN is missing"; exit 1; }
           test -n "$VERCEL_TEAM_ID" || { echo "VERCEL_TEAM_ID is missing"; exit 1; }
           test -n "$VERCEL_PROJECT_ID" || { echo "VERCEL_PROJECT_ID is missing"; exit 1; }
           test -n "$GITHUB_TOKEN" || { echo "BUILDER_GITHUB_TOKEN is missing"; exit 1; }
-          test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY is missing for the bounded architecture, execution and conditional review passes"; exit 1; }
+          test -n "$OPENAI_API_KEY" || { echo "OPENAI_API_KEY is missing for the Codex builder"; exit 1; }
 
       - name: Install runner
         working-directory: builder/runner
@@ -65,35 +67,15 @@ jobs:
       - name: Validate runner syntax
         run: |
           node --check builder/runner/task-driven.mjs
-          node --check builder/runner/gemini-agent.mjs
-          node --check builder/runner/quality-architect.mjs
-          node --check builder/runner/quality-review-gate.mjs
           node --check scripts/prepare-autonomous-batch.mjs
 
-      - name: Preflight Gemini execution adapter
+      - name: Preflight Codex execution adapter
         working-directory: .
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ env.BUILDER_GEMINI_MODEL }}
-          BUILDER_GEMINI_CLI_VERSION: ${{ env.BUILDER_GEMINI_CLI_VERSION }}
         run: |
-          node builder/runner/gemini-agent.mjs --version
-          node builder/runner/gemini-agent.mjs --help >/dev/null
-
-      - name: Gemini architecture quality pass
-        if: env.BUILDER_RESUME_EXISTING != 'true'
-        working-directory: .
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ env.BUILDER_GEMINI_MODEL }}
-          BUILDER_GEMINI_CLI_VERSION: ${{ env.BUILDER_GEMINI_CLI_VERSION }}
-        run: |
-          mkdir -p builder/working
-          node builder/runner/quality-architect.mjs
-          echo "Gemini produced an implementation-ready quality brief."
+          npx --yes "@openai/codex@${BUILDER_CODEX_CLI_VERSION}" --version
+          npx --yes "@openai/codex@${BUILDER_CODEX_CLI_VERSION}" exec --help >/dev/null
 
       - name: Run task-driven bounded batch
-        if: env.BUILDER_RESUME_EXISTING != 'true'
         working-directory: .
         env:
           GIT_SSL_NO_VERIFY: "1"
@@ -105,22 +87,18 @@ jobs:
           set -euo pipefail
           git fetch origin main "$BUILDER_WORKING_BRANCH"
           git checkout -B "$BUILDER_WORKING_BRANCH" "origin/$BUILDER_WORKING_BRANCH"
-          mkdir -p builder/working
 
-      - name: Conditional Gemini quality gate
+      - name: Deterministic production quality gate
         working-directory: .
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ env.BUILDER_GEMINI_MODEL }}
-          BUILDER_GEMINI_CLI_VERSION: ${{ env.BUILDER_GEMINI_CLI_VERSION }}
         run: |
-          # The builder branch can be intentionally old/resumed. Always execute the
-          # authoritative quality gate from the current main checkout, rather than
-          # accidentally running a stale copy committed on the builder branch.
-          git show origin/main:builder/runner/quality-review-gate.mjs > /tmp/quality-review-gate.mjs
-          node --check /tmp/quality-review-gate.mjs
-          node /tmp/quality-review-gate.mjs
-          echo "Conditional quality gate completed."
+          set -euo pipefail
+          echo "Checking committed builder diff against origin/main..."
+          git diff --check "origin/main...HEAD"
+          echo "Running production verification commands..."
+          npm run build
+          npm run verify:batch76
+          npm run verify:pro-song
+          echo "Deterministic production quality gate: PASS"
 
       - name: Create or confirm review PR
         if: success()
@@ -139,15 +117,20 @@ jobs:
             --head "$BUILDER_WORKING_BRANCH" \
             --draft \
             --title "Autonomous Builder: $BUILDER_BATCH_ID" \
-            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the task-driven builder completed its bounded execution and passed the conditional quality gate.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nThe objective was sharpened by one bounded Gemini architecture/quality pass using the durable lessons in builder/quality/lessons.md. High-risk batches also receive a separate read-only Gemini quality gate; low-risk batches skip that extra call to conserve quota. Review the generated changes and checks before marking this PR ready or merging. No automatic merge or production deployment is performed."
+            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the bounded OpenAI Codex worker completed and the deterministic production quality gate passed.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nOpenAI Codex is the primary engineering worker. GitHub Actions verification is the authoritative quality gate. No automatic merge or production deployment is performed. Review the generated changes and checks before merging."
 
-      - name: Upload runner and quality reports
+      - name: Upload runner report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: autonomous-builder-${{ env.BUILDER_BATCH_ID }}
-          path: |
-            builder/reports/${{ env.BUILDER_BATCH_ID }}.json
-            builder/working/${{ env.BUILDER_BATCH_ID }}-architect-brief.md
-            builder/working/${{ env.BUILDER_BATCH_ID }}-quality-review.md
+          path: builder/reports/${{ env.BUILDER_BATCH_ID }}.json
+          if-no-files-found: ignore
+
+      - name: Upload checkpoint if present
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-builder-checkpoint-${{ env.BUILDER_BATCH_ID }}
+          path: builder/working/${{ env.BUILDER_BATCH_ID }}.md
           if-no-files-found: ignore
