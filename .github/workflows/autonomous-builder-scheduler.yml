@@ -44,7 +44,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          runs=$(gh run list --workflow autonomous-builder.yml --branch main --limit 10 --json databaseId,status,conclusion,createdAt,updatedAt,displayTitle,url,event)
+          runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder.yml --branch main --limit 10 --json databaseId,status,conclusion,createdAt,updatedAt,displayTitle,url,event)
           active=$(echo "$runs" | jq '[.[] | select(.status == "in_progress" or .status == "queued")][0] // empty')
           if [ -n "$active" ]; then
             echo "builder_active=true" >> "$GITHUB_OUTPUT"
@@ -92,7 +92,7 @@ jobs:
           set -euo pipefail
           found=""
           for attempt in $(seq 1 24); do
-            run_json=$(gh run list --workflow autonomous-builder.yml --branch main --limit 10 --json databaseId,status,conclusion,createdAt,updatedAt,displayTitle,url,event)
+            run_json=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder.yml --branch main --limit 10 --json databaseId,status,conclusion,createdAt,updatedAt,displayTitle,url,event)
             found=$(echo "$run_json" | jq -r --argjson started "$STARTED_EPOCH" '[.[] | select((.createdAt | fromdateiso8601) >= $started)] | .[0] // empty')
             if [ -n "$found" ]; then break; fi
             sleep 5
