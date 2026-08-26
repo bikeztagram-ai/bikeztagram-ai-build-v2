@@ -2,10 +2,23 @@ name: 🤖 AutoBot Control Center
 
 on:
   workflow_dispatch:
-  # Deliberately offset from the hour. Changing the cron also reactivates a
-  # previously deactivated scheduled workflow on GitHub.
+  # Primary 15-minute scheduler. Deliberately offset from the hour to reduce
+  # GitHub Actions scheduler congestion and changing the cron reactivates a
+  # previously deactivated scheduled workflow.
   schedule:
-    - cron: '7,22,37,52 * * * *'
+    - cron: '2,17,32,47 * * * *'
+  # Start a scheduler check whenever main changes, so merging a completed
+  # batch does not leave the queue waiting for the next clock tick.
+  push:
+    branches:
+      - main
+  # When the builder finishes, immediately check whether another queued batch
+  # can be started. Concurrency prevents duplicate launches.
+  workflow_run:
+    workflows:
+      - Autonomous Builder Batch
+    types:
+      - completed
 
 concurrency:
   group: autobot-control-center
@@ -95,7 +108,8 @@ jobs:
             echo "## Scheduler heartbeat"
             echo "- **Scheduler run:** #${GITHUB_RUN_NUMBER}"
             echo "- **Started:** ${{ steps.heartbeat.outputs.started_utc }}"
-            echo "- **Schedule:** :07, :22, :37, :52 UTC"
+            echo "- **Trigger:** ${{ github.event_name }}"
+            echo "- **Schedule:** :02, :17, :32, :47 UTC"
             if [ "${{ steps.inspect.outputs.builder_active }}" = "true" ]; then
               echo "- **Dispatch:** skipped — builder already queued/running"
             else
