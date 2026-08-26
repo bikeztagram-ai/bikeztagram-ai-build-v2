@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { appendFile, readFile } from 'node:fs/promises';
 
 const model = process.env.BUILDER_GEMINI_MODEL || 'flash-lite';
+const cliVersion = process.env.BUILDER_GEMINI_CLI_VERSION || '0.55.1';
 const branch = process.env.BUILDER_WORKING_BRANCH;
 const batchId = process.env.BUILDER_BATCH_ID || 'unknown-batch';
 const objective = process.env.BUILDER_OBJECTIVE || '';
@@ -30,22 +31,59 @@ function highRisk(paths, insertions, deletions) {
   return riskyPath || largeDiff || paths.length >= 8;
 }
 
+async function writeFailure(message) {
+  try {
+    await appendFile(reportPath, `# ${batchId} — Quality Gate\n\n**Result:** ERROR\n\n${message}\n`);
+  } catch {
+    // The workflow's main failure remains the authoritative signal.
+  }
+}
+
 async function main() {
   if (!branch) throw new Error('BUILDER_WORKING_BRANCH is required');
   if (!objective) throw new Error('BUILDER_OBJECTIVE is required');
 
-  // The Actions checkout is intentionally shallow. A plain tree diff can fail
-  // when the builder branch and origin/main do not have enough shared history
-  // locally. Make the comparison deterministic by fetching the complete refs
-  // before inspecting the diff. This is runner-only work and does not rerun
-  // the builder or spend another Gemini architecture pass.
-  const fetch = await exec('git', ['fetch', '--unshallow', 'origin', 'main', branch]);
-  if (fetch.code !== 0) throw new Error(`Could not fetch builder branch history: ${fetch.stderr}`);
+  // Actions may start with a shallow checkout. Do not rely on local HEAD,
+  // FETCH_HEAD ordering, or --unshallow state. Fetch the exact remote refs we
+  // compare and then diff those refs directly. This makes the gate deterministic
+  // even when the builder branch is resumed from an earlier completed batch.
+  const mainRef = 'refs/remotes/origin/main';
+  const branchRef = `refs/remotes/origin/${branch}`;
+  const fetch = await exec('git', [
+    'fetch', '--prune', 'origin',
+    `+refs/heads/main:${mainRef}`,
+    `+refs/heads/${branch}:${branchRef}`,
+  ]);
+  if (fetch.code !== 0) {
+    const message = `Could not fetch exact quality-gate refs.\nstdout: ${compact(fetch.stdout, 2000)}\nstderr: ${compact(fetch.stderr, 4000)}`;
+    await writeFailure(message);
+    throw new Error(message);
+  }
 
-  const changed = await exec('git', ['diff', '--name-only', 'origin/main', 'HEAD']);
-  const stat = await exec('git', ['diff', '--shortstat', 'origin/main', 'HEAD']);
+  const verifyMain = await exec('git', ['rev-parse', '--verify', mainRef]);
+  const verifyBranch = await exec('git', ['rev-parse', '--verify', branchRef]);
+  if (verifyMain.code !== 0 || verifyBranch.code !== 0) {
+    const message = [
+      'Could not resolve quality-gate refs after fetch.',
+      `main: ${compact(verifyMain.stderr || verifyMain.stdout, 2000)}`,
+      `branch: ${compact(verifyBranch.stderr || verifyBranch.stdout, 2000)}`,
+    ].join('\n');
+    await writeFailure(message);
+    throw new Error(message);
+  }
+
+  const changed = await exec('git', ['diff', '--name-only', `${mainRef}...${branchRef}`]);
+  const stat = await exec('git', ['diff', '--shortstat', `${mainRef}...${branchRef}`]);
   if (changed.code !== 0 || stat.code !== 0) {
-    throw new Error(`Could not inspect builder diff.\nchanged: ${compact(changed.stderr, 2000)}\nstat: ${compact(stat.stderr, 2000)}`);
+    const message = [
+      'Could not inspect builder diff.',
+      `changed stdout: ${compact(changed.stdout, 2000)}`,
+      `changed stderr: ${compact(changed.stderr, 3000)}`,
+      `stat stdout: ${compact(stat.stdout, 2000)}`,
+      `stat stderr: ${compact(stat.stderr, 3000)}`,
+    ].join('\n');
+    await writeFailure(message);
+    throw new Error(message);
   }
 
   const paths = changed.stdout.split('\n').map((x) => x.trim()).filter(Boolean);
@@ -79,7 +117,7 @@ async function main() {
     'Return exactly these headings: ## Decision, ## Evidence, ## Gaps, ## Required fixes. Under ## Decision use exactly APPROVE or REJECT.',
   ].join('\n\n');
 
-  const result = await exec('npx', ['--yes', '@google/gemini-cli@0.55.1', '--skip-trust', '--approval-mode', 'plan', '--model', model, '--prompt', prompt]);
+  const result = await exec('npx', ['--yes', `@google/gemini-cli@${cliVersion}`, '--skip-trust', '--approval-mode', 'plan', '--model', model, '--prompt', prompt]);
   const combined = `${result.stdout}\n${result.stderr}`;
   if (result.code !== 0) {
     if (/quota|resource_exhausted|429|rate limit|exhausted/i.test(combined)) throw new Error(`Conditional Gemini review hit quota/rate limiting. No retry.\n${compact(combined, 5000)}`);
