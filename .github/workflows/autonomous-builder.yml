@@ -150,7 +150,8 @@ jobs:
 
       - name: Report automatic idle state
         if: success() && env.BUILDER_NO_WORK == 'true'
-        run: echo "Autonomous builder is idle: $BUILDER_NO_WORK_REASON"
+        run: |
+          echo "Autonomous builder is idle: $BUILDER_NO_WORK_REASON"
 
       - name: Upload runner report
         if: always() && env.BUILDER_NO_WORK != 'true'
