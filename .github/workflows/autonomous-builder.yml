@@ -47,18 +47,39 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Run status heartbeat
+        if: always()
+        run: |
+          {
+            echo "## 🤖 Autonomous Builder Status"
+            echo "- **Run:** #${{ github.run_number }}"
+            echo "- **Started:** ${{ github.run_started_at }}"
+            echo "- **Trigger:** ${{ github.event_name }}"
+            echo "- **Stage:** Checkout complete — selecting a batch"
+            echo "- **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Select next queued batch
         working-directory: .
         run: node scripts/prepare-autonomous-batch.mjs
 
-      - name: Show selected batch
-        if: env.BUILDER_NO_WORK != 'true'
+      - name: Report selected batch
+        if: always()
         run: |
-          echo "Selected batch: $BUILDER_BATCH_ID"
-          echo "Working branch: $BUILDER_WORKING_BRANCH"
-          echo "Resume existing builder work: $BUILDER_RESUME_EXISTING"
-          echo "Objective loaded from durable queue:"
-          printf '%s\n' "$BUILDER_OBJECTIVE"
+          {
+            echo ""
+            echo "### Queue selection"
+            if [ "$BUILDER_NO_WORK" = "true" ]; then
+              echo "- **Status:** 💤 IDLE"
+              echo "- **Reason:** ${BUILDER_NO_WORK_REASON:-No work reason not supplied}"
+            else
+              echo "- **Status:** 🟢 WORKING"
+              echo "- **Batch:** ${BUILDER_BATCH_ID:-unknown}"
+              echo "- **Branch:** ${BUILDER_WORKING_BRANCH:-unknown}"
+              echo "- **Resume:** ${BUILDER_RESUME_EXISTING:-unknown}"
+              echo "- **Objective:** ${BUILDER_OBJECTIVE:-unknown}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate runner secrets
         if: env.BUILDER_NO_WORK != 'true'
@@ -85,6 +106,16 @@ jobs:
           fi
           echo "Gemini API authentication preflight: PASS"
 
+      - name: Report preflight status
+        if: always() && env.BUILDER_NO_WORK != 'true'
+        run: |
+          {
+            echo ""
+            echo "### Preflight"
+            echo "- **Gemini CLI:** ${{ job.status }} / authentication step completed"
+            echo "- **Next stage:** bounded engineering worker"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install runner
         if: env.BUILDER_NO_WORK != 'true'
         working-directory: builder/runner
@@ -102,6 +133,20 @@ jobs:
         env:
           GIT_SSL_NO_VERIFY: "1"
         run: timeout --signal=TERM --kill-after=60s 50m node builder/runner/task-driven.mjs
+
+      - name: Report worker status
+        if: always() && env.BUILDER_NO_WORK != 'true'
+        run: |
+          {
+            echo ""
+            echo "### Engineering worker"
+            echo "- **Stage:** Worker step completed with workflow status **${{ job.status }}**"
+            echo "- **Batch:** ${BUILDER_BATCH_ID:-unknown}"
+            echo "- **Working branch:** ${BUILDER_WORKING_BRANCH:-unknown}"
+            if [ -f "builder/reports/${BUILDER_BATCH_ID:-unknown}.json" ]; then
+              echo "- **Runner report:** uploaded below"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Prepare builder branch for quality review
         if: env.BUILDER_NO_WORK != 'true'
@@ -129,6 +174,16 @@ jobs:
           npm run verify:pro-song
           echo "Deterministic production quality gate: PASS"
 
+      - name: Report quality gate
+        if: always() && env.BUILDER_NO_WORK != 'true'
+        run: |
+          {
+            echo ""
+            echo "### Quality gate"
+            echo "- **Result:** workflow status **${{ job.status }}**"
+            echo "- **Checks:** build + verify:batch76 + verify:pro-song"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Create or confirm review PR
         if: success() && env.BUILDER_NO_WORK != 'true'
         env:
@@ -138,15 +193,32 @@ jobs:
           existing_pr=$(gh pr view "$BUILDER_WORKING_BRANCH" --repo "$GITHUB_REPOSITORY" --json number --jq '.number' 2>/dev/null || true)
           if [ -n "$existing_pr" ]; then
             echo "Review PR #$existing_pr already exists for $BUILDER_WORKING_BRANCH."
+            echo "AUTOBOT_PR_NUMBER=$existing_pr" >> "$GITHUB_ENV"
             exit 0
           fi
-          gh pr create \
+          created_pr=$(gh pr create \
             --repo "$GITHUB_REPOSITORY" \
             --base main \
             --head "$BUILDER_WORKING_BRANCH" \
             --draft \
             --title "Autonomous Builder: $BUILDER_BATCH_ID" \
-            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the bounded free Gemini CLI worker completed and the deterministic production quality gate passed.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nGemini CLI is the zero-cost API-tier engineering worker. GitHub Actions verification is the authoritative quality gate. No automatic merge or production deployment is performed. Review the generated changes and checks before merging."
+            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the bounded free Gemini CLI worker completed and the deterministic production quality gate passed.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nGemini CLI is the zero-cost API-tier engineering worker. GitHub Actions verification is the authoritative quality gate. No automatic merge or production deployment is performed. Review the generated changes and checks before merging.")
+          echo "AUTOBOT_PR_URL=$created_pr" >> "$GITHUB_ENV"
+          echo "AUTOBOT_PR_NUMBER=$(basename "$created_pr")" >> "$GITHUB_ENV"
+
+      - name: Report completion
+        if: always()
+        run: |
+          {
+            echo ""
+            echo "## 🧾 Run result"
+            echo "- **Final workflow status:** ${{ job.status }}"
+            echo "- **Batch:** ${BUILDER_BATCH_ID:-none}"
+            echo "- **Branch:** ${BUILDER_WORKING_BRANCH:-none}"
+            echo "- **PR:** ${AUTOBOT_PR_URL:-none created/confirmed}"
+            echo "- **Runner report:** ${BUILDER_BATCH_ID:+builder/reports/$BUILDER_BATCH_ID.json}"
+            echo "- **This summary is the durable human-readable run record.**"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report automatic idle state
         if: success() && env.BUILDER_NO_WORK == 'true'
