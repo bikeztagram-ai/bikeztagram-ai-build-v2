@@ -34,7 +34,7 @@ jobs:
       BUILDER_MAX_MINUTES: "45"
       BUILDER_MAX_PASSES: "6"
       BUILDER_AGENT_PROVIDER: gemini-cli-free
-      BUILDER_AGENT_MODEL: ""
+      BUILDER_AGENT_MODEL: "gemini-3.5-flash-lite"
       BUILDER_AGENT_CMD: '["sh","-lc","MODEL=\"$2\"; PROMPT=\"$4\"; if [ -n \"$MODEL\" ]; then GEMINI_API_KEY=\"$GEMINI_API_KEY\" exec npx --yes @google/gemini-cli@latest --yolo --skip-trust --model \"$MODEL\" -p \"$PROMPT\"; else GEMINI_API_KEY=\"$GEMINI_API_KEY\" exec npx --yes @google/gemini-cli@latest --yolo --skip-trust -p \"$PROMPT\"; fi","_"]'
       BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
       BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply those durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.
