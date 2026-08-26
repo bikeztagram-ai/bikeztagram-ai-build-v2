@@ -19,6 +19,7 @@ concurrency:
 permissions:
   actions: write
   contents: read
+  pull-requests: read
 
 jobs:
   control-center:
@@ -32,6 +33,7 @@ jobs:
           echo "started_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
           echo "started_utc=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
           echo '{}' > /tmp/builder.json
+          echo '[]' > /tmp/review_prs.json
 
       - name: Inspect current builder state
         id: inspect
@@ -49,8 +51,25 @@ jobs:
             echo '{}' > /tmp/builder.json
           fi
 
-      - name: Dispatch autonomous builder when idle
-        if: steps.inspect.outputs.builder_active != 'true'
+      - name: Inspect open autonomous builder PRs
+        id: queue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --state open --limit 50 --json number,headRefName,title,url,isDraft)
+          builder_prs=$(echo "$prs" | jq '[.[] | select(.headRefName | startswith("autonomous-builder/"))]')
+          echo "$builder_prs" > /tmp/review_prs.json
+          if [ "$(echo "$builder_prs" | jq 'length')" -gt 0 ]; then
+            echo "queue_blocked=true" >> "$GITHUB_OUTPUT"
+            echo "queue_block_reason=$(echo "$builder_prs" | jq -r 'map("PR #\(.number) — \(.headRefName) — \(.title)") | join("; ")')" >> "$GITHUB_OUTPUT"
+          else
+            echo "queue_blocked=false" >> "$GITHUB_OUTPUT"
+            echo "queue_block_reason=none" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dispatch autonomous builder when idle and queue is clear
+        if: steps.inspect.outputs.builder_active != 'true' && steps.queue.outputs.queue_blocked != 'true'
         id: dispatch
         env:
           GH_TOKEN: ${{ github.token }}
@@ -65,7 +84,7 @@ jobs:
           echo "::notice title=AutoBot::Builder dispatch requested at $(date -u '+%H:%M:%S UTC')"
 
       - name: Wait briefly for dispatched builder to appear
-        if: steps.inspect.outputs.builder_active != 'true'
+        if: steps.inspect.outputs.builder_active != 'true' && steps.queue.outputs.queue_blocked != 'true'
         id: observe
         env:
           GH_TOKEN: ${{ github.token }}
@@ -94,11 +113,13 @@ jobs:
         run: |
           set -euo pipefail
           builder=$(cat /tmp/builder.json 2>/dev/null || echo '{}')
+          review_prs=$(cat /tmp/review_prs.json 2>/dev/null || echo '[]')
           builder_id=$(echo "$builder" | jq -r '.databaseId // "not observed"')
           builder_status=$(echo "$builder" | jq -r '.status // "not observed"')
           builder_conclusion=$(echo "$builder" | jq -r '.conclusion // "pending"')
           builder_title=$(echo "$builder" | jq -r '.displayTitle // "not observed"')
           builder_url=$(echo "$builder" | jq -r '.url // ""')
+          review_count=$(echo "$review_prs" | jq 'length')
           {
             echo "# 🤖 AutoBot Control Center"
             echo
@@ -109,8 +130,19 @@ jobs:
             echo "- **Schedule:** :02, :17, :32, :47 UTC"
             if [ "${{ steps.inspect.outputs.builder_active }}" = "true" ]; then
               echo "- **Dispatch:** skipped — builder already queued/running"
+            elif [ "${{ steps.queue.outputs.queue_blocked }}" = "true" ]; then
+              echo "- **Dispatch:** skipped — autonomous builder PR is awaiting review/merge"
+              echo "- **Queue block:** ${{ steps.queue.outputs.queue_block_reason }}"
             else
               echo "- **Dispatch:** requested"
+            fi
+            echo
+            echo "## Queue gate"
+            echo "- **Open autonomous builder PRs:** ${review_count}"
+            if [ "$review_count" -gt 0 ]; then
+              echo "$review_prs" | jq -r '.[] | "- PR #\(.number): \(.headRefName) — \(.title)"'
+            else
+              echo "- **State:** clear — next eligible batch may run"
             fi
             echo
             echo "## Builder observation"
@@ -120,7 +152,10 @@ jobs:
             echo "- **Title:** ${builder_title}"
             if [ -n "$builder_url" ]; then echo "- **Open builder run:** ${builder_url}"; fi
             echo
-            if [ "$builder_status" = "completed" ]; then
+            if [ "${{ steps.queue.outputs.queue_blocked }}" = "true" ]; then
+              echo "## What this means"
+              echo "The current autonomous batch already has an open review PR. AutoBot will wait instead of repeatedly dispatching no-op Builder runs. When the PR is merged or closed, the next heartbeat will re-evaluate the queue and dispatch the next eligible batch."
+            elif [ "$builder_status" = "completed" ]; then
               echo "## What this means"
               echo "Builder run was observed and completed."
             elif [ "$builder_status" = "in_progress" ] || [ "$builder_status" = "queued" ]; then
