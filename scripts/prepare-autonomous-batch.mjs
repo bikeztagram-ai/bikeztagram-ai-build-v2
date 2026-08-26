@@ -77,9 +77,9 @@ function statusFor(batch, prs, ref) {
   const open = prs.find(pr => pr.state === 'open');
   const closedUnmerged = prs.find(pr => pr.state === 'closed' && !pr.merged_at);
   if (merged) return `MERGED (#${merged.number})`;
-  if (open) return `IN PROGRESS (#${open.number})`;
+  if (open) return `REVIEW QUEUED (#${open.number})`;
   if (batch.status === 'rejected' || batch.status === 'skipped') return String(batch.status).toUpperCase();
-  if (closedUnmerged) return `NEEDS RESOLUTION (#${closedUnmerged.number})`;
+  if (closedUnmerged) return `REVIEW NEEDED (#${closedUnmerged.number})`;
   if (ref) return 'BRANCH READY / RESUME';
   return 'READY';
 }
@@ -104,7 +104,7 @@ async function appendQueueDashboard(states) {
     '|---|---|---|',
     ...states.map(({ batch, status }) => `| \`${batch.id}\` | ${safe(batch.title)} | **${safe(status)}** |`),
     '',
-    '> Status is calculated from the durable queue plus the live GitHub branch/PR state at run time. A closed unmerged PR is intentionally shown as **NEEDS RESOLUTION** instead of being mistaken for active work.',
+    '> Completed/open review PRs are durable review storage and do not block later eligible batches. A closed unmerged PR is retained as review history and also does not block later batches.',
     ''
   ];
   await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
@@ -115,7 +115,7 @@ async function markNoWork(reason) {
   await fs.appendFile(process.env.GITHUB_ENV, `BUILDER_NO_WORK=true\nBUILDER_NO_WORK_REASON=${cleanReason}\n`);
   await fs.appendFile(
     process.env.GITHUB_STEP_SUMMARY,
-    `### Queue selection\n\n**Status:** 💤 IDLE\n\n**Reason:** ${cleanReason}\n\nNo builder work was started. The scheduled runner will check again automatically.\n`
+    `### Queue selection\n\n**Status:** 💤 IDLE\n\n**Reason:** ${cleanReason}\n\nNo eligible builder batch was available. The scheduled runner will check again automatically.\n`
   );
   console.log(`Autonomous builder idle: ${cleanReason}`);
 }
@@ -139,8 +139,8 @@ for (const { batch, branch, prs } of states) {
   if (open) {
     staleProviderPrCleared = await clearStaleProviderPr(open, branch, ref);
     if (!staleProviderPrCleared) {
-      await markNoWork(`${batch.id} is already in progress in PR #${open.number}; waiting for review/merge.`);
-      process.exit(0);
+      console.log(`${batch.id}: review PR #${open.number} is queued for human review; leaving it untouched and advancing to the next batch.`);
+      continue;
     }
     open = null;
   }
@@ -156,8 +156,8 @@ for (const { batch, branch, prs } of states) {
   }
 
   if (!staleProviderPrCleared && closedUnmerged) {
-    await markNoWork(`${batch.id} has closed unmerged PR #${closedUnmerged.number}; waiting for that batch to be explicitly rejected/skipped or reopened.`);
-    process.exit(0);
+    console.log(`${batch.id}: closed unmerged PR #${closedUnmerged.number} retained for review history; advancing to the next batch without blocking the queue.`);
+    continue;
   }
 
   const freshRef = staleProviderPrCleared ? null : ref;
@@ -187,5 +187,5 @@ for (const { batch, branch, prs } of states) {
   process.exit(0);
 }
 
-await markNoWork('No queued batch is ready; the queue is waiting for the current batch to be reviewed/merged or explicitly resolved.');
+await markNoWork('No queued batch is ready. Completed batches remain stored as review PRs and do not block later eligible work.');
 process.exit(0);
