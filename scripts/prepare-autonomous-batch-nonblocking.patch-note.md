@@ -1,0 +1,1 @@
+Queue behaviour change: open or closed-unmerged review PRs are retained for human review and do not block selection of later eligible batches. Each batch uses its own working branch/PR. Only the same batch is skipped when its PR is already open or merged/rejected.
