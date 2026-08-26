@@ -6,6 +6,8 @@
  * way to the local rendering layer.
  */
 
+import { buildRenderCueTrack } from './cinematicRuntime.js';
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const asNumber = (value, fallback = 0) => {
   const n = Number(value);
@@ -15,8 +17,6 @@ const asString = (value, fallback = '') => String(value ?? fallback).trim();
 
 function effectForScene(scene, index) {
   const text = [scene?.purpose, scene?.description, scene?.prompt].filter(Boolean).join(' ').toLowerCase();
-  // If the Director already made an explicit motion decision, preserve it.
-  // The previous engine silently replaced explicit motion with heuristic motion.
   const explicitMotion = asString(scene?.motionStyle || scene?.motion || scene?.cameraMotion);
   const explicitIntensity = Number(scene?.motionIntensity ?? scene?.intensity);
   if (explicitMotion) {
@@ -25,7 +25,6 @@ function effectForScene(scene, index) {
       intensity: Number.isFinite(explicitIntensity) ? clamp(explicitIntensity, 0.35, 1.6) : 0.85
     };
   }
-
   if (text.includes('reveal')) return { motion: 'slow-push', intensity: 0.95 };
   if (text.includes('action') || text.includes('chase') || text.includes('speed')) return { motion: index % 2 ? 'pan-right' : 'pan-left', intensity: 1.1 };
   if (text.includes('hero') || text.includes('ending')) return { motion: 'slow-pull', intensity: 0.8 };
@@ -46,10 +45,7 @@ function transitionFor(index, total, scene) {
 }
 
 function editorialRoleFor(scene, index, total) {
-  return asString(
-    scene?.editorialRole || scene?.storyRole || scene?.role,
-    index === 0 ? 'hook' : index === total - 1 ? 'hero-ending' : 'cinematic'
-  );
+  return asString(scene?.editorialRole || scene?.storyRole || scene?.role, index === 0 ? 'hook' : index === total - 1 ? 'hero-ending' : 'cinematic');
 }
 
 function sourceProvenance(scene, sourceType) {
@@ -64,15 +60,6 @@ function sourceProvenance(scene, sourceType) {
   };
 }
 
-/**
- * Convert the AI Production Blueprint into an executable internal timeline.
- * No network request is made here and no external editor is required.
- *
- * The returned timeline is intentionally lossless for editorial decisions:
- * story role, Director-selected motion, transition, source provenance and
- * optional beat anchors all survive normalization instead of being replaced
- * by generic renderer defaults.
- */
 export function createInternalTimeline(productionPlan, editPlan) {
   const scenes = Array.isArray(productionPlan?.scenes) ? productionPlan.scenes : [];
   if (!scenes.length) {
@@ -90,7 +77,7 @@ export function createInternalTimeline(productionPlan, editPlan) {
       duration: clamp(asNumber(cut.duration, 2), 0.5, 8),
       end: asNumber(cut.start, 0) + clamp(asNumber(cut.duration, 2), 0.5, 8)
     }));
-    return {
+    const timeline = {
       version: 2,
       engine: 'bikeztagram-local',
       duration: asNumber(editPlan?.duration, clips.reduce((sum, clip) => sum + clip.duration, 0)),
@@ -98,6 +85,7 @@ export function createInternalTimeline(productionPlan, editPlan) {
       editorialContract: { ordered: true, rolesPreserved: true, sourceProvenancePreserved: true },
       audio: { mode: 'original-local', ducking: true }
     };
+    return { ...timeline, renderCues: buildRenderCueTrack(timeline, editPlan?.beats || editPlan?.beatTimes || []) };
   }
 
   const total = scenes.length;
@@ -125,8 +113,8 @@ export function createInternalTimeline(productionPlan, editPlan) {
       prompt: sourceType === 'generated' ? asString(scene?.generationPrompt || scene?.prompt) : '',
       motion: effect.motion,
       motionIntensity: effect.intensity,
-      speed: clamp(asNumber(scene?.speed, 1), 0.5, 1.5),
-      speedEnd: clamp(asNumber(scene?.speedEnd, scene?.speed ?? 1), 0.5, 1.5),
+      speed: clamp(asNumber(scene?.speed, 1), 0.25, 2.5),
+      speedEnd: clamp(asNumber(scene?.speedEnd, scene?.speed ?? 1), 0.25, 2.5),
       transition,
       transitionDuration,
       colorGrade: scene?.colorGrade || productionPlan?.colorGrade || 'dark-cinematic',
@@ -137,7 +125,7 @@ export function createInternalTimeline(productionPlan, editPlan) {
     return clip;
   });
 
-  return {
+  const timeline = {
     version: 2,
     engine: 'bikeztagram-local',
     title: productionPlan?.title || 'Bikeztagram AI Edit',
@@ -156,6 +144,7 @@ export function createInternalTimeline(productionPlan, editPlan) {
     generatedSceneCount: clips.filter((clip) => clip.sourceType === 'generated').length,
     uploadedSceneCount: clips.filter((clip) => clip.sourceType === 'uploaded').length
   };
+  return { ...timeline, renderCues: buildRenderCueTrack(timeline, productionPlan?.beats || productionPlan?.beatTimes || []) };
 }
 
 export function validateInternalTimeline(timeline) {
@@ -169,6 +158,8 @@ export function validateInternalTimeline(timeline) {
     if (!clip.motion) errors.push(`clip ${index + 1}: missing motion decision`);
     if (!clip.transition) errors.push(`clip ${index + 1}: missing transition decision`);
   });
+  const cueErrors = Array.isArray(timeline?.renderCues) ? timeline.renderCues.filter((cue) => !cue?.id).map((_, index) => `render cue ${index + 1}: missing id`) : ['render cue track missing'];
+  errors.push(...cueErrors);
   return { valid: errors.length === 0, errors, clipCount: clips.length };
 }
 
@@ -177,5 +168,5 @@ export function describeInternalTimeline(timeline) {
   const generated = clips.filter((clip) => clip.sourceType === 'generated').length;
   const uploaded = clips.filter((clip) => clip.sourceType === 'uploaded').length;
   const roles = [...new Set(clips.map((clip) => clip.editorialRole).filter(Boolean))];
-  return `${clips.length} scenes • ${uploaded} real • ${generated} generated/procedural • ${asNumber(timeline?.duration).toFixed(1)}s • ${roles.length} story roles • Bikeztagram local engine`;
+  return `${clips.length} scenes • ${uploaded} real • ${generated} generated/procedural • ${asNumber(timeline?.duration).toFixed(1)}s • ${roles.length} story roles • ${timeline?.renderCues?.length || 0} render cues • Bikeztagram local engine`;
 }
