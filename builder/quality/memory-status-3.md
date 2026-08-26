@@ -1,0 +1,1 @@
+Persistent project memory: enabled in the worker execution prompt.

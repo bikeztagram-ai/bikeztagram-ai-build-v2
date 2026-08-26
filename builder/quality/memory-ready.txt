@@ -1,0 +1,1 @@
+Persistent memory integration prepared: project-memory.md, lessons.md, queue context and memory loading contract are required inputs to every autonomous product batch.
