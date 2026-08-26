@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, stat } from 'node:fs/promises';
+import path from 'node:path';
 
 const model = process.env.BUILDER_GEMINI_MODEL || 'flash-lite';
 const cliVersion = process.env.BUILDER_GEMINI_CLI_VERSION || '0.55.1';
@@ -37,34 +38,63 @@ async function writeFailure(message) {
     await mkdir('builder/working', { recursive: true });
     await appendFile(reportPath, `# ${batchId} — Quality Gate\n\n**Result:** ERROR\n\n${message}\n`);
   } catch {
-    // The workflow's main failure remains the authoritative signal.
+    // Main workflow failure remains authoritative.
   }
 }
 
-function acceptableDiffExit(code) {
-  // git diff --no-index returns 0 for identical trees and 1 when differences exist.
-  return code === 0 || code === 1;
+async function listFiles(root, relative = '') {
+  const directory = path.join(root, relative);
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const rel = path.join(relative, entry.name);
+    if (entry.isDirectory()) files.push(...await listFiles(root, rel));
+    else if (entry.isFile()) files.push(rel.split(path.sep).join('/'));
+  }
+  return files;
 }
 
-function normalizePath(value, prefixes) {
-  let text = String(value || '').trim();
-  for (const prefix of prefixes) {
-    const token = `${prefix}/`;
-    if (text.startsWith(token)) {
-      text = text.slice(token.length);
-      break;
+async function fingerprint(root, relative) {
+  const full = path.join(root, relative);
+  const info = await stat(full);
+  const data = await readFile(full);
+  return { size: info.size, data };
+}
+
+async function compareTrees(mainDir, branchDir) {
+  const [mainFiles, branchFiles] = await Promise.all([listFiles(mainDir), listFiles(branchDir)]);
+  const mainSet = new Set(mainFiles);
+  const branchSet = new Set(branchFiles);
+  const allPaths = [...new Set([...mainFiles, ...branchFiles])].sort();
+  const changed = [];
+  let insertions = 0;
+  let deletions = 0;
+
+  for (const relative of allPaths) {
+    const inMain = mainSet.has(relative);
+    const inBranch = branchSet.has(relative);
+    if (!inMain || !inBranch) {
+      changed.push(relative);
+      if (!inMain) insertions += 1;
+      if (!inBranch) deletions += 1;
+      continue;
+    }
+    const [left, right] = await Promise.all([fingerprint(mainDir, relative), fingerprint(branchDir, relative)]);
+    if (!left.data.equals(right.data)) {
+      changed.push(relative);
+      const leftLines = left.data.toString('utf8').split('\n').length;
+      const rightLines = right.data.toString('utf8').split('\n').length;
+      insertions += Math.max(1, rightLines);
+      deletions += Math.max(1, leftLines);
     }
   }
-  return text;
+  return { changed, insertions, deletions };
 }
 
 async function main() {
   if (!branch) throw new Error('BUILDER_WORKING_BRANCH is required');
   if (!objective) throw new Error('BUILDER_OBJECTIVE is required');
 
-  // Resumed builder branches can be based on an older main revision. Avoid every
-  // merge-base, shallow-ref and remote-tracking assumption by comparing two
-  // materialized committed trees directly.
   const mainDir = '/tmp/bikeztagram-quality-main';
   const branchDir = '/tmp/bikeztagram-quality-branch';
   const clean = await exec('rm', ['-rf', mainDir, branchDir]);
@@ -73,7 +103,6 @@ async function main() {
     await writeFailure(message);
     throw new Error(message);
   }
-
   const makeDirs = await exec('mkdir', ['-p', mainDir, branchDir]);
   if (makeDirs.code !== 0) {
     const message = `Could not create quality-gate temp directories.\nstderr: ${compact(makeDirs.stderr, 3000)}`;
@@ -110,49 +139,35 @@ async function main() {
   const mainCommit = mainSha.stdout.trim();
   const branchCommit = branchSha.stdout.trim();
 
-  const archiveMain = await exec('sh', ['-lc', `git archive --format=tar '${mainCommit}' | tar -xf - -C '${mainDir}'`]);
-  const archiveBranch = await exec('sh', ['-lc', `git archive --format=tar '${branchCommit}' | tar -xf - -C '${branchDir}'`]);
+  const archiveMain = await exec('sh', ['-lc', `set -o pipefail; git archive --format=tar '${mainCommit}' | tar -xf - -C '${mainDir}'`]);
+  const archiveBranch = await exec('sh', ['-lc', `set -o pipefail; git archive --format=tar '${branchCommit}' | tar -xf - -C '${branchDir}'`]);
   if (archiveMain.code !== 0 || archiveBranch.code !== 0) {
     const message = [
       'Could not materialize quality-gate trees.',
-      `main archive stdout: ${compact(archiveMain.stdout, 1500)}`,
       `main archive stderr: ${compact(archiveMain.stderr, 2500)}`,
-      `branch archive stdout: ${compact(archiveBranch.stdout, 1500)}`,
       `branch archive stderr: ${compact(archiveBranch.stderr, 2500)}`,
     ].join('\n');
     await writeFailure(message);
     throw new Error(message);
   }
 
-  const changed = await exec('git', ['diff', '--no-index', '--name-only', '--', mainDir, branchDir]);
-  const stat = await exec('git', ['diff', '--no-index', '--shortstat', '--', mainDir, branchDir]);
-  if (!acceptableDiffExit(changed.code) || !acceptableDiffExit(stat.code)) {
-    const message = [
-      'Could not inspect builder diff.',
-      `main commit: ${mainCommit}`,
-      `builder commit: ${branchCommit}`,
-      `changed exit: ${changed.code}`,
-      `changed stdout: ${compact(changed.stdout, 3000)}`,
-      `changed stderr: ${compact(changed.stderr, 3000)}`,
-      `stat exit: ${stat.code}`,
-      `stat stdout: ${compact(stat.stdout, 3000)}`,
-      `stat stderr: ${compact(stat.stderr, 3000)}`,
-    ].join('\n');
+  // Do not use git diff's exit code as the health signal. The quality gate now
+  // compares the materialized committed trees directly, so a normal difference
+  // can never be mistaken for an execution failure.
+  let comparison;
+  try {
+    comparison = await compareTrees(mainDir, branchDir);
+  } catch (error) {
+    const message = `Could not inspect materialized builder trees.\nmain commit: ${mainCommit}\nbuilder commit: ${branchCommit}\n${error instanceof Error ? error.message : String(error)}`;
     await writeFailure(message);
     throw new Error(message);
   }
 
-  const prefixes = [mainDir, branchDir];
-  const paths = changed.stdout
-    .split('\n')
-    .map((x) => normalizePath(x, prefixes))
-    .filter(Boolean);
+  const { changed, insertions, deletions } = comparison;
+  console.log(`Quality gate tree comparison: ${changed.length} changed files, ${insertions} insertions, ${deletions} deletions.`);
+  if (changed.length) console.log(`Changed files:\n${changed.join('\n')}`);
 
-  const match = stat.stdout.match(/(\d+) insertions?\(\+\).*?(\d+) deletions?\(-\)/);
-  const insertions = Number(match?.[1] || 0);
-  const deletions = Number(match?.[2] || 0);
-
-  if (!highRisk(paths, insertions, deletions)) {
+  if (!highRisk(changed, insertions, deletions)) {
     await appendFile(reportPath, `# ${batchId} — Quality Gate\n\n**Result:** SKIPPED\n\nLow-risk diff; no additional Gemini review was spent.\n`);
     console.log('Quality review skipped: low-risk batch.');
     return;
@@ -174,8 +189,8 @@ async function main() {
     'A green build/test result is NOT sufficient. Reject superficial changes, prompt-only claims, unused contracts, dead code, placeholders, tests that do not prove the requested behaviour, and changes that do not reach the user-facing path.',
     'Approve only if the implementation materially satisfies the objective and preserves existing working behaviour.',
     `OBJECTIVE:\n${objective}`,
-    `CHANGED FILES:\n- ${paths.join('\n- ')}`,
-    `DIFF SIZE: ${insertions} insertions, ${deletions} deletions`,
+    `CHANGED FILES:\n- ${changed.join('\n- ')}`,
+    `DIFF SIZE ESTIMATE: ${insertions} insertions, ${deletions} deletions`,
     `DURABLE LESSONS:\n${lessons}`,
     'Return exactly these headings: ## Decision, ## Evidence, ## Gaps, ## Required fixes. Under ## Decision use exactly APPROVE or REJECT.',
   ].join('\n\n');
