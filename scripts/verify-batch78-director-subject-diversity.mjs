@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync('src/directorSelection.js','utf8');
+assert.match(source,/function subjectFamily\(moment\)/);
+assert.match(source,/const usedSubjects=new Map\(\)/);
+assert.match(source,/subjectCount\)value-=clamp\(9\*subjectCount,9,24\)/);
+assert.match(source,/directorSubjectFamily/);
+assert.match(source,/usedSources\.has\(source\)/);
+assert.match(source,/usedFamilies\.get\(family\)/);
+assert.match(source,/durationFit/);
+assert.match(source,/usedDuration/);
+console.log('Batch 78 subject-diversity contract: PASS');

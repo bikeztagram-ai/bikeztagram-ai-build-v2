@@ -1,11 +1,12 @@
 /* BIKEZTAGRAM AI — pre-edit shot selector.
    Scores Gemini-verified moments before editorial styling. Never invents media.
    The selector deliberately trades a small amount of raw score for story coverage,
-   shot-family diversity, source diversity, temporal separation and duration fit. */
+   shot-family diversity, subject diversity, source diversity, temporal separation and duration fit. */
 const n=(v,f=0)=>{const x=Number(v);return Number.isFinite(x)?x:f};
 const text=v=>String(v||'').toLowerCase();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const describe=m=>text([m.description,m.reason,m.action,m.event,m.editorialRole,m.shotType,m.composition,m.framing,m.cameraAngle].join(' '));
+const subject=m=>text(m.subjectRole||m.subject||m.identity||m.subjectLabel||m.subjectCategory);
 const sourceKey=m=>String(m.mediaId??m.mediaIndex??'unknown');
 const startOf=m=>n(m.start??m.startTime,NaN);
 const durationOf=m=>{const explicit=n(m.duration,NaN);if(Number.isFinite(explicit))return clamp(explicit,.5,6);const start=startOf(m);const end=n(m.end??m.endTime,NaN);if(Number.isFinite(start)&&Number.isFinite(end)&&end>start)return clamp(end-start,.5,6);return 2;};
@@ -18,6 +19,14 @@ function shotFamily(moment){
  if(/action|chase|race|ride|drive|movement|impact|speed/.test(s))return'action';
  if(/overhead|top-down|top down|bird's-eye|birds-eye/.test(s))return'overhead';
  return text(moment.shotType)||'general';
+}
+function subjectFamily(moment){
+ const s=subject(moment);
+ if(!s)return'unknown';
+ if(/motorcycle|motorbike|bike|vehicle|car|truck|machine/.test(s))return'vehicle';
+ if(/person|people|rider|driver|character|face|human|man|woman|child/.test(s))return'person';
+ if(/landscape|road|street|city|building|environment|scene|location/.test(s))return'environment';
+ return s.slice(0,48);
 }
 function modes(prompt){const p=text(prompt);return{
  action:/action|fast|race|speed|chase|aggressive|energetic|pursuit|fight|battle/.test(p),
@@ -74,29 +83,36 @@ function durationFit(candidate,usedDuration,targetDuration,remainingSlots){
 }
 export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creativePrompt=''}={}){
  if(!Array.isArray(moments)||!moments.length)return[];
- const mode=modes(creativePrompt); const ranked=moments.map((m,i)=>({...m,__directorScore:scoreMoment(m,i,moments.length,mode),__directorIndex:i,__shotFamily:shotFamily(m),__duration:durationOf(m)})).sort((a,b)=>b.__directorScore-a.__directorScore);
+ const mode=modes(creativePrompt); const ranked=moments.map((m,i)=>({...m,__directorScore:scoreMoment(m,i,moments.length,mode),__directorIndex:i,__shotFamily:shotFamily(m),__subjectFamily:subjectFamily(m),__duration:durationOf(m)})).sort((a,b)=>b.__directorScore-a.__directorScore);
  const limit=Math.min(Math.max(1,maxCuts),ranked.length);
- const chosen=[]; const usedSources=new Set(); const usedDescriptions=[]; const usedFamilies=new Map(); let usedDuration=0;
+ const chosen=[]; const usedSources=new Set(); const usedDescriptions=[]; const usedFamilies=new Map(); const usedSubjects=new Map(); let usedDuration=0;
  const similarity=(a,b)=>{const aw=new Set(describe(a).split(/\W+/).filter(x=>x.length>4));const bw=new Set(describe(b).split(/\W+/).filter(x=>x.length>4));let common=0;for(const x of aw)if(bw.has(x))common++;return common/Math.max(1,Math.min(aw.size,bw.size));};
  const temporalDistance=(a,b)=>{const sa=startOf(a),sb=startOf(b);return Number.isFinite(sa)&&Number.isFinite(sb)?Math.abs(sa-sb):Infinity;};
  const ordered=[...ranked];
  while(chosen.length<limit&&ordered.length){let bestIndex=0,best=-Infinity;const role=desiredRole(chosen.length,limit,mode);const remainingSlots=limit-chosen.length;
   for(let i=0;i<ordered.length;i++){
-   const m=ordered[i];let value=m.__directorScore+roleBonus(m,role,mode)+durationFit(m,usedDuration,targetDuration,remainingSlots);const source=sourceKey(m);const family=m.__shotFamily;
+   const m=ordered[i];let value=m.__directorScore+roleBonus(m,role,mode)+durationFit(m,usedDuration,targetDuration,remainingSlots);const source=sourceKey(m);const family=m.__shotFamily;const subjectKey=m.__subjectFamily;
    if(usedSources.has(source))value-=12;
    const familyCount=usedFamilies.get(family)||0;
    if(familyCount)value-=12*familyCount;
+   const subjectCount=usedSubjects.get(subjectKey)||0;
+   // Keep multi-subject stories from repeatedly showing the same subject when
+   // meaningful alternatives exist. A single-subject library naturally shares
+   // one key, so the bounded penalty does not eliminate valid shots.
+   if(subjectKey!=='unknown'&&subjectCount)value-=clamp(9*subjectCount,9,24);
    if(chosen.length&&similarity(m,chosen[chosen.length-1])>.65)value-=18;
    if(usedDescriptions.some(d=>d===describe(m)))value-=30;
    if(chosen.some(c=>temporalDistance(m,c)<1.25))value-=12;
    if(chosen.length===0&&/opening|hook/.test(describe(m)))value+=20;
    if(chosen.length===limit-1&&/hero|ending|resolution/.test(describe(m)))value+=18;
    if(!familyCount&&chosen.length>0)value+=7;
+   if(!subjectCount&&subjectKey!=='unknown'&&chosen.length>0)value+=5;
+   if(targetDuration>=12&&chosen.length>1){const starts=chosen.map(startOf).filter(Number.isFinite);const candidate=startOf(m);if(Number.isFinite(candidate)&&starts.length){const nearest=Math.min(...starts.map(s=>Math.abs(candidate-s)));if(nearest>Math.max(2,targetDuration/limit))value+=4;}}
    if(value>best){best=value;bestIndex=i;}
   }
-  const pick=ordered.splice(bestIndex,1)[0];chosen.push(pick);usedSources.add(sourceKey(pick));usedDescriptions.push(describe(pick));usedFamilies.set(pick.__shotFamily,(usedFamilies.get(pick.__shotFamily)||0)+1);usedDuration+=pick.__duration;
+  const pick=ordered.splice(bestIndex,1)[0];chosen.push(pick);usedSources.add(sourceKey(pick));usedDescriptions.push(describe(pick));usedFamilies.set(pick.__shotFamily,(usedFamilies.get(pick.__shotFamily)||0)+1);usedSubjects.set(pick.__subjectFamily,(usedSubjects.get(pick.__subjectFamily)||0)+1);usedDuration+=pick.__duration;
  }
  chosen.sort((a,b)=>n(a.start??a.startTime,0)-n(b.start??b.startTime,0));
  if(chosen.length>1){const first=chosen[0];chosen[0]={...first,editorialRole:first.editorialRole||'hook'};const last=chosen[chosen.length-1];chosen[chosen.length-1]={...last,editorialRole:last.editorialRole||'hero-ending'};}
- return chosen.map(({__directorScore,__directorIndex,__shotFamily,__duration,...m})=>({...m,directorSelectionScore:Number(__directorScore.toFixed(1)),directorSelectionIndex:__directorIndex,directorShotFamily:shotFamily(m)}));
+ return chosen.map(({__directorScore,__directorIndex,__shotFamily,__subjectFamily,__duration,...m})=>({...m,directorSelectionScore:Number(__directorScore.toFixed(1)),directorSelectionIndex:__directorIndex,directorShotFamily:shotFamily(m),directorSubjectFamily:subjectFamily(m)}));
 }
