@@ -5,6 +5,7 @@ const REPO_URL = process.env.BUILDER_REPO_URL || 'https://github.com/bikeztagram
 const BATCH_ID = process.env.BUILDER_BATCH_ID || `batch-${Date.now()}`;
 const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH_ID}`;
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
+const RESUME_EXISTING = process.env.BUILDER_RESUME_EXISTING === 'true';
 const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
 const MAX_PASSES = Math.min(Math.max(Number(process.env.BUILDER_MAX_PASSES || 8), 1), 8);
 const SANDBOX_ROOT = '/vercel/sandbox';
@@ -191,8 +192,15 @@ async function main() {
     const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], SANDBOX_ROOT, gitEnv);
     if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
 
-    const checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
-    if (checkout.exitCode) throw new Error(`Branch creation failed: ${checkout.stderr}`);
+    let checkout;
+    if (RESUME_EXISTING) {
+      const fetchBranch = await command(sandbox, 'git', ['fetch', 'origin', `${BRANCH}:refs/remotes/origin/${BRANCH}`], REPO_DIR, gitEnv);
+      if (fetchBranch.exitCode) throw new Error(`Could not fetch existing builder branch ${BRANCH}: ${fetchBranch.stderr}`);
+      checkout = await command(sandbox, 'git', ['checkout', '-B', BRANCH, `origin/${BRANCH}`]);
+    } else {
+      checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
+    }
+    if (checkout.exitCode) throw new Error(`Branch checkout failed: ${checkout.stderr}`);
 
     const workingDir = await command(sandbox, 'mkdir', ['-p', `${REPO_DIR}/builder/working`]);
     if (workingDir.exitCode) throw new Error(`Working directory creation failed: ${workingDir.stderr}`);
@@ -200,7 +208,7 @@ async function main() {
     const install = await command(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
     if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
 
-    await writeCheckpoint(sandbox, checkpointPath, `# ${BATCH_ID}\n\n## Objective\n${OBJECTIVE}\n\n## Provider\nOpenAI Codex (${AGENT_MODEL}).\n\n## Status\nStarted.\n\n## Working rule\nExecute the supplied objective; do not invent roadmap work.\n`);
+    await writeCheckpoint(sandbox, checkpointPath, `# ${BATCH_ID}\n\n## Objective\n${OBJECTIVE}\n\n## Provider\nOpenAI Codex (${AGENT_MODEL}).\n\n## Resume mode\n${RESUME_EXISTING ? 'Resuming existing builder branch.' : 'Starting a new builder branch.'}\n\n## Status\nStarted.\n\n## Working rule\nExecute the supplied objective; do not invent roadmap work.\n`);
 
     for (passes = 1; passes <= MAX_PASSES; passes += 1) {
       const prompt = executionPrompt(passes, failures, `builder/working/${BATCH_ID}.md`);
@@ -286,6 +294,7 @@ async function main() {
       agentModel: AGENT_MODEL,
       baseBranch: BASE_BRANCH,
       workingBranch: BRANCH,
+      resumeExisting: RESUME_EXISTING,
       commitSha,
       maxDurationMinutes: MAX_MINUTES,
       maxPasses: MAX_PASSES,
