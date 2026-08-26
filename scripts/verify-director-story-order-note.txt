@@ -1,1 +1,0 @@
-The story-order regression is covered by scripts/verify-director-story-order.mjs.
