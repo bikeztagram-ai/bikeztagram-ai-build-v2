@@ -3,6 +3,8 @@ import { renderProject } from './renderer.js';
 import { applyAudioBeatSyncToPlan } from './renderAudioBridge.js';
 import { attachGeneratedAudioToVideo } from './finalAudioMux.js';
 import { validateRenderedVideo, buildDirectorQAReport } from './qa.js';
+import { resolveOutputPreset } from './outputPresets.js';
+import { transcodeSocialFormat } from './socialFormatTranscoder.js';
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
 export function revisePlanAfterQA(plan, qa) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
@@ -44,10 +46,23 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
       }
       onProgress?.({ stage: 'audio', attempt, value: 100, attached: audioAttached });
     }
+    const outputPreset = resolveOutputPreset(currentPlan?.outputPreset, currentPlan?.creativePrompt || '');
+    if (outputPreset.id !== 'portrait') {
+      onProgress?.({ stage: 'format', attempt, value: 0, preset: outputPreset.id });
+      try {
+        output = await transcodeSocialFormat(output, outputPreset.id, (value) => onProgress?.({ stage: 'format', attempt, value, preset: outputPreset.id }));
+      } catch (error) {
+        throw new Error(`Requested ${outputPreset.label} output could not be created: ${error?.message || String(error)}`);
+      }
+      currentPlan = { ...currentPlan, outputPreset: outputPreset.id, outputWidth: outputPreset.width, outputHeight: outputPreset.height, outputAspectRatio: outputPreset.aspectRatio };
+      onProgress?.({ stage: 'format', attempt, value: 100, preset: outputPreset.id });
+    } else {
+      currentPlan = { ...currentPlan, outputPreset: 'portrait', outputWidth: outputPreset.width, outputHeight: outputPreset.height, outputAspectRatio: outputPreset.aspectRatio };
+    }
     let qa;
     try { qa = await validateRenderedVideo(output, expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15, { requireAudio: Boolean(musicUrl) }); }
     catch (error) { qa = { passed: false, verdict: 'FAIL_DECODE', error: error?.message || String(error), expectedDurationSeconds: expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15 }; }
-    attempts.push({ attempt, bytes: output.size, qa, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied) });
+    attempts.push({ attempt, bytes: output.size, qa, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied), outputPreset: outputPreset.id, outputWidth: outputPreset.width, outputHeight: outputPreset.height });
     onProgress?.({ stage: 'qa', attempt, value: 100, qa });
     if (qa.passed && (qa.verdict === 'PASS' || qa.verdict === 'PASS_WITH_DURATION_DIFFERENCE')) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
     if (attempt >= limit) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
