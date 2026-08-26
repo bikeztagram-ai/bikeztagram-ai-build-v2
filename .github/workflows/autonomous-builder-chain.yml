@@ -1,0 +1,23 @@
+name: Autonomous Builder Queue Chain
+
+on:
+  workflow_run:
+    workflows: ["Autonomous Builder Batch"]
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-next:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch next queued batch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run "Autonomous Builder Batch" --repo "$GITHUB_REPOSITORY" --ref main
+          echo "Next queued batch dispatched."
