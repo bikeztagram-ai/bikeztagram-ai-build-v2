@@ -13,6 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -34,8 +35,6 @@ jobs:
       BUILDER_MAX_PASSES: "6"
       BUILDER_AGENT_PROVIDER: gemini-cli-free
       BUILDER_AGENT_MODEL: ""
-      # sh -lc receives: $0="_", $1="--model", $2=model, $3="-p", $4=prompt.
-      # The previous mapping used $3 as the prompt, which passed the literal -p to Gemini.
       BUILDER_AGENT_CMD: '["sh","-lc","MODEL=\"$2\"; PROMPT=\"$4\"; if [ -n \"$MODEL\" ]; then GEMINI_API_KEY=\"$GEMINI_API_KEY\" exec npx --yes @google/gemini-cli@latest --yolo --skip-trust --model \"$MODEL\" -p \"$PROMPT\"; else GEMINI_API_KEY=\"$GEMINI_API_KEY\" exec npx --yes @google/gemini-cli@latest --yolo --skip-trust -p \"$PROMPT\"; fi","_"]'
       BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
       BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply those durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.
@@ -240,3 +239,13 @@ jobs:
           name: autonomous-builder-checkpoint-${{ env.BUILDER_BATCH_ID }}
           path: builder/working/${{ env.BUILDER_BATCH_ID }}.md
           if-no-files-found: ignore
+
+      - name: Hand queue back to AutoBot
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "Handing queue control back to AutoBot Control Center after Builder run #${{ github.run_number }}."
+          gh workflow run autonomous-builder-scheduler.yml --repo "$GITHUB_REPOSITORY" --ref main
+          echo "AutoBot Control Center dispatch requested."
