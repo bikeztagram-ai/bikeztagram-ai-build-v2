@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { selectDirectorMoments } from '../src/directorSelection.js';
+
+const selector=fs.readFileSync(new URL('../src/directorSelection.js',import.meta.url),'utf8');
+assert.match(selector,/shotType/);
+assert.match(selector,/visualBucket/);
+assert.match(selector,/usedShotTypes/);
+assert.match(selector,/usedBuckets/);
+assert.match(selector,/shotDiversityType/);
+
+const moments=[
+ {mediaIndex:0,start:0,duration:2,description:'wide establishing shot of a motorcycle on a road',shotType:'wide',score:8},
+ {mediaIndex:0,start:2,duration:2,description:'wide road riding action',shotType:'wide',score:9},
+ {mediaIndex:1,start:0,duration:2,description:'close-up detail of the motorcycle tank',shotType:'close-up',score:8},
+ {mediaIndex:1,start:3,duration:2,description:'medium rider preparation before acceleration',shotType:'medium',score:7},
+ {mediaIndex:2,start:0,duration:2,description:'tracking action shot following the motorcycle',shotType:'tracking',score:9},
+ {mediaIndex:2,start:3,duration:2,description:'hero landscape final reveal',shotType:'wide',score:8},
+ {mediaIndex:3,start:0,duration:2,description:'portrait reaction from the rider',shotType:'portrait',score:7}
+];
+const result=selectDirectorMoments(moments,{maxCuts:6,targetDuration:15,creativePrompt:'cinematic reveal with energetic action and a powerful ending'});
+assert.equal(result.length,6);
+assert.equal(result[0].editorialRole,'hook');
+assert.equal(result.at(-1).editorialRole,'hero-ending');
+assert.ok(new Set(result.map(x=>x.shotDiversityType)).size>=4,'selector should prefer at least four visual shot types');
+assert.ok(new Set(result.map(x=>x.visualBucket)).size>=4,'selector should prefer varied visual buckets');
+assert.ok(result.every(x=>Number.isFinite(x.directorSelectionScore)));
+assert.ok(result.every(x=>typeof x.shotDiversityType==='string'));
+assert.ok(result.every((x,i)=>i===0||Number(x.start)>=Number(result[i-1].start)));
+console.log('batch77-director-visual-diversity: PASS');
