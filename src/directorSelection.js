@@ -6,7 +6,6 @@ const n=(v,f=0)=>{const x=Number(v);return Number.isFinite(x)?x:f};
 const text=v=>String(v||'').toLowerCase();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const describe=m=>text([m.description,m.reason,m.action,m.event,m.editorialRole,m.shotType,m.composition,m.framing,m.cameraAngle].join(' '));
-const subject=m=>text(m.subjectRole||m.subject||m.identity);
 const sourceKey=m=>String(m.mediaId??m.mediaIndex??'unknown');
 const startOf=m=>n(m.start??m.startTime,NaN);
 function shotFamily(moment){
@@ -55,7 +54,7 @@ function desiredRole(position,total,mode){
  if(mode.emotional&&ratio>.55)return'emotional';
  return'variation';
 }
-function roleBonus(moment,role,mode){
+function roleBonus(moment,role){
  const s=describe(moment);
  if(role==='hook')return /hook|opening|establish|impact|action|reveal/.test(s)?24:0;
  if(role==='hero')return /hero|ending|resolution|final|showcase|reveal|portrait|landscape/.test(s)?24:0;
@@ -75,7 +74,7 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
  const ordered=[...ranked];
  while(chosen.length<limit&&ordered.length){let bestIndex=0,best=-Infinity;const role=desiredRole(chosen.length,limit,mode);
   for(let i=0;i<ordered.length;i++){
-   const m=ordered[i];let value=m.__directorScore+roleBonus(m,role,mode);const source=sourceKey(m);const family=m.__shotFamily;
+   const m=ordered[i];let value=m.__directorScore+roleBonus(m,role);const source=sourceKey(m);const family=m.__shotFamily;
    if(usedSources.has(source))value-=12;
    const familyCount=usedFamilies.get(family)||0;
    if(familyCount)value-=12*familyCount;
@@ -84,14 +83,23 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
    if(chosen.some(c=>temporalDistance(m,c)<1.25))value-=12;
    if(chosen.length===0&&/opening|hook/.test(describe(m)))value+=20;
    if(chosen.length===limit-1&&/hero|ending|resolution/.test(describe(m)))value+=18;
-   // Prefer a new visual family when one is available, but never force it when
-   // the library is genuinely homogeneous.
    if(!familyCount&&chosen.length>0)value+=7;
    if(value>best){best=value;bestIndex=i;}
   }
-  const pick=ordered.splice(bestIndex,1)[0];chosen.push(pick);usedSources.add(sourceKey(pick));usedDescriptions.push(describe(pick));usedFamilies.set(pick.__shotFamily,(usedFamilies.get(pick.__shotFamily)||0)+1);
+  const pick=ordered.splice(bestIndex,1)[0];
+  // Preserve the editorial sequence chosen above. Sorting the final selection
+  // back into source-time order made the Director lose its hook/build/reveal/
+  // action/hero story arc whenever the strongest shots came from different files.
+  pick.editorialRole=pick.editorialRole||role;
+  pick.directorStoryPosition=chosen.length;
+  pick.directorStoryRole=role;
+  chosen.push(pick);
+  usedSources.add(sourceKey(pick)); usedDescriptions.push(describe(pick)); usedFamilies.set(pick.__shotFamily,(usedFamilies.get(pick.__shotFamily)||0)+1);
  }
- chosen.sort((a,b)=>n(a.start??a.startTime,0)-n(b.start??b.startTime,0));
- if(chosen.length>1){const first=chosen[0];chosen[0]={...first,editorialRole:first.editorialRole||'hook'};const last=chosen[chosen.length-1];chosen[chosen.length-1]={...last,editorialRole:last.editorialRole||'hero-ending'};}
+ if(chosen.length>1){
+  chosen[0]={...chosen[0],editorialRole:chosen[0].editorialRole||'hook',directorStoryRole:'hook',directorStoryPosition:0};
+  const lastIndex=chosen.length-1;
+  chosen[lastIndex]={...chosen[lastIndex],editorialRole:chosen[lastIndex].editorialRole||'hero-ending',directorStoryRole:'hero',directorStoryPosition:lastIndex};
+ }
  return chosen.map(({__directorScore,__directorIndex,__shotFamily,...m})=>({...m,directorSelectionScore:Number(__directorScore.toFixed(1)),directorSelectionIndex:__directorIndex,directorShotFamily:shotFamily(m)}));
 }
