@@ -53,6 +53,15 @@ async function deleteStaleBranch(branch) {
   console.log(`Deleted stale builder branch ${branch}.`);
 }
 
+function markNoWork(reason) {
+  return fs.appendFile(process.env.GITHUB_ENV, `BUILDER_NO_WORK=true\nBUILDER_NO_WORK_REASON=${reason.replace(/\n/g, ' ')}\n`)
+    .then(() => fs.appendFile(
+      process.env.GITHUB_STEP_SUMMARY,
+      `## Autonomous Builder Queue\n\n**Automatic runner idle:** ${reason}\n\nNo builder work was started. The scheduled runner will check again automatically.\n`
+    ))
+    .then(() => console.log(`Autonomous builder idle: ${reason}`));
+}
+
 for (const batch of queue.batches) {
   const branch = `autonomous-builder/${batch.id}`;
   const prs = await pullRequestsFor(branch);
@@ -68,7 +77,8 @@ for (const batch of queue.batches) {
   }
 
   if (open) {
-    throw new Error(`${batch.id} is already in progress in PR #${open.number}. Merge/review that batch before starting the next queued batch.`);
+    await markNoWork(`${batch.id} is already in progress in PR #${open.number}; waiting for review/merge.`);
+    process.exit(0);
   }
 
   if (batch.status === 'rejected' || batch.status === 'skipped') {
@@ -78,7 +88,8 @@ for (const batch of queue.batches) {
   }
 
   if (closedUnmerged) {
-    throw new Error(`${batch.id} has a closed PR #${closedUnmerged.number} that was not merged. Review the result and explicitly mark the batch as rejected/skipped or reopen the PR before starting another batch.`);
+    await markNoWork(`${batch.id} has closed unmerged PR #${closedUnmerged.number}; waiting for that batch to be explicitly rejected/skipped or reopened.`);
+    process.exit(0);
   }
 
   if (ref) {
@@ -107,4 +118,5 @@ for (const batch of queue.batches) {
   process.exit(0);
 }
 
-throw new Error('No queued batch is ready. The next batch is waiting for the current batch PR to be reviewed/merged.');
+await markNoWork('No queued batch is ready; the queue is waiting for the current batch to be reviewed/merged or explicitly resolved.');
+process.exit(0);
