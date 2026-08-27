@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-27T22:02:33.187Z",
+  "lastReport": {
+    "schemaVersion": 1,
+    "generatedAt": "2026-08-27T22:02:33.121Z",
+    "sourceRunId": "33120772294",
+    "objectiveId": "director-intelligence",
+    "metrics": {
+      "units": 5,
+      "changedUnits": 1,
+      "noOpUnits": 4,
+      "failures": 0,
+      "elapsedMinutes": 0.159
+    },
+    "failureSignatures": [],
+    "recommendations": [
+      "Keep protected runner/workflow paths outside product-task scope.",
+      "Prefer substantive production changes over marker-only verification.",
+      "Increase task selection quality so already-satisfied units are deprioritised."
+    ]
+  },
+  "appliedPolicy": {
+    "schemaVersion": 1,
+    "objectiveWeights": {
+      "production-implementation": 1,
+      "production-integration": 1,
+      "production-enhancement": 1,
+      "production-hardening": 1,
+      "accessibility-hardening": 1,
+      "builder-analysis": 1,
+      "builder-hardening": 1,
+      "self-improvement": 1
+    },
+    "maxAdjustment": 1,
+    "updatedAt": "2026-08-27T22:02:33.186Z",
+    "sourceRunId": "33120772294"
+  },
+  "waves": [
+    {
+      "id": "quality-wave-001",
+      "generatedAt": "2026-08-27T22:02:33.257Z",
+      "sourceRunId": "33120772294",
+      "reason": "scheduled-quality-replenishment",
+      "taskIds": [
+        "quality-wave-001:quality-wave-motion-contract",
+        "quality-wave-001:quality-wave-transition-contract",
+        "quality-wave-001:quality-wave-replenish-next",
+        "quality-wave-001:quality-wave-plan-evidence"
+      ]
+    },
+    {
+      "id": "quality-wave-002",
+      "generatedAt": "2026-08-27T22:02:37.013Z",
+      "sourceRunId": "33120772294",
+      "reason": "scheduled-quality-replenishment",
+      "taskIds": [
+        "quality-wave-002:quality-wave-motion-contract",
+        "quality-wave-002:quality-wave-transition-contract",
+        "quality-wave-002:quality-wave-replenish-next",
+        "quality-wave-002:quality-wave-plan-evidence"
+      ]
+    },
+    {
+      "id": "quality-wave-003",
+      "generatedAt": "2026-08-27T22:02:42.571Z",
+      "sourceRunId": "33120772294",
+      "reason": "scheduled-quality-replenishment",
+      "taskIds": [
+        "quality-wave-003:quality-wave-motion-contract",
+        "quality-wave-003:quality-wave-transition-contract",
+        "quality-wave-003:quality-wave-replenish-next",
+        "quality-wave-003:quality-wave-plan-evidence"
+      ]
+    }
+  ]
+}
