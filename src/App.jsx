@@ -1,5 +1,6 @@
 /* BIKEZTAGRAM AI — universal filmmaker UI. Blob/Gemini/render infrastructure remains protected. */
-import React,{useState} from 'react';
+import React,{useEffect,useState} from 'react';
+import {createProjectSnapshot,loadProject,restoreSources,saveProject} from './projectPersistence.js';
 import {createAIEditPlan,describeAIEditPlan} from './aiEditPlanner.js';
 import {renderInspectImprove} from './renderQualityLoop.js';
 import {renderWorldScene} from './worldScene.js';
@@ -12,6 +13,10 @@ const DEFAULT_PROMPT='Create the strongest cinematic social-media film from this
 const safeName=(name)=>String(name||'media').replace(/[^a-zA-Z0-9._-]/g,'_');
 function putWithProgress(url,file,onProgress){return new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open('PUT',url,true);xhr.setRequestHeader('Content-Type',file.type||'application/octet-stream');xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(Math.round((e.loaded/e.total)*100));};xhr.onerror=()=>reject(new Error('Direct Blob upload failed at the network layer.'));xhr.ontimeout=()=>reject(new Error('Direct Blob upload timed out.'));xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300)resolve();else reject(new Error(`Direct Blob upload returned HTTP ${xhr.status}.`));};xhr.timeout=10*60*1000;xhr.send(file);});}
 export default function App(){
+ /* BIKEZTAGRAM_PERSISTENCE_LIFECYCLE */
+ useEffect(()=>{const restored=loadProject();if(restored.ok&&restored.snapshot){setPrompt(restored.snapshot.creativeBrief||DEFAULT_PROMPT);setAnalysis(restored.snapshot.analysis||null);setPlan(restored.snapshot.plan||null);setProductionPlan(restored.snapshot.productionPlan||null);setSoundtrack(restored.snapshot.soundtrack||null);setExportInfo(restored.snapshot.exportInfo||null);setSources(restoreSources(restored.snapshot.sources||[]));setStatus(restored.recovered?'♻️ Recovered the last valid project snapshot.':'✅ Project restored. Re-select missing local media before rendering.');}},[]);
+ useEffect(()=>{if(!prompt&&!analysis&&!plan&&!productionPlan&&!sources.length)return;saveProject(createProjectSnapshot({prompt,sources,analysis,plan,productionPlan,soundtrack,exportInfo,editorState:{status,stage,autoCaptions}}));},[prompt,sources,analysis,plan,productionPlan,soundtrack,exportInfo,status,stage,autoCaptions]);
+
  const [files,setFiles]=useState([]),[sources,setSources]=useState([]),[prompt,setPrompt]=useState(DEFAULT_PROMPT),[analysis,setAnalysis]=useState(null),[plan,setPlan]=useState(null),[productionPlan,setProductionPlan]=useState(null),[status,setStatus]=useState(''),[stage,setStage]=useState(''),[uploadProgress,setUploadProgress]=useState(0),[renderProgress,setRenderProgress]=useState(0),[loading,setLoading]=useState(false),[rendering,setRendering]=useState(false),[renderedUrl,setRenderedUrl]=useState(''),[qa,setQa]=useState(null),[attempts,setAttempts]=useState(0),[error,setError]=useState(null),[worldUrl,setWorldUrl]=useState(''),[soundtrack,setSoundtrack]=useState(null),[exportInfo,setExportInfo]=useState(null),[autoCaptions,setAutoCaptions]=useState(true),[captionResult,setCaptionResult]=useState(null);
  const busy=loading||rendering;const isSingle=files.length===1;const isVideo=isSingle&&files[0]?.type?.startsWith('video/');
  function reset(){if(renderedUrl)URL.revokeObjectURL(renderedUrl);if(worldUrl)URL.revokeObjectURL(worldUrl);setFiles([]);setSources([]);setAnalysis(null);setPlan(null);setProductionPlan(null);setRenderedUrl('');setWorldUrl('');setQa(null);setAttempts(0);setError(null);setStatus('');setStage('');setUploadProgress(0);setRenderProgress(0);setSoundtrack(null);setExportInfo(null);setCaptionResult(null);}

@@ -49,6 +49,12 @@ This file is durable guidance for every future Bikeztagram AI batch. It exists s
 - Persistence tests should cover save/load, reload-after-edit, schema migration, corruption/partial state, missing media and continued editing. Unit tests alone are insufficient evidence of a successful recovery lifecycle.
 - When a batch exposes a semantic gap such as "atomic" versus "last-known-good", future objectives and prompts must use explicit acceptance behaviour rather than relying on ambiguous architectural terminology.
 
+### Batch 99: durable media reference safety
+- Browser object URLs (`blob:`) are temporary session-scoped references and must never be persisted or labelled as restorable media.
+- Persist only genuinely durable references such as validated `http:`/`https:` URLs. Local File/Blob media must be represented as metadata with an explicit missing-media/reselection state after reload.
+- Any persistence feature that claims media recovery must include a regression check distinguishing temporary object URLs from durable remote references.
+- A lesson is active only when the builder's deterministic verification rejects the unsafe case and accepts the safe case.
+
 ## How Gemini should be used
 
 - Use Gemini as a bounded architecture/quality advisor, not as an unlimited second builder.
