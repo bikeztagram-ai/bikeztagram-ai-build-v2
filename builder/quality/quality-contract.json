@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "required": ["scope", "regression", "acceptance", "evidence", "merge-readiness"],
+  "failClosed": true,
+  "minimumEvidence": {
+    "implementationChange": true,
+    "verificationResults": true,
+    "acceptanceResults": true,
+    "checkpoint": true,
+    "reviewManifest": true
+  },
+  "forbiddenShortcuts": [
+    "marker-only completion",
+    "test deletion to obtain green CI",
+    "weakening a quality gate",
+    "automatic merge",
+    "automatic production deployment"
+  ]
+}
