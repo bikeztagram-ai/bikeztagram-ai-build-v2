@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "categories": [
+    "BUILD_FAILURE",
+    "TEST_FAILURE",
+    "INTEGRATION_FAILURE",
+    "ACCEPTANCE_FAILURE",
+    "REGRESSION",
+    "SCOPE_FAILURE",
+    "PROTECTED_PATH_VIOLATION",
+    "NO_OP",
+    "MARKER_ONLY_CHANGE",
+    "DEPENDENCY_FAILURE",
+    "ENVIRONMENT_FAILURE",
+    "TIMEOUT",
+    "CHECKPOINT_FAILURE",
+    "REVIEW_REJECTION"
+  ],
+  "rules": {
+    "learn_after_recurrence": 2,
+    "never_downgrade_quality_gate": true,
+    "self_improvement_requires_regression_test": true,
+    "review_rejection_is_learning_signal": true
+  }
+}
