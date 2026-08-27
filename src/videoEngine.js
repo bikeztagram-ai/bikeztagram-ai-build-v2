@@ -15,7 +15,49 @@ const asNumber = (value, fallback = 0) => {
 };
 const asString = (value, fallback = '') => String(value ?? fallback).trim();
 
+/* Translate the richer Creative Director treatment vocabulary into the
+ * renderer's deliberately small, deterministic cue vocabulary. The richer
+ * treatment remains on the timeline as cinematicTreatment; these values are
+ * the executable equivalents consumed by cinematicRuntime. */
+function runtimeTreatmentForScene(scene, index) {
+  const treatment = scene?.cinematicTreatment;
+  if (!treatment) return null;
+
+  const motionMap = {
+    'push-in': 'slow-push',
+    'slow-push-in': 'slow-push',
+    'gentle-push': 'slow-push',
+    'slow-orbit': 'orbit',
+    'lateral-pan': index % 2 ? 'pan-right' : 'pan-left',
+    'speed-ramp': index % 2 ? 'pan-right' : 'pan-left',
+    'subtle-drift': 'parallax'
+  };
+  const transitionMap = {
+    fade: index === 0 ? 'fade-in' : 'fade-out',
+    'impact-cut': 'flash-cut',
+    'match-cut': 'hard-cut',
+    'rhythmic-cut': 'hard-cut',
+    'clean-cut': 'hard-cut'
+  };
+  const motion = motionMap[asString(treatment.motion).toLowerCase()];
+  const transition = transitionMap[asString(treatment.transition).toLowerCase()];
+  const intensityMap = { hook: 0.9, high: 1.2, rising: 1.0, build: 0.95, resolution: 0.75, controlled: 0.7 };
+  const intensity = intensityMap[asString(treatment.intensity).toLowerCase()] ?? 0.85;
+  const isSpeedRamp = asString(treatment.motion).toLowerCase() === 'speed-ramp';
+
+  return {
+    motion: motion || 'cinematic',
+    intensity: clamp(intensity, 0.35, 1.6),
+    transition: transition || 'hard-cut',
+    speed: isSpeedRamp ? 1.35 : 1,
+    speedEnd: isSpeedRamp ? 0.8 : 1
+  };
+}
+
 function effectForScene(scene, index) {
+  const treatment = runtimeTreatmentForScene(scene, index);
+  if (treatment) return { motion: treatment.motion, intensity: treatment.intensity };
+
   const text = [scene?.purpose, scene?.description, scene?.prompt].filter(Boolean).join(' ').toLowerCase();
   const explicitMotion = asString(scene?.motionStyle || scene?.motion || scene?.cameraMotion);
   const explicitIntensity = Number(scene?.motionIntensity ?? scene?.intensity);
@@ -33,6 +75,11 @@ function effectForScene(scene, index) {
 }
 
 function transitionFor(index, total, scene) {
+  const treatment = runtimeTreatmentForScene(scene, index);
+  if (treatment) {
+    if (index === 0 && !scene?.cinematicTreatment?.transition) return 'fade-in';
+    return treatment.transition;
+  }
   if (index === 0) return asString(scene?.transition || scene?.transitionIn, 'fade-in');
   if (index === total - 1 && !scene?.transition && !scene?.transitionIn) return 'fade-out';
   const text = asString(scene?.transition || scene?.transitionIn || scene?.description).toLowerCase();
@@ -91,8 +138,9 @@ export function createInternalTimeline(productionPlan, editPlan) {
   const total = scenes.length;
   let cursor = 0;
   const clips = scenes.map((scene, index) => {
-    const duration = clamp(asNumber(scene?.duration, 2.5), 0.5, 8);
+    const duration = clamp(asNumber(scene?.treatmentDuration ?? scene?.duration, 2.5), 0.5, 8);
     const effect = effectForScene(scene, index);
+    const runtimeTreatment = runtimeTreatmentForScene(scene, index);
     const sourceType = scene?.sourceType === 'generated' ? 'generated' : 'uploaded';
     const role = editorialRoleFor(scene, index, total);
     const transition = transitionFor(index, total, scene);
@@ -111,10 +159,11 @@ export function createInternalTimeline(productionPlan, editPlan) {
       end: cursor + duration,
       purpose: scene?.purpose || role,
       prompt: sourceType === 'generated' ? asString(scene?.generationPrompt || scene?.prompt) : '',
+      cinematicTreatment: scene?.cinematicTreatment || null,
       motion: effect.motion,
       motionIntensity: effect.intensity,
-      speed: clamp(asNumber(scene?.speed, 1), 0.25, 2.5),
-      speedEnd: clamp(asNumber(scene?.speedEnd, scene?.speed ?? 1), 0.25, 2.5),
+      speed: runtimeTreatment?.speed ?? clamp(asNumber(scene?.speed, 1), 0.25, 2.5),
+      speedEnd: runtimeTreatment?.speedEnd ?? clamp(asNumber(scene?.speedEnd, scene?.speed ?? 1), 0.25, 2.5),
       transition,
       transitionDuration,
       colorGrade: scene?.colorGrade || productionPlan?.colorGrade || 'dark-cinematic',
@@ -138,6 +187,7 @@ export function createInternalTimeline(productionPlan, editPlan) {
       rolesPreserved: true,
       directorMotionPreserved: true,
       transitionsPreserved: true,
+      cinematicTreatmentsPreserved: clips.some((clip) => clip.cinematicTreatment),
       sourceProvenancePreserved: true,
       beatAnchorsPreserved: clips.some((clip) => clip.beatAnchor)
     },
@@ -168,5 +218,6 @@ export function describeInternalTimeline(timeline) {
   const generated = clips.filter((clip) => clip.sourceType === 'generated').length;
   const uploaded = clips.filter((clip) => clip.sourceType === 'uploaded').length;
   const roles = [...new Set(clips.map((clip) => clip.editorialRole).filter(Boolean))];
-  return `${clips.length} scenes • ${uploaded} real • ${generated} generated/procedural • ${asNumber(timeline?.duration).toFixed(1)}s • ${roles.length} story roles • ${timeline?.renderCues?.length || 0} render cues • Bikeztagram local engine`;
+  const treatments = clips.filter((clip) => clip.cinematicTreatment).length;
+  return `${clips.length} scenes • ${uploaded} real • ${generated} generated/procedural • ${asNumber(timeline?.duration).toFixed(1)}s • ${roles.length} story roles • ${treatments} cinematic treatments • ${timeline?.renderCues?.length || 0} render cues • Bikeztagram local engine`;
 }
