@@ -7,7 +7,10 @@ const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
 const RESUME_EXISTING = process.env.BUILDER_RESUME_EXISTING === 'true';
 const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
-const MAX_PASSES = Math.min(Math.max(Number(process.env.BUILDER_MAX_PASSES || 8), 1), 8);
+// Cost-control rule: one Gemini engineering session per batch. The worker must
+// produce a complete, verified change in that session; local verification does
+// not consume Gemini. This can be relaxed later only with measured evidence.
+const MAX_PASSES = 1;
 const ROOT = '/vercel/sandbox';
 const REPO_DIR = `${ROOT}/repo`;
 const ASKPASS = `${ROOT}/git-askpass.sh`;
@@ -24,7 +27,7 @@ const results = [];
 const compact = (value, limit = 12000) => { const s = String(value || '').trim(); return s.length <= limit ? s : `${s.slice(0, limit)}\n...[truncated]`; };
 const text = r => `${r?.stdout || ''}\n${r?.stderr || ''}`.toLowerCase();
 const providerFailure = r => r?.exitCode !== 0 && /model .*not found|modelnotfound|invalid model|api key|authentication|unauthenticated|permission denied|forbidden|\b401\b|\b403\b|\b404\b|no api key|unknown argument|unknown option/.test(text(r));
-const quotaFailure = r => /quota|rate limit|too many requests|resource exhausted|\b429\b|insufficient quota|usage limit/.test(text(r));
+const quotaFailure = r => /quota|rate limit|too many requests|resource exhausted|\b429\b|insufficient quota|usage limit|prepay.*depleted|prepayment.*depleted|credit.*depleted/.test(text(r));
 const retryHint = r => { const m = text(r).match(/retry(?:ing)? after\s+(\d+(?:\.\d+)?)\s*s/i); return m ? `Suggested retry delay: ${m[1]}s.` : 'No provider retry delay supplied.'; };
 const safeBranch = b => b && b !== 'main' && b !== 'master' && !b.startsWith('production/');
 const shellQuote = value => `'${String(value).replace(/'/g, `'\\''`)}'`;
@@ -39,16 +42,13 @@ async function run(sandbox, cmd, args = [], cwd = REPO_DIR, env) {
 
 // Gemini CLI can run for many minutes and produces a continuous output stream.
 // Vercel's Sandbox command stream can terminate independently of the child
-// process (the failure seen in batch-98 was "Stream ended before command
-// finished"). Run the agent as a detached child, persist its output/exit code,
-// and poll those files instead. This keeps the worker alive independently of
-// the SDK response stream while the Sandbox session itself remains bounded.
+// process. Run the agent detached and poll its files instead.
 async function runAgentDetached(sandbox, args, cwd, env, pass) {
   const stamp = `${BATCH_ID}-${pass}-${Date.now()}`;
   const logPath = `/tmp/autobot-agent-${stamp}.log`;
   const exitPath = `/tmp/autobot-agent-${stamp}.exit`;
   const commandLine = [AGENT_CMD[0], ...args].map(shellQuote).join(' ');
-  const launchScript = `rm -f ${shellQuote(logPath)} ${shellQuote(exitPath)}; nohup sh -lc ${shellQuote(`${commandLine} > ${shellQuote(logPath)} 2>&1; code=$?; printf '%s' "$code" > ${shellQuote(exitPath)}`)} >/dev/null 2>&1 & echo $!`;
+  const launchScript = `rm -f ${shellQuote(logPath)} ${shellQuote(exitPath)}; nohup sh -lc ${shellQuote(`${commandLine} > ${shellQuote(logPath)} 2>&1; code=$?; printf '%s' \"$code\" > ${shellQuote(exitPath)}`)} >/dev/null 2>&1 & echo $!`;
   const launch = await run(sandbox, 'sh', ['-lc', launchScript], cwd, env);
   if (launch.exitCode) return launch;
   const started = Date.now();
@@ -113,14 +113,17 @@ async function publish(sandbox, gitEnv) {
 
 function prompt(pass, failures) {
   return [`BIKEZTAGRAM AUTONOMOUS ENGINEERING WORKER — ${BATCH_ID}`,
-    'Execute the pre-approved engineering task directly. Do not invent unrelated roadmap work.',
-    'Read builder/quality/project-memory.md, builder/quality/lessons.md and config/autonomous-builder-queue.json before editing.',
+    'Execute ONLY the pre-approved engineering task. Do not invent unrelated roadmap work.',
+    'Before editing, inspect only the files and contracts needed for the objective. Read builder/quality/project-memory.md, builder/quality/lessons.md and config/autonomous-builder-queue.json for context, then stop exploring.',
     `OBJECTIVE:\n${OBJECTIVE}`,
     `ACCEPTANCE:\n- ${ACCEPTANCE.join('\n- ')}`,
     `PASS: ${pass}/${MAX_PASSES}`,
     failures.length ? `PREVIOUS VERIFICATION FAILURES:\n${failures.join('\n\n')}` : '',
-    'Make substantive production changes. Preserve working behaviour. Run the relevant checks. Never modify .github/workflows/**, builder/runner/**, the durable queue, or deploy production. Do not commit or push; the runner owns Git.',
-    `Checkpoint: builder/working/${BATCH_ID}.md`].join('\n');
+    'Work as a production engineer: make the smallest complete set of substantive changes that satisfies the objective and acceptance criteria. Prefer one coherent implementation over exploratory alternatives.',
+    'Do not spend time on unrelated cleanup, speculative refactors, documentation-only work, or roadmap items. Preserve existing working behaviour.',
+    'Run the relevant local checks yourself before finishing. If the acceptance criteria are satisfied and checks pass, STOP. Do not make additional changes merely to improve the code stylistically.',
+    'Never modify .github/workflows/**, builder/runner/**, the durable queue, or deploy production. Do not commit or push; the runner owns Git.',
+    `Checkpoint: builder/working/${BATCH_ID}.md`].filter(Boolean).join('\n');
 }
 
 async function main() {
@@ -141,8 +144,10 @@ async function main() {
   let quotaHint = null;
   let providerFailed = false;
   let noChanges = false;
+  let rateLimitRecovered = false;
   let protectedChangesReset = [];
   const startedAt = new Date().toISOString();
+  const rateLimitFile = process.env.AUTOBOT_GEMINI_RATE_LIMIT_FILE || '/tmp/autobot-gemini-rate-limited';
   try {
     const sandboxTimeoutMs = MAX_MINUTES * 60 * 1000;
     sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 4 }, persistent: false, timeout: sandboxTimeoutMs, networkPolicy: 'allow-all' });
@@ -176,19 +181,24 @@ async function main() {
       }
       if (quotaFailure(agent)) { quotaDetected = true; quotaHint = retryHint(agent); failures = [`Provider quota/rate limit detected. ${quotaHint}`]; break; }
       if (providerFailure(agent)) { providerFailed = true; failures = [`Provider/model configuration failure (exit ${agent.exitCode}).\n${compact(agent.stderr || agent.stdout)}`]; break; }
-      if (agent.exitCode) { failures = [`Agent failed (exit ${agent.exitCode}).\n${compact(agent.stderr || agent.stdout)}`]; continue; }
+      if (agent.exitCode) { failures = [`Agent failed (exit ${agent.exitCode}).\n${compact(agent.stderr || agent.stdout)}`]; break; }
       const changed = await run(sandbox, 'git', ['status', '--short']);
       if (changed.exitCode) throw new Error(`git status failed: ${changed.stderr}`);
       if (!changed.stdout.trim()) { noChanges = true; failures = ['Agent completed without producing repository changes.']; break; }
       protectedChangesReset = await protect(sandbox);
       failures = await verify(sandbox);
       if (!failures.length) { status = 'VERIFIED'; break; }
+      if (await run(sandbox, 'sh', ['-lc', `test -f '${rateLimitFile}'`], ROOT).then(r => r.exitCode === 0)) {
+        rateLimitRecovered = true;
+        failures.push('Gemini rate limit was encountered during this batch; stopping after local verification rather than starting another paid Gemini session.');
+        break;
+      }
     }
     if (status === 'VERIFIED') commitSha = await publish(sandbox, gitEnv);
-    else if (!failure) failure = providerFailed ? 'Gemini provider/model failed before reliable execution.' : quotaDetected ? `Gemini quota/rate limit detected. ${quotaHint || ''}`.trim() : noChanges ? 'Builder produced no repository changes.' : 'Builder did not reach a verified state.';
+    else if (!failure) failure = providerFailed ? 'Gemini provider/model failed before reliable execution.' : quotaDetected ? `Gemini quota/rate limit detected. ${quotaHint || ''}`.trim() : noChanges ? 'Builder produced no repository changes.' : rateLimitRecovered ? 'Builder changes did not verify after a recovered Gemini rate limit; stopped to protect spend.' : 'Builder did not reach a verified state.';
   } catch (error) { failure = error?.message || String(error); }
   finally { if (sandbox) await sandbox.stop().catch(() => {}); }
-  const report = { batchId: BATCH_ID, status, provider: AGENT_PROVIDER, model: AGENT_MODEL, startedAt, finishedAt: new Date().toISOString(), passes, commitSha, failure, quotaDetected, quotaHint, providerFailure: providerFailed, noChangesProduced: noChanges, protectedChangesReset, commandTimeoutMs: COMMAND_TIMEOUT_MS, sandboxTimeoutMs: MAX_MINUTES * 60 * 1000, failures, commands: results };
+  const report = { batchId: BATCH_ID, status, provider: AGENT_PROVIDER, model: AGENT_MODEL, startedAt, finishedAt: new Date().toISOString(), passes, commitSha, failure, quotaDetected, quotaHint, providerFailure: providerFailed, noChangesProduced: noChanges, rateLimitRecovered, protectedChangesReset, maxPasses: MAX_PASSES, commandTimeoutMs: COMMAND_TIMEOUT_MS, sandboxTimeoutMs: MAX_MINUTES * 60 * 1000, failures, commands: results };
   await mkdir('/tmp/builder-report', { recursive: true });
   await writeFile(`/tmp/builder-report/${BATCH_ID}.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
