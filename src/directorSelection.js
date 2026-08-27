@@ -2,6 +2,7 @@
    Scores Gemini-verified moments before editorial styling. Never invents media.
    The selector deliberately trades a small amount of raw score for story coverage,
    shot-family diversity, subject diversity, source diversity, temporal separation and duration fit. */
+import { scoreEditorialCandidate } from './editorialQuality.js';
 const n=(v,f=0)=>{const x=Number(v);return Number.isFinite(x)?x:f};
 const text=v=>String(v||'').toLowerCase();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -91,14 +92,11 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
  const ordered=[...ranked];
  while(chosen.length<limit&&ordered.length){let bestIndex=0,best=-Infinity;const role=desiredRole(chosen.length,limit,mode);const remainingSlots=limit-chosen.length;
   for(let i=0;i<ordered.length;i++){
-   const m=ordered[i];let value=m.__directorScore+roleBonus(m,role,mode)+durationFit(m,usedDuration,targetDuration,remainingSlots);const source=sourceKey(m);const family=m.__shotFamily;const subjectKey=m.__subjectFamily;
+   const m=ordered[i];let value=m.__directorScore+roleBonus(m,role,mode)+durationFit(m,usedDuration,targetDuration,remainingSlots);value+=scoreEditorialCandidate(m,{role,chosen,targetDuration,usedDuration,mode});const source=sourceKey(m);const family=m.__shotFamily;const subjectKey=m.__subjectFamily;
    if(usedSources.has(source))value-=12;
    const familyCount=usedFamilies.get(family)||0;
    if(familyCount)value-=12*familyCount;
    const subjectCount=usedSubjects.get(subjectKey)||0;
-   // Keep multi-subject stories from repeatedly showing the same subject when
-   // meaningful alternatives exist. A single-subject library naturally shares
-   // one key, so the bounded penalty does not eliminate valid shots.
    if(subjectKey!=='unknown'&&subjectCount)value-=clamp(9*subjectCount,9,24);
    if(chosen.length&&similarity(m,chosen[chosen.length-1])>.65)value-=18;
    if(usedDescriptions.some(d=>d===describe(m)))value-=30;
