@@ -63,13 +63,14 @@ for (const candidate of candidates) {
   if (candidateTasks.length && uniqueCompleted.length === candidateTasks.length) history.objectives.add(candidate.id);
 }
 if (!objective) {
-  const state = { objectiveId: null, completed: [], verifiedThisRun: [], totalUnits: 0, status: 'idle', currentTask: null, files: [], history };
+  const state = { objectiveId: null, completed: [], verifiedThisRun: [], noOpVerifiedThisRun: [], totalUnits: 0, status: 'idle', currentTask: null, files: [], history };
   writeCheckpoint(state); live(state, 'No eligible unfinished roadmap units. Idle.'); process.exit(0);
 }
 
 const completed = carriedCompleted;
 const verifiedThisRun = [];
-const state = { objectiveId: objective.id, completed, verifiedThisRun, totalUnits: tasks.length, currentTask: null, status: 'running', files: [], history };
+const noOpVerifiedThisRun = [];
+const state = { objectiveId: objective.id, completed, verifiedThisRun, noOpVerifiedThisRun, totalUnits: tasks.length, currentTask: null, status: 'running', files: [], history };
 writeCheckpoint(state); live(state, `Starting ${objective.id}`);
 const evidence = { schemaVersion: 2, runId: process.env.GITHUB_RUN_ID || 'local', objectiveId: objective.id, startedAt, units: [] };
 for (const task of tasks) {
@@ -87,15 +88,17 @@ for (const task of tasks) {
     for (const command of task.verify || []) { runCommand(command, `${task.id} verification`); verification.push({ command, status: 'passed' }); live(state, `${task.id}: verification passed`, verification); }
     const after = git(['status', '--porcelain']);
     const changed = before !== after;
-    if (!changed) console.log(`[autobot] ${task.id}: implementation already satisfied; verification passed, accepting idempotent completion.`);
+    if (!changed) console.log(`[autobot] ${task.id}: implementation already satisfied; verification passed; recording as idempotent verification, not new work.`);
     unitEvidence.after = after; unitEvidence.verification = verification; unitEvidence.completedAt = new Date().toISOString(); unitEvidence.unchangedButVerified = !changed;
     evidence.units.push(unitEvidence); fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + '\n');
-    completed.push(task.id); verifiedThisRun.push(task.id); history.tasks.add(`${objective.id}:${task.id}`);
+    completed.push(task.id);
+    if (changed) verifiedThisRun.push(task.id); else noOpVerifiedThisRun.push(task.id);
+    history.tasks.add(`${objective.id}:${task.id}`);
     state.currentTask = null; state.lastVerifiedTask = task.id; state.files = after.split('\n').filter(Boolean).map(line => ({ status: line.slice(0, 2).trim(), path: line.slice(3).trim() }));
-    writeCheckpoint(state); live(state, `${task.id} verified and checkpointed`, verification);
+    writeCheckpoint(state); live(state, changed ? `${task.id} newly implemented, verified and checkpointed` : `${task.id} verified as already satisfied; no new implementation counted`, verification);
   } catch (error) { unitEvidence.failedAt = new Date().toISOString(); unitEvidence.error = error.message; evidence.units.push(unitEvidence); fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + '\n'); state.status = 'blocked'; state.error = error.message; state.blockedTask = task.id; writeCheckpoint(state); live(state, `BLOCKED: ${task.id} — ${error.message}`); console.error(`[autobot] BLOCKED on ${task.id}: ${error.message}`); process.exit(2); }
 }
 const objectiveComplete = completed.length === tasks.length;
 if (objectiveComplete) history.objectives.add(objective.id);
 state.currentTask = null; state.status = objectiveComplete ? 'objective-complete' : 'checkpointed';
-writeCheckpoint(state); live(state, objectiveComplete ? 'All deterministic units verified.' : 'Run limit reached; safe checkpoint created.'); console.log(`[autobot] ${state.status}: ${verifiedThisRun.length} new units verified this invocation; objective ${completed.length}/${tasks.length}; durable history has ${history.tasks.size} task completions.`);
+writeCheckpoint(state); live(state, objectiveComplete ? 'All deterministic units verified.' : 'Run limit reached; safe checkpoint created.'); console.log(`[autobot] ${state.status}: ${verifiedThisRun.length} new units verified, ${noOpVerifiedThisRun.length} already-satisfied units verified (not counted as new work); objective ${completed.length}/${tasks.length}; durable history has ${history.tasks.size} task completions.`);
