@@ -12,11 +12,12 @@ const queue = JSON.parse(fs.readFileSync(path.join(root, 'config/autonomous-buil
 
 const failures = [];
 if (/GEMINI_API_KEY|gemini-cli|gemini-3/i.test(workflow)) failures.push('V2 workflow still depends on Gemini');
-if (!executor.includes('deterministic') || !executor.includes('writeCheckpoint')) failures.push('deterministic executor/checkpoint contract missing');
-if (!sustained.includes('BUILDER_COMPLETED_OBJECTIVES')) failures.push('sustained runner does not carry completed objectives');
-if (!sustained.includes('completedKeys') || !sustained.includes('completedObjectives')) failures.push('sustained runner does not track cumulative units/objectives');
-if (!executor.includes('carriedObjectives.has(dep)')) failures.push('deterministic executor does not satisfy downstream dependencies from the current run');
-if (!executor.includes('process.env.BUILDER_COMPLETED_OBJECTIVES')) failures.push('deterministic executor does not consume carried objectives');
+if (!executor.includes('writeCheckpoint') || !executor.includes('history')) failures.push('deterministic executor lacks durable completion history');
+if (!executor.includes('verifiedThisRun')) failures.push('deterministic executor does not expose per-invocation verified units');
+if (!executor.includes('unchangedButVerified')) failures.push('idempotent verified-task evidence is missing');
+if (!executor.includes('history.objectives.has(dep)')) failures.push('executor does not unlock dependencies from durable objective history');
+if (!sustained.includes('verifiedThisRun')) failures.push('sustained runner does not count only newly verified units');
+if (!sustained.includes('BUILDER_COMPLETED_OBJECTIVES')) failures.push('sustained runner does not carry completed objectives between iterations');
 if (!Array.isArray(library.tasks) || !library.tasks.length) failures.push('task library is empty');
 if (!Array.isArray(roadmap.objectives) || !roadmap.objectives.length) failures.push('roadmap is empty');
 for (const task of library.tasks) {
@@ -25,12 +26,10 @@ for (const task of library.tasks) {
 const activeQueueIds = new Set((queue.batches || []).filter(b => b.objective && !['merged','rejected'].includes(b.status)).map(b => b.id));
 for (const objective of roadmap.objectives) {
   if (!objective.queueBatch || !activeQueueIds.has(objective.queueBatch)) continue;
-  if (!library.tasks.some(task => task.objectiveId === objective.id && task.status === 'ready')) {
-    failures.push(`queued objective ${objective.id} has no ready implementation unit`);
-  }
+  if (!library.tasks.some(task => task.objectiveId === objective.id && task.status === 'ready')) failures.push(`queued objective ${objective.id} has no ready implementation unit`);
 }
 if (failures.length) {
   console.error(failures.map(f => `FAIL: ${f}`).join('\n'));
   process.exit(1);
 }
-console.log(`Deterministic AutoBot contract PASS: ${library.tasks.length} implementation units, ${roadmap.objectives.length} objectives, executable roadmap coverage PASS.`);
+console.log(`Deterministic AutoBot contract PASS: ${library.tasks.length} implementation units, ${roadmap.objectives.length} objectives, durable progress and sustained accounting PASS.`);
