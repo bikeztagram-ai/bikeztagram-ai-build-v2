@@ -1,5 +1,6 @@
 /* BIKEZTAGRAM AI — universal filmmaker UI. Blob/Gemini/render infrastructure remains protected. */
-import React,{useState} from 'react';
+import React,{useState,useEffect} from 'react';
+import {loadProject,saveProject,verifyMediaSources,clearProjectPersistence} from './projectPersistence.js';
 import {createAIEditPlan,describeAIEditPlan} from './aiEditPlanner.js';
 import {renderInspectImprove} from './renderQualityLoop.js';
 import {renderWorldScene} from './worldScene.js';
