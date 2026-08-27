@@ -68,14 +68,28 @@ jobs:
       - name: Select next queued objective
         run: node scripts/prepare-autonomous-batch.mjs
 
+      - name: Switch to durable builder branch
+        if: env.BUILDER_NO_WORK != 'true'
+        run: |
+          set -euo pipefail
+          branch="$BUILDER_WORKING_BRANCH"
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" || true
+          if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout -B "$branch" "origin/$BUILDER_BASE_BRANCH"
+          fi
+          git status --short --branch
+
       - name: Validate selected task workers
         if: env.BUILDER_NO_WORK != 'true'
         run: node builder/runner/task-preflight.mjs
 
-      - name: Validate builder
+      - name: Validate builder contract
         if: env.BUILDER_NO_WORK != 'true'
         run: |
           set -euo pipefail
+          node builder/quality/preflight.mjs
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/run-duration.mjs
           node --check builder/runner/task-preflight.mjs
@@ -101,6 +115,23 @@ jobs:
       - name: Run merge-readiness gate
         if: always() && env.BUILDER_NO_WORK != 'true'
         run: node builder/quality/merge-readiness.mjs
+
+      - name: Commit and publish verified work
+        if: success() && env.BUILDER_NO_WORK != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo 'No repository changes to publish.'
+            exit 0
+          fi
+          git config user.name 'Bikeztagram AutoBot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m "builder: checkpoint ${BUILDER_BATCH_ID}"
+          git push --set-upstream origin "$BUILDER_WORKING_BRANCH"
+          gh pr create --base "$BUILDER_BASE_BRANCH" --head "$BUILDER_WORKING_BRANCH" --draft --title "AutoBot: ${BUILDER_BATCH_ID}" --body "Autonomous Builder checkpoint for ${BUILDER_BATCH_ID}. Quality gates and evidence are required before human review and merge."
 
       - name: Upload run state and review evidence
         if: always() && env.BUILDER_NO_WORK != 'true'
