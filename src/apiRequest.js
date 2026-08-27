@@ -32,10 +32,11 @@ export async function requestJson(url, options = {}, { attempts = 3, baseDelayMs
       const message = data?.error || data?.message || `HTTP ${response.status}`;
       const error = new Error(message);
       error.status = response.status;
-      error.responseData = data;
+      error.responseData = data; error.category = classifyRequestFailure(error);
       if (!RETRYABLE.has(response.status) || attempt >= maxAttempts) throw error;
       lastError = error;
     } catch (error) {
+      error.category = classifyRequestFailure(error);
       lastError = error;
       const abortedByCaller = externalSignal?.aborted;
       const retryableHttp = Number.isInteger(error?.status) && RETRYABLE.has(error.status);
@@ -47,4 +48,14 @@ export async function requestJson(url, options = {}, { attempts = 3, baseDelayMs
     await sleep(baseDelayMs * (2 ** (attempt - 1)) + Math.floor(Math.random() * 150));
   }
   throw lastError || new Error(`API request failed: ${url}`);
+}
+
+export function classifyRequestFailure(error){
+ const status=Number(error?.status)||0;
+ if(error?.name==='AbortError') return 'timeout';
+ if(status===429) return 'rate-limit';
+ if(status>=500) return 'provider-unavailable';
+ if(status>=400) return 'request-rejected';
+ if(!status) return 'network-unavailable';
+ return 'unknown';
 }

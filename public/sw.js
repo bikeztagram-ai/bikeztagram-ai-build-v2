@@ -1,4 +1,5 @@
-const CACHE_NAME = 'bikeztagram-shell-v1';
+const BIKEZTAGRAM_CACHE_VERSION = CACHE_NAME;
+const CACHE_NAME = 'bikeztagram-shell-v2';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -21,8 +22,10 @@ self.addEventListener('fetch', (event) => {
   // only offline surface; runtime assets remain network-first to avoid stale builds.
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ffmpeg/')) return;
   if (event.request.mode === 'navigate') {
-    event.respondWith(fetch(event.request).catch(() => caches.match('/index.html')));
+    event.respondWith(fetch(event.request).catch(() => caches.match(BIKEZTAGRAM_NAVIGATION_FALLBACK)));
     return;
   }
   event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });
+
+const BIKEZTAGRAM_NAVIGATION_FALLBACK = '/index.html';
