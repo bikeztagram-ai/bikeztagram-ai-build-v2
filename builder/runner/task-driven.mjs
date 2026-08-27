@@ -109,7 +109,16 @@ async function main() {
   let protectedChangesReset = [];
   const startedAt = new Date().toISOString();
   try {
-    sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 2 }, persistent: false, timeout: MAX_MINUTES * 60 * 1000, networkPolicy: 'allow-all' });
+    const sandboxTimeoutMs = MAX_MINUTES * 60 * 1000;
+    sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 4 }, persistent: false, timeout: sandboxTimeoutMs, networkPolicy: 'allow-all' });
+    // Explicitly extend the live session after creation. This is deliberate:
+    // Vercel Sandbox supports changing the timeout of an already-running
+    // session, and doing it here prevents a project/account default from
+    // silently leaving the worker on the five-minute default.
+    if (typeof sandbox.update === 'function') {
+      await sandbox.update({ timeout: sandboxTimeoutMs });
+    }
+    console.log(`[AutoBot] Sandbox ${sandbox.name || 'created'} live timeout requested: ${Math.round(sandboxTimeoutMs / 60000)} minutes.`);
     const askpass = await run(sandbox, 'sh', ['-lc', `cat > '${ASKPASS}' <<'EOF'\n#!/bin/sh\ncase "$1" in\n *Username*) printf '%s\\n' 'x-access-token' ;;\n *) printf '%s\\n' "$GITHUB_TOKEN" ;;\nesac\nEOF\nchmod 700 '${ASKPASS}'`], ROOT, gitEnv);
     if (askpass.exitCode) throw new Error(`Git auth helper setup failed: ${askpass.stderr}`);
     const clone = await run(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], ROOT, gitEnv);
@@ -123,10 +132,20 @@ async function main() {
     const install = await run(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
     if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
     for (passes = 1; passes <= MAX_PASSES; passes++) {
-      // The configured command uses `sh -lc`. Its positional arguments are:
-      // $0=dummy, $1=--model, $2=model, $3=-p, $4=prompt. The previous code
-      // read $3 as the prompt, which passed the literal "-p" to Gemini.
-      const agent = await run(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--model', AGENT_MODEL, '-p', prompt(passes, failures)], REPO_DIR, agentEnv);
+      // Keep the Actions log visibly alive while the model is thinking. This
+      // does not extend the sandbox itself; sandbox.update() above is the
+      // lifetime control. It does make a long agent call observable.
+      const heartbeat = setInterval(() => {
+        console.log(`[AutoBot] Gemini worker still running — batch ${BATCH_ID}, pass ${passes}/${MAX_PASSES}, elapsed heartbeat ${new Date().toISOString()}`);
+      }, 30_000);
+      let agent;
+      try {
+        // The configured command uses sh -lc with $0=dummy, $1=--model,
+        // $2=model, $3=-p, $4=prompt. Pass the full argument contract here.
+        agent = await run(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--model', AGENT_MODEL, '-p', prompt(passes, failures)], REPO_DIR, agentEnv);
+      } finally {
+        clearInterval(heartbeat);
+      }
       if (quotaFailure(agent)) { quotaDetected = true; quotaHint = retryHint(agent); failures = [`Provider quota/rate limit detected. ${quotaHint}`]; break; }
       if (providerFailure(agent)) { providerFailed = true; failures = [`Provider/model configuration failure (exit ${agent.exitCode}).\n${compact(agent.stderr || agent.stdout)}`]; break; }
       if (agent.exitCode) { failures = [`Agent failed (exit ${agent.exitCode}).\n${compact(agent.stderr || agent.stdout)}`]; continue; }
@@ -141,7 +160,7 @@ async function main() {
     else if (!failure) failure = providerFailed ? 'Gemini provider/model failed before reliable execution.' : quotaDetected ? `Gemini quota/rate limit detected. ${quotaHint || ''}`.trim() : noChanges ? 'Builder produced no repository changes.' : 'Builder did not reach a verified state.';
   } catch (error) { failure = error?.message || String(error); }
   finally { if (sandbox) await sandbox.stop().catch(() => {}); }
-  const report = { batchId: BATCH_ID, status, provider: AGENT_PROVIDER, model: AGENT_MODEL, startedAt, finishedAt: new Date().toISOString(), passes, commitSha, failure, quotaDetected, quotaHint, providerFailure: providerFailed, noChangesProduced: noChanges, protectedChangesReset, commandTimeoutMs: COMMAND_TIMEOUT_MS, failures, commands: results };
+  const report = { batchId: BATCH_ID, status, provider: AGENT_PROVIDER, model: AGENT_MODEL, startedAt, finishedAt: new Date().toISOString(), passes, commitSha, failure, quotaDetected, quotaHint, providerFailure: providerFailed, noChangesProduced: noChanges, commandTimeoutMs: COMMAND_TIMEOUT_MS, sandboxTimeoutMs: MAX_MINUTES * 60 * 1000, failures, commands: results };
   await mkdir('/tmp/builder-report', { recursive: true });
   await writeFile(`/tmp/builder-report/${BATCH_ID}.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
