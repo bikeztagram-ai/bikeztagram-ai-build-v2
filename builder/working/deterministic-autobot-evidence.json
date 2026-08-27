@@ -1,56 +1,33 @@
 {
-  "schemaVersion": 1,
-  "runId": "33081149619",
-  "objectiveId": "project-persistence",
-  "startedAt": "2026-08-27T14:15:02.616Z",
+  "schemaVersion": 2,
+  "runId": "33114794608",
+  "objectiveId": "cinematic-quality",
+  "startedAt": "2026-08-27T20:45:03.610Z",
   "units": [
     {
-      "id": "persistence-audit-and-contract",
-      "startedAt": "2026-08-27T14:15:02.628Z",
+      "id": "cinematic-shot-motion-contract",
+      "startedAt": "2026-08-27T20:45:03.615Z",
       "implementation": [
-        "node scripts/autobot/persistence-audit.mjs"
-      ],
-      "verify": [
-        "npm run build"
-      ],
-      "before": "?? builder/monitor/live-state.json\n?? builder/quality/autobot-readiness.json\n?? builder/working/deterministic-autobot.json",
-      "after": "?? builder/monitor/live-state.json\n?? builder/quality/autobot-readiness.json\n?? builder/working/deterministic-autobot.json\n?? builder/working/persistence-contract.json",
-      "verification": [
-        {
-          "command": "npm run build",
-          "status": "passed"
-        }
-      ],
-      "completedAt": "2026-08-27T14:15:06.135Z"
-    },
-    {
-      "id": "persistence-runtime",
-      "startedAt": "2026-08-27T14:15:06.140Z",
-      "implementation": [
-        "node scripts/autobot/persistence-runtime.mjs"
+        "node scripts/autobot/cinematic-quality-runtime.mjs"
       ],
       "verify": [
         "npm run build",
-        "npm run verify:project-memory",
-        "node scripts/autobot/persistence-contract-check.mjs"
+        "node scripts/autobot/cinematic-quality-contract-check.mjs"
       ],
-      "before": "?? builder/monitor/live-state.json\n?? builder/quality/autobot-readiness.json\n?? builder/working/deterministic-autobot-evidence.json\n?? builder/working/deterministic-autobot.json\n?? builder/working/persistence-contract.json",
-      "after": "M src/App.jsx\n?? builder/monitor/live-state.json\n?? builder/quality/autobot-readiness.json\n?? builder/working/deterministic-autobot-evidence.json\n?? builder/working/deterministic-autobot.json\n?? builder/working/persistence-contract.json",
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/socialExport.js",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/director.js\n M src/socialExport.js",
       "verification": [
         {
           "command": "npm run build",
           "status": "passed"
         },
         {
-          "command": "npm run verify:project-memory",
-          "status": "passed"
-        },
-        {
-          "command": "node scripts/autobot/persistence-contract-check.mjs",
+          "command": "node scripts/autobot/cinematic-quality-contract-check.mjs",
           "status": "passed"
         }
       ],
-      "completedAt": "2026-08-27T14:15:08.217Z"
+      "completedAt": "2026-08-27T20:45:04.880Z",
+      "unchangedButVerified": false
     }
   ]
 }
