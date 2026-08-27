@@ -9,6 +9,8 @@
   "history": {
     "tasks": [
       "cinematic-quality:cinematic-shot-motion-contract",
+      "director-intelligence:director-story-beats",
+      "director-intelligence:director-story-planner-integration",
       "mobile-pwa:pwa-versioned-cache-contract",
       "project-persistence:persistence-audit-and-contract",
       "project-persistence:persistence-runtime",
@@ -19,11 +21,12 @@
     ],
     "objectives": [
       "cinematic-quality",
+      "director-intelligence",
       "mobile-pwa",
       "project-persistence",
       "provider-resilience",
       "social-export"
     ]
   },
-  "updatedAt": "2026-08-27T20:45:04.912Z"
+  "updatedAt": "2026-08-27T21:05:11.453Z"
 }
