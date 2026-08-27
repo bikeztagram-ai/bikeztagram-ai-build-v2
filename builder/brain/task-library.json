@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "persistence-audit-and-contract",
+      "objectiveId": "project-persistence",
+      "kind": "inspection-contract",
+      "status": "ready",
+      "files": ["src/App.jsx", "src/*", "scripts/*"],
+      "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json", "scripts/prepare-autonomous-batch.mjs"],
+      "goal": "Trace the real project state lifecycle and establish the exact serialisable persistence contract before implementation.",
+      "verify": ["npm run build"],
+      "acceptance": ["contract is grounded in current runtime state", "non-serialisable media objects are explicitly excluded", "restore-required metadata is enumerated"]
+    },
+    {
+      "id": "persistence-runtime",
+      "objectiveId": "project-persistence",
+      "kind": "production-implementation",
+      "status": "ready",
+      "dependsOn": ["persistence-audit-and-contract"],
+      "files": ["src/*"],
+      "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json", "scripts/prepare-autonomous-batch.mjs"],
+      "goal": "Implement the persistence contract in the real application lifecycle, including versioning, validation, last-known-good recovery and truthful missing-media state.",
+      "verify": ["npm run build", "npm run verify:project-memory"],
+      "acceptance": ["save occurs from real App state", "reload restores usable metadata", "invalid state does not silently become valid state", "missing media is represented truthfully"]
+    },
+    {
+      "id": "export-profiles-and-validation",
+      "objectiveId": "social-export",
+      "kind": "production-implementation",
+      "status": "ready",
+      "dependsOn": [],
+      "files": ["src/*"],
+      "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json"],
+      "goal": "Implement deterministic social export profiles and output validation while preserving successful browser/FFmpeg MP4 rendering.",
+      "verify": ["npm run build"],
+      "acceptance": ["9:16, 1:1 and 16:9 profiles are represented by real runtime settings", "output metadata is deterministic", "duration mismatch is detected", "unsupported export paths fail truthfully"]
+    }
+  ]
+}
