@@ -5,6 +5,7 @@
 */
 
 import { resolveOutputPreset } from './outputPresets.js';
+import { validateExportedVideo } from './socialExport.js';
 
 const waitForEvent = (target, event, timeout = 20000) => new Promise((resolve, reject) => {
   let timer = null;
@@ -78,8 +79,18 @@ export async function transcodeRenderedFilmToPreset(blob, presetValue = 'portrai
     const offsetX = (preset.width - drawWidth) / 2;
     const offsetY = (preset.height - drawHeight) / 2;
 
+    let isFinished = false;
+    const stopRecording = () => {
+      if (isFinished) return;
+      isFinished = true;
+      try { if (recorder.state !== 'inactive') recorder.stop(); } catch {}
+    };
+
     const draw = () => {
-      if (video.ended || video.paused) return;
+      if (video.ended || video.currentTime >= duration) {
+        stopRecording();
+        return;
+      }
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, preset.width, preset.height);
       ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
@@ -90,14 +101,28 @@ export async function transcodeRenderedFilmToPreset(blob, presetValue = 'portrai
     await video.play();
     recorder.start(250);
     draw();
-    await waitForEvent(video, 'ended', Math.max(20000, duration * 1000 + 10000));
-    if (recorder.state !== 'inactive') recorder.stop();
+
+    await Promise.race([
+      waitForEvent(video, 'ended', Math.max(20000, duration * 1000 + 10000)),
+      new Promise((resolve) => {
+        const checkEnd = setInterval(() => {
+          if (video.ended || video.currentTime >= duration) {
+            clearInterval(checkEnd);
+            resolve();
+          }
+        }, 100);
+      })
+    ]);
+
+    stopRecording();
     await stopped;
     for (const track of canvasStream.getTracks()) track.stop();
     if (sourceStream) for (const track of sourceStream.getTracks()) track.stop();
 
     const output = new Blob(chunks, { type: mimeType });
     if (!output.size) throw new Error('Output preset conversion produced an empty film.');
+
+    await validateExportedVideo(output, preset.id);
     return output;
   } finally {
     try { video.pause(); } catch {}
