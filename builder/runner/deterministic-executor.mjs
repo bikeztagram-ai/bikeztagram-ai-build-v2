@@ -11,6 +11,8 @@ const workingDir = path.join(root, 'builder', 'working');
 const queuePath = path.join(root, 'config', 'autonomous-builder-queue.json');
 const roadmapPath = path.join(brainDir, 'roadmap.json');
 const libraryPath = path.join(brainDir, 'task-library.json');
+const memoryPath = path.join(root, 'builder', 'quality', 'project-memory.md');
+const lessonsPath = path.join(root, 'builder', 'quality', 'lessons.md');
 const checkpointPath = path.join(workingDir, 'deterministic-autobot.json');
 const evidencePath = path.join(workingDir, 'deterministic-autobot-evidence.json');
 const maxUnits = Number.parseInt(process.env.BUILDER_MAX_UNITS || '100', 10);
@@ -24,6 +26,15 @@ function writeCheckpoint(state) { fs.mkdirSync(workingDir, { recursive: true });
 function live(state, message, verification = []) { writeLiveState({ runId: process.env.GITHUB_RUN_ID || 'local', status: state.status, objectiveId: state.objectiveId, currentTask: state.currentTask, completedUnits: state.completed.length, totalUnits: state.totalUnits || 0, startedAt, message, files: state.files || [], verification, blockedReason: state.error || null }); }
 function runCommand(command, label) { const parts = command.split(/\s+/).filter(Boolean); if (!parts.length) throw new Error(`${label}: empty command`); console.log(`[autobot] ${label}: ${command}`); execFileSync(parts.shift(), parts, { cwd: root, stdio: 'inherit', env: process.env }); }
 function allowedTask(task) { const protectedPrefixes = ['.github/workflows/', 'builder/runner/', 'builder/quality/', 'builder/monitor/', 'builder/review/', 'config/autonomous-builder-queue.json', 'scripts/prepare-autonomous-batch.mjs']; return !(task.files || []).some(file => protectedPrefixes.some(prefix => file.startsWith(prefix))); }
+
+// Durable context is loaded before roadmap/task selection. The deterministic
+// executor does not need a provider model: it uses the approved task library,
+// but every decision is grounded in the same persistent project context.
+const projectMemory = fs.readFileSync(memoryPath, 'utf8');
+const lessons = fs.readFileSync(lessonsPath, 'utf8');
+if (!projectMemory.includes('Bikeztagram AI') || !lessons.includes('Non-negotiable quality bar')) throw new Error('[autobot] Durable project context is incomplete.');
+console.log(`[autobot] Durable context loaded: project memory ${projectMemory.length} chars, lessons ${lessons.length} chars.`);
+
 const queue = readJson(queuePath); const roadmap = readJson(roadmapPath); const library = readJson(libraryPath);
 const queuedIds = new Set(queue.batches.filter(b => b.objective && !['merged', 'rejected'].includes(b.status)).map(b => b.id));
 const objective = roadmap.objectives.filter(o => o.status === 'queued' && queuedIds.has(o.queueBatch)).sort((a, b) => a.priority - b.priority).find(o => (o.dependsOn || []).every(dep => roadmap.objectives.find(x => x.id === dep)?.status === 'complete' || !roadmap.objectives.some(x => x.id === dep)));
