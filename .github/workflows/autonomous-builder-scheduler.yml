@@ -2,161 +2,25 @@ name: 🤖 AutoBot Control Center
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-  schedule:
-    # GitHub's scheduler is the safety-net heartbeat. Builder completion also
-    # triggers this workflow immediately through workflow_run below.
-    - cron: '2,17,32,47 * * * *'
-  workflow_run:
-    workflows:
-      - Autonomous Builder Batch
-    types:
-      - completed
 
-concurrency:
-  group: autobot-control-center
-  cancel-in-progress: false
+# The queue is now driven by the manual Autonomous Builder Batch workflow.
+# This retired control-center workflow intentionally has no cron, push, or
+# workflow_run trigger and does not dispatch builders.
 
 permissions:
-  actions: write
   contents: read
-  pull-requests: read
 
 jobs:
-  control-center:
+  retired:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
     steps:
-      - name: Capture scheduler heartbeat
-        id: heartbeat
+      - name: Confirm retired scheduler
         run: |
-          set -euo pipefail
-          echo "started_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
-          echo "started_utc=$(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_OUTPUT"
-          echo '{}' > /tmp/builder.json
-          echo '[]' > /tmp/review_prs.json
-
-      - name: Inspect current builder state
-        id: inspect
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder.yml --branch main --limit 10 --json databaseId,status,conclusion,createdAt,updatedAt,displayTitle,url,event)
-          active=$(echo "$runs" | jq '[.[] | select(.status == "in_progress" or .status == "queued")][0] // empty')
-          if [ -n "$active" ]; then
-            echo "builder_active=true" >> "$GITHUB_OUTPUT"
-            echo "$active" > /tmp/builder.json
-          else
-            echo "builder_active=false" >> "$GITHUB_OUTPUT"
-            echo '{}' > /tmp/builder.json
-          fi
-
-      - name: Inspect stored autonomous builder PRs
-        id: queue
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --state open --limit 50 --json number,headRefName,title,url,isDraft)
-          builder_prs=$(echo "$prs" | jq '[.[] | select(.headRefName | startswith("autonomous-builder/"))]')
-          echo "$builder_prs" > /tmp/review_prs.json
-          echo "open_builder_pr_count=$(echo "$builder_prs" | jq 'length')" >> "$GITHUB_OUTPUT"
-          echo "queue_blocked=false" >> "$GITHUB_OUTPUT"
-          echo "queue_block_reason=review PRs are stored for review and do not block later batches" >> "$GITHUB_OUTPUT"
-
-      - name: Dispatch autonomous builder when idle
-        if: steps.inspect.outputs.builder_active != 'true'
-        id: dispatch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh api --method POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2026-03-10" \
-            "/repos/${GITHUB_REPOSITORY}/actions/workflows/autonomous-builder.yml/dispatches" \
-            -f ref=main
-          echo "dispatch_requested=true" >> "$GITHUB_OUTPUT"
-          echo "::notice title=AutoBot::Builder dispatch requested at $(date -u '+%H:%M:%S UTC')"
-
-      - name: Wait briefly for dispatched builder to appear
-        if: steps.inspect.outputs.builder_active != 'true'
-        id: observe
-        env:
-          GH_TOKEN: ${{ github.token }}
-          STARTED_EPOCH: ${{ steps.heartbeat.outputs.started_epoch }}
-        run: |
-          set -euo pipefail
-          found=""
-          for attempt in $(seq 1 24); do
-            run_json=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder.yml --branch main --limit 10 --json databaseId,status,conclusion,createdAt,updatedAt,displayTitle,url,event)
-            found=$(echo "$run_json" | jq -r --argjson started "$STARTED_EPOCH" '[.[] | select((.createdAt | fromdateiso8601) >= $started)] | .[0] // empty')
-            if [ -n "$found" ]; then break; fi
-            sleep 5
-          done
-          if [ -n "$found" ]; then
-            echo "builder_observed=true" >> "$GITHUB_OUTPUT"
-            echo "$found" > /tmp/builder.json
-            echo "::notice title=AutoBot::Builder run observed: $(echo "$found" | jq -r '.databaseId')"
-          else
-            echo "builder_observed=false" >> "$GITHUB_OUTPUT"
-            echo '{}' > /tmp/builder.json
-            echo "::warning title=AutoBot::Builder dispatch not observed within 120 seconds; the next heartbeat will retry"
-          fi
-
-      - name: Publish live AutoBot status
-        if: always()
-        run: |
-          set -euo pipefail
-          builder=$(cat /tmp/builder.json 2>/dev/null || echo '{}')
-          review_prs=$(cat /tmp/review_prs.json 2>/dev/null || echo '[]')
-          builder_id=$(echo "$builder" | jq -r '.databaseId // "not observed"')
-          builder_status=$(echo "$builder" | jq -r '.status // "not observed"')
-          builder_conclusion=$(echo "$builder" | jq -r '.conclusion // "pending"')
-          builder_title=$(echo "$builder" | jq -r '.displayTitle // "not observed"')
-          builder_url=$(echo "$builder" | jq -r '.url // ""')
-          review_count=$(echo "$review_prs" | jq 'length')
           {
             echo "# 🤖 AutoBot Control Center"
             echo
-            echo "## Scheduler heartbeat"
-            echo "- **Scheduler run:** #${GITHUB_RUN_NUMBER}"
-            echo "- **Started:** ${{ steps.heartbeat.outputs.started_utc }}"
-            echo "- **Trigger:** ${{ github.event_name }}"
-            echo "- **Schedule:** :02, :17, :32, :47 UTC"
-            if [ "${{ steps.inspect.outputs.builder_active }}" = "true" ]; then
-              echo "- **Dispatch:** skipped — builder already queued/running"
-            else
-              echo "- **Dispatch:** requested"
-            fi
-            echo
-            echo "## Review storage"
-            echo "- **Open autonomous builder PRs:** ${review_count}"
-            if [ "$review_count" -gt 0 ]; then
-              echo "$review_prs" | jq -r '.[] | "- PR #\(.number): \(.headRefName) — \(.title)"'
-              echo "- **Queue effect:** stored review PRs do NOT block the next eligible batch."
-            else
-              echo "- **State:** no open builder review PRs"
-            fi
-            echo
-            echo "## Builder observation"
-            echo "- **Builder run:** ${builder_id}"
-            echo "- **Status:** ${builder_status}"
-            echo "- **Conclusion:** ${builder_conclusion}"
-            echo "- **Title:** ${builder_title}"
-            if [ -n "$builder_url" ]; then echo "- **Open builder run:** ${builder_url}"; fi
-            echo
-            if [ "$builder_status" = "completed" ]; then
-              echo "## What this means"
-              echo "Builder run was observed and completed. Its review PR/checkpoint remains durable storage while the queue advances."
-            elif [ "$builder_status" = "in_progress" ] || [ "$builder_status" = "queued" ]; then
-              echo "## What this means"
-              echo "Builder run is currently queued or working. Existing review PRs remain stored and do not block later batches."
-            else
-              echo "## What this means"
-              echo "Dispatch was requested, but the new builder run was not visible within 120 seconds. The next heartbeat will retry."
-            fi
+            echo "## Scheduler retired"
+            echo "The heartbeat/self-dispatch scheduler is no longer used."
+            echo "Use **Autonomous Builder Batch → Run workflow** to process the durable queue sequentially."
+            echo "The builder workflow defaults to 5 batches per manual run and can be set to 10."
           } >> "$GITHUB_STEP_SUMMARY"
