@@ -29,64 +29,123 @@ env:
   BUILDER_BASE_BRANCH: main
 
 jobs:
-  build:
+  segment-1:
     runs-on: ubuntu-latest
     timeout-minutes: 370
+    outputs:
+      branch: ${{ steps.publish.outputs.branch }}
+      requested_minutes: ${{ steps.budget.outputs.requested_minutes }}
+      segments: ${{ steps.budget.outputs.segments }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
-
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
-
-      - name: Resolve run budget
+      - name: Resolve segment 1 budget
         id: budget
         run: |
+          case "$REQUESTED_DURATION" in
+            15m) requested=15;; 30m) requested=30;;
+            1h) requested=60;; 2h) requested=120;; 3h) requested=180;;
+            4h) requested=240;; 5h) requested=300;; 6h) requested=360;;
+            7h) requested=420;; 8h) requested=480;; 9h) requested=540;;
+            10h) requested=600;; 11h) requested=660;; 12h) requested=720;;
+            *) echo "Unsupported duration: $REQUESTED_DURATION"; exit 1;;
+          esac
+          segments=$(( (requested + 359) / 360 ))
+          echo "requested_minutes=$requested" >> "$GITHUB_OUTPUT"
+          echo "segments=$segments" >> "$GITHUB_OUTPUT"
+          echo "BUILDER_MAX_MINUTES=$(( requested < 360 ? requested : 360 ))" >> "$GITHUB_ENV"
+          echo "BUILDER_SEGMENT=1" >> "$GITHUB_ENV"
+          echo "BUILDER_SEGMENTS=$segments" >> "$GITHUB_ENV"
           node builder/runner/run-duration.mjs
           node builder/runner/segment-plan.mjs
-          echo "segment=${AUTOBOT_SEGMENT:-1}" >> "$GITHUB_OUTPUT"
-          echo "segments=${AUTOBOT_SEGMENTS:-1}" >> "$GITHUB_OUTPUT"
-
       - name: Validate deterministic builder
         run: |
           node --check builder/runner/deterministic-executor.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node builder/quality/autobot-ready.mjs
-
       - name: Run deterministic builder
         run: node builder/runner/deterministic-executor.mjs
-
       - name: Production verification
         if: success()
         run: |
           npm run build
           npm run verify:project-memory
-
       - name: Persist continuation state
         if: always()
-        env:
-          BUILDER_SEGMENT: ${{ steps.budget.outputs.segment }}
-          BUILDER_SEGMENTS: ${{ steps.budget.outputs.segments }}
         run: node builder/runner/segment-state.mjs
-
-      - name: Publish verified work for human review
+      - name: Publish segment 1 checkpoint
+        id: publish
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if git diff --quiet && git diff --cached --quiet; then
-            echo 'No publishable changes.'
-            exit 0
-          fi
           branch="autonomous-builder-v2/${GITHUB_RUN_ID}"
           git checkout -b "$branch"
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'feat: autonomous builder v2 progress'
+          git commit -m 'feat: autonomous builder v2 segment 1 checkpoint' || true
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free deterministic builder run. Review checkpoint, evidence and verification before merging. No automatic merge or production deployment.'
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+  segment-2:
+    needs: segment-1
+    if: needs.segment-1.outputs.segments == '2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 370
+    env:
+      BUILDER_MAX_MINUTES: 360
+      BUILDER_SEGMENT: 2
+      BUILDER_SEGMENTS: 2
+    steps:
+      - name: Checkout segment 1 branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.segment-1.outputs.branch }}
+          fetch-depth: 0
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Validate deterministic builder
+        run: |
+          node --check builder/runner/deterministic-executor.mjs
+          node scripts/autobot/verify-deterministic-executor.mjs
+          node builder/quality/autobot-ready.mjs
+      - name: Resume deterministic builder
+        run: node builder/runner/deterministic-executor.mjs
+      - name: Production verification
+        if: success()
+        run: |
+          npm run build
+          npm run verify:project-memory
+      - name: Persist final continuation state
+        if: always()
+        run: node builder/runner/segment-state.mjs
+      - name: Publish final segment and review PR
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'Bikeztagram Autonomous Builder V2'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: autonomous builder v2 final segment' || true
+          git push
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free deterministic builder run. Review checkpoint, evidence and verification before merging. No automatic merge or production deployment.' || true
+
+  review-single-segment:
+    needs: segment-1
+    if: needs.segment-1.outputs.segments == '1'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create review PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free deterministic builder run. Review checkpoint, evidence and verification before merging. No automatic merge or production deployment.' || true
