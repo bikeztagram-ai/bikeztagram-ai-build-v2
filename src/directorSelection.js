@@ -74,6 +74,15 @@ function roleBonus(moment,role,mode){
  if(role==='emotional')return /emotion|beautiful|sunset|landscape|reaction|smile|laugh|calm/.test(s)?16:0;
  return 0;
 }
+function rolePositionGuard(moment,role){
+ const s=describe(moment);
+ let penalty=0;
+ if(role!=='hero'&&/hero-ending|hero|ending|resolution|final/.test(s))penalty-=60;
+ if(role!=='hook'&&/hook|opening/.test(s))penalty-=35;
+ if(role==='hero'&&/hook|opening/.test(s))penalty-=30;
+ if(role==='hook'&&/hero-ending|hero|ending|resolution|final/.test(s))penalty-=45;
+ return penalty;
+}
 function durationFit(candidate,usedDuration,targetDuration,remainingSlots){
  const d=durationOf(candidate);const target=Math.max(1,n(targetDuration,15));const remaining=Math.max(0,target-usedDuration);
  let value=0;
@@ -91,14 +100,11 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
  const ordered=[...ranked];
  while(chosen.length<limit&&ordered.length){let bestIndex=0,best=-Infinity;const role=desiredRole(chosen.length,limit,mode);const remainingSlots=limit-chosen.length;
   for(let i=0;i<ordered.length;i++){
-   const m=ordered[i];let value=m.__directorScore+roleBonus(m,role,mode)+durationFit(m,usedDuration,targetDuration,remainingSlots);const source=sourceKey(m);const family=m.__shotFamily;const subjectKey=m.__subjectFamily;
+   const m=ordered[i];let value=m.__directorScore+roleBonus(m,role,mode)+rolePositionGuard(m,role)+durationFit(m,usedDuration,targetDuration,remainingSlots);const source=sourceKey(m);const family=m.__shotFamily;const subjectKey=m.__subjectFamily;
    if(usedSources.has(source))value-=12;
    const familyCount=usedFamilies.get(family)||0;
    if(familyCount)value-=12*familyCount;
    const subjectCount=usedSubjects.get(subjectKey)||0;
-   // Keep multi-subject stories from repeatedly showing the same subject when
-   // meaningful alternatives exist. A single-subject library naturally shares
-   // one key, so the bounded penalty does not eliminate valid shots.
    if(subjectKey!=='unknown'&&subjectCount)value-=clamp(9*subjectCount,9,24);
    if(chosen.length&&similarity(m,chosen[chosen.length-1])>.65)value-=18;
    if(usedDescriptions.some(d=>d===describe(m)))value-=30;
@@ -112,7 +118,10 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
   }
   const pick=ordered.splice(bestIndex,1)[0];chosen.push(pick);usedSources.add(sourceKey(pick));usedDescriptions.push(describe(pick));usedFamilies.set(pick.__shotFamily,(usedFamilies.get(pick.__shotFamily)||0)+1);usedSubjects.set(pick.__subjectFamily,(usedSubjects.get(pick.__subjectFamily)||0)+1);usedDuration+=pick.__duration;
  }
- chosen.sort((a,b)=>n(a.start??a.startTime,0)-n(b.start??b.startTime,0));
+ /* Preserve the editorial selection sequence. Sorting by source timestamp here can
+    move the chosen hook/hero out of position and overwrite the narrative order that
+    the role-aware selector just constructed. The renderer can consume source-relative
+    startTime values without requiring cuts to be globally chronological. */
  if(chosen.length>1){const first=chosen[0];chosen[0]={...first,editorialRole:first.editorialRole||'hook'};const last=chosen[chosen.length-1];chosen[chosen.length-1]={...last,editorialRole:last.editorialRole||'hero-ending'};}
  return chosen.map(({__directorScore,__directorIndex,__shotFamily,__subjectFamily,__duration,...m})=>({...m,directorSelectionScore:Number(__directorScore.toFixed(1)),directorSelectionIndex:__directorIndex,directorShotFamily:shotFamily(m),directorSubjectFamily:subjectFamily(m)}));
 }
