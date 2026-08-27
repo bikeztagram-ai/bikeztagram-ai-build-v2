@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "tasks": [
     {
       "id": "persistence-audit-and-contract",
@@ -23,8 +23,8 @@
       "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json", "scripts/prepare-autonomous-batch.mjs"],
       "goal": "Implement the persistence contract in the real application lifecycle, including versioning, validation, last-known-good recovery and truthful missing-media state.",
       "implementation": ["node scripts/autobot/persistence-runtime.mjs"],
-      "verify": ["npm run build", "npm run verify:project-memory"],
-      "acceptance": ["save occurs from real App state", "reload restores usable metadata", "invalid state does not silently become valid state", "missing media is represented truthfully"]
+      "verify": ["npm run build", "npm run verify:project-memory", "node scripts/autobot/persistence-contract-check.mjs"],
+      "acceptance": ["save occurs from real App state", "reload restores usable metadata", "invalid state does not silently become valid state", "missing media is represented truthfully", "the runtime wiring is explicitly verified"]
     },
     {
       "id": "export-profiles-and-validation",
@@ -36,7 +36,7 @@
       "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json"],
       "goal": "Implement deterministic social export profiles and output validation while preserving successful browser/FFmpeg MP4 rendering.",
       "implementation": ["node scripts/autobot/export-runtime.mjs"],
-      "verify": ["npm run build"],
+      "verify": ["npm run build", "npm run verify:batch33", "node scripts/autobot/export-contract-check.mjs"],
       "acceptance": ["9:16, 1:1 and 16:9 profiles are represented by real runtime settings", "output metadata is deterministic", "duration mismatch is detected", "unsupported export paths fail truthfully"]
     }
   ]
