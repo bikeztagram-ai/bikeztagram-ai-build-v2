@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tasks": [
     {
       "id": "persistence-audit-and-contract",
@@ -9,6 +9,7 @@
       "files": ["src/App.jsx", "src/*", "scripts/*"],
       "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json", "scripts/prepare-autonomous-batch.mjs"],
       "goal": "Trace the real project state lifecycle and establish the exact serialisable persistence contract before implementation.",
+      "implementation": ["node scripts/autobot/persistence-audit.mjs"],
       "verify": ["npm run build"],
       "acceptance": ["contract is grounded in current runtime state", "non-serialisable media objects are explicitly excluded", "restore-required metadata is enumerated"]
     },
@@ -21,6 +22,7 @@
       "files": ["src/*"],
       "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json", "scripts/prepare-autonomous-batch.mjs"],
       "goal": "Implement the persistence contract in the real application lifecycle, including versioning, validation, last-known-good recovery and truthful missing-media state.",
+      "implementation": ["node scripts/autobot/persistence-runtime.mjs"],
       "verify": ["npm run build", "npm run verify:project-memory"],
       "acceptance": ["save occurs from real App state", "reload restores usable metadata", "invalid state does not silently become valid state", "missing media is represented truthfully"]
     },
@@ -33,6 +35,7 @@
       "files": ["src/*"],
       "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json"],
       "goal": "Implement deterministic social export profiles and output validation while preserving successful browser/FFmpeg MP4 rendering.",
+      "implementation": ["node scripts/autobot/export-runtime.mjs"],
       "verify": ["npm run build"],
       "acceptance": ["9:16, 1:1 and 16:9 profiles are represented by real runtime settings", "output metadata is deterministic", "duration mismatch is detected", "unsupported export paths fail truthfully"]
     }
