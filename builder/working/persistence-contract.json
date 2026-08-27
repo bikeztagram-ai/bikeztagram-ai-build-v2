@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-27T14:15:02.654Z",
+  "excluded": [
+    "File objects",
+    "Blob instances",
+    "Object URLs",
+    "large media payloads"
+  ],
+  "fields": {
+    "creativeBrief": "prompt",
+    "directorPlan": "plan",
+    "productionBlueprint": "productionPlan",
+    "sourceMetadata": "sources metadata only",
+    "soundtrackMetadata": "soundtrack metadata only",
+    "exportSettings": "exportInfo metadata only",
+    "recentEditorState": "explicit serialisable editor state to be introduced by runtime unit"
+  },
+  "recovery": [
+    "schema validation",
+    "last-known-good record",
+    "corrupt/partial write rejection",
+    "truthful missing-media state"
+  ]
+}

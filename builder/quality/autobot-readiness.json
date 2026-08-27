@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "status": "ready-for-live-run",
+  "requiredComponents": 16,
+  "missing": [],
+  "executorSyntax": "passed",
+  "merge": "human-review-only",
+  "deployment": "human-review-only",
+  "geminiRequired": false,
+  "generatedAt": "2026-08-27T14:15:02.569Z"
+}
