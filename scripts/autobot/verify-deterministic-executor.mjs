@@ -16,8 +16,11 @@ if (!executor.includes('writeCheckpoint') || !executor.includes('history')) fail
 if (!executor.includes('verifiedThisRun')) failures.push('deterministic executor does not expose per-invocation verified units');
 if (!executor.includes('unchangedButVerified')) failures.push('idempotent verified-task evidence is missing');
 if (!executor.includes('history.objectives.has(dep)')) failures.push('executor does not unlock dependencies from durable objective history');
+if (!sustained.includes('seedFromCheckpoint') || !sustained.includes("state.status === 'objective-complete'")) failures.push('sustained runner does not seed completed objectives from durable checkpoint');
 if (!sustained.includes('verifiedThisRun')) failures.push('sustained runner does not count only newly verified units');
 if (!sustained.includes('BUILDER_COMPLETED_OBJECTIVES')) failures.push('sustained runner does not carry completed objectives between iterations');
+if (!sustained.includes('verifiedThisRun.length === 0')) failures.push('sustained runner lacks no-progress guard');
+if (!executor.includes('process.env.BUILDER_COMPLETED_OBJECTIVES')) failures.push('deterministic executor does not consume carried objectives');
 if (!Array.isArray(library.tasks) || !library.tasks.length) failures.push('task library is empty');
 if (!Array.isArray(roadmap.objectives) || !roadmap.objectives.length) failures.push('roadmap is empty');
 for (const task of library.tasks) {
@@ -32,4 +35,4 @@ if (failures.length) {
   console.error(failures.map(f => `FAIL: ${f}`).join('\n'));
   process.exit(1);
 }
-console.log(`Deterministic AutoBot contract PASS: ${library.tasks.length} implementation units, ${roadmap.objectives.length} objectives, durable progress and sustained accounting PASS.`);
+console.log(`Deterministic AutoBot contract PASS: ${library.tasks.length} implementation units, ${roadmap.objectives.length} objectives, durable progress, checkpoint resume, idempotent verification and sustained accounting PASS.`);
