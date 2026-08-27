@@ -11,9 +11,19 @@ const requestedUnits = Number.parseInt(process.env.BUILDER_MAX_UNITS || '100', 1
 const started = Date.now();
 let totalUnits = 0;
 let iteration = 0;
+const completedKeys = new Set();
 const completedObjectives = new Set();
 
 function readState() { try { return JSON.parse(fs.readFileSync(checkpoint, 'utf8')); } catch { return null; } }
+function seedFromCheckpoint() {
+  const state = readState();
+  if (!state) return;
+  if (state.history?.tasks) for (const key of state.history.tasks) completedKeys.add(key);
+  if (state.history?.objectives) for (const id of state.history.objectives) completedObjectives.add(id);
+  if (state.objectiveId) for (const taskId of state.completed || []) completedKeys.add(`${state.objectiveId}:${taskId}`);
+  if (state.objectiveId && state.status === 'objective-complete') completedObjectives.add(state.objectiveId);
+  console.log(`[autobot] seeded checkpoint: ${completedKeys.size} completed units; objectives=${[...completedObjectives].join(',') || 'none'}`);
+}
 function remainingMinutes() { return Math.max(0, requestedMinutes - ((Date.now() - started) / 60000)); }
 function runOnce(minutes, units) {
   const env = {
@@ -26,14 +36,18 @@ function runOnce(minutes, units) {
   return spawnSync(process.execPath, ['builder/runner/deterministic-executor.mjs'], { cwd: root, stdio: 'inherit', env }).status ?? 1;
 }
 
+seedFromCheckpoint();
 while (totalUnits < requestedUnits && remainingMinutes() > 0) {
   iteration += 1;
+  const beforeKeys = new Set(completedKeys);
   const status = runOnce(remainingMinutes(), requestedUnits - totalUnits);
   const state = readState();
   if (status !== 0) process.exit(status);
-  const newlyVerified = Array.isArray(state?.verifiedThisRun) ? state.verifiedThisRun.length : 0;
+  if (state?.history?.tasks) for (const key of state.history.tasks) completedKeys.add(key);
+  if (state?.history?.objectives) for (const id of state.history.objectives) completedObjectives.add(id);
+  if (state?.objectiveId) for (const taskId of state.completed || []) completedKeys.add(`${state.objectiveId}:${taskId}`);
+  const newlyVerified = [...completedKeys].filter(key => !beforeKeys.has(key)).length;
   totalUnits += newlyVerified;
-  if (state?.history?.objectives) for (const objectiveId of state.history.objectives) completedObjectives.add(objectiveId);
   if (state?.status === 'idle') { console.log('[autobot] No eligible unfinished roadmap units remain; stopping safely.'); break; }
   if (state?.status === 'blocked') { console.error(`[autobot] Blocked: ${state.error || 'unknown reason'}`); process.exit(2); }
   if (newlyVerified === 0) { console.error('[autobot] No new verified units were produced; stopping to prevent a false sustained loop.'); break; }
