@@ -33,3 +33,15 @@ export function validateSocialExportDuration(actualSeconds,targetSeconds,toleran
 export function getSocialExportProfiles(){
  return Object.freeze(Object.fromEntries(Object.entries(SOCIAL_PRESETS).map(([id,p])=>[id,{id,label:p.label,width:p.width,height:p.height,aspectRatio:p.aspectRatio,platforms:[...(p.platforms||[])]}])));
 }
+
+export function buildSocialFilename(name,presetId='portrait',extension='mp4'){
+ const info=SOCIAL_PRESETS[presetId]||SOCIAL_PRESETS.portrait;
+ const base=safeFilename(name);
+ const ext=String(extension||info.extension||'mp4').replace(/[^a-z0-9]/gi,'').toLowerCase()||'mp4';
+ return `${base}-${info.width}x${info.height}.${ext}`;
+}
+
+export function validateSocialFilename(filename){
+ const value=String(filename||'');
+ return {ok:value.length>0&&value.length<=100&&!/[\\/:*?"<>|]/.test(value),filename:value,reason:value.length===0?'empty':value.length>100?'too-long':/[\\/:*?"<>|]/.test(value)?'unsafe-character':null};
+}
