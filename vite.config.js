@@ -18,8 +18,27 @@ function copyFfmpegAssets() {
   };
 }
 
+function guardBlobClientUpload() {
+  return {
+    name: 'guard-blob-client-upload',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.endsWith('/src/App.jsx')) return null;
+      const target = "import {upload} from '@vercel/blob/client';";
+      if (!code.includes(target)) return null;
+      return {
+        code: code.replace(
+          target,
+          "import {uploadWithIdleTimeout as upload} from './blobUploadPolicy.js';"
+        ),
+        map: null,
+      };
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), copyFfmpegAssets()],
+  plugins: [guardBlobClientUpload(), react(), copyFfmpegAssets()],
   base: './',
   server: { host: true, headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
   preview: { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } },
