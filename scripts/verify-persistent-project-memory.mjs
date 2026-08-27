@@ -11,9 +11,9 @@ const queue = fs.readFileSync(path.join(root, 'config/autonomous-builder-queue.j
 const checks = [
   ['project memory exists', memory.includes('# Bikeztagram AI — Persistent Project Memory')],
   ['memory loading contract exists', contract.includes('Required first reads')],
-  ['deterministic runner loads project memory', runner.includes("const memoryPath=path.join(root,'builder','quality','project-memory.md')") || runner.includes("path.join(root, 'builder', 'quality', 'project-memory.md')")],
-  ['deterministic runner loads lessons', runner.includes("const lessonsPath=path.join(root,'builder','quality','lessons.md')") || runner.includes("path.join(root, 'builder', 'quality', 'lessons.md')")],
-  ['deterministic runner loads queue context', runner.includes("const queuePath=path.join(root,'config','autonomous-builder-queue.json')") || runner.includes("path.join(root, 'config', 'autonomous-builder-queue.json')")],
+  ['deterministic runner loads project memory', /memoryPath\s*=\s*path\.join\(root,\s*['\"]builder['\"],\s*['\"]quality['\"],\s*['\"]project-memory\.md['\"]\)/.test(runner)],
+  ['deterministic runner loads lessons', /lessonsPath\s*=\s*path\.join\(root,\s*['\"]builder['\"],\s*['\"]quality['\"],\s*['\"]lessons\.md['\"]\)/.test(runner)],
+  ['deterministic runner loads queue context', /queuePath\s*=\s*path\.join\(root,\s*['\"]config['\"],\s*['\"]autonomous-builder-queue\.json['\"]\)/.test(runner)],
   ['runner has objective and acceptance context', runner.includes('objective') && runner.includes('tasks')],
   ['queue is readable', queue.includes('"batches"')],
   ['durable lessons remain present', lessons.includes('green workflow is not proof that the product change is good')]
