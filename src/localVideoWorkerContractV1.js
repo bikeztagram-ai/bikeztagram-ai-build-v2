@@ -1,0 +1,2 @@
+export function createLocalVideoWorker({id='local-video-worker',generate}){return {id,kind:'video-worker',async run(job){if(typeof generate!=='function')return {status:'unavailable',reason:'worker-not-installed',job};return generate(job);}};}
+export function buildVideoWorkerJob({request,outputDir='./generated',maxSeconds=8}={}){return {version:'local-video-worker-job-v1',request,outputDir,limits:{maxSeconds},return:{media:true,metadata:true}};}
