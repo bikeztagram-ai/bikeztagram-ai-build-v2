@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "tasks": [
     {
       "id": "persistence-audit-and-contract",
@@ -38,6 +38,32 @@
       "implementation": ["node scripts/autobot/export-runtime.mjs"],
       "verify": ["npm run build", "npm run verify:batch33", "node scripts/autobot/export-contract-check.mjs"],
       "acceptance": ["9:16, 1:1 and 16:9 profiles are represented by real runtime settings", "output metadata is deterministic", "duration mismatch is detected", "unsupported export paths fail truthfully"]
+    },
+    {
+      "id": "export-duration-guard",
+      "objectiveId": "social-export",
+      "kind": "production-hardening",
+      "status": "ready",
+      "dependsOn": ["export-profiles-and-validation"],
+      "files": ["src/socialExport.js", "scripts/autobot/export-duration-runtime.mjs"],
+      "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json"],
+      "goal": "Add deterministic duration agreement checking so social exports can reject materially incorrect output lengths.",
+      "implementation": ["node scripts/autobot/export-duration-runtime.mjs"],
+      "verify": ["npm run build", "node scripts/autobot/export-duration-contract-check.mjs"],
+      "acceptance": ["invalid duration inputs fail safely", "target duration and tolerance are explicit", "duration mismatch is machine-detectable"]
+    },
+    {
+      "id": "export-profile-metadata",
+      "objectiveId": "social-export",
+      "kind": "production-hardening",
+      "status": "ready",
+      "dependsOn": ["export-duration-guard"],
+      "files": ["src/socialExport.js", "scripts/autobot/export-profile-runtime.mjs"],
+      "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json"],
+      "goal": "Expose deterministic, immutable social profile metadata for downstream UI and delivery logic.",
+      "implementation": ["node scripts/autobot/export-profile-runtime.mjs"],
+      "verify": ["npm run build", "node scripts/autobot/export-profile-contract-check.mjs"],
+      "acceptance": ["portrait, square and landscape metadata are present", "metadata is derived from the canonical presets", "profile data cannot mutate the canonical preset definitions"]
     }
   ]
 }
