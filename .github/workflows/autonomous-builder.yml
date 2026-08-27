@@ -44,11 +44,13 @@ jobs:
       GEMINI_CLI_TRUST_WORKSPACE: "true"
       BUILDER_REPO_URL: https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git
       BUILDER_BASE_BRANCH: main
-      BUILDER_MAX_MINUTES: "45"
-      BUILDER_MAX_PASSES: "6"
+      BUILDER_MAX_MINUTES: "44"
+      BUILDER_MAX_PASSES: "2"
       BUILDER_AGENT_PROVIDER: gemini-cli-paid
       BUILDER_AGENT_MODEL: "gemini-3.5-flash"
-      BUILDER_AGENT_CMD: '["sh","-lc","MODEL=\"$2\"; PROMPT=\"$4\"; if [ -n \"$MODEL\" ]; then GEMINI_API_KEY=\"$GEMINI_API_KEY\" exec npx --yes @google/gemini-cli@latest --yolo --skip-trust --model \"$MODEL\" -p \"$PROMPT\"; else GEMINI_API_KEY=\"$GEMINI_API_KEY\" exec npx --yes @google/gemini-cli@latest --yolo --skip-trust -p \"$PROMPT\"; fi","_"]'
+      BUILDER_AGENT_FALLBACK_MODEL: "gemini-3.5-flash-lite"
+      BUILDER_AGENT_ATTEMPT_TIMEOUT_SECONDS: "720"
+      BUILDER_AGENT_CMD: '["sh","-lc","MODEL=\"$2\"; PROMPT=\"$4\"; exec sh builder/runner/gemini-resilient.sh \"$MODEL\" \"$PROMPT\"","_"]'
       BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
       BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;Exactly one batch is processed per manual workflow launch.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply those durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.;Use the paid Gemini model as an engineering brain for an initial architecture-quality pass, then execute and verify the implementation.;If Gemini quota is genuinely exhausted, stop cleanly rather than retrying the same failed request.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
@@ -131,8 +133,10 @@ jobs:
             echo ""
             echo "### Preflight"
             echo "- **Gemini CLI:** authentication step completed"
-            echo "- **Model:** $BUILDER_AGENT_MODEL"
+            echo "- **Primary model:** $BUILDER_AGENT_MODEL"
+            echo "- **Fallback model:** $BUILDER_AGENT_FALLBACK_MODEL"
             echo "- **Provider mode:** $BUILDER_AGENT_PROVIDER"
+            echo "- **Per-attempt bound:** ${BUILDER_AGENT_ATTEMPT_TIMEOUT_SECONDS}s"
             echo "- **Next stage:** bounded engineering worker"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -146,6 +150,7 @@ jobs:
         run: |
           node --check builder/runner/task-driven.mjs
           node --check scripts/prepare-autonomous-batch.mjs
+          sh -n builder/runner/gemini-resilient.sh
 
       - name: Run task-driven bounded batch
         if: env.BUILDER_NO_WORK != 'true'
@@ -163,8 +168,14 @@ jobs:
             echo "- **Stage:** Worker step completed with workflow status **${{ job.status }}**"
             echo "- **Batch:** ${BUILDER_BATCH_ID:-unknown}"
             echo "- **Working branch:** ${BUILDER_WORKING_BRANCH:-unknown}"
-            if [ -f "builder/reports/${BUILDER_BATCH_ID:-unknown}.json" ]; then
-              echo "- **Runner report:** uploaded below"
+            report="/tmp/builder-report/${BUILDER_BATCH_ID:-unknown}.json"
+            if [ -f "$report" ]; then
+              echo "- **Runner report:** captured successfully"
+              echo '```json'
+              jq '{status,provider,model,startedAt,finishedAt,passes,commitSha,failure,quotaDetected,quotaHint,providerFailure,noChangesProduced}' "$report"
+              echo '```'
+            else
+              echo "- **Runner report:** MISSING"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -237,7 +248,7 @@ jobs:
             echo "- **Batch:** ${BUILDER_BATCH_ID:-none}"
             echo "- **Branch:** ${BUILDER_WORKING_BRANCH:-none}"
             echo "- **PR:** ${AUTOBOT_PR_URL:-none created/confirmed}"
-            echo "- **Runner report:** ${BUILDER_BATCH_ID:+builder/reports/$BUILDER_BATCH_ID.json}"
+            echo "- **Runner report:** ${BUILDER_BATCH_ID:+/tmp/builder-report/$BUILDER_BATCH_ID.json}"
             echo "- **Queue control:** this workflow run processes one batch and then stops."
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -251,7 +262,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: autonomous-builder-${{ env.BUILDER_BATCH_ID }}
-          path: builder/reports/${{ env.BUILDER_BATCH_ID }}.json
+          path: /tmp/builder-report/${{ env.BUILDER_BATCH_ID }}.json
           if-no-files-found: ignore
 
       - name: Upload checkpoint if present
