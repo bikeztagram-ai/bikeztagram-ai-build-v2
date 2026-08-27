@@ -35,6 +35,7 @@ jobs:
     outputs:
       branch: ${{ steps.publish.outputs.branch }}
       requested_minutes: ${{ steps.budget.outputs.requested_minutes }}
+      remaining_minutes: ${{ steps.budget.outputs.remaining_minutes }}
       segments: ${{ steps.budget.outputs.segments }}
     steps:
       - name: Checkout
@@ -56,9 +57,12 @@ jobs:
             *) echo "Unsupported duration: $REQUESTED_DURATION"; exit 1;;
           esac
           segments=$(( (requested + 359) / 360 ))
+          first=$(( requested < 360 ? requested : 360 ))
+          remaining=$(( requested > 360 ? requested - 360 : 0 ))
           echo "requested_minutes=$requested" >> "$GITHUB_OUTPUT"
+          echo "remaining_minutes=$remaining" >> "$GITHUB_OUTPUT"
           echo "segments=$segments" >> "$GITHUB_OUTPUT"
-          echo "BUILDER_MAX_MINUTES=$(( requested < 360 ? requested : 360 ))" >> "$GITHUB_ENV"
+          echo "BUILDER_MAX_MINUTES=$first" >> "$GITHUB_ENV"
           echo "BUILDER_SEGMENT=1" >> "$GITHUB_ENV"
           echo "BUILDER_SEGMENTS=$segments" >> "$GITHUB_ENV"
           node builder/runner/run-duration.mjs
@@ -66,10 +70,11 @@ jobs:
       - name: Validate deterministic builder
         run: |
           node --check builder/runner/deterministic-executor.mjs
+          node --check builder/runner/long-run-executor.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node builder/quality/autobot-ready.mjs
-      - name: Run deterministic builder
-        run: node builder/runner/deterministic-executor.mjs
+      - name: Run sustained deterministic builder
+        run: node builder/runner/long-run-executor.mjs
       - name: Production verification
         if: success()
         run: |
@@ -100,7 +105,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 370
     env:
-      BUILDER_MAX_MINUTES: 360
+      BUILDER_MAX_MINUTES: ${{ needs.segment-1.outputs.remaining_minutes }}
+      BUILDER_MAX_UNITS: ${{ inputs.max_units }}
       BUILDER_SEGMENT: 2
       BUILDER_SEGMENTS: 2
     steps:
@@ -114,10 +120,11 @@ jobs:
       - name: Validate deterministic builder
         run: |
           node --check builder/runner/deterministic-executor.mjs
+          node --check builder/runner/long-run-executor.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node builder/quality/autobot-ready.mjs
-      - name: Resume deterministic builder
-        run: node builder/runner/deterministic-executor.mjs
+      - name: Resume sustained deterministic builder
+        run: node builder/runner/long-run-executor.mjs
       - name: Production verification
         if: success()
         run: |
