@@ -23,11 +23,22 @@ function overlap(aStart,aEnd,bStart,bEnd){
   return Math.max(0,Math.min(aEnd,bEnd)-Math.max(aStart,bStart));
 }
 
+function cutSourceIndex(cut){
+  const value=cut?.sourceIndex??cut?.mediaIndex;
+  const n=Number(value);
+  return Number.isInteger(n)?n:null;
+}
+
 export function applySpeechCaptionsToPlan(plan,captions,options={}){
   const cues=normaliseSpeechCaptions(captions);
-  if(!plan?.cuts?.length||!cues.length)return {plan,captions:cues,captionCount:0,appliedCount:0};
+  if(!plan?.cuts?.length||!cues.length)return {plan,captions:cues,captionCount:cues.length,appliedCount:0};
   const minimumConfidence=num(options.minimumConfidence,.55);
+  const scopedSourceIndex=options.sourceIndex==null?null:Number(options.sourceIndex);
+  const hasSourceScope=Number.isInteger(scopedSourceIndex);
   const cuts=plan.cuts.map((cut)=>{
+    // In a mixed-media library, captions belong to one original video source.
+    // Never let cues from source A overwrite a shot selected from source B.
+    if(hasSourceScope&&cutSourceIndex(cut)!==scopedSourceIndex)return cut;
     const start=Math.max(0,num(cut.startTime));
     const end=start+Math.max(.05,num(cut.duration,.05));
     const candidates=cues
@@ -48,12 +59,13 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
       textOut:Number(Math.min(.98,relativeOut).toFixed(3)),
       textStyle:'caption',
       captionCueIndex:chosen.index,
-      captionConfidence:Number(chosen.confidence.toFixed(2))
+      captionConfidence:Number(chosen.confidence.toFixed(2)),
+      ...(hasSourceScope?{captionSourceIndex:scopedSourceIndex}: {})
     };
   });
   const appliedCount=cuts.filter(cut=>cut.captionCueIndex!=null).length;
   return {
-    plan:{...plan,cuts,speechCaptions:cues,captioning:{enabled:true,mode:'verified-speech-cues',appliedShots:appliedCount,totalCues:cues.length}},
+    plan:{...plan,cuts,speechCaptions:cues,captioning:{enabled:true,mode:hasSourceScope?'verified-source-scoped-speech-cues':'verified-speech-cues',appliedShots:appliedCount,totalCues:cues.length}},
     captions:cues,
     captionCount:cues.length,
     appliedCount
