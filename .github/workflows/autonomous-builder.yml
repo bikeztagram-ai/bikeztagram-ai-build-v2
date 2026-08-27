@@ -6,7 +6,7 @@ on:
       run_duration:
         description: 'How long should AutoBot work this run?'
         required: true
-        default: '60m'
+        default: '1h'
         type: choice
         options:
           - '15m'
@@ -17,6 +17,18 @@ on:
           - '4h'
           - '5h'
           - '6h'
+          - '7h'
+          - '8h'
+          - '9h'
+          - '10h'
+          - '11h'
+          - '12h'
+      segment:
+        description: 'Resume segment (normally 1; use next segment after a 6h ceiling)'
+        required: true
+        default: '1'
+        type: choice
+        options: ['1','2']
 
 concurrency:
   group: autonomous-builder-queue
@@ -33,8 +45,7 @@ jobs:
     timeout-minutes: 360
     env:
       BUILDER_BASE_BRANCH: main
-      BUILDER_MAX_MINUTES: '60'
-      BUILDER_MAX_UNITS: '20'
+      BUILDER_MAX_UNITS: '100'
       BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
 
@@ -49,25 +60,23 @@ jobs:
         id: runtime
         env:
           REQUESTED_DURATION: ${{ inputs.run_duration }}
+          REQUESTED_SEGMENT: ${{ inputs.segment }}
         run: |
           set -euo pipefail
-          case "$REQUESTED_DURATION" in
-            15m) MINUTES=15 ;;
-            30m) MINUTES=30 ;;
-            1h) MINUTES=60 ;;
-            2h) MINUTES=120 ;;
-            3h) MINUTES=180 ;;
-            4h) MINUTES=240 ;;
-            5h) MINUTES=300 ;;
-            6h) MINUTES=360 ;;
-            *) echo "Unsupported run duration: $REQUESTED_DURATION"; exit 1 ;;
-          esac
-          echo "minutes=$MINUTES" >> "$GITHUB_OUTPUT"
-          echo "BUILDER_MAX_MINUTES=$MINUTES" >> "$GITHUB_ENV"
+          node builder/runner/run-duration.mjs "$REQUESTED_DURATION" > /tmp/duration.json
+          cat /tmp/duration.json
+          minutes=$(sed -n 's/^AUTOBOT_SEGMENT_MINUTES=//p' /tmp/duration.json)
+          segments=$(sed -n 's/^AUTOBOT_SEGMENTS=//p' /tmp/duration.json)
+          segment=$(sed -n 's/^AUTOBOT_SEGMENT=//p' /tmp/duration.json)
+          if [ "$segment" -gt "$segments" ]; then echo "Segment $segment is invalid for $REQUESTED_DURATION"; exit 1; fi
+          echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
+          echo "BUILDER_SEGMENTS=$segments" >> "$GITHUB_ENV"
+          echo "BUILDER_SEGMENT=$segment" >> "$GITHUB_ENV"
           {
             echo '## 🤖 Autonomous Builder'
             echo "- **Requested runtime:** $REQUESTED_DURATION"
-            echo "- **Execution budget:** $MINUTES minutes"
+            echo "- **Segment:** $segment/$segments"
+            echo "- **Execution budget:** $minutes minutes"
             echo '- **Mode:** Gemini-free deterministic builder'
             echo '- **Merge:** never automatic'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -75,35 +84,19 @@ jobs:
       - name: Select next queued objective
         run: node scripts/prepare-autonomous-batch.mjs
 
-      - name: Report selected objective
-        if: always()
-        run: |
-          {
-            echo ''
-            echo '### Current work'
-            if [ "${BUILDER_NO_WORK:-false}" = 'true' ]; then
-              echo '- **Status:** 💤 IDLE'
-              echo "- **Reason:** ${BUILDER_NO_WORK_REASON:-none}"
-            else
-              echo '- **Status:** 🟢 RUNNING'
-              echo "- **Batch:** ${BUILDER_BATCH_ID:-unknown}"
-              echo "- **Branch:** ${BUILDER_WORKING_BRANCH:-unknown}"
-              echo "- **Objective:** ${BUILDER_OBJECTIVE:-unknown}"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Validate builder
         if: env.BUILDER_NO_WORK != 'true'
         run: |
           set -euo pipefail
           node --check builder/runner/deterministic-executor.mjs
+          node --check builder/runner/run-duration.mjs
           node --check scripts/prepare-autonomous-batch.mjs
 
       - name: Run long-duration deterministic builder
         if: env.BUILDER_NO_WORK != 'true'
         run: |
           set -euo pipefail
-          echo "AutoBot runtime budget: ${BUILDER_MAX_MINUTES} minutes"
+          echo "AutoBot runtime budget: ${BUILDER_MAX_MINUTES} minutes (segment ${BUILDER_SEGMENT}/${BUILDER_SEGMENTS})"
           node builder/runner/deterministic-executor.mjs
 
       - name: Publish live run state
@@ -133,13 +126,12 @@ jobs:
             echo "- Batch: ${BUILDER_BATCH_ID:-unknown}"
             echo "- Objective: ${BUILDER_OBJECTIVE:-unknown}"
             echo "- Requested runtime: ${{ inputs.run_duration }}"
+            echo "- Segment: ${{ inputs.segment }}"
             echo "- Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             echo
             echo '## Checkpoint'
             if [ -f "$state" ]; then
-              echo '```json'
-              jq . "$state"
-              echo '```'
+              echo '```json'; jq . "$state"; echo '```'
             else
               echo 'No checkpoint was produced.'
             fi
@@ -152,9 +144,11 @@ jobs:
         if: always() && env.BUILDER_NO_WORK != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: autobot-run-${{ github.run_number }}-${{ env.BUILDER_BATCH_ID }}
+          name: autobot-run-${{ github.run_number }}-${{ env.BUILDER_BATCH_ID }}-segment-${{ inputs.segment }}
           path: |
             builder/working/deterministic-autobot.json
+            builder/working/deterministic-autobot-evidence.json
+            builder/monitor/live-state.json
             builder/reviews/${{ env.BUILDER_BATCH_ID }}/manifest.md
           if-no-files-found: warn
 
@@ -166,6 +160,7 @@ jobs:
             echo '## 🧾 Final state'
             echo "- **Workflow:** ${{ job.status }}"
             echo "- **Requested runtime:** ${{ inputs.run_duration }}"
+            echo "- **Segment:** ${{ inputs.segment }}"
             echo "- **Batch:** ${BUILDER_BATCH_ID:-none}"
             echo "- **Branch:** ${BUILDER_WORKING_BRANCH:-none}"
             echo '- **Automatic merge:** ❌ Never'
