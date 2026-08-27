@@ -8,23 +8,9 @@ on:
         required: true
         default: '1h'
         type: choice
-        options:
-          - '15m'
-          - '30m'
-          - '1h'
-          - '2h'
-          - '3h'
-          - '4h'
-          - '5h'
-          - '6h'
-          - '7h'
-          - '8h'
-          - '9h'
-          - '10h'
-          - '11h'
-          - '12h'
+        options: ['15m','30m','1h','2h','3h','4h','5h','6h','7h','8h','9h','10h','11h','12h']
       segment:
-        description: 'Resume segment (normally 1; use next segment after a 6h ceiling)'
+        description: 'Resume segment (1 or 2; use next segment after a 6h ceiling)'
         required: true
         default: '1'
         type: choice
@@ -46,8 +32,7 @@ jobs:
     env:
       BUILDER_BASE_BRANCH: main
       BUILDER_MAX_UNITS: '100'
-      BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
-      BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
+      BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,builder/monitor/,builder/review/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
 
     steps:
       - name: Checkout repository
@@ -57,7 +42,6 @@ jobs:
           fetch-depth: 0
 
       - name: Configure requested run duration
-        id: runtime
         env:
           REQUESTED_DURATION: ${{ inputs.run_duration }}
           REQUESTED_SEGMENT: ${{ inputs.segment }}
@@ -84,61 +68,39 @@ jobs:
       - name: Select next queued objective
         run: node scripts/prepare-autonomous-batch.mjs
 
+      - name: Validate selected task workers
+        if: env.BUILDER_NO_WORK != 'true'
+        run: node builder/runner/task-preflight.mjs
+
       - name: Validate builder
         if: env.BUILDER_NO_WORK != 'true'
         run: |
           set -euo pipefail
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/run-duration.mjs
+          node --check builder/runner/task-preflight.mjs
+          node --check builder/quality/merge-readiness.mjs
           node --check scripts/prepare-autonomous-batch.mjs
 
-      - name: Run long-duration deterministic builder
+      - name: Run deterministic builder
         if: env.BUILDER_NO_WORK != 'true'
         run: |
           set -euo pipefail
-          echo "AutoBot runtime budget: ${BUILDER_MAX_MINUTES} minutes (segment ${BUILDER_SEGMENT}/${BUILDER_SEGMENTS})"
           node builder/runner/deterministic-executor.mjs
 
-      - name: Publish live run state
+      - name: Publish checkpoint summary
         if: always() && env.BUILDER_NO_WORK != 'true'
         run: |
           state='builder/working/deterministic-autobot.json'
           {
             echo ''
             echo '### 📊 Latest checkpoint'
-            if [ -f "$state" ]; then
-              jq '{status,objectiveId,currentTask,completed,lastVerifiedTask,blockedTask,error,updatedAt}' "$state"
-            else
-              echo 'Checkpoint not found.'
-            fi
+            if [ -f "$state" ]; then jq '{status,objectiveId,currentTask,completed,lastVerifiedTask,blockedTask,error,updatedAt}' "$state"; else echo 'Checkpoint not found.'; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Prepare review evidence
+      - name: Run merge-readiness gate
         if: always() && env.BUILDER_NO_WORK != 'true'
-        run: |
-          set -euo pipefail
-          mkdir -p builder/reviews/${BUILDER_BATCH_ID:-unknown}
-          state='builder/working/deterministic-autobot.json'
-          manifest="builder/reviews/${BUILDER_BATCH_ID:-unknown}/manifest.md"
-          {
-            echo "# AutoBot review package"
-            echo
-            echo "- Batch: ${BUILDER_BATCH_ID:-unknown}"
-            echo "- Objective: ${BUILDER_OBJECTIVE:-unknown}"
-            echo "- Requested runtime: ${{ inputs.run_duration }}"
-            echo "- Segment: ${{ inputs.segment }}"
-            echo "- Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            echo
-            echo '## Checkpoint'
-            if [ -f "$state" ]; then
-              echo '```json'; jq . "$state"; echo '```'
-            else
-              echo 'No checkpoint was produced.'
-            fi
-            echo
-            echo '## Changed files'
-            git diff --name-status origin/main...HEAD || true
-          } > "$manifest"
+        run: node builder/quality/merge-readiness.mjs
 
       - name: Upload run state and review evidence
         if: always() && env.BUILDER_NO_WORK != 'true'
@@ -149,8 +111,18 @@ jobs:
             builder/working/deterministic-autobot.json
             builder/working/deterministic-autobot-evidence.json
             builder/monitor/live-state.json
-            builder/reviews/${{ env.BUILDER_BATCH_ID }}/manifest.md
+            builder/reviews/merge-readiness.json
           if-no-files-found: warn
+
+      - name: Continue multi-segment run
+        if: success() && env.BUILDER_NO_WORK != 'true' && env.BUILDER_SEGMENT < env.BUILDER_SEGMENTS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          next=$((BUILDER_SEGMENT + 1))
+          gh workflow run autonomous-builder.yml --ref main -f run_duration='${{ inputs.run_duration }}' -f segment="$next"
+          echo "Queued continuation segment $next/$BUILDER_SEGMENTS."
 
       - name: Report final state
         if: always()
