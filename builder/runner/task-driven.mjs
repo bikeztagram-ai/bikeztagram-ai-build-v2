@@ -110,13 +110,15 @@ async function main() {
   const startedAt = new Date().toISOString();
   try {
     const sandboxTimeoutMs = MAX_MINUTES * 60 * 1000;
-    sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 4 }, persistent: false, timeout: sandboxTimeoutMs, networkPolicy: 'allow-all' });
-    // Explicitly extend the live session after creation. This is deliberate:
-    // Vercel Sandbox supports changing the timeout of an already-running
-    // session, and doing it here prevents a project/account default from
-    // silently leaving the worker on the five-minute default.
-    if (typeof sandbox.update === 'function') {
-      await sandbox.update({ timeout: sandboxTimeoutMs });
+    // Vercel Sandbox sessions default to five minutes. Start with that
+    // explicit session size, then extend the active session using the
+    // supported extendTimeout API. This avoids relying on the old/incorrect
+    // sandbox.update({ timeout }) path, which does not extend a live session.
+    const initialSandboxTimeoutMs = Math.min(5 * 60 * 1000, sandboxTimeoutMs);
+    sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 4 }, persistent: false, timeout: initialSandboxTimeoutMs, networkPolicy: 'allow-all' });
+    if (sandboxTimeoutMs > initialSandboxTimeoutMs) {
+      if (typeof sandbox.extendTimeout !== 'function') throw new Error('Vercel Sandbox SDK does not expose extendTimeout(); refusing to run on the five-minute default.');
+      await sandbox.extendTimeout(sandboxTimeoutMs - initialSandboxTimeoutMs);
     }
     console.log(`[AutoBot] Sandbox ${sandbox.name || 'created'} live timeout requested: ${Math.round(sandboxTimeoutMs / 60000)} minutes.`);
     const askpass = await run(sandbox, 'sh', ['-lc', `cat > '${ASKPASS}' <<'EOF'\n#!/bin/sh\ncase "$1" in\n *Username*) printf '%s\\n' 'x-access-token' ;;\n *) printf '%s\\n' "$GITHUB_TOKEN" ;;\nesac\nEOF\nchmod 700 '${ASKPASS}'`], ROOT, gitEnv);
@@ -132,16 +134,11 @@ async function main() {
     const install = await run(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
     if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
     for (passes = 1; passes <= MAX_PASSES; passes++) {
-      // Keep the Actions log visibly alive while the model is thinking. This
-      // does not extend the sandbox itself; sandbox.update() above is the
-      // lifetime control. It does make a long agent call observable.
       const heartbeat = setInterval(() => {
         console.log(`[AutoBot] Gemini worker still running — batch ${BATCH_ID}, pass ${passes}/${MAX_PASSES}, elapsed heartbeat ${new Date().toISOString()}`);
       }, 30_000);
       let agent;
       try {
-        // The configured command uses sh -lc with $0=dummy, $1=--model,
-        // $2=model, $3=-p, $4=prompt. Pass the full argument contract here.
         agent = await run(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--model', AGENT_MODEL, '-p', prompt(passes, failures)], REPO_DIR, agentEnv);
       } finally {
         clearInterval(heartbeat);
