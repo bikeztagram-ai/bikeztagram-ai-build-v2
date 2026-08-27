@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "mode": "gemini-free",
+  "principle": "Large product work is a sequence of verified implementation units.",
+  "objectives": [
+    {
+      "id": "project-persistence",
+      "priority": 1,
+      "status": "queued",
+      "title": "Real project persistence and recovery",
+      "queueBatch": "batch-98",
+      "dependsOn": [],
+      "acceptance": ["save and restore real editable project metadata", "schema migration", "corruption/partial-write recovery", "truthful missing-media state", "live App lifecycle integration"]
+    },
+    {
+      "id": "social-export",
+      "priority": 2,
+      "status": "queued",
+      "title": "Social export and delivery reliability",
+      "queueBatch": "batch-99",
+      "dependsOn": ["project-persistence"],
+      "acceptance": ["9:16, 1:1 and 16:9 profiles", "deterministic output metadata", "audio/video duration agreement", "validation", "progress and recovery"]
+    },
+    {
+      "id": "mobile-pwa",
+      "priority": 3,
+      "status": "queued",
+      "title": "Mobile PWA delivery hardening",
+      "queueBatch": "batch-100",
+      "dependsOn": ["social-export"],
+      "acceptance": ["manifest correctness", "installability", "mobile-safe viewport", "offline app shell", "safe cache/version handling"]
+    },
+    {
+      "id": "provider-resilience",
+      "priority": 4,
+      "status": "queued",
+      "title": "Provider failure and recovery resilience",
+      "queueBatch": "batch-101",
+      "dependsOn": ["project-persistence"],
+      "acceptance": ["timeouts", "malformed responses", "offline operation", "provider unavailable state", "truthful local fallback"]
+    },
+    {
+      "id": "cinematic-quality",
+      "priority": 5,
+      "status": "queued",
+      "title": "Cinematic editor and renderer quality",
+      "queueBatch": "batch-102",
+      "dependsOn": ["social-export", "provider-resilience"],
+      "acceptance": ["intelligent reframing", "shot-specific motion", "purposeful transitions", "cinematic treatment", "continuity", "social-safe framing", "audio integration"]
+    },
+    {
+      "id": "builder-self-improvement",
+      "priority": 6,
+      "status": "queued",
+      "title": "Autonomous builder self-improvement",
+      "queueBatch": null,
+      "dependsOn": ["project-persistence", "social-export", "mobile-pwa", "provider-resilience"],
+      "acceptance": ["analyse durable run history", "identify recurring failure patterns", "propose bounded improvement", "verify improvement without weakening safety controls"]
+    }
+  ]
+}

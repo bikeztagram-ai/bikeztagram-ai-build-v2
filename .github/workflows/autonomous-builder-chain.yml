@@ -1,23 +1,20 @@
 name: Autonomous Builder Queue Chain
 
-on:
-  workflow_run:
-    workflows: ["Autonomous Builder Batch"]
-    types: [completed]
+# Intentionally disabled while AutoBot V2 gains explicit runtime controls.
+# Each run is started manually so the user chooses 15m–6h and can observe it.
+# The long-run executor checkpoints after verified units, so a later run can resume.
 
-permissions:
-  actions: write
-  contents: read
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Manual maintenance trigger only'
+        required: false
+        default: 'disabled'
+        type: string
 
 jobs:
-  dispatch-next:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch next queued batch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh workflow run "Autonomous Builder Batch" --repo "$GITHUB_REPOSITORY" --ref main
-          echo "Next queued batch dispatched."
+      - run: echo 'Automatic queue chaining is disabled. Start Autonomous Builder Batch manually and choose its runtime.'
