@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-27T21:50:57.917Z",
+  "lastReport": {
+    "schemaVersion": 1,
+    "generatedAt": "2026-08-27T21:50:57.850Z",
+    "sourceRunId": "33119943528",
+    "objectiveId": "director-intelligence",
+    "metrics": {
+      "units": 5,
+      "changedUnits": 1,
+      "noOpUnits": 4,
+      "failures": 0,
+      "elapsedMinutes": 0.155
+    },
+    "failureSignatures": [],
+    "recommendations": [
+      "Keep protected runner/workflow paths outside product-task scope.",
+      "Prefer substantive production changes over marker-only verification.",
+      "Increase task selection quality so already-satisfied units are deprioritised."
+    ]
+  },
+  "appliedPolicy": {
+    "schemaVersion": 1,
+    "objectiveWeights": {
+      "production-implementation": 1,
+      "production-integration": 1,
+      "production-enhancement": 1,
+      "production-hardening": 1,
+      "accessibility-hardening": 1,
+      "builder-analysis": 1,
+      "builder-hardening": 1,
+      "self-improvement": 1
+    },
+    "maxAdjustment": 1,
+    "updatedAt": "2026-08-27T21:50:57.916Z",
+    "sourceRunId": "33119943528"
+  }
+}
