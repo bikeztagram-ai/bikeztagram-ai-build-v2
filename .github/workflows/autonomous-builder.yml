@@ -3,308 +3,171 @@ name: Autonomous Builder Batch
 on:
   workflow_dispatch:
     inputs:
-      batch_count:
-        description: 'Batches to process in this run'
-        required: false
-        default: '1'
+      run_duration:
+        description: 'How long should AutoBot work this run?'
+        required: true
+        default: '60m'
         type: choice
         options:
-          - '1'
-  # Manual runs are intentionally the only entry point. One run processes
-  # exactly one queued batch and then stops; no heartbeat or self-dispatch.
-
-# [production-contract-approved] Gemini CLI is the bounded engineering worker.
-# Paid Gemini API access is used for this controlled builder test.
+          - '15m'
+          - '30m'
+          - '1h'
+          - '2h'
+          - '3h'
+          - '4h'
+          - '5h'
+          - '6h'
 
 concurrency:
   group: autonomous-builder-queue
   cancel-in-progress: false
 
 permissions:
-  actions: write
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   run-batch:
-    strategy:
-      fail-fast: true
-      max-parallel: 1
-      matrix:
-        slot: [1]
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 360
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_TEAM_ID: team_3M95heKqbtDeI1h2dDKBWBtS
-      VERCEL_PROJECT_ID: prj_75Uw3YoRkT5XOjXnSaVTnM2wHXte
-      GITHUB_TOKEN: ${{ secrets.BUILDER_GITHUB_TOKEN }}
-      OPENAI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      GEMINI_CLI_TRUST_WORKSPACE: "true"
-      BUILDER_REPO_URL: https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git
       BUILDER_BASE_BRANCH: main
-      BUILDER_MAX_MINUTES: "44"
-      BUILDER_MAX_PASSES: "2"
-      BUILDER_AGENT_PROVIDER: gemini-cli-paid
-      BUILDER_AGENT_MODEL: "gemini-3.7-flash"
-      BUILDER_AGENT_FALLBACK_MODEL: "gemini-3.5-flash-lite"
-      BUILDER_AGENT_ATTEMPT_TIMEOUT_SECONDS: "900"
-      BUILDER_AGENT_CMD: '["sh","-lc","MODEL=\"$2\"; PROMPT=\"$4\"; exec sh builder/runner/gemini-resilient.sh \"$MODEL\" \"$PROMPT\"","_"]'
+      BUILDER_MAX_MINUTES: '60'
+      BUILDER_MAX_UNITS: '20'
       BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
-      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;Exactly one batch is processed per manual workflow launch.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply those durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.;Use the paid Gemini model as an engineering brain for an initial architecture-quality pass, then execute and verify the implementation.;Treat every acceptance item as an observable behavioural requirement and report any unproven item as incomplete.;Verify the real user-facing runtime path for objectives involving state, media, providers, rendering, persistence or export.;If Gemini quota is genuinely exhausted, stop cleanly rather than retrying the same failed request.;If a transient model timeout or 5xx occurs, use the bounded fallback strategy once and do not enter an unbounded model-switch loop.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
-    steps:
-      - name: Announce single queue slot
-        run: |
-          echo "Starting AutoBot queue slot 1 of 1."
-          echo "This manual run will process exactly one eligible batch and then stop. There is no heartbeat/self-dispatch."
 
-      - name: Checkout runner
-        uses: actions/checkout@v6
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
-      - name: Run status heartbeat
-        if: always()
+      - name: Configure requested run duration
+        id: runtime
+        env:
+          REQUESTED_DURATION: ${{ inputs.run_duration }}
         run: |
+          set -euo pipefail
+          case "$REQUESTED_DURATION" in
+            15m) MINUTES=15 ;;
+            30m) MINUTES=30 ;;
+            1h) MINUTES=60 ;;
+            2h) MINUTES=120 ;;
+            3h) MINUTES=180 ;;
+            4h) MINUTES=240 ;;
+            5h) MINUTES=300 ;;
+            6h) MINUTES=360 ;;
+            *) echo "Unsupported run duration: $REQUESTED_DURATION"; exit 1 ;;
+          esac
+          echo "minutes=$MINUTES" >> "$GITHUB_OUTPUT"
+          echo "BUILDER_MAX_MINUTES=$MINUTES" >> "$GITHUB_ENV"
           {
-            echo "## 🤖 Autonomous Builder Status"
-            echo "- **Run:** #${{ github.run_number }}"
-            echo "- **Queue slot:** 1 / 1"
-            echo "- **Started:** ${{ github.run_started_at }}"
-            echo "- **Trigger:** ${{ github.event_name }}"
-            echo "- **Mode:** single-batch manual run"
-            echo "- **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo '## 🤖 Autonomous Builder'
+            echo "- **Requested runtime:** $REQUESTED_DURATION"
+            echo "- **Execution budget:** $MINUTES minutes"
+            echo '- **Mode:** Gemini-free deterministic builder'
+            echo '- **Merge:** never automatic'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Select next queued batch
-        working-directory: .
+      - name: Select next queued objective
         run: node scripts/prepare-autonomous-batch.mjs
 
-      - name: Report selected batch
+      - name: Report selected objective
         if: always()
         run: |
           {
-            echo ""
-            echo "### Queue selection"
-            if [ "$BUILDER_NO_WORK" = "true" ]; then
-              echo "- **Status:** 💤 IDLE"
-              echo "- **Reason:** ${BUILDER_NO_WORK_REASON:-No work reason not supplied}"
+            echo ''
+            echo '### Current work'
+            if [ "${BUILDER_NO_WORK:-false}" = 'true' ]; then
+              echo '- **Status:** 💤 IDLE'
+              echo "- **Reason:** ${BUILDER_NO_WORK_REASON:-none}"
             else
-              echo "- **Status:** 🟢 WORKING"
+              echo '- **Status:** 🟢 RUNNING'
               echo "- **Batch:** ${BUILDER_BATCH_ID:-unknown}"
               echo "- **Branch:** ${BUILDER_WORKING_BRANCH:-unknown}"
-              echo "- **Resume:** ${BUILDER_RESUME_EXISTING:-unknown}"
               echo "- **Objective:** ${BUILDER_OBJECTIVE:-unknown}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Validate runner secrets
+      - name: Validate builder
         if: env.BUILDER_NO_WORK != 'true'
         run: |
           set -euo pipefail
-          test -n "$VERCEL_TOKEN" || { echo "VERCEL_TOKEN is missing"; exit 1; }
-          test -n "$VERCEL_TEAM_ID" || { echo "VERCEL_TEAM_ID is missing"; exit 1; }
-          test -n "$VERCEL_PROJECT_ID" || { echo "VERCEL_PROJECT_ID is missing"; exit 1; }
-          test -n "$GITHUB_TOKEN" || { echo "BUILDER_GITHUB_TOKEN is missing"; exit 1; }
-          test -n "$GEMINI_API_KEY" || { echo "GEMINI_API_KEY is missing for the Gemini CLI builder"; exit 1; }
-
-      - name: Preflight Gemini CLI authentication
-        if: env.BUILDER_NO_WORK != 'true'
-        working-directory: .
-        run: |
-          set -euo pipefail
-          npx --yes @google/gemini-cli@latest --version
-          http_code=$(curl -sS -o /tmp/gemini-models.json -w '%{http_code}' \
-            "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY")
-          if [ "$http_code" != "200" ]; then
-            echo "Gemini API authentication preflight failed with HTTP $http_code."
-            echo "The Gemini worker will not be started until the key is accepted."
-            exit 1
-          fi
-          echo "Gemini API authentication preflight: PASS"
-
-      - name: Report preflight status
-        if: always() && env.BUILDER_NO_WORK != 'true'
-        run: |
-          {
-            echo ""
-            echo "### Preflight"
-            echo "- **Gemini CLI:** authentication step completed"
-            echo "- **Primary model:** $BUILDER_AGENT_MODEL"
-            echo "- **Fallback model:** $BUILDER_AGENT_FALLBACK_MODEL"
-            echo "- **Provider mode:** $BUILDER_AGENT_PROVIDER"
-            echo "- **Per-attempt bound:** ${BUILDER_AGENT_ATTEMPT_TIMEOUT_SECONDS}s"
-            echo "- **Next stage:** bounded engineering worker"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Install runner
-        if: env.BUILDER_NO_WORK != 'true'
-        working-directory: builder/runner
-        run: npm install --no-audit --no-fund
-
-      - name: Validate runner syntax
-        if: env.BUILDER_NO_WORK != 'true'
-        run: |
-          node --check builder/runner/task-driven.mjs
+          node --check builder/runner/deterministic-executor.mjs
           node --check scripts/prepare-autonomous-batch.mjs
-          sh -n builder/runner/gemini-resilient.sh
 
-      - name: Run task-driven bounded batch
+      - name: Run long-duration deterministic builder
         if: env.BUILDER_NO_WORK != 'true'
-        working-directory: .
-        env:
-          GIT_SSL_NO_VERIFY: "1"
-        run: timeout --signal=TERM --kill-after=60s 50m node builder/runner/task-driven.mjs
+        run: |
+          set -euo pipefail
+          echo "AutoBot runtime budget: ${BUILDER_MAX_MINUTES} minutes"
+          node builder/runner/deterministic-executor.mjs
 
-      - name: Report worker status
+      - name: Publish live run state
         if: always() && env.BUILDER_NO_WORK != 'true'
         run: |
+          state='builder/working/deterministic-autobot.json'
           {
-            echo ""
-            echo "### Engineering worker"
-            echo "- **Stage:** Worker step completed with workflow status **${{ job.status }}**"
-            echo "- **Batch:** ${BUILDER_BATCH_ID:-unknown}"
-            echo "- **Working branch:** ${BUILDER_WORKING_BRANCH:-unknown}"
-            report="/tmp/builder-report/${BUILDER_BATCH_ID:-unknown}.json"
-            if [ -f "$report" ]; then
-              echo "- **Runner report:** captured successfully"
-              echo '```json'
-              jq '{status,provider,model,startedAt,finishedAt,passes,commitSha,failure,quotaDetected,quotaHint,providerFailure,noChangesProduced}' "$report"
-              echo '```'
+            echo ''
+            echo '### 📊 Latest checkpoint'
+            if [ -f "$state" ]; then
+              jq '{status,objectiveId,currentTask,completed,lastVerifiedTask,blockedTask,error,updatedAt}' "$state"
             else
-              echo "- **Runner report:** MISSING"
+              echo 'Checkpoint not found.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Prepare builder branch for quality review
-        if: env.BUILDER_NO_WORK != 'true'
-        working-directory: .
-        run: |
-          set -euo pipefail
-          git fetch origin main "$BUILDER_WORKING_BRANCH"
-          git checkout -B "$BUILDER_WORKING_BRANCH" "origin/$BUILDER_WORKING_BRANCH"
-
-      - name: Install production dependencies for quality gate
-        if: env.BUILDER_NO_WORK != 'true'
-        working-directory: .
-        run: npm install --no-audit --no-fund --no-package-lock
-
-      - name: Normalize generated whitespace before quality gate
-        if: env.BUILDER_NO_WORK != 'true'
-        working-directory: .
-        run: |
-          set -euo pipefail
-          changed_files=$(git diff --name-only --diff-filter=ACMR "origin/main...HEAD")
-          if [ -z "$changed_files" ]; then
-            echo "No committed builder changes to normalize."
-            exit 0
-          fi
-          printf '%s\n' "$changed_files" | while IFS= read -r file; do
-            case "$file" in
-              *.js|*.jsx|*.mjs|*.cjs|*.json|*.css|*.html|*.md|*.yml|*.yaml|*.txt)
-                if [ -f "$file" ]; then
-                  sed -i 's/[[:space:]]*$//' "$file"
-                fi
-                ;;
-            esac
-          done
-          if git diff --quiet; then
-            echo "Generated changes already have clean line endings/whitespace."
-            exit 0
-          fi
-          git config user.name "Bikeztagram Autonomous Builder"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -u
-          git commit -m "chore: normalize builder whitespace"
-          git push origin "HEAD:$BUILDER_WORKING_BRANCH"
-          echo "Normalized and committed generated trailing whitespace before the quality gate."
-
-      - name: Deterministic production quality gate
-        if: env.BUILDER_NO_WORK != 'true'
-        working-directory: .
-        run: |
-          set -euo pipefail
-          echo "Checking committed builder diff against origin/main..."
-          git diff --check "origin/main...HEAD"
-          echo "Running production verification commands..."
-          npm run build
-          npm run verify:batch76
-          npm run verify:pro-song
-          echo "Deterministic production quality gate: PASS"
-
-      - name: Report quality gate
+      - name: Prepare review evidence
         if: always() && env.BUILDER_NO_WORK != 'true'
         run: |
-          {
-            echo ""
-            echo "### Quality gate"
-            echo "- **Result:** workflow status **${{ job.status }}**"
-            echo "- **Checks:** build + verify:batch76 + verify:pro-song"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Create or confirm review PR
-        if: success() && env.BUILDER_NO_WORK != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
           set -euo pipefail
-          existing_pr=$(gh pr view "$BUILDER_WORKING_BRANCH" --repo "$GITHUB_REPOSITORY" --json number --jq '.number' 2>/dev/null || true)
-          if [ -n "$existing_pr" ]; then
-            echo "Review PR #$existing_pr already exists for $BUILDER_WORKING_BRANCH."
-            echo "AUTOBOT_PR_NUMBER=$existing_pr" >> "$GITHUB_ENV"
-            exit 0
-          fi
-          created_pr=$(gh pr create \
-            --repo "$GITHUB_REPOSITORY" \
-            --base main \
-            --head "$BUILDER_WORKING_BRANCH" \
-            --draft \
-            --title "Autonomous Builder: $BUILDER_BATCH_ID" \
-            --body "## Autonomous builder batch $BUILDER_BATCH_ID\n\nThis draft PR was created automatically after the bounded Gemini CLI worker completed and the deterministic production quality gate passed.\n\n**Objective:**\n$BUILDER_OBJECTIVE\n\nGitHub Actions verification is the authoritative quality gate. No automatic merge or production deployment is performed. Review the generated changes and checks before merging.")
-          echo "AUTOBOT_PR_URL=$created_pr" >> "$GITHUB_ENV"
-          echo "AUTOBOT_PR_NUMBER=$(basename "$created_pr")" >> "$GITHUB_ENV"
+          mkdir -p builder/reviews/${BUILDER_BATCH_ID:-unknown}
+          state='builder/working/deterministic-autobot.json'
+          manifest="builder/reviews/${BUILDER_BATCH_ID:-unknown}/manifest.md"
+          {
+            echo "# AutoBot review package"
+            echo
+            echo "- Batch: ${BUILDER_BATCH_ID:-unknown}"
+            echo "- Objective: ${BUILDER_OBJECTIVE:-unknown}"
+            echo "- Requested runtime: ${{ inputs.run_duration }}"
+            echo "- Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo '## Checkpoint'
+            if [ -f "$state" ]; then
+              echo '```json'
+              jq . "$state"
+              echo '```'
+            else
+              echo 'No checkpoint was produced.'
+            fi
+            echo
+            echo '## Changed files'
+            git diff --name-status origin/main...HEAD || true
+          } > "$manifest"
 
-      - name: Report completion
+      - name: Upload run state and review evidence
+        if: always() && env.BUILDER_NO_WORK != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-run-${{ github.run_number }}-${{ env.BUILDER_BATCH_ID }}
+          path: |
+            builder/working/deterministic-autobot.json
+            builder/reviews/${{ env.BUILDER_BATCH_ID }}/manifest.md
+          if-no-files-found: warn
+
+      - name: Report final state
         if: always()
         run: |
           {
-            echo ""
-            echo "## 🧾 Run result"
-            echo "- **Final workflow status:** ${{ job.status }}"
-            echo "- **Queue slot:** 1 / 1"
+            echo ''
+            echo '## 🧾 Final state'
+            echo "- **Workflow:** ${{ job.status }}"
+            echo "- **Requested runtime:** ${{ inputs.run_duration }}"
             echo "- **Batch:** ${BUILDER_BATCH_ID:-none}"
             echo "- **Branch:** ${BUILDER_WORKING_BRANCH:-none}"
-            echo "- **PR:** ${AUTOBOT_PR_URL:-none created/confirmed}"
-            echo "- **Runner report:** ${BUILDER_BATCH_ID:+/tmp/builder-report/$BUILDER_BATCH_ID.json}"
-            echo "- **Queue control:** this workflow run processes one batch and then stops."
+            echo '- **Automatic merge:** ❌ Never'
+            echo '- **Automatic production deployment:** ❌ Never'
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Report automatic idle state
-        if: success() && env.BUILDER_NO_WORK == 'true'
-        run: |
-          echo "Autonomous builder is idle: $BUILDER_NO_WORK_REASON"
-
-      - name: Upload runner report
-        if: always() && env.BUILDER_NO_WORK != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: autonomous-builder-${{ env.BUILDER_BATCH_ID }}
-          path: /tmp/builder-report/${{ env.BUILDER_BATCH_ID }}.json
-          if-no-files-found: ignore
-
-      - name: Upload checkpoint if present
-        if: always() && env.BUILDER_NO_WORK != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: autonomous-builder-checkpoint-${{ env.BUILDER_BATCH_ID }}
-          path: builder/working/${{ env.BUILDER_BATCH_ID }}.md
-          if-no-files-found: ignore
-
-      - name: Do not self-dispatch
-        if: always()
-        run: |
-          echo "Queue slot 1 finished. No scheduler/heartbeat dispatch will be triggered."
-          echo "This manual workflow run is complete after the single selected batch."
