@@ -1,40 +1,15 @@
 {
-  "runId": "33081149619",
-  "status": "objective-complete",
-  "objectiveId": "project-persistence",
+  "runId": "33107648248",
+  "status": "idle",
+  "objectiveId": null,
   "currentTask": null,
-  "completedUnits": 2,
-  "totalUnits": 2,
-  "startedAt": "2026-08-27T14:15:02.616Z",
-  "updatedAt": "2026-08-27T14:15:08.218Z",
-  "heartbeatAt": "2026-08-27T14:15:08.218Z",
-  "message": "All deterministic units verified.",
-  "files": [
-    {
-      "status": "M",
-      "path": "rc/App.jsx"
-    },
-    {
-      "status": "??",
-      "path": "builder/monitor/live-state.json"
-    },
-    {
-      "status": "??",
-      "path": "builder/quality/autobot-readiness.json"
-    },
-    {
-      "status": "??",
-      "path": "builder/working/deterministic-autobot-evidence.json"
-    },
-    {
-      "status": "??",
-      "path": "builder/working/deterministic-autobot.json"
-    },
-    {
-      "status": "??",
-      "path": "builder/working/persistence-contract.json"
-    }
-  ],
+  "completedUnits": 0,
+  "totalUnits": 0,
+  "startedAt": "2026-08-27T19:16:49.150Z",
+  "updatedAt": "2026-08-27T19:16:49.152Z",
+  "heartbeatAt": "2026-08-27T19:16:49.152Z",
+  "message": "No eligible unfinished roadmap units. Idle.",
+  "files": [],
   "verification": [],
   "blockedReason": null
 }
