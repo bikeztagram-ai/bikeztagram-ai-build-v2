@@ -1,38 +1,9 @@
 {
-  "objectiveId": "project-persistence",
-  "completed": [
-    "persistence-audit-and-contract",
-    "persistence-runtime"
-  ],
-  "totalUnits": 2,
+  "objectiveId": null,
+  "completed": [],
+  "totalUnits": 0,
+  "status": "idle",
   "currentTask": null,
-  "status": "objective-complete",
-  "files": [
-    {
-      "status": "M",
-      "path": "rc/App.jsx"
-    },
-    {
-      "status": "??",
-      "path": "builder/monitor/live-state.json"
-    },
-    {
-      "status": "??",
-      "path": "builder/quality/autobot-readiness.json"
-    },
-    {
-      "status": "??",
-      "path": "builder/working/deterministic-autobot-evidence.json"
-    },
-    {
-      "status": "??",
-      "path": "builder/working/deterministic-autobot.json"
-    },
-    {
-      "status": "??",
-      "path": "builder/working/persistence-contract.json"
-    }
-  ],
-  "lastVerifiedTask": "persistence-runtime",
-  "updatedAt": "2026-08-27T14:15:08.218Z"
+  "files": [],
+  "updatedAt": "2026-08-27T18:42:01.397Z"
 }

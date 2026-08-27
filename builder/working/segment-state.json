@@ -1,12 +1,12 @@
 {
   "version": 1,
   "batchId": null,
-  "requestedDuration": "15m",
+  "requestedDuration": "30m",
   "segment": 1,
   "segments": 1,
   "nextSegment": null,
   "resumeRequired": false,
   "checkpoint": "builder/working/deterministic-autobot.json",
   "evidence": "builder/working/deterministic-autobot-evidence.json",
-  "generatedAt": "2026-08-27T14:15:10.318Z"
+  "generatedAt": "2026-08-27T18:42:03.871Z"
 }
