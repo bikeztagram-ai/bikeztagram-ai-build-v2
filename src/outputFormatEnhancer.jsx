@@ -30,14 +30,29 @@ export default function OutputFormatEnhancer(){
    const video=getVideo();
    if(!video?.src)return setMessage('Build the film first.');
    setBusy(true);setMessage(mode==='share'?'Preparing share…':'Preparing export…');
+   let blob = null;
    try{
-    const blob=await fetch(video.currentSrc||video.src).then(r=>r.blob());
+    blob=await fetch(video.currentSrc||video.src).then(r=>r.blob());
     const result=await formatRenderedFilm(blob,{preset:selected,prompt:'' ,onProgress:(p)=>setMessage(`Formatting ${selected}… ${p}%`)});
     const name=(document.querySelector('.film-plan .section-title h3')?.textContent||'bikeztagram-ai-film').trim();
     if(mode==='share')await shareSocialFilm(result.blob,{presetId:selected,name});
     else downloadSocialFilm(result.blob,{presetId:selected,name});
     setMessage(`${OPTIONS.find(o=>o.id===selected)?.label||selected} export ready.`);
-   }catch(err){console.error('[OUTPUT FORMAT]',err);setMessage(`Export failed — ${err?.message||String(err)}`);}
+   }catch(err){
+    console.error('[OUTPUT FORMAT] Formatting failed, recovering with original:',err);
+    try {
+      if (blob) {
+        const name=(document.querySelector('.film-plan .section-title h3')?.textContent||'bikeztagram-ai-film').trim();
+        if(mode==='share')await shareSocialFilm(blob,{presetId:'portrait',name});
+        else downloadSocialFilm(blob,{presetId:'portrait',name});
+        setMessage(`⚠️ Format failed: ${err?.message || String(err)}. Recovered: Exported original 9:16 film.`);
+      } else {
+        setMessage(`Export failed — ${err?.message||String(err)}`);
+      }
+    } catch (fallbackErr) {
+      setMessage(`Export failed — ${err?.message||String(err)} • Fallback also failed: ${fallbackErr?.message || String(fallbackErr)}`);
+    }
+   }
    finally{setBusy(false);}
   };
 
