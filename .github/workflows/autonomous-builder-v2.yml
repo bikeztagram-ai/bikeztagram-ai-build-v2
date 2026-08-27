@@ -41,7 +41,9 @@ jobs:
         run: npm install --no-audit --no-fund --no-package-lock
 
       - name: Validate deterministic builder
-        run: node --check builder/runner/deterministic-executor.mjs
+        run: |
+          node --check builder/runner/deterministic-executor.mjs
+          node scripts/autobot/verify-deterministic-executor.mjs
 
       - name: Run long-lived deterministic builder
         run: node builder/runner/deterministic-executor.mjs
