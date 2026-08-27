@@ -8,11 +8,12 @@ on:
         required: false
         default: '20'
         type: string
-      max_minutes:
-        description: 'Requested run duration in minutes (15-720)'
+      duration:
+        description: 'Run duration: 15m, 30m, or 1h-12h'
         required: false
-        default: '240'
-        type: string
+        default: '4h'
+        type: choice
+        options: ['15m','30m','1h','2h','3h','4h','5h','6h','7h','8h','9h','10h','11h','12h']
 
 concurrency:
   group: autonomous-builder-v2
@@ -22,15 +23,15 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  BUILDER_MAX_UNITS: ${{ inputs.max_units }}
+  REQUESTED_DURATION: ${{ inputs.duration }}
+  BUILDER_BASE_BRANCH: main
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 370
-    env:
-      BUILDER_MAX_UNITS: ${{ inputs.max_units }}
-      BUILDER_MAX_MINUTES: ${{ inputs.max_minutes }}
-      REQUESTED_MINUTES: ${{ inputs.max_minutes }}
-      BUILDER_BASE_BRANCH: main
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,15 +42,21 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
 
-      - name: Validate duration and deterministic builder
+      - name: Resolve run budget
+        id: budget
         run: |
           node builder/runner/run-duration.mjs
           node builder/runner/segment-plan.mjs
+          echo "segment=${AUTOBOT_SEGMENT:-1}" >> "$GITHUB_OUTPUT"
+          echo "segments=${AUTOBOT_SEGMENTS:-1}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate deterministic builder
+        run: |
           node --check builder/runner/deterministic-executor.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node builder/quality/autobot-ready.mjs
 
-      - name: Run long-lived deterministic builder
+      - name: Run deterministic builder
         run: node builder/runner/deterministic-executor.mjs
 
       - name: Production verification
@@ -58,21 +65,21 @@ jobs:
           npm run build
           npm run verify:project-memory
 
-      - name: Persist segment state and show checkpoint
+      - name: Persist continuation state
         if: always()
-        run: |
-          node builder/runner/segment-state.mjs
-          if [ -f builder/working/deterministic-autobot.json ]; then cat builder/working/deterministic-autobot.json; fi
-          if [ -f builder/working/segment-state.json ]; then cat builder/working/segment-state.json; fi
+        env:
+          BUILDER_SEGMENT: ${{ steps.budget.outputs.segment }}
+          BUILDER_SEGMENTS: ${{ steps.budget.outputs.segments }}
+        run: node builder/runner/segment-state.mjs
 
-      - name: Create review PR when changes exist
+      - name: Publish verified work for human review
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if git diff --quiet && git diff --cached --quiet; then
-            echo 'No working-tree changes; builder produced no publishable changes.'
+            echo 'No publishable changes.'
             exit 0
           fi
           branch="autonomous-builder-v2/${GITHUB_RUN_ID}"
