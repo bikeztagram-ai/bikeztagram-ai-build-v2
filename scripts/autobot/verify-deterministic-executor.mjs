@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const root = process.cwd();
 const workflow = fs.readFileSync(path.join(root, '.github/workflows/autonomous-builder-v2.yml'), 'utf8');
@@ -30,4 +31,5 @@ if (failures.length) {
   console.error(failures.map(f => `FAIL: ${f}`).join('\n'));
   process.exit(1);
 }
+execFileSync(process.execPath, ['scripts/autobot/test-durable-handoff.mjs'], { cwd: root, stdio: 'inherit' });
 console.log(`Deterministic AutoBot contract PASS: ${library.tasks.length} implementation units, ${roadmap.objectives.length} objectives, durable handoff guard PASS.`);
