@@ -15,6 +15,8 @@ if (/GEMINI_API_KEY|gemini-cli|gemini-3/i.test(workflow)) failures.push('V2 work
 if (!executor.includes('deterministic') || !executor.includes('writeCheckpoint')) failures.push('deterministic executor/checkpoint contract missing');
 if (!sustained.includes('BUILDER_COMPLETED_OBJECTIVES')) failures.push('sustained runner does not carry completed objectives');
 if (!sustained.includes('completedKeys') || !sustained.includes('completedObjectives')) failures.push('sustained runner does not track cumulative units/objectives');
+if (!sustained.includes('seedFromCheckpoint') || !sustained.includes("state.status==='objective-complete'")) failures.push('sustained runner does not seed completed objectives from durable checkpoint');
+if (!sustained.includes('newlyVerified===0')) failures.push('sustained runner lacks no-progress guard');
 if (!executor.includes('carriedObjectives.has(dep)')) failures.push('deterministic executor does not satisfy downstream dependencies from the current run');
 if (!executor.includes('process.env.BUILDER_COMPLETED_OBJECTIVES')) failures.push('deterministic executor does not consume carried objectives');
 if (!Array.isArray(library.tasks) || !library.tasks.length) failures.push('task library is empty');
@@ -33,4 +35,4 @@ if (failures.length) {
   console.error(failures.map(f => `FAIL: ${f}`).join('\n'));
   process.exit(1);
 }
-console.log(`Deterministic AutoBot contract PASS: ${library.tasks.length} implementation units, ${roadmap.objectives.length} objectives, executable roadmap coverage PASS.`);
+console.log(`Deterministic AutoBot contract PASS: ${library.tasks.length} implementation units, ${roadmap.objectives.length} objectives, checkpoint-resume, no-progress, and executable roadmap coverage PASS.`);
