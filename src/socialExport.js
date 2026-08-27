@@ -13,3 +13,23 @@ export function downloadSocialFilm(blob,{presetId='portrait',name='bikeztagram-a
 export async function shareSocialFilm(blob,{presetId='portrait',name='bikeztagram-ai-film'}={}){
  if(!(blob instanceof Blob)||!blob.size)throw new Error('No finished film is available to share.');if(!navigator.share)throw new Error('This device/browser does not provide native sharing.');const info=getSocialExportInfo(blob,presetId);const file=new File([blob],`${safeFilename(name)}-${info.width}x${info.height}.${info.extension}`,{type:info.mimeType});if(navigator.canShare&&!navigator.canShare({files:[file]}))throw new Error('This device cannot share the rendered video file directly.');await navigator.share({title:'Bikeztagram AI film',text:'Created with Bikeztagram AI',files:[file]});return info;
 }
+
+export function validateSocialExport(blob,presetId='portrait'){
+ const info=getSocialExportInfo(blob,presetId);
+ const failures=[];
+ if(!(blob instanceof Blob)||!blob.size)failures.push('empty-output');
+ if(!Number.isFinite(Number(info.width))||!Number.isFinite(Number(info.height)))failures.push('invalid-dimensions');
+ if(Number(info.width)<=0||Number(info.height)<=0)failures.push('invalid-dimensions');
+ if(!['portrait','square','landscape'].includes(presetId))failures.push('unknown-profile');
+ return {ok:failures.length===0,failures,info};
+}
+
+export function validateSocialExportDuration(actualSeconds,targetSeconds,tolerance=0.25){
+ const actual=Number(actualSeconds),target=Number(targetSeconds),allowed=Math.max(Number(tolerance)||0,0);
+ if(!Number.isFinite(actual)||actual<0||!Number.isFinite(target)||target<=0)return {ok:false,reason:'invalid-duration'};
+ return {ok:Math.abs(actual-target)<=allowed,actualSeconds:actual,targetSeconds:target,tolerance:allowed,reason:Math.abs(actual-target)<=allowed?null:'duration-mismatch'};
+}
+
+export function getSocialExportProfiles(){
+ return Object.freeze(Object.fromEntries(Object.entries(SOCIAL_PRESETS).map(([id,p])=>[id,{id,label:p.label,width:p.width,height:p.height,aspectRatio:p.aspectRatio,platforms:[...(p.platforms||[])]}])));
+}
