@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AutoBot Learning Lesson",
+  "type": "object",
+  "required": ["id", "category", "observation", "evidence", "proposedRule", "status"],
+  "properties": {
+    "id": { "type": "string" },
+    "category": { "type": "string" },
+    "observation": { "type": "string" },
+    "evidence": { "type": "array", "items": { "type": "string" } },
+    "proposedRule": { "type": "string" },
+    "regressionTest": { "type": "string" },
+    "status": { "enum": ["candidate", "approved", "rejected", "active"] }
+  }
+}
