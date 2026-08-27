@@ -110,17 +110,15 @@ async function main() {
   const startedAt = new Date().toISOString();
   try {
     const sandboxTimeoutMs = MAX_MINUTES * 60 * 1000;
-    // Vercel Sandbox sessions default to five minutes. Start with that
-    // explicit session size, then extend the active session using the
-    // supported extendTimeout API. This avoids relying on the old/incorrect
-    // sandbox.update({ timeout }) path, which does not extend a live session.
-    const initialSandboxTimeoutMs = Math.min(5 * 60 * 1000, sandboxTimeoutMs);
-    sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 4 }, persistent: false, timeout: initialSandboxTimeoutMs, networkPolicy: 'allow-all' });
-    if (sandboxTimeoutMs > initialSandboxTimeoutMs) {
-      if (typeof sandbox.extendTimeout !== 'function') throw new Error('Vercel Sandbox SDK does not expose extendTimeout(); refusing to run on the five-minute default.');
-      await sandbox.extendTimeout(sandboxTimeoutMs - initialSandboxTimeoutMs);
+    // Configure the full session lifetime at creation time. Vercel supports
+    // up to 45 minutes on Hobby; relying on the five-minute default and then
+    // extending a live session proved fragile in the previous AutoBot run.
+    sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 4 }, persistent: false, timeout: sandboxTimeoutMs, networkPolicy: 'allow-all' });
+    const configuredTimeoutMs = Number(sandbox.timeout || 0);
+    if (configuredTimeoutMs && configuredTimeoutMs < sandboxTimeoutMs - 60_000) {
+      throw new Error(`Vercel Sandbox returned a shorter session timeout (${configuredTimeoutMs}ms) than requested (${sandboxTimeoutMs}ms); refusing to start a long AutoBot run.`);
     }
-    console.log(`[AutoBot] Sandbox ${sandbox.name || 'created'} live timeout requested: ${Math.round(sandboxTimeoutMs / 60000)} minutes.`);
+    console.log(`[AutoBot] Sandbox ${sandbox.name || 'created'} session timeout configured: ${Math.round(sandboxTimeoutMs / 60000)} minutes.`);
     const askpass = await run(sandbox, 'sh', ['-lc', `cat > '${ASKPASS}' <<'EOF'\n#!/bin/sh\ncase "$1" in\n *Username*) printf '%s\\n' 'x-access-token' ;;\n *) printf '%s\\n' "$GITHUB_TOKEN" ;;\nesac\nEOF\nchmod 700 '${ASKPASS}'`], ROOT, gitEnv);
     if (askpass.exitCode) throw new Error(`Git auth helper setup failed: ${askpass.stderr}`);
     const clone = await run(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], ROOT, gitEnv);
