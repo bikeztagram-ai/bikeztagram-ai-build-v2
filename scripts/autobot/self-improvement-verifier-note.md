@@ -1,0 +1,1 @@
+The deterministic executor verifier must load both the primary task library and the self-improvement task library. The self-improvement objective is intentionally executable and therefore must be covered by the same roadmap/queue validation.
