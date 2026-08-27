@@ -14,11 +14,11 @@ const TOKEN_GROUPS = {
 };
 
 const PHASES = [
-  { id: 'hook', keywords: TOKEN_GROUPS.hook, purpose: 'Hook the viewer immediately.' },
-  { id: 'build', keywords: ['build', 'anticipation', 'tension', 'approach', 'tease'], purpose: 'Build anticipation and visual context.' },
-  { id: 'reveal', keywords: TOKEN_GROUPS.reveal, purpose: 'Deliver the main visual reveal or payoff.' },
-  { id: 'action', keywords: TOKEN_GROUPS.action, purpose: 'Escalate movement, energy and rhythm.' },
-  { id: 'hero', keywords: ['hero', 'final', 'ending', 'end', 'finish', 'payoff'], purpose: 'Finish on the strongest hero image or moment.' },
+  { id: 'hook', keywords: TOKEN_GROUPS.hook },
+  { id: 'build', keywords: ['build', 'anticipation', 'tension', 'approach', 'tease'] },
+  { id: 'reveal', keywords: TOKEN_GROUPS.reveal },
+  { id: 'action', keywords: TOKEN_GROUPS.action },
+  { id: 'hero', keywords: ['hero', 'final', 'ending', 'end', 'finish', 'payoff'] },
 ];
 
 const ASPECTS = {
@@ -41,9 +41,9 @@ function countMatches(text, words) {
 
 function detectDuration(text, fallback = 15) {
   const match = text.match(/(?:about|around|under|up to|for)?\s*(\d+(?:\.\d+)?)\s*(?:sec|secs|second|seconds|s)\b/);
-  if (!match) return fallback;
+  if (!match) return { value: fallback, explicit: false };
   const value = Number(match[1]);
-  return Number.isFinite(value) ? Math.max(3, Math.min(60, value)) : fallback;
+  return Number.isFinite(value) ? { value: Math.max(3, Math.min(60, value)), explicit: true } : { value: fallback, explicit: false };
 }
 
 function detectAspect(text) {
@@ -82,9 +82,8 @@ function detectPriorities(text) {
 
 function detectArc(text) {
   const requested = PHASES.filter((phase) => hasAny(text, phase.keywords)).map((phase) => phase.id);
-  const base = ['hook', 'build', 'reveal', 'action', 'hero'];
-  if (!requested.length) return base;
-  return base.filter((id) => requested.includes(id) || ['build', 'action'].includes(id));
+  if (!requested.length) return PHASES.map((phase) => phase.id);
+  return PHASES.map((phase) => phase.id).filter((id) => requested.includes(id) || ['hook', 'build', 'hero'].includes(id));
 }
 
 function deriveBeatProfile(pacing, duration) {
@@ -99,18 +98,19 @@ function deriveBeatProfile(pacing, duration) {
 
 export function parseCreativeBrief(brief = '', options = {}) {
   const text = normalise(brief);
-  const duration = detectDuration(text, Number(options.targetDuration) || 15);
+  const durationResult = detectDuration(text, Number(options.targetDuration) || 15);
   const aspect = options.aspect || detectAspect(text);
   const pacing = detectPacing(text);
   const tone = detectTone(text);
   const socialFirst = hasAny(text, TOKEN_GROUPS.social) || aspect.id === 'portrait';
   const phases = detectArc(text);
-  const beatProfile = deriveBeatProfile(pacing, duration);
+  const beatProfile = deriveBeatProfile(pacing, durationResult.value);
 
   return {
     version: 'creative-brief-v1',
     brief: String(brief || '').trim(),
-    targetDuration: duration,
+    targetDuration: durationResult.value,
+    durationExplicit: durationResult.explicit,
     aspectRatio: aspect.id,
     frame: { width: aspect.width, height: aspect.height, label: aspect.label },
     socialFirst,
