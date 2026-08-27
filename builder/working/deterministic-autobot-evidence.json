@@ -1,32 +1,57 @@
 {
   "schemaVersion": 2,
-  "runId": "33114794608",
-  "objectiveId": "cinematic-quality",
-  "startedAt": "2026-08-27T20:45:03.610Z",
+  "runId": "33116429928",
+  "objectiveId": "director-intelligence",
+  "startedAt": "2026-08-27T21:05:07.550Z",
   "units": [
     {
-      "id": "cinematic-shot-motion-contract",
-      "startedAt": "2026-08-27T20:45:03.615Z",
+      "id": "director-story-beats",
+      "startedAt": "2026-08-27T21:05:07.560Z",
       "implementation": [
-        "node scripts/autobot/cinematic-quality-runtime.mjs"
+        "node scripts/autobot/director-story-runtime.mjs"
       ],
       "verify": [
         "npm run build",
-        "node scripts/autobot/cinematic-quality-contract-check.mjs"
+        "node scripts/autobot/director-story-beats-contract-check.mjs"
       ],
-      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/socialExport.js",
-      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/director.js\n M src/socialExport.js",
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot.json",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot.json\n M src/director.js",
       "verification": [
         {
           "command": "npm run build",
           "status": "passed"
         },
         {
-          "command": "node scripts/autobot/cinematic-quality-contract-check.mjs",
+          "command": "node scripts/autobot/director-story-beats-contract-check.mjs",
           "status": "passed"
         }
       ],
-      "completedAt": "2026-08-27T20:45:04.880Z",
+      "completedAt": "2026-08-27T21:05:09.702Z",
+      "unchangedButVerified": false
+    },
+    {
+      "id": "director-story-planner-integration",
+      "startedAt": "2026-08-27T21:05:09.737Z",
+      "implementation": [
+        "node scripts/autobot/director-story-planner-runtime.mjs"
+      ],
+      "verify": [
+        "npm run build",
+        "node scripts/autobot/director-story-contract-check.mjs"
+      ],
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/director.js",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/director.js",
+      "verification": [
+        {
+          "command": "npm run build",
+          "status": "passed"
+        },
+        {
+          "command": "node scripts/autobot/director-story-contract-check.mjs",
+          "status": "passed"
+        }
+      ],
+      "completedAt": "2026-08-27T21:05:11.420Z",
       "unchangedButVerified": false
     }
   ]
