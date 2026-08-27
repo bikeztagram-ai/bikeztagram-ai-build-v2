@@ -4,18 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       batch_count:
-        description: 'Maximum batches to process in this run'
+        description: 'Batches to process in this run'
         required: false
-        default: '5'
+        default: '1'
         type: choice
         options:
-          - '5'
-          - '10'
+          - '1'
   # Manual runs are intentionally the only entry point. One run processes
-  # the queue sequentially and then stops; no heartbeat or self-dispatch.
+  # exactly one queued batch and then stops; no heartbeat or self-dispatch.
 
-# [production-contract-approved] Reviewed provider migration: the workflow no longer
-# calls OpenAI/Codex and instead uses the free Gemini CLI path. Product runtime is unchanged.
+# [production-contract-approved] Gemini CLI is the bounded engineering worker.
+# Paid Gemini API access is used for this controlled builder test.
 
 concurrency:
   group: autonomous-builder-queue
@@ -32,7 +31,7 @@ jobs:
       fail-fast: true
       max-parallel: 1
       matrix:
-        slot: ${{ fromJSON(inputs.batch_count == '10' && '[1,2,3,4,5,6,7,8,9,10]' || '[1,2,3,4,5]') }}
+        slot: [1]
     runs-on: ubuntu-latest
     timeout-minutes: 55
     env:
@@ -47,17 +46,17 @@ jobs:
       BUILDER_BASE_BRANCH: main
       BUILDER_MAX_MINUTES: "45"
       BUILDER_MAX_PASSES: "6"
-      BUILDER_AGENT_PROVIDER: gemini-cli-free
-      BUILDER_AGENT_MODEL: "gemini-3.5-flash-lite"
+      BUILDER_AGENT_PROVIDER: gemini-cli-paid
+      BUILDER_AGENT_MODEL: "gemini-3.5-flash"
       BUILDER_AGENT_CMD: '["sh","-lc","MODEL=\"$2\"; PROMPT=\"$4\"; if [ -n \"$MODEL\" ]; then GEMINI_API_KEY=\"$GEMINI_API_KEY\" exec npx --yes @google/gemini-cli@latest --yolo --skip-trust --model \"$MODEL\" -p \"$PROMPT\"; else GEMINI_API_KEY=\"$GEMINI_API_KEY\" exec npx --yes @google/gemini-cli@latest --yolo --skip-trust -p \"$PROMPT\"; fi","_"]'
       BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
-      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply those durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.
+      BUILDER_ACCEPTANCE: Runner configuration is explicit and bounded.;Exactly one batch is processed per manual workflow launch.;No automatic merge to main.;Build and relevant verification commands are required before review.;The batch objective is loaded from the durable queue.;Do not modify .github/workflows/** or autonomous-runner infrastructure during product batches.;Preserve working contracts and improve existing implementation toward the end-game product quality bar.;Make substantive production-code improvements rather than only adding tests or documentation.;Run check-fix-check-continue verification across relevant existing contracts.;Read builder/quality/lessons.md and apply those durable lessons to the current batch.;Do not treat green tests as sufficient when the objective requires observable end-to-end behaviour.;Use the paid Gemini model as an engineering brain for an initial architecture-quality pass, then execute and verify the implementation.;If Gemini quota is genuinely exhausted, stop cleanly rather than retrying the same failed request.
       BUILDER_VERIFY_COMMANDS: npm run build,npm run verify:batch76,npm run verify:pro-song
     steps:
-      - name: Announce queue slot
+      - name: Announce single queue slot
         run: |
-          echo "Starting sequential AutoBot queue slot ${{ matrix.slot }} of ${{ inputs.batch_count || '5' }}."
-          echo "This run will stop after the selected number of slots; there is no heartbeat/self-dispatch."
+          echo "Starting AutoBot queue slot 1 of 1."
+          echo "This manual run will process exactly one eligible batch and then stop. There is no heartbeat/self-dispatch."
 
       - name: Checkout runner
         uses: actions/checkout@v6
@@ -71,10 +70,10 @@ jobs:
           {
             echo "## 🤖 Autonomous Builder Status"
             echo "- **Run:** #${{ github.run_number }}"
-            echo "- **Queue slot:** ${{ matrix.slot }} / ${{ inputs.batch_count || '5' }}"
+            echo "- **Queue slot:** 1 / 1"
             echo "- **Started:** ${{ github.run_started_at }}"
             echo "- **Trigger:** ${{ github.event_name }}"
-            echo "- **Mode:** sequential manual queue run"
+            echo "- **Mode:** single-batch manual run"
             echo "- **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -132,6 +131,8 @@ jobs:
             echo ""
             echo "### Preflight"
             echo "- **Gemini CLI:** authentication step completed"
+            echo "- **Model:** $BUILDER_AGENT_MODEL"
+            echo "- **Provider mode:** $BUILDER_AGENT_PROVIDER"
             echo "- **Next stage:** bounded engineering worker"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -232,12 +233,12 @@ jobs:
             echo ""
             echo "## 🧾 Run result"
             echo "- **Final workflow status:** ${{ job.status }}"
-            echo "- **Queue slot:** ${{ matrix.slot }} / ${{ inputs.batch_count || '5' }}"
+            echo "- **Queue slot:** 1 / 1"
             echo "- **Batch:** ${BUILDER_BATCH_ID:-none}"
             echo "- **Branch:** ${BUILDER_WORKING_BRANCH:-none}"
             echo "- **PR:** ${AUTOBOT_PR_URL:-none created/confirmed}"
             echo "- **Runner report:** ${BUILDER_BATCH_ID:+builder/reports/$BUILDER_BATCH_ID.json}"
-            echo "- **Queue control:** this workflow run continues to the next slot automatically."
+            echo "- **Queue control:** this workflow run processes one batch and then stops."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Report automatic idle state
@@ -264,5 +265,5 @@ jobs:
       - name: Do not self-dispatch
         if: always()
         run: |
-          echo "Queue slot ${{ matrix.slot }} finished. No scheduler/heartbeat dispatch will be triggered."
-          echo "If more queued work remains, the next matrix slot will select it."
+          echo "Queue slot 1 finished. No scheduler/heartbeat dispatch will be triggered."
+          echo "This manual workflow run is complete after the single selected batch."
