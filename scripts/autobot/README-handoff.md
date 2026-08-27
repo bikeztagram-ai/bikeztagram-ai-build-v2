@@ -1,1 +1,0 @@
-The sustained runner seeds completed objectives from the durable checkpoint before the first iteration. This prevents an objective that remains queued in the roadmap after a human-reviewed merge from blocking downstream queued work in the next run.
