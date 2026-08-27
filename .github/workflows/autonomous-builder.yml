@@ -235,6 +235,35 @@ jobs:
           npm run verify:pro-song
           echo "Deterministic production quality gate: PASS"
 
+      - name: Require substantive product changes
+        if: env.BUILDER_NO_WORK != 'true'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          mapfile -t changed_files < <(git diff --name-only "origin/main...HEAD")
+          meaningful_files=()
+          for path in "${changed_files[@]}"; do
+            case "$path" in
+              builder/working/*|builder/reports/*) continue ;;
+              *) meaningful_files+=("$path") ;;
+            esac
+          done
+          if [ "${#meaningful_files[@]}" -eq 0 ]; then
+            echo "No substantive product changes were produced."
+            echo "The builder checkpoint/report files do not count as implementation work."
+            echo "Refusing to create a review PR from a marker-only batch."
+            exit 1
+          fi
+          printf 'Substantive changed files (%s):\\n' "${#meaningful_files[@]}"
+          printf ' - %s\\n' "${meaningful_files[@]}"
+
+          checkpoint="builder/working/${BUILDER_BATCH_ID}.md"
+          if git ls-files --error-unmatch "$checkpoint" >/dev/null 2>&1; then
+            git rm --quiet --ignore-unmatch "$checkpoint"
+            git commit -m "builder: remove ephemeral batch checkpoint"
+            git push origin "HEAD:$BUILDER_WORKING_BRANCH"
+          fi
+
       - name: Report quality gate
         if: always() && env.BUILDER_NO_WORK != 'true'
         run: |
@@ -242,7 +271,7 @@ jobs:
             echo ""
             echo "### Quality gate"
             echo "- **Result:** workflow status **${{ job.status }}**"
-            echo "- **Checks:** build + verify:batch76 + verify:pro-song"
+            echo "- **Checks:** build + verify:batch76 + verify:pro-song + substantive-change gate"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create or confirm review PR
