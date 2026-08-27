@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "tasks": [
     {
       "id": "persistence-audit-and-contract",
@@ -96,6 +96,31 @@
       "implementation": ["node scripts/autobot/cinematic-quality-runtime.mjs"],
       "verify": ["npm run build", "node scripts/autobot/cinematic-quality-contract-check.mjs"],
       "acceptance": ["action shots receive movement intent", "hero/reveal shots receive slower movement", "neutral shots receive restrained motion"]
+    },
+    {
+      "id": "director-story-beats",
+      "objectiveId": "director-intelligence",
+      "kind": "production-enhancement",
+      "status": "ready",
+      "files": ["src/director.js"],
+      "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json", "scripts/prepare-autonomous-batch.mjs", "src/renderer.js"],
+      "goal": "Build deterministic story beats from the verified media library, balancing prompt intent, shot quality and subject diversity without inventing media.",
+      "implementation": ["node scripts/autobot/director-story-runtime.mjs"],
+      "verify": ["npm run build", "node scripts/autobot/director-story-contract-check.mjs"],
+      "acceptance": ["story roles are explicit", "strong media is preferred", "repeated subjects are penalised when alternatives exist", "single-source and small libraries remain usable"]
+    },
+    {
+      "id": "director-story-planner-integration",
+      "objectiveId": "director-intelligence",
+      "kind": "production-integration",
+      "status": "ready",
+      "dependsOn": ["director-story-beats"],
+      "files": ["src/aiEditPlanner.js"],
+      "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json", "scripts/prepare-autonomous-batch.mjs", "src/renderer.js"],
+      "goal": "Feed deterministic story beats into the existing AI edit planner and expose auditable story-beat evidence while preserving current director selection, critique and rendering contracts.",
+      "implementation": ["node scripts/autobot/director-story-planner-runtime.mjs"],
+      "verify": ["npm run build", "node scripts/autobot/director-story-contract-check.mjs"],
+      "acceptance": ["story beats influence the planner fallback path", "story role evidence is retained in the edit plan", "existing successful planner paths remain intact"]
     }
   ]
 }
