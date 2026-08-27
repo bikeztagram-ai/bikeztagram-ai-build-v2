@@ -9,7 +9,7 @@ on:
         default: '20'
         type: string
       max_minutes:
-        description: 'Maximum builder minutes before checkpoint and stop'
+        description: 'Requested run duration in minutes (15-720)'
         required: false
         default: '240'
         type: string
@@ -25,10 +25,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 255
+    timeout-minutes: 370
     env:
       BUILDER_MAX_UNITS: ${{ inputs.max_units }}
       BUILDER_MAX_MINUTES: ${{ inputs.max_minutes }}
+      REQUESTED_MINUTES: ${{ inputs.max_minutes }}
       BUILDER_BASE_BRANCH: main
     steps:
       - name: Checkout
@@ -40,10 +41,13 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
 
-      - name: Validate deterministic builder
+      - name: Validate duration and deterministic builder
         run: |
+          node builder/runner/run-duration.mjs
+          node builder/runner/segment-plan.mjs
           node --check builder/runner/deterministic-executor.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
+          node builder/quality/autobot-ready.mjs
 
       - name: Run long-lived deterministic builder
         run: node builder/runner/deterministic-executor.mjs
@@ -52,21 +56,14 @@ jobs:
         if: success()
         run: |
           npm run build
-          if npm run verify:project-memory; then
-            echo 'Project-memory verification passed.'
-          else
-            echo 'Project-memory verification unavailable or failed; inspect run output.'
-            exit 1
-          fi
+          npm run verify:project-memory
 
-      - name: Show checkpoint
+      - name: Persist segment state and show checkpoint
         if: always()
         run: |
-          if [ -f builder/working/deterministic-autobot.json ]; then
-            cat builder/working/deterministic-autobot.json
-          else
-            echo 'No deterministic checkpoint was produced.'
-          fi
+          node builder/runner/segment-state.mjs
+          if [ -f builder/working/deterministic-autobot.json ]; then cat builder/working/deterministic-autobot.json; fi
+          if [ -f builder/working/segment-state.json ]; then cat builder/working/segment-state.json; fi
 
       - name: Create review PR when changes exist
         if: success()
@@ -85,4 +82,4 @@ jobs:
           git add -A
           git commit -m 'feat: autonomous builder v2 progress'
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free deterministic builder run. Review the checkpoint, production changes and verification before merging. No automatic merge or production deployment.'
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free deterministic builder run. Review checkpoint, evidence and verification before merging. No automatic merge or production deployment.'
