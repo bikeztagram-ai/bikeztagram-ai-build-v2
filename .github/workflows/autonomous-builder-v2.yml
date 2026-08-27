@@ -39,7 +39,7 @@ jobs:
       segments: ${{ steps.budget.outputs.segments }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0
@@ -111,7 +111,7 @@ jobs:
       BUILDER_SEGMENTS: 2
     steps:
       - name: Checkout segment 1 branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.segment-1.outputs.branch }}
           fetch-depth: 0

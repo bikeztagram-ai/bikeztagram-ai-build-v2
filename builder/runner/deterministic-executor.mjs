@@ -34,18 +34,19 @@ console.log(`[autobot] Durable context loaded: project memory ${projectMemory.le
 
 const queue = readJson(queuePath); const roadmap = readJson(roadmapPath); const library = readJson(libraryPath);
 const previous = loadCheckpoint();
+const carriedObjectives = new Set((process.env.BUILDER_COMPLETED_OBJECTIVES || '').split(',').map(s => s.trim()).filter(Boolean));
 const queuedIds = new Set(queue.batches.filter(b => b.objective && !['merged', 'rejected'].includes(b.status)).map(b => b.id));
-const candidates = roadmap.objectives.filter(o => o.status === 'queued' && queuedIds.has(o.queueBatch)).sort((a, b) => a.priority - b.priority).filter(o => (o.dependsOn || []).every(dep => roadmap.objectives.find(x => x.id === dep)?.status === 'complete' || !roadmap.objectives.some(x => x.id === dep)));
+const candidates = roadmap.objectives.filter(o => o.status === 'queued' && queuedIds.has(o.queueBatch)).sort((a, b) => a.priority - b.priority).filter(o => (o.dependsOn || []).every(dep => roadmap.objectives.find(x => x.id === dep)?.status === 'complete' || carriedObjectives.has(dep) || !roadmap.objectives.some(x => x.id === dep)));
 
-// A completed objective must not trap future runs on its old checkpoint. Select
-// the first eligible objective that still has unfinished ready work. This makes
-// a long run consume the roadmap in sequence instead of exiting after one
-// already-completed objective.
+// A completed objective must not trap future iterations on its old checkpoint.
+// The sustained runner carries completed objective IDs between iterations, so
+// dependencies completed during this run are immediately eligible downstream.
 let objective = null; let tasks = []; let carriedCompleted = [];
 for (const candidate of candidates) {
   const candidateTasks = library.tasks.filter(t => t.objectiveId === candidate.id && t.status === 'ready');
   const candidateCompleted = previous.objectiveId === candidate.id ? [...new Set(previous.completed || [])] : [];
   const remaining = candidateTasks.filter(t => !candidateCompleted.includes(t.id));
+  if (carriedObjectives.has(candidate.id) && !remaining.length) continue;
   if (remaining.length) { objective = candidate; tasks = candidateTasks; carriedCompleted = candidateCompleted; break; }
   if (candidateTasks.length && previous.objectiveId === candidate.id && previous.status === 'objective-complete') continue;
 }
