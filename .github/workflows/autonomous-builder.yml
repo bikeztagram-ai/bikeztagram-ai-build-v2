@@ -192,6 +192,36 @@ jobs:
         working-directory: .
         run: npm install --no-audit --no-fund --no-package-lock
 
+      - name: Normalize generated whitespace before quality gate
+        if: env.BUILDER_NO_WORK != 'true'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          changed_files=$(git diff --name-only --diff-filter=ACMR "origin/main...HEAD")
+          if [ -z "$changed_files" ]; then
+            echo "No committed builder changes to normalize."
+            exit 0
+          fi
+          printf '%s\n' "$changed_files" | while IFS= read -r file; do
+            case "$file" in
+              *.js|*.jsx|*.mjs|*.cjs|*.json|*.css|*.html|*.md|*.yml|*.yaml|*.txt)
+                if [ -f "$file" ]; then
+                  sed -i 's/[[:space:]]*$//' "$file"
+                fi
+                ;;
+            esac
+          done
+          if git diff --quiet; then
+            echo "Generated changes already have clean line endings/whitespace."
+            exit 0
+          fi
+          git config user.name "Bikeztagram Autonomous Builder"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          git commit -m "chore: normalize builder whitespace"
+          git push origin "HEAD:$BUILDER_WORKING_BRANCH"
+          echo "Normalized and committed generated trailing whitespace before the quality gate."
+
       - name: Deterministic production quality gate
         if: env.BUILDER_NO_WORK != 'true'
         working-directory: .
