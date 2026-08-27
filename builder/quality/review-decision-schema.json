@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AutoBot Review Decision",
+  "type": "object",
+  "required": ["decision", "objectiveId", "reviewedAt"],
+  "properties": {
+    "decision": { "enum": ["approve", "reject", "repair", "hold"] },
+    "objectiveId": { "type": "string" },
+    "reviewedAt": { "type": "string", "format": "date-time" },
+    "reviewer": { "type": "string" },
+    "reason": { "type": "string" },
+    "requiredRepairs": { "type": "array", "items": { "type": "string" } },
+    "evidenceRefs": { "type": "array", "items": { "type": "string" } }
+  }
+}

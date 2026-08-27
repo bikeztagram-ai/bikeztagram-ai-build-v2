@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "principles": [
+    "never bypass branch protection",
+    "never expose or print secrets",
+    "never merge automatically",
+    "never deploy automatically",
+    "never weaken a quality gate to make a run green",
+    "never overwrite the known-good baseline without evidence",
+    "never treat a timeout as success",
+    "never mark a task complete without verification"
+  ],
+  "humanApprovalRequired": [
+    "builder-self-modification",
+    "workflow-permission-change",
+    "protected-path-change",
+    "merge",
+    "production-deployment"
+  ]
+}
