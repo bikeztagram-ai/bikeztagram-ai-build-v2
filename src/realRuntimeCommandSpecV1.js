@@ -1,0 +1,2 @@
+export function createRuntimeCommand({runtimeId,kind,modelId,request,outputDir='./generated',seed=null}={}){return {version:'real-runtime-command-v1',runtimeId,kind,modelId,request,outputDir,seed,execution:'local-worker',return:{media:true,metadata:true}};}
+export function validateRuntimeCommand(command){const errors=[];for(const k of ['runtimeId','kind','modelId','request'])if(!command?.[k])errors.push(k);return {valid:errors.length===0,errors};}
