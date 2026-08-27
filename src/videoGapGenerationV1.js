@@ -1,0 +1,2 @@
+export function createVideoGapRequest({before=null,after=null,duration=3,subjectContinuity=[],world={},purpose='bridge'}={}){return {version:'video-gap-generation-v1',duration,purpose,before,after,subjectContinuity,world,requirements:{bridgeNaturally:true,preserveSubjects:true,originalGeneration:true}};}
+export function canGenerateGap({duration=0,maxSeconds=8}={}){return Number(duration)>0&&Number(duration)<=maxSeconds;}
