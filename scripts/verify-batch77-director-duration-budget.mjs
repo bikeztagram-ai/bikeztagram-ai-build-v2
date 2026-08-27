@@ -6,12 +6,12 @@ assert.match(selector,/durationOf/);
 assert.match(selector,/durationFit/);
 assert.match(selector,/usedDuration/);
 const moments=[
- {mediaIndex:0,start:0,duration:5,description:'quiet opening establishing shot',score:9},
- {mediaIndex:0,start:5,duration:5,description:'motorbike accelerating fast action',score:10},
+ {mediaIndex:0,start:0,duration:2,description:'quiet opening establishing shot',score:9},
+ {mediaIndex:0,start:2,duration:2,description:'motorbike accelerating fast action',score:10},
  {mediaIndex:1,start:0,duration:2,description:'wide reveal of the bike',score:8},
  {mediaIndex:1,start:2,duration:2,description:'close detail of the bike',score:8},
- {mediaIndex:2,start:0,duration:3,description:'hero landscape final resolution',score:9},
- {mediaIndex:2,start:3,duration:3,description:'similar hero landscape',score:7}
+ {mediaIndex:2,start:0,duration:2,description:'hero landscape final resolution',score:9},
+ {mediaIndex:2,start:2,duration:2,description:'similar hero landscape',score:7}
 ];
 const result=selectDirectorMoments(moments,{maxCuts:5,targetDuration:10,creativePrompt:'cinematic reveal with energetic action and a powerful ending'});
 assert.equal(result.length,5);
