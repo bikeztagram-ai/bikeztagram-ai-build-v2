@@ -4,18 +4,9 @@ const num = (value, fallback = 0) => { const n = Number(value); return Number.is
 
 function semanticText(moment) {
   return text([
-    moment?.description,
-    moment?.reason,
-    moment?.action,
-    moment?.event,
-    moment?.editorialRole,
-    moment?.purpose,
-    moment?.shotType,
-    moment?.framing,
-    moment?.composition,
-    moment?.cameraAngle,
-    moment?.subjectRole,
-    moment?.subject
+    moment?.description, moment?.reason, moment?.action, moment?.event,
+    moment?.editorialRole, moment?.purpose, moment?.shotType, moment?.framing,
+    moment?.composition, moment?.cameraAngle, moment?.subjectRole, moment?.subject
   ].filter(Boolean).join(' '));
 }
 
@@ -42,9 +33,7 @@ function lexicalOverlap(a, b) {
   return common / Math.max(1, Math.min(aw.size, bw.size));
 }
 
-function sourceId(moment) {
-  return String(moment?.mediaId ?? moment?.mediaIndex ?? 'unknown');
-}
+function sourceId(moment) { return String(moment?.mediaId ?? moment?.mediaIndex ?? 'unknown'); }
 
 function shotFamily(moment) {
   const s = semanticText(moment);
@@ -57,11 +46,7 @@ function shotFamily(moment) {
   return text(moment?.shotType) || 'general';
 }
 
-/**
- * Adds a small editorial-quality adjustment to the selector's raw score.
- * It rewards semantic role fit and useful visual continuity/contrast while
- * penalising near-duplicates and abrupt subject changes when alternatives exist.
- */
+/** Adds a bounded editorial-quality adjustment to a selector candidate. */
 export function scoreEditorialCandidate(candidate, { role = 'variation', chosen = [], targetDuration = 15, usedDuration = 0, mode = {} } = {}) {
   if (!candidate) return 0;
   let score = roleMatch(candidate, role) ? 8 : 0;
@@ -72,16 +57,10 @@ export function scoreEditorialCandidate(candidate, { role = 'variation', chosen 
   const family = shotFamily(candidate);
   const previousFamily = shotFamily(previous);
   const overlap = lexicalOverlap(candidate, previous);
-
-  // A new visual family after a run of similar shots is usually more useful
-  // than another near-identical frame, while the same source can still be used
-  // when its framing/composition meaningfully changes.
   if (family !== previousFamily) score += 5;
   if (overlap > 0.72) score -= 10;
   else if (overlap < 0.25) score += 2;
 
-  // Preserve subject continuity for quieter stories, but permit a deliberate
-  // subject change in action/ensemble edits.
   const subjectA = text(candidate?.subjectRole || candidate?.subject || candidate?.identity || candidate?.subjectLabel);
   const subjectB = text(previous?.subjectRole || previous?.subject || previous?.identity || previous?.subjectLabel);
   if (subjectA && subjectB && subjectA === subjectB) score += 3;
@@ -97,14 +76,11 @@ export function scoreEditorialCandidate(candidate, { role = 'variation', chosen 
 
   const remaining = Math.max(0, num(targetDuration, 15) - num(usedDuration, 0));
   const duration = Math.max(.5, Math.min(6, num(candidate?.duration, 2)));
-  if (remaining > 0) {
-    const ideal = Math.min(3, remaining);
-    score += Math.max(-4, 3 - Math.abs(duration - ideal));
-  }
+  if (remaining > 0) score += Math.max(-4, 3 - Math.abs(duration - Math.min(3, remaining)));
   return score;
 }
 
 export function describeEditorialQuality(candidate, context = {}) {
   const score = scoreEditorialCandidate(candidate, context);
-  return { score: Number(score.toFixed(2)), shotFamily: shotFamily(candidate), roleFit: roleMatch(candidate, context.role || 'variation) ? 1 : 0 };
+  return { score: Number(score.toFixed(2)), shotFamily: shotFamily(candidate), roleFit: roleMatch(candidate, context.role || 'variation') ? 1 : 0 };
 }
