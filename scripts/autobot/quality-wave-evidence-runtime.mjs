@@ -1,0 +1,7 @@
+import fs from 'node:fs';
+const planner='src/aiEditPlanner.js'; const quality='src/editQuality.js';
+if(!fs.existsSync(quality)) fs.writeFileSync(quality,`const n=(v,f=0)=>{const x=Number(v);return Number.isFinite(x)?x:f};\nexport function scoreEditQuality(cuts=[],targetDuration=15){const list=Array.isArray(cuts)?cuts:[];const duration=list.reduce((s,c)=>s+n(c?.duration),0);const sources=new Set(list.map(c=>String(c?.mediaId??c?.mediaIndex??''))).size;const motions=new Set(list.map(c=>String(c?.motionStyle||'static'))).size;const transitions=new Set(list.map(c=>String(c?.transition||'hard-cut'))).size;const durationScore=Math.max(0,100-Math.abs(duration-targetDuration)*8);const diversityScore=Math.min(100,(sources/list.length||0)*100);const motionScore=Math.min(100,(motions/list.length||0)*100);const transitionScore=Math.min(100,(transitions/list.length||0)*100);return{score:Math.round(durationScore*.35+diversityScore*.25+motionScore*.2+transitionScore*.2),duration:Number(duration.toFixed(2)),sources,motions,transitions};}\n`);
+let s=fs.readFileSync(planner,'utf8');
+if(!s.includes("./editQuality.js")) s=s.replace("import { selectDirectorMoments } from './directorSelection.js';","import { selectDirectorMoments } from './directorSelection.js';\nimport { scoreEditQuality } from './editQuality.js';");
+s=s.replace('qualityScore:critique.after.score,qualityReport:describeCritique(critique)','qualityScore:critique.after.score,qualityReport:describeCritique(critique),qualityEvidence:scoreEditQuality(cuts,targetDuration)');
+fs.writeFileSync(planner,s);
