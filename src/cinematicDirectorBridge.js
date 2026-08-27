@@ -4,6 +4,25 @@ import { buildRenderCue } from './cinematicRuntime.js';
 
 const n = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
+const normalizeMotionForRenderer = (motion, index = 0) => {
+  const value = String(motion || '').toLowerCase();
+  if (value === 'push-in' || value === 'slow-push-in' || value === 'gentle-push') return 'slow-push';
+  if (value === 'slow-orbit') return 'orbit';
+  if (value === 'lateral-pan') return index % 2 ? 'pan-right' : 'pan-left';
+  if (value === 'subtle-drift') return 'parallax';
+  if (value === 'speed-ramp') return 'cinematic';
+  return value;
+};
+
+const normalizeTransitionForRenderer = (transition, index, total) => {
+  const value = String(transition || '').toLowerCase();
+  if (value === 'impact-cut') return 'flash-cut';
+  if (value === 'match-cut') return 'crossfade';
+  if (value === 'rhythmic-cut' || value === 'clean-cut') return 'hard-cut';
+  if (value === 'fade') return index === total - 1 ? 'fade-out' : 'fade-in';
+  return value;
+};
+
 export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', targetDuration = 15, beats = [] } = {}) {
   const slots = Array.isArray(scenePlan.slots) ? scenePlan.slots : [];
   const treatment = buildCinematicTreatments({
@@ -25,12 +44,8 @@ export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', 
     const start = cursor;
     cursor += duration;
     const treatmentInfo = item.cinematicTreatment || {};
-    const motion = treatmentInfo.motion === 'speed-ramp' ? 'cinematic' : treatmentInfo.motion;
-    const transitionMap = {
-      'impact-cut': 'flash-cut',
-      'match-cut': 'crossfade',
-      'rhythmic-cut': 'hard-cut'
-    };
+    const motion = normalizeMotionForRenderer(treatmentInfo.motion, index);
+    const transition = normalizeTransitionForRenderer(treatmentInfo.transition, index, treatment.items.length);
     return {
       ...item,
       id: item.id || `scene-${index + 1}`,
@@ -38,7 +53,7 @@ export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', 
       end: cursor,
       duration,
       motion,
-      transition: transitionMap[treatmentInfo.transition] || treatmentInfo.transition,
+      transition,
       composition: treatmentInfo.composition,
       intensity: treatmentInfo.intensity,
       motionIntensity: treatmentInfo.intensity === 'high' ? 1.25 : treatmentInfo.intensity === 'rising' ? 1 : 0.8,
@@ -48,6 +63,25 @@ export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', 
   });
 
   const renderCues = clips.map((clip, index) => buildRenderCue(clip, index, clips.length, beats));
+  const cuts = renderCues.map((cue) => ({
+    id: cue.id,
+    mediaId: cue.mediaId,
+    mediaIndex: clips.findIndex((clip) => clip.id === cue.id),
+    sourceType: cue.sourceType,
+    generated: cue.generated,
+    generationPrompt: cue.generationPrompt,
+    startTime: cue.sourceStart,
+    duration: cue.outputDuration,
+    purpose: cue.editorialRole,
+    transition: cue.transition,
+    motionStyle: cue.motion,
+    motionIntensity: cue.motionIntensity,
+    colorGrade: cue.colorGrade,
+    speed: cue.speed,
+    speedEnd: cue.speedEnd,
+    beatAnchor: cue.beatAnchor
+  }));
+
   return {
     version: 'executable-scene-plan-v1',
     targetDuration: treatment.targetDuration,
@@ -55,6 +89,7 @@ export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', 
     treatments: treatment,
     clips,
     renderCues,
+    cuts,
     sourceStrategy: scenePlan.strategy || 'real media first; generated inserts only where useful'
   };
 }
