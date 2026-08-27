@@ -14,6 +14,8 @@ Bikeztagram AI is a high-quality, Android-friendly cinematic creator. The long-t
 - Prefer strongest-shot selection, diversity, story structure, musical timing and purposeful cinematic motion over arbitrary effects.
 - New capabilities must reach the real user-facing runtime path when required.
 - Green tests are necessary but not sufficient evidence of product quality.
+- Acceptance criteria describe observable behaviour, not merely implementation techniques. If an objective uses terms such as atomic, reliable, seamless, integrated, recovery or end-to-end, verify the behaviour those terms imply.
+- A technically valid partial implementation must be reported as partial. Do not turn a limitation into a false success through wording, placeholders or test-only evidence.
 
 ## Current state
 - React/Vite browser application with local media handling and browser rendering.
@@ -25,16 +27,26 @@ Bikeztagram AI is a high-quality, Android-friendly cinematic creator. The long-t
 
 ## Every-batch operating model
 1. Load this memory and `builder/quality/lessons.md`.
-2. Inspect the current repository and relevant production paths.
-3. Translate the queue objective into a precise implementation plan.
+2. Inspect the current repository and relevant production paths before editing.
+3. Translate the queue objective into a precise implementation plan with explicit user-visible acceptance evidence.
 4. Make substantive production-code changes in the intended runtime path.
 5. Use check-fix-check-continue rather than stopping at the first green check.
-6. Prove observable behaviour, preferably end-to-end.
-7. Record reusable lessons discovered during the batch.
-8. Produce a reviewable PR; never merge automatically.
+6. Prove observable behaviour, preferably end-to-end, across every boundary named by the objective.
+7. If verification exposes a semantic or product gap, fix it or explicitly leave the batch unverified; never hide the gap.
+8. Record reusable lessons discovered during the batch.
+9. Produce a reviewable PR; never merge automatically.
 
 ## Prompt-quality rules
 When output is technically correct but product-poor, future objectives must become more precise about user-visible behaviour, relevant files and integration points, production changes, protected areas, representative/contrasting scenarios, acceptance evidence and known failed approaches. Do not merely make prompts longer; ground them in the current repository.
+
+The engineering prompt should force the agent to:
+- inspect before editing;
+- identify the real runtime path and existing contracts;
+- make the smallest coherent production change that satisfies the whole objective;
+- verify the requested behaviour rather than only the helper that implements it;
+- distinguish restored/recovered/real state from metadata or placeholders;
+- use bounded provider recovery with a clear terminal outcome;
+- leave a precise checkpoint/PR description of what was actually proven and what remains.
 
 ## Durable lessons
 - Planner/director work is incomplete if the renderer does not consume it.
@@ -42,6 +54,7 @@ When output is technically correct but product-poor, future objectives must beco
 - Generated-scene work must remain truthful about provider capability and copyright-safe output.
 - Integration quality is more important than isolated feature sprawl.
 - Rejected/closed batches are evidence; do not repeat the same implementation pattern without addressing why it failed.
+- Batch 98 demonstrated that persistence can be technically sound while still falling short of the exact semantics of words such as atomic and recovery. Future work must verify the user lifecycle and describe guarantees precisely.
 
 ## Review backlog
 Completed/open review PRs are durable work storage and must not block later eligible batches. Human review is separate from queue progression. Rejected batches must record why they were rejected so the queue can advance without losing the lesson.
