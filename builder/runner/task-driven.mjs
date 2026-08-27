@@ -18,6 +18,7 @@ const AGENT_MODEL = process.env.BUILDER_AGENT_MODEL || 'auto';
 const OBJECTIVE = process.env.BUILDER_OBJECTIVE || '';
 const ACCEPTANCE = (process.env.BUILDER_ACCEPTANCE || '').split(';').map(x => x.trim()).filter(Boolean);
 const VERIFY_COMMANDS = (process.env.BUILDER_VERIFY_COMMANDS || 'npm run build').split(',').map(x => x.trim()).filter(Boolean);
+const COMMAND_TIMEOUT_MS = Math.max(60_000, Math.min(Number(process.env.BUILDER_COMMAND_TIMEOUT_MS || 18 * 60 * 1000), MAX_MINUTES * 60 * 1000));
 const results = [];
 
 const compact = (value, limit = 12000) => { const s = String(value || '').trim(); return s.length <= limit ? s : `${s.slice(0, limit)}\n...[truncated]`; };
@@ -28,7 +29,7 @@ const retryHint = r => { const m = text(r).match(/retry(?:ing)? after\s+(\d+(?:\
 const safeBranch = b => b && b !== 'main' && b !== 'master' && !b.startsWith('production/');
 
 async function run(sandbox, cmd, args = [], cwd = REPO_DIR, env) {
-  const r = await sandbox.runCommand({ cmd, args, cwd, ...(env ? { env } : {}) });
+  const r = await sandbox.runCommand({ cmd, args, cwd, ...(env ? { env } : {}), signal: AbortSignal.timeout(COMMAND_TIMEOUT_MS) });
   const out = { command: [cmd, ...args].join(' '), exitCode: r.exitCode, stdout: compact(await r.stdout()), stderr: compact(await r.stderr()) };
   results.push(out);
   return out;
@@ -140,7 +141,7 @@ async function main() {
     else if (!failure) failure = providerFailed ? 'Gemini provider/model failed before reliable execution.' : quotaDetected ? `Gemini quota/rate limit detected. ${quotaHint || ''}`.trim() : noChanges ? 'Builder produced no repository changes.' : 'Builder did not reach a verified state.';
   } catch (error) { failure = error?.message || String(error); }
   finally { if (sandbox) await sandbox.stop().catch(() => {}); }
-  const report = { batchId: BATCH_ID, status, provider: AGENT_PROVIDER, model: AGENT_MODEL, startedAt, finishedAt: new Date().toISOString(), passes, commitSha, failure, quotaDetected, quotaHint, providerFailure: providerFailed, noChangesProduced: noChanges, protectedChangesReset, failures, commands: results };
+  const report = { batchId: BATCH_ID, status, provider: AGENT_PROVIDER, model: AGENT_MODEL, startedAt, finishedAt: new Date().toISOString(), passes, commitSha, failure, quotaDetected, quotaHint, providerFailure: providerFailed, noChangesProduced: noChanges, protectedChangesReset, commandTimeoutMs: COMMAND_TIMEOUT_MS, failures, commands: results };
   await mkdir('/tmp/builder-report', { recursive: true });
   await writeFile(`/tmp/builder-report/${BATCH_ID}.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
