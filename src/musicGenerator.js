@@ -5,21 +5,21 @@ import { requestJson } from './apiRequest.js';
 
 function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(reader.error||new Error('Could not encode fallback soundtrack.'));reader.readAsDataURL(blob);});}
 
-function resolveDuration(duration){
+export function resolveMusicDuration(duration){
   const value=Number(duration);
   if(!Number.isFinite(value)||value<=0)return 15;
   return Math.max(5,Math.min(60,value));
 }
 
-function resolveBpm(bpm){
+export function resolveMusicBpm(bpm){
   const value=Number(bpm);
   if(!Number.isFinite(value)||value<=0)return 112;
   return Math.max(60,Math.min(180,Math.round(value)));
 }
 
 async function buildLocalFallback({duration=15,bpm=112}={}){
-  const seconds=resolveDuration(duration);
-  const resolvedBpm=resolveBpm(bpm);
+  const seconds=resolveMusicDuration(duration);
+  const resolvedBpm=resolveMusicBpm(bpm);
   const blob=createOriginalPulseWav(seconds,resolvedBpm);
   const audioDataUrl=await blobToDataUrl(blob);
   let audioAnalysis;
@@ -28,8 +28,8 @@ async function buildLocalFallback({duration=15,bpm=112}={}){
 }
 
 export async function generateOriginalMusic({prompt='',duration=15,genre,mood,energy,bpm}={}){
-  const requestedDuration=resolveDuration(duration);
-  const requestedBpm=resolveBpm(bpm);
+  const requestedDuration=resolveMusicDuration(duration);
+  const requestedBpm=resolveMusicBpm(bpm);
   try{
     const {data}=await requestJson('/api/generate-music',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,duration:requestedDuration,genre,mood,energy,bpm:requestedBpm}),timeoutMs:120000},{attempts:3,baseDelayMs:900});
     if(!data?.success)throw new Error(data?.error||'Music generator returned an unsuccessful response.');
