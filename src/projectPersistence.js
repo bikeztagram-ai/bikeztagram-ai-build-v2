@@ -7,19 +7,29 @@ const SCHEMA_VERSION = 1;
 const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
 const finite = value => Number.isFinite(Number(value));
 
+function durableUrl(value) {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.href;
+  } catch {}
+  return null;
+}
+
 function serialiseSource(source) {
   if (!isObject(source)) return null;
+  const sourceUrl = durableUrl(source.sourceUrl) || durableUrl(source.url);
   return {
     id: source.id || null,
     name: source.name || null,
     type: source.type || null,
     mimeType: source.mimeType || source.type || null,
     pathname: source.pathname || null,
-    sourceUrl: source.sourceUrl || source.url || null,
-    url: source.url || source.sourceUrl || null,
+    sourceUrl,
+    url: sourceUrl,
     size: finite(source.file?.size) ? Number(source.file.size) : null,
     lastModified: finite(source.file?.lastModified) ? Number(source.file.lastModified) : null,
-    restorableMedia: Boolean(source.sourceUrl || source.url)
+    restorableMedia: Boolean(sourceUrl)
   };
 }
 
@@ -57,6 +67,7 @@ function validate(snapshot) {
   if (!isObject(snapshot) || snapshot.schemaVersion !== SCHEMA_VERSION) return { ok: false, reason: 'unsupported-schema' };
   if (typeof snapshot.creativeBrief !== 'string' || !Array.isArray(snapshot.sources)) return { ok: false, reason: 'invalid-shape' };
   if (snapshot.sources.some(source => !isObject(source) || typeof source.id !== 'string')) return { ok: false, reason: 'invalid-source' };
+  if (snapshot.sources.some(source => source.restorableMedia && !durableUrl(source.url || source.sourceUrl))) return { ok: false, reason: 'non-durable-media-reference' };
   return { ok: true };
 }
 
@@ -100,8 +111,8 @@ export function restoreSources(snapshotSources = []) {
   return snapshotSources.map(source => ({
     ...source,
     file: null,
-    missingMedia: !source.url && !source.sourceUrl,
-    restorableMedia: Boolean(source.url || source.sourceUrl)
+    missingMedia: !durableUrl(source.url || source.sourceUrl),
+    restorableMedia: Boolean(durableUrl(source.url || source.sourceUrl))
   }));
 }
 
