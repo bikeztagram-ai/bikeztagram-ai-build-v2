@@ -106,7 +106,7 @@
       "protected": [".github/workflows/**", "builder/**", "config/autonomous-builder-queue.json", "scripts/prepare-autonomous-batch.mjs", "src/renderer.js"],
       "goal": "Build deterministic story beats from the verified media library, balancing prompt intent, shot quality and subject diversity without inventing media.",
       "implementation": ["node scripts/autobot/director-story-runtime.mjs"],
-      "verify": ["npm run build", "node scripts/autobot/director-story-contract-check.mjs"],
+      "verify": ["npm run build", "node scripts/autobot/director-story-beats-contract-check.mjs"],
       "acceptance": ["story roles are explicit", "strong media is preferred", "repeated subjects are penalised when alternatives exist", "single-source and small libraries remain usable"]
     },
     {
