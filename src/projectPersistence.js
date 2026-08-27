@@ -53,7 +53,7 @@ export function serializeProjectState({
 export function saveProjectState(statePayload) {
   try {
     const serialized = JSON.stringify(serializeProjectState(statePayload));
-    
+
     // Check existing data for last-known-good backup before overwriting
     try {
       const existing = localStorage.getItem(STORAGE_KEY);
