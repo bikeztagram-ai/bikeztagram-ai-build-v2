@@ -6,6 +6,7 @@ PROMPT="${2:-}"
 FALLBACK_MODEL="${BUILDER_AGENT_FALLBACK_MODEL:-gemini-3.5-flash-lite}"
 ATTEMPT_TIMEOUT_SECONDS="${BUILDER_AGENT_ATTEMPT_TIMEOUT_SECONDS:-720}"
 TMP_OUTPUT="$(mktemp)"
+CIRCUIT_FILE="${AUTOBOT_GEMINI_CIRCUIT_FILE:-/tmp/autobot-gemini-fallback-exhausted}"
 
 cleanup() {
   rm -f "$TMP_OUTPUT"
@@ -25,10 +26,19 @@ run_model() {
   return "$status"
 }
 
+# A failed fallback is a batch-level provider circuit-breaker event. The
+# surrounding worker may run another engineering pass, but it must not keep
+# sending the same primary/fallback requests after both models have failed.
+if [ "$MODEL" != "$FALLBACK_MODEL" ] && [ -f "$CIRCUIT_FILE" ]; then
+  echo "[resilient-gemini] Provider circuit is open after a previous primary/fallback failure; refusing another model switch in this batch." >&2
+  exit 125
+fi
+
 run_model "$MODEL"
 STATUS=$?
 
 if [ "$STATUS" -eq 0 ]; then
+  rm -f "$CIRCUIT_FILE"
   exit 0
 fi
 
@@ -42,7 +52,14 @@ if [ "$MODEL" != "$FALLBACK_MODEL" ] && {
   echo "[resilient-gemini] Primary model $MODEL hit a transient/timeout failure; switching to fallback model $FALLBACK_MODEL." >&2
   sleep 5
   run_model "$FALLBACK_MODEL"
-  exit $?
+  FALLBACK_STATUS=$?
+  if [ "$FALLBACK_STATUS" -eq 0 ]; then
+    rm -f "$CIRCUIT_FILE"
+    exit 0
+  fi
+  touch "$CIRCUIT_FILE"
+  echo "[resilient-gemini] Fallback model $FALLBACK_MODEL also failed; opening provider circuit for this batch and stopping further model switching." >&2
+  exit "$FALLBACK_STATUS"
 fi
 
 exit "$STATUS"
