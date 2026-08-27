@@ -1,0 +1,86 @@
+name: Autonomous Builder V2 (Gemini-free)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_units:
+        description: 'Maximum verified implementation units for this run'
+        required: false
+        default: '20'
+        type: string
+      max_minutes:
+        description: 'Maximum builder minutes before checkpoint and stop'
+        required: false
+        default: '240'
+        type: string
+
+concurrency:
+  group: autonomous-builder-v2
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 255
+    env:
+      BUILDER_MAX_UNITS: ${{ inputs.max_units }}
+      BUILDER_MAX_MINUTES: ${{ inputs.max_minutes }}
+      BUILDER_BASE_BRANCH: main
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Validate deterministic builder
+        run: node --check builder/runner/deterministic-executor.mjs
+
+      - name: Run long-lived deterministic builder
+        run: node builder/runner/deterministic-executor.mjs
+
+      - name: Production verification
+        if: success()
+        run: |
+          npm run build
+          if npm run verify:project-memory; then
+            echo 'Project-memory verification passed.'
+          else
+            echo 'Project-memory verification unavailable or failed; inspect run output.'
+            exit 1
+          fi
+
+      - name: Show checkpoint
+        if: always()
+        run: |
+          if [ -f builder/working/deterministic-autobot.json ]; then
+            cat builder/working/deterministic-autobot.json
+          else
+            echo 'No deterministic checkpoint was produced.'
+          fi
+
+      - name: Create review PR when changes exist
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet && git diff --cached --quiet; then
+            echo 'No working-tree changes; builder produced no publishable changes.'
+            exit 0
+          fi
+          branch="autonomous-builder-v2/${GITHUB_RUN_ID}"
+          git checkout -b "$branch"
+          git config user.name 'Bikeztagram Autonomous Builder V2'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: autonomous builder v2 progress'
+          git push --set-upstream origin "$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free deterministic builder run. Review the checkpoint, production changes and verification before merging. No automatic merge or production deployment.'
