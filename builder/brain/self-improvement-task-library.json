@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "self-improvement-analysis",
+      "objectiveId": "builder-self-improvement",
+      "kind": "builder-analysis",
+      "status": "ready",
+      "files": ["builder/brain/self-improvement-report.json"],
+      "goal": "Analyse durable execution evidence, failures, no-op work and early-stop conditions so future builder runs improve from evidence rather than guesswork.",
+      "implementation": ["node scripts/autobot/self-improvement-analysis-runtime.mjs"],
+      "verify": ["node --check scripts/autobot/self-improvement-analysis-runtime.mjs"],
+      "acceptance": ["report is generated from durable evidence", "failure signatures are explicit", "no-op and changed work are distinguished"]
+    },
+    {
+      "id": "self-improvement-policy",
+      "objectiveId": "builder-self-improvement",
+      "kind": "builder-hardening",
+      "status": "ready",
+      "dependsOn": ["self-improvement-analysis"],
+      "files": ["builder/brain/priority-policy.json", "builder/brain/self-improvement-ledger.json"],
+      "goal": "Apply bounded, auditable priority-policy adjustments from the self-improvement report without changing protected workflow or runner infrastructure.",
+      "implementation": ["node scripts/autobot/self-improvement-policy-runtime.mjs"],
+      "verify": ["node --check scripts/autobot/self-improvement-policy-runtime.mjs"],
+      "acceptance": ["adjustments are bounded", "policy is auditable", "protected infrastructure is untouched"]
+    }
+  ]
+}

@@ -11,6 +11,8 @@ const workingDir = path.join(root, 'builder', 'working');
 const queuePath = path.join(root, 'config', 'autonomous-builder-queue.json');
 const roadmapPath = path.join(brainDir, 'roadmap.json');
 const libraryPath = path.join(brainDir, 'task-library.json');
+const selfImprovementLibraryPath = path.join(brainDir, 'self-improvement-task-library.json');
+const policyPath = path.join(brainDir, 'priority-policy.json');
 const memoryPath = path.join(root, 'builder', 'quality', 'project-memory.md');
 const lessonsPath = path.join(root, 'builder', 'quality', 'lessons.md');
 const checkpointPath = path.join(workingDir, 'deterministic-autobot.json');
@@ -44,22 +46,36 @@ const lessons = fs.readFileSync(lessonsPath, 'utf8');
 if (!projectMemory.includes('Bikeztagram AI') || !lessons.includes('Non-negotiable quality bar')) throw new Error('[autobot] Durable project context is incomplete.');
 console.log(`[autobot] Durable context loaded: project memory ${projectMemory.length} chars, lessons ${lessons.length} chars.`);
 
-const queue = readJson(queuePath); const roadmap = readJson(roadmapPath); const library = readJson(libraryPath);
+const queue = readJson(queuePath);
+const roadmap = readJson(roadmapPath);
+const library = readJson(libraryPath);
+const selfImprovementLibrary = fs.existsSync(selfImprovementLibraryPath) ? readJson(selfImprovementLibraryPath) : { tasks: [] };
+const policy = fs.existsSync(policyPath) ? readJson(policyPath) : { objectiveWeights: {} };
+const allTasks = [...library.tasks, ...selfImprovementLibrary.tasks];
 const previous = loadCheckpoint();
 const history = normaliseHistory(previous);
 const carriedObjectives = new Set((process.env.BUILDER_COMPLETED_OBJECTIVES || '').split(',').map(s => s.trim()).filter(Boolean));
 for (const objectiveId of carriedObjectives) history.objectives.add(objectiveId);
 const queuedIds = new Set(queue.batches.filter(b => b.objective && !['merged', 'rejected'].includes(b.status)).map(b => b.id));
-const candidates = roadmap.objectives.filter(o => o.status === 'queued' && queuedIds.has(o.queueBatch)).sort((a, b) => a.priority - b.priority).filter(o => (o.dependsOn || []).every(dep => roadmap.objectives.find(x => x.id === dep)?.status === 'complete' || history.objectives.has(dep) || !roadmap.objectives.some(x => x.id === dep)));
+const candidates = roadmap.objectives
+  .filter(o => o.status === 'queued' && (queuedIds.has(o.queueBatch) || o.id === 'builder-self-improvement'))
+  .filter(o => (o.dependsOn || []).every(dep => roadmap.objectives.find(x => x.id === dep)?.status === 'complete' || history.objectives.has(dep) || !roadmap.objectives.some(x => x.id === dep)))
+  .sort((a, b) => a.priority - b.priority);
 
 let objective = null; let tasks = []; let carriedCompleted = [];
 for (const candidate of candidates) {
-  const candidateTasks = library.tasks.filter(t => t.objectiveId === candidate.id && t.status === 'ready');
+  const candidateTasks = allTasks.filter(t => t.objectiveId === candidate.id && t.status === 'ready');
   const candidateCompleted = candidateTasks.filter(t => history.tasks.has(`${candidate.id}:${t.id}`)).map(t => t.id);
   if (previous.objectiveId === candidate.id) for (const taskId of previous.completed || []) if (candidateTasks.some(t => t.id === taskId)) candidateCompleted.push(taskId);
   const uniqueCompleted = [...new Set(candidateCompleted)];
   const remaining = candidateTasks.filter(t => !uniqueCompleted.includes(t.id));
-  if (remaining.length) { objective = candidate; tasks = candidateTasks; carriedCompleted = uniqueCompleted; break; }
+  if (remaining.length) {
+    objective = candidate;
+    const weights = policy.objectiveWeights || {};
+    tasks = candidateTasks.sort((a, b) => (weights[b.kind] || 1) - (weights[a.kind] || 1));
+    carriedCompleted = uniqueCompleted;
+    break;
+  }
   if (candidateTasks.length && uniqueCompleted.length === candidateTasks.length) history.objectives.add(candidate.id);
 }
 if (!objective) {

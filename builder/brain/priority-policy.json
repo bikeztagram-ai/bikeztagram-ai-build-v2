@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "objectiveWeights": {
+    "production-implementation": 1,
+    "production-integration": 1,
+    "production-enhancement": 1,
+    "production-hardening": 1,
+    "accessibility-hardening": 1,
+    "builder-analysis": 1,
+    "builder-hardening": 1,
+    "self-improvement": 1
+  },
+  "maxAdjustment": 1,
+  "updatedAt": null
+}
