@@ -26,7 +26,8 @@ function serialiseSource(source) {
 function sanitise(value, depth = 0) {
   if (depth > 8 || value == null) return value ?? null;
   if (typeof value === 'function' || typeof value === 'bigint') return null;
-  if (value instanceof Blob || value instanceof File) return null;
+  if (typeof Blob !== 'undefined' && value instanceof Blob) return null;
+  if (typeof File !== 'undefined' && value instanceof File) return null;
   if (Array.isArray(value)) return value.slice(0, 100).map(item => sanitise(item, depth + 1));
   if (!isObject(value)) return value;
   const out = {};
@@ -48,7 +49,7 @@ export function createProjectSnapshot({ prompt, sources, analysis, plan, product
     productionPlan: sanitise(productionPlan),
     soundtrack: sanitise(soundtrack),
     exportInfo: sanitise(exportInfo),
-    editorState: sanitise(editorState),
+    editorState: sanitise(editorState)
   };
 }
 
@@ -76,10 +77,8 @@ export function saveProject(snapshot) {
     const active = window.localStorage.getItem(POINTER) === 'b' ? 'b' : 'a';
     const next = active === 'a' ? 'b' : 'a';
     const key = next === 'a' ? SLOT_A : SLOT_B;
-    const payload = JSON.stringify(snapshot);
-    window.localStorage.setItem(key, payload);
-    const written = readSlot(key);
-    if (!written) return { ok: false, reason: 'write-verification-failed' };
+    window.localStorage.setItem(key, JSON.stringify(snapshot));
+    if (!readSlot(key)) return { ok: false, reason: 'write-verification-failed' };
     window.localStorage.setItem(POINTER, next);
     return { ok: true, savedAt: snapshot.savedAt, slot: next };
   } catch (error) {
@@ -91,15 +90,10 @@ export function loadProject() {
   if (typeof window === 'undefined') return { ok: false, reason: 'no-window' };
   const preferred = window.localStorage.getItem(POINTER) === 'b' ? 'b' : 'a';
   const first = readSlot(preferred === 'a' ? SLOT_A : SLOT_B);
-  if (first) return { ok: true, snapshot: migrate(first), recovered: false };
+  if (first) return { ok: true, snapshot: first, recovered: false };
   const fallback = readSlot(preferred === 'a' ? SLOT_B : SLOT_A);
-  if (fallback) return { ok: true, snapshot: migrate(fallback), recovered: true };
+  if (fallback) return { ok: true, snapshot: fallback, recovered: true };
   return { ok: false, reason: 'no-valid-project' };
-}
-
-function migrate(snapshot) {
-  if (snapshot.schemaVersion === SCHEMA_VERSION) return snapshot;
-  return { ...snapshot, schemaVersion: SCHEMA_VERSION };
 }
 
 export function restoreSources(snapshotSources = []) {
