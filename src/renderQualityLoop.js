@@ -5,6 +5,7 @@ import { attachGeneratedAudioToVideo } from './finalAudioMux.js';
 import { validateRenderedVideo, buildDirectorQAReport } from './qa.js';
 import { resolveOutputPreset } from './outputPresets.js';
 import { transcodeRenderedFilmToPreset } from './outputPresetTranscoder.js';
+import { assertExecutablePlan } from './editorialPlanGuard.js';
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
 export function revisePlanAfterQA(plan, qa) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
@@ -20,6 +21,7 @@ export function revisePlanAfterQA(plan, qa) {
 export async function renderInspectImprove({ mediaItems, plan, expectedDuration, onProgress, maxAttempts = 2 } = {}) {
   if (!Array.isArray(mediaItems) || !mediaItems.length) throw new Error('Render loop requires media items.');
   if (!plan?.cuts?.length && !plan?.scenes?.length) throw new Error('Render loop requires an executable plan.');
+  assertExecutablePlan(plan, mediaItems);
   const renderMediaItems = mediaItems.map((item) => item?.file ? { ...item, sourceUrl: undefined } : item);
   let currentPlan = plan; const attempts = []; const limit = Math.max(1, Math.min(3, maxAttempts));
   for (let attempt = 1; attempt <= limit; attempt += 1) {
