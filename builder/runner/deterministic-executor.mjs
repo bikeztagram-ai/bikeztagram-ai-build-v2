@@ -27,20 +27,34 @@ function live(state, message, verification = []) { writeLiveState({ runId: proce
 function runCommand(command, label) { const parts = command.split(/\s+/).filter(Boolean); if (!parts.length) throw new Error(`${label}: empty command`); console.log(`[autobot] ${label}: ${command}`); execFileSync(parts.shift(), parts, { cwd: root, stdio: 'inherit', env: process.env }); }
 function allowedTask(task) { const protectedPrefixes = ['.github/workflows/', 'builder/runner/', 'builder/quality/', 'builder/monitor/', 'builder/review/', 'config/autonomous-builder-queue.json', 'scripts/prepare-autonomous-batch.mjs']; return !(task.files || []).some(file => protectedPrefixes.some(prefix => file.startsWith(prefix))); }
 
-// Durable context is loaded before roadmap/task selection. The deterministic
-// executor does not need a provider model: it uses the approved task library,
-// but every decision is grounded in the same persistent project context.
 const projectMemory = fs.readFileSync(memoryPath, 'utf8');
 const lessons = fs.readFileSync(lessonsPath, 'utf8');
 if (!projectMemory.includes('Bikeztagram AI') || !lessons.includes('Non-negotiable quality bar')) throw new Error('[autobot] Durable project context is incomplete.');
 console.log(`[autobot] Durable context loaded: project memory ${projectMemory.length} chars, lessons ${lessons.length} chars.`);
 
 const queue = readJson(queuePath); const roadmap = readJson(roadmapPath); const library = readJson(libraryPath);
+const previous = loadCheckpoint();
 const queuedIds = new Set(queue.batches.filter(b => b.objective && !['merged', 'rejected'].includes(b.status)).map(b => b.id));
-const objective = roadmap.objectives.filter(o => o.status === 'queued' && queuedIds.has(o.queueBatch)).sort((a, b) => a.priority - b.priority).find(o => (o.dependsOn || []).every(dep => roadmap.objectives.find(x => x.id === dep)?.status === 'complete' || !roadmap.objectives.some(x => x.id === dep)));
-if (!objective) { const state = { objectiveId: null, completed: [], totalUnits: 0, status: 'idle', currentTask: null, files: [] }; writeCheckpoint(state); live(state, 'No eligible roadmap objective. Idle.'); process.exit(0); }
-const previous = loadCheckpoint(); const completed = previous.objectiveId === objective.id ? [...new Set(previous.completed || [])] : [];
-const tasks = library.tasks.filter(t => t.objectiveId === objective.id && t.status === 'ready');
+const candidates = roadmap.objectives.filter(o => o.status === 'queued' && queuedIds.has(o.queueBatch)).sort((a, b) => a.priority - b.priority).filter(o => (o.dependsOn || []).every(dep => roadmap.objectives.find(x => x.id === dep)?.status === 'complete' || !roadmap.objectives.some(x => x.id === dep)));
+
+// A completed objective must not trap future runs on its old checkpoint. Select
+// the first eligible objective that still has unfinished ready work. This makes
+// a long run consume the roadmap in sequence instead of exiting after one
+// already-completed objective.
+let objective = null; let tasks = []; let carriedCompleted = [];
+for (const candidate of candidates) {
+  const candidateTasks = library.tasks.filter(t => t.objectiveId === candidate.id && t.status === 'ready');
+  const candidateCompleted = previous.objectiveId === candidate.id ? [...new Set(previous.completed || [])] : [];
+  const remaining = candidateTasks.filter(t => !candidateCompleted.includes(t.id));
+  if (remaining.length) { objective = candidate; tasks = candidateTasks; carriedCompleted = candidateCompleted; break; }
+  if (candidateTasks.length && previous.objectiveId === candidate.id && previous.status === 'objective-complete') continue;
+}
+if (!objective) {
+  const state = { objectiveId: null, completed: [], totalUnits: 0, status: 'idle', currentTask: null, files: [] };
+  writeCheckpoint(state); live(state, 'No eligible unfinished roadmap units. Idle.'); process.exit(0);
+}
+
+const completed = carriedCompleted;
 const state = { objectiveId: objective.id, completed, totalUnits: tasks.length, currentTask: null, status: 'running', files: [] };
 if (!tasks.length) { state.status = 'blocked'; state.error = 'No ready deterministic tasks'; writeCheckpoint(state); live(state, state.error); throw new Error(`[autobot] ${state.error} for ${objective.id}`); }
 const evidence = { schemaVersion: 1, runId: process.env.GITHUB_RUN_ID || 'local', objectiveId: objective.id, startedAt, units: [] };
