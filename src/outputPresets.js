@@ -26,10 +26,14 @@ const NORMALISE_PROMPT = (value) => String(value || '')
  * Resolve the requested delivery shape from an explicit preset or natural
  * language creative brief. The renderer owns the actual transcode; this
  * helper only turns creator intent into one of the supported contracts.
+ *
+ * `undefined`/empty means "infer from the prompt". This matters because the
+ * renderer passes no explicit preset when the creator only describes the
+ * desired format in natural language.
  */
-export function resolveOutputPreset(value = 'portrait', creativePrompt = '') {
+export function resolveOutputPreset(value = '', creativePrompt = '') {
   const explicit = String(value || '').toLowerCase().trim();
-  if (OUTPUT_PRESETS[explicit]) return OUTPUT_PRESETS[explicit];
+  if (explicit && OUTPUT_PRESETS[explicit]) return OUTPUT_PRESETS[explicit];
 
   const prompt = NORMALISE_PROMPT(creativePrompt);
 
