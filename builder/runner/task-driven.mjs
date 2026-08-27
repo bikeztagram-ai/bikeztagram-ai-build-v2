@@ -27,12 +27,47 @@ const providerFailure = r => r?.exitCode !== 0 && /model .*not found|modelnotfou
 const quotaFailure = r => /quota|rate limit|too many requests|resource exhausted|\b429\b|insufficient quota|usage limit/.test(text(r));
 const retryHint = r => { const m = text(r).match(/retry(?:ing)? after\s+(\d+(?:\.\d+)?)\s*s/i); return m ? `Suggested retry delay: ${m[1]}s.` : 'No provider retry delay supplied.'; };
 const safeBranch = b => b && b !== 'main' && b !== 'master' && !b.startsWith('production/');
+const shellQuote = value => `'${String(value).replace(/'/g, `'\\''`)}'`;
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function run(sandbox, cmd, args = [], cwd = REPO_DIR, env) {
   const r = await sandbox.runCommand({ cmd, args, cwd, ...(env ? { env } : {}), signal: AbortSignal.timeout(COMMAND_TIMEOUT_MS) });
   const out = { command: [cmd, ...args].join(' '), exitCode: r.exitCode, stdout: compact(await r.stdout()), stderr: compact(await r.stderr()) };
   results.push(out);
   return out;
+}
+
+// Gemini CLI can run for many minutes and produces a continuous output stream.
+// Vercel's Sandbox command stream can terminate independently of the child
+// process (the failure seen in batch-98 was "Stream ended before command
+// finished"). Run the agent as a detached child, persist its output/exit code,
+// and poll those files instead. This keeps the worker alive independently of
+// the SDK response stream while the Sandbox session itself remains bounded.
+async function runAgentDetached(sandbox, args, cwd, env, pass) {
+  const stamp = `${BATCH_ID}-${pass}-${Date.now()}`;
+  const logPath = `/tmp/autobot-agent-${stamp}.log`;
+  const exitPath = `/tmp/autobot-agent-${stamp}.exit`;
+  const commandLine = [AGENT_CMD[0], ...args].map(shellQuote).join(' ');
+  const launchScript = `rm -f ${shellQuote(logPath)} ${shellQuote(exitPath)}; nohup sh -lc ${shellQuote(`${commandLine} > ${shellQuote(logPath)} 2>&1; code=$?; printf '%s' "$code" > ${shellQuote(exitPath)}`)} >/dev/null 2>&1 & echo $!`;
+  const launch = await run(sandbox, 'sh', ['-lc', launchScript], cwd, env);
+  if (launch.exitCode) return launch;
+  const started = Date.now();
+  let lastLog = '';
+  while (Date.now() - started < COMMAND_TIMEOUT_MS) {
+    const probe = await run(sandbox, 'sh', ['-lc', `if [ -f ${shellQuote(exitPath)} ]; then cat ${shellQuote(exitPath)}; else printf '%s' RUNNING; fi`], cwd);
+    if (probe.exitCode === 0 && probe.stdout.trim() !== 'RUNNING') {
+      const log = await run(sandbox, 'cat', [logPath], cwd);
+      const code = Number.parseInt(probe.stdout.trim(), 10);
+      return { command: [AGENT_CMD[0], ...args].join(' '), exitCode: Number.isFinite(code) ? code : 1, stdout: compact(log.stdout), stderr: compact(log.stderr) };
+    }
+    const tail = await run(sandbox, 'tail', ['-n', '12', logPath], cwd);
+    if (tail.exitCode === 0 && tail.stdout.trim() && tail.stdout.trim() !== lastLog) {
+      lastLog = tail.stdout.trim();
+      console.log(`[AutoBot] Gemini output update — batch ${BATCH_ID}, pass ${pass}:\n${compact(lastLog, 4000)}`);
+    }
+    await sleep(5000);
+  }
+  return { command: [AGENT_CMD[0], ...args].join(' '), exitCode: 124, stdout: lastLog, stderr: `Agent exceeded command timeout of ${COMMAND_TIMEOUT_MS}ms.` };
 }
 
 async function verify(sandbox) {
@@ -110,9 +145,6 @@ async function main() {
   const startedAt = new Date().toISOString();
   try {
     const sandboxTimeoutMs = MAX_MINUTES * 60 * 1000;
-    // Configure the full session lifetime at creation time. Vercel supports
-    // up to 45 minutes on Hobby; relying on the five-minute default and then
-    // extending a live session proved fragile in the previous AutoBot run.
     sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 4 }, persistent: false, timeout: sandboxTimeoutMs, networkPolicy: 'allow-all' });
     const configuredTimeoutMs = Number(sandbox.timeout || 0);
     if (configuredTimeoutMs && configuredTimeoutMs < sandboxTimeoutMs - 60_000) {
@@ -137,7 +169,8 @@ async function main() {
       }, 30_000);
       let agent;
       try {
-        agent = await run(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--model', AGENT_MODEL, '-p', prompt(passes, failures)], REPO_DIR, agentEnv);
+        const agentArgs = [...AGENT_CMD.slice(1), '--model', AGENT_MODEL, '-p', prompt(passes, failures)];
+        agent = await runAgentDetached(sandbox, agentArgs, REPO_DIR, agentEnv, passes);
       } finally {
         clearInterval(heartbeat);
       }
@@ -155,7 +188,7 @@ async function main() {
     else if (!failure) failure = providerFailed ? 'Gemini provider/model failed before reliable execution.' : quotaDetected ? `Gemini quota/rate limit detected. ${quotaHint || ''}`.trim() : noChanges ? 'Builder produced no repository changes.' : 'Builder did not reach a verified state.';
   } catch (error) { failure = error?.message || String(error); }
   finally { if (sandbox) await sandbox.stop().catch(() => {}); }
-  const report = { batchId: BATCH_ID, status, provider: AGENT_PROVIDER, model: AGENT_MODEL, startedAt, finishedAt: new Date().toISOString(), passes, commitSha, failure, quotaDetected, quotaHint, providerFailure: providerFailed, noChangesProduced: noChanges, commandTimeoutMs: COMMAND_TIMEOUT_MS, sandboxTimeoutMs: MAX_MINUTES * 60 * 1000, failures, commands: results };
+  const report = { batchId: BATCH_ID, status, provider: AGENT_PROVIDER, model: AGENT_MODEL, startedAt, finishedAt: new Date().toISOString(), passes, commitSha, failure, quotaDetected, quotaHint, providerFailure: providerFailed, noChangesProduced: noChanges, protectedChangesReset, commandTimeoutMs: COMMAND_TIMEOUT_MS, sandboxTimeoutMs: MAX_MINUTES * 60 * 1000, failures, commands: results };
   await mkdir('/tmp/builder-report', { recursive: true });
   await writeFile(`/tmp/builder-report/${BATCH_ID}.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
