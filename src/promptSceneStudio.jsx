@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { generateProceduralSceneV2 } from './proceduralSceneGeneratorV2.js';
+import { buildSafeBrief, classifyCreativeRequest } from './safety/policy.js';
 
 const PRESETS = [
   ['cinematic night city', 'A cinematic night city with neon reflections, atmospheric depth and a slow dramatic reveal.'],
@@ -35,13 +36,21 @@ export default function PromptSceneStudio() {
       setStatus('Describe the scene first.');
       return;
     }
+
+    const classification = classifyCreativeRequest(prompt.trim(), { originalityRequired: true });
+    if (classification.decision === 'BLOCK') {
+      setStatus(`Generation blocked — ${classification.reason}`);
+      return;
+    }
+    const safePrompt = buildSafeBrief(prompt.trim(), classification);
+
     setBusy(true);
     setProgress(0);
-    setStatus('Generating an original scene locally…');
+    setStatus(classification.decision === 'TRANSFORM' ? 'Adapting the request into an original, copyright-safe brief…' : 'Generating an original scene locally…');
     try {
       if (scene?.url) URL.revokeObjectURL(scene.url);
       const result = await generateProceduralSceneV2({
-        prompt: prompt.trim(),
+        prompt: safePrompt,
         purpose: 'prompt-to-original-scene',
         duration,
         width: 720,
@@ -51,7 +60,7 @@ export default function PromptSceneStudio() {
       });
       setScene(result);
       setProgress(100);
-      setStatus(`Scene ready • ${result.width}×${result.height} • ${result.duration}s`);
+      setStatus(`Scene ready • ${result.width}×${result.height} • ${result.duration}s${classification.decision === 'TRANSFORM' ? ' • originalised brief applied' : ''}`);
     } catch (error) {
       console.error('[PROMPT SCENE]', error);
       setStatus(`Generation failed — ${error?.message || String(error)}`);
@@ -95,7 +104,7 @@ export default function PromptSceneStudio() {
           <div style={{fontSize:11,letterSpacing:1.8,fontWeight:800,opacity:.7}}>ORIGINAL SCENE STUDIO</div>
           <h3 style={{margin:'6px 0 5px',fontSize:22}}>Generate a scene from a prompt</h3>
           <p style={{margin:0,opacity:.72,fontSize:13,maxWidth:650,lineHeight:1.5}}>
-            Provider-free, copyright-safe scene generation in the browser. This is a deterministic cinematic generator, not a claim of foundation-model video generation.
+            Provider-free, copyright-safe scene generation in the browser. Requests that ask for protected expression or deceptive use are blocked or transformed into an original brief before generation.
           </p>
         </div>
         <span style={{padding:'6px 9px',borderRadius:999,background:'rgba(110,216,255,.1)',fontSize:11,fontWeight:800}}>9:16 ORIGINAL</span>
