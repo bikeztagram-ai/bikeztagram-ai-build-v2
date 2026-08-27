@@ -13,6 +13,7 @@ const roadmapPath = path.join(brainDir, 'roadmap.json');
 const libraryPath = path.join(brainDir, 'task-library.json');
 const memoryPath = path.join(root, 'builder', 'quality', 'project-memory.md');
 const lessonsPath = path.join(root, 'builder', 'quality', 'lessons.md');
+const learningPath = path.join(brainDir, 'autobot-learning.json');
 const checkpointPath = path.join(workingDir, 'deterministic-autobot.json');
 const evidencePath = path.join(workingDir, 'deterministic-autobot-evidence.json');
 const maxUnits = Number.parseInt(process.env.BUILDER_MAX_UNITS || '100', 10);
@@ -22,14 +23,7 @@ const startedAt = new Date().toISOString();
 const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 function git(args) { return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim(); }
 function loadCheckpoint() { try { return readJson(checkpointPath); } catch { return { objectiveId: null, completed: [], status: 'new', history: { tasks: [], objectives: [] } }; } }
-function normaliseHistory(previous) {
-  const history = previous.history && typeof previous.history === 'object' ? previous.history : { tasks: [], objectives: [] };
-  const tasks = new Set(Array.isArray(history.tasks) ? history.tasks : []);
-  const objectives = new Set(Array.isArray(history.objectives) ? history.objectives : []);
-  if (previous.objectiveId) for (const taskId of previous.completed || []) tasks.add(`${previous.objectiveId}:${taskId}`);
-  if (previous.objectiveId && previous.status === 'objective-complete') objectives.add(previous.objectiveId);
-  return { tasks, objectives };
-}
+function loadLearning() { try { return readJson(learningPath); } catch { return { schemaVersion: 1, tasks: {}, objectives: {}, totals: { verified: 0, unchanged: 0, failed: 0 }, updatedAt: null }; } }
 function writeCheckpoint(state) {
   fs.mkdirSync(workingDir, { recursive: true });
   const serial = { ...state, history: { tasks: [...state.history.tasks].sort(), objectives: [...state.history.objectives].sort() }, updatedAt: new Date().toISOString() };
@@ -38,6 +32,13 @@ function writeCheckpoint(state) {
 function live(state, message, verification = []) { writeLiveState({ runId: process.env.GITHUB_RUN_ID || 'local', status: state.status, objectiveId: state.objectiveId, currentTask: state.currentTask, completedUnits: state.completed.length, totalUnits: state.totalUnits || 0, startedAt, message, files: state.files || [], verification, blockedReason: state.error || null }); }
 function runCommand(command, label) { const parts = command.split(/\s+/).filter(Boolean); if (!parts.length) throw new Error(`${label}: empty command`); console.log(`[autobot] ${label}: ${command}`); execFileSync(parts.shift(), parts, { cwd: root, stdio: 'inherit', env: process.env }); }
 function allowedTask(task) { const protectedPrefixes = ['.github/workflows/', 'builder/runner/', 'builder/quality/', 'builder/monitor/', 'builder/review/', 'config/autonomous-builder-queue.json', 'scripts/prepare-autonomous-batch.mjs']; return !(task.files || []).some(file => protectedPrefixes.some(prefix => file.startsWith(prefix))); }
+function reflect(task, objectiveId, changed, verificationCount) {
+  try {
+    runCommand(`node scripts/autobot/self-improvement-runtime.mjs ${objectiveId} ${task.id} ${changed ? 'changed' : 'unchanged'} ${verificationCount}`, 'self-improvement reflection');
+  } catch (error) {
+    console.warn(`[autobot] self-improvement reflection skipped: ${error.message}`);
+  }
+}
 
 const projectMemory = fs.readFileSync(memoryPath, 'utf8');
 const lessons = fs.readFileSync(lessonsPath, 'utf8');
@@ -45,12 +46,17 @@ if (!projectMemory.includes('Bikeztagram AI') || !lessons.includes('Non-negotiab
 console.log(`[autobot] Durable context loaded: project memory ${projectMemory.length} chars, lessons ${lessons.length} chars.`);
 
 const queue = readJson(queuePath); const roadmap = readJson(roadmapPath); const library = readJson(libraryPath);
+const learning = loadLearning();
 const previous = loadCheckpoint();
 const history = normaliseHistory(previous);
 const carriedObjectives = new Set((process.env.BUILDER_COMPLETED_OBJECTIVES || '').split(',').map(s => s.trim()).filter(Boolean));
 for (const objectiveId of carriedObjectives) history.objectives.add(objectiveId);
 const queuedIds = new Set(queue.batches.filter(b => b.objective && !['merged', 'rejected'].includes(b.status)).map(b => b.id));
-const candidates = roadmap.objectives.filter(o => o.status === 'queued' && queuedIds.has(o.queueBatch)).sort((a, b) => a.priority - b.priority).filter(o => (o.dependsOn || []).every(dep => roadmap.objectives.find(x => x.id === dep)?.status === 'complete' || history.objectives.has(dep) || !roadmap.objectives.some(x => x.id === dep)));
+const candidates = roadmap.objectives.filter(o => o.status === 'queued' && queuedIds.has(o.queueBatch)).sort((a, b) => {
+  const aDebt = Number(learning.objectives?.[a.id]?.qualityDebt || 0);
+  const bDebt = Number(learning.objectives?.[b.id]?.qualityDebt || 0);
+  return (a.priority + aDebt * 0.1) - (b.priority + bDebt * 0.1);
+}).filter(o => (o.dependsOn || []).every(dep => roadmap.objectives.find(x => x.id === dep)?.status === 'complete' || history.objectives.has(dep) || !roadmap.objectives.some(x => x.id === dep)));
 
 let objective = null; let tasks = []; let carriedCompleted = [];
 for (const candidate of candidates) {
@@ -93,9 +99,19 @@ for (const task of tasks) {
     completed.push(task.id); verifiedThisRun.push(task.id); history.tasks.add(`${objective.id}:${task.id}`);
     state.currentTask = null; state.lastVerifiedTask = task.id; state.files = after.split('\n').filter(Boolean).map(line => ({ status: line.slice(0, 2).trim(), path: line.slice(3).trim() }));
     writeCheckpoint(state); live(state, `${task.id} verified and checkpointed`, verification);
+    reflect(task, objective.id, changed, verification.length);
   } catch (error) { unitEvidence.failedAt = new Date().toISOString(); unitEvidence.error = error.message; evidence.units.push(unitEvidence); fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + '\n'); state.status = 'blocked'; state.error = error.message; state.blockedTask = task.id; writeCheckpoint(state); live(state, `BLOCKED: ${task.id} — ${error.message}`); console.error(`[autobot] BLOCKED on ${task.id}: ${error.message}`); process.exit(2); }
 }
 const objectiveComplete = completed.length === tasks.length;
 if (objectiveComplete) history.objectives.add(objective.id);
 state.currentTask = null; state.status = objectiveComplete ? 'objective-complete' : 'checkpointed';
 writeCheckpoint(state); live(state, objectiveComplete ? 'All deterministic units verified.' : 'Run limit reached; safe checkpoint created.'); console.log(`[autobot] ${state.status}: ${verifiedThisRun.length} new units verified this invocation; objective ${completed.length}/${tasks.length}; durable history has ${history.tasks.size} task completions.`);
+
+function normaliseHistory(previous) {
+  const history = previous.history && typeof previous.history === 'object' ? previous.history : { tasks: [], objectives: [] };
+  const tasks = new Set(Array.isArray(history.tasks) ? history.tasks : []);
+  const objectives = new Set(Array.isArray(history.objectives) ? history.objectives : []);
+  if (previous.objectiveId) for (const taskId of previous.completed || []) tasks.add(`${previous.objectiveId}:${taskId}`);
+  if (previous.objectiveId && previous.status === 'objective-complete') objectives.add(previous.objectiveId);
+  return { tasks, objectives };
+}
