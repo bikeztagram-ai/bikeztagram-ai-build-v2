@@ -74,6 +74,15 @@ function roleBonus(moment,role,mode){
  if(role==='emotional')return /emotion|beautiful|sunset|landscape|reaction|smile|laugh|calm/.test(s)?16:0;
  return 0;
 }
+function rolePositionGuard(moment,role){
+ const s=describe(moment);
+ let penalty=0;
+ if(role!=='hero'&&/hero-ending|hero|ending|resolution|final/.test(s))penalty-=60;
+ if(role!=='hook'&&/hook|opening/.test(s))penalty-=35;
+ if(role==='hero'&&/hook|opening/.test(s))penalty-=30;
+ if(role==='hook'&&/hero-ending|hero|ending|resolution|final/.test(s))penalty-=45;
+ return penalty;
+}
 function durationFit(candidate,usedDuration,targetDuration,remainingSlots){
  const d=durationOf(candidate);const target=Math.max(1,n(targetDuration,15));const remaining=Math.max(0,target-usedDuration);
  let value=0;
@@ -91,7 +100,7 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
  const ordered=[...ranked];
  while(chosen.length<limit&&ordered.length){let bestIndex=0,best=-Infinity;const role=desiredRole(chosen.length,limit,mode);const remainingSlots=limit-chosen.length;
   for(let i=0;i<ordered.length;i++){
-   const m=ordered[i];let value=m.__directorScore+roleBonus(m,role,mode)+durationFit(m,usedDuration,targetDuration,remainingSlots);const source=sourceKey(m);const family=m.__shotFamily;const subjectKey=m.__subjectFamily;
+   const m=ordered[i];let value=m.__directorScore+roleBonus(m,role,mode)+rolePositionGuard(m,role)+durationFit(m,usedDuration,targetDuration,remainingSlots);const source=sourceKey(m);const family=m.__shotFamily;const subjectKey=m.__subjectFamily;
    if(usedSources.has(source))value-=12;
    const familyCount=usedFamilies.get(family)||0;
    if(familyCount)value-=12*familyCount;
