@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bikeztagram AutoBot Live State",
+  "type": "object",
+  "required": ["runId", "status", "updatedAt", "heartbeatAt", "completedUnits", "files"],
+  "properties": {
+    "runId": {"type": "string"},
+    "status": {"enum": ["starting", "running", "blocked", "checkpointed", "complete", "idle"]},
+    "objectiveId": {"type": ["string", "null"]},
+    "currentTask": {"type": ["string", "null"]},
+    "completedUnits": {"type": "integer", "minimum": 0},
+    "totalUnits": {"type": "integer", "minimum": 0},
+    "startedAt": {"type": "string"},
+    "updatedAt": {"type": "string"},
+    "heartbeatAt": {"type": "string"},
+    "message": {"type": "string"},
+    "files": {"type": "array", "items": {"type": "object", "required": ["path", "kind"], "properties": {"path": {"type": "string"}, "kind": {"enum": ["created", "modified", "deleted"]}}}},
+    "verification": {"type": "array", "items": {"type": "object", "required": ["command", "status"], "properties": {"command": {"type": "string"}, "status": {"enum": ["passed", "failed"]}}}},
+    "blockedReason": {"type": ["string", "null"]}
+  }
+}
