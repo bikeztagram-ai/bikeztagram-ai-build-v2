@@ -96,9 +96,6 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
    const familyCount=usedFamilies.get(family)||0;
    if(familyCount)value-=12*familyCount;
    const subjectCount=usedSubjects.get(subjectKey)||0;
-   // Keep multi-subject stories from repeatedly showing the same subject when
-   // meaningful alternatives exist. A single-subject library naturally shares
-   // one key, so the bounded penalty does not eliminate valid shots.
    if(subjectKey!=='unknown'&&subjectCount)value-=clamp(9*subjectCount,9,24);
    if(chosen.length&&similarity(m,chosen[chosen.length-1])>.65)value-=18;
    if(usedDescriptions.some(d=>d===describe(m)))value-=30;
@@ -112,7 +109,10 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
   }
   const pick=ordered.splice(bestIndex,1)[0];chosen.push(pick);usedSources.add(sourceKey(pick));usedDescriptions.push(describe(pick));usedFamilies.set(pick.__shotFamily,(usedFamilies.get(pick.__shotFamily)||0)+1);usedSubjects.set(pick.__subjectFamily,(usedSubjects.get(pick.__subjectFamily)||0)+1);usedDuration+=pick.__duration;
  }
- chosen.sort((a,b)=>n(a.start??a.startTime,0)-n(b.start??b.startTime,0));
+ /* Preserve the editorial selection sequence. Sorting by source timestamp here can
+    move the chosen hook/hero out of position and overwrite the narrative order that
+    the role-aware selector just constructed. The renderer can consume source-relative
+    startTime values without requiring cuts to be globally chronological. */
  if(chosen.length>1){const first=chosen[0];chosen[0]={...first,editorialRole:first.editorialRole||'hook'};const last=chosen[chosen.length-1];chosen[chosen.length-1]={...last,editorialRole:last.editorialRole||'hero-ending'};}
  return chosen.map(({__directorScore,__directorIndex,__shotFamily,__subjectFamily,__duration,...m})=>({...m,directorSelectionScore:Number(__directorScore.toFixed(1)),directorSelectionIndex:__directorIndex,directorShotFamily:shotFamily(m),directorSubjectFamily:subjectFamily(m)}));
 }
