@@ -2,28 +2,45 @@
   "objectiveId": null,
   "completed": [],
   "verifiedThisRun": [],
+  "noOpVerifiedThisRun": [],
   "totalUnits": 0,
   "status": "idle",
   "currentTask": null,
   "files": [],
   "history": {
     "tasks": [
+      "cinematic-quality:cinematic-pacing-score",
       "cinematic-quality:cinematic-shot-motion-contract",
+      "cinematic-quality:director-diversity-ranking",
+      "director-intelligence:caption-safety-filter",
+      "director-intelligence:caption-timing-normalisation",
+      "director-intelligence:director-continuity-score",
+      "director-intelligence:director-story-beats",
+      "director-intelligence:director-story-planner-integration",
+      "mobile-pwa:mobile-reduced-motion-hardening",
+      "mobile-pwa:mobile-safe-area-hardening",
       "mobile-pwa:pwa-versioned-cache-contract",
       "project-persistence:persistence-audit-and-contract",
+      "project-persistence:persistence-hardening-inspection",
+      "project-persistence:persistence-migration-hardening",
       "project-persistence:persistence-runtime",
       "provider-resilience:provider-failure-classification",
+      "provider-resilience:provider-recovery-hardening",
+      "provider-resilience:provider-retry-hardening",
+      "social-export:export-delivery-hardening",
       "social-export:export-duration-guard",
       "social-export:export-profile-metadata",
-      "social-export:export-profiles-and-validation"
+      "social-export:export-profiles-and-validation",
+      "social-export:export-validation-hardening"
     ],
     "objectives": [
       "cinematic-quality",
+      "director-intelligence",
       "mobile-pwa",
       "project-persistence",
       "provider-resilience",
       "social-export"
     ]
   },
-  "updatedAt": "2026-08-27T20:45:04.912Z"
+  "updatedAt": "2026-08-27T21:34:00.801Z"
 }

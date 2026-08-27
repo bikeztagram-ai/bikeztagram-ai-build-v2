@@ -1,33 +1,118 @@
 {
   "schemaVersion": 2,
-  "runId": "33114794608",
-  "objectiveId": "cinematic-quality",
-  "startedAt": "2026-08-27T20:45:03.610Z",
+  "runId": "33118658333",
+  "objectiveId": "director-intelligence",
+  "startedAt": "2026-08-27T21:33:53.717Z",
   "units": [
     {
-      "id": "cinematic-shot-motion-contract",
-      "startedAt": "2026-08-27T20:45:03.615Z",
+      "id": "director-story-beats",
+      "startedAt": "2026-08-27T21:33:53.744Z",
       "implementation": [
-        "node scripts/autobot/cinematic-quality-runtime.mjs"
+        "node scripts/autobot/director-story-runtime.mjs"
       ],
       "verify": [
         "npm run build",
-        "node scripts/autobot/cinematic-quality-contract-check.mjs"
+        "node scripts/autobot/director-story-beats-contract-check.mjs"
       ],
-      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/socialExport.js",
-      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/director.js\n M src/socialExport.js",
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css",
       "verification": [
         {
           "command": "npm run build",
           "status": "passed"
         },
         {
-          "command": "node scripts/autobot/cinematic-quality-contract-check.mjs",
+          "command": "node scripts/autobot/director-story-beats-contract-check.mjs",
           "status": "passed"
         }
       ],
-      "completedAt": "2026-08-27T20:45:04.880Z",
+      "completedAt": "2026-08-27T21:33:55.048Z",
+      "unchangedButVerified": true
+    },
+    {
+      "id": "director-story-planner-integration",
+      "startedAt": "2026-08-27T21:33:55.051Z",
+      "implementation": [
+        "node scripts/autobot/director-story-planner-runtime.mjs"
+      ],
+      "verify": [
+        "npm run build",
+        "node scripts/autobot/director-story-contract-check.mjs"
+      ],
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css",
+      "verification": [
+        {
+          "command": "npm run build",
+          "status": "passed"
+        },
+        {
+          "command": "node scripts/autobot/director-story-contract-check.mjs",
+          "status": "passed"
+        }
+      ],
+      "completedAt": "2026-08-27T21:33:56.360Z",
+      "unchangedButVerified": true
+    },
+    {
+      "id": "director-continuity-score",
+      "startedAt": "2026-08-27T21:33:56.363Z",
+      "implementation": [
+        "node scripts/autobot/director-continuity-hardening-runtime.mjs"
+      ],
+      "verify": [
+        "npm run build"
+      ],
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css",
+      "verification": [
+        {
+          "command": "npm run build",
+          "status": "passed"
+        }
+      ],
+      "completedAt": "2026-08-27T21:33:57.669Z",
+      "unchangedButVerified": true
+    },
+    {
+      "id": "caption-safety-filter",
+      "startedAt": "2026-08-27T21:33:57.671Z",
+      "implementation": [
+        "node scripts/autobot/caption-safety-hardening-runtime.mjs"
+      ],
+      "verify": [
+        "npm run build"
+      ],
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css",
+      "verification": [
+        {
+          "command": "npm run build",
+          "status": "passed"
+        }
+      ],
+      "completedAt": "2026-08-27T21:33:59.217Z",
       "unchangedButVerified": false
+    },
+    {
+      "id": "caption-timing-normalisation",
+      "startedAt": "2026-08-27T21:33:59.311Z",
+      "implementation": [
+        "node scripts/autobot/caption-timing-hardening-runtime.mjs"
+      ],
+      "verify": [
+        "npm run build"
+      ],
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css",
+      "verification": [
+        {
+          "command": "npm run build",
+          "status": "passed"
+        }
+      ],
+      "completedAt": "2026-08-27T21:34:00.776Z",
+      "unchangedButVerified": true
     }
   ]
 }
