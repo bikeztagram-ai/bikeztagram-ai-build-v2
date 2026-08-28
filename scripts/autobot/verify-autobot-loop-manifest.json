@@ -1,0 +1,1 @@
+{"schemaVersion":1,"providerIndependent":true,"strategicPlanner":"builder/brain/strategic-planner.mjs","planningGate":"builder/brain/strategic-planning-gate.mjs","qualityFeedback":"scripts/autobot/quality-feedback-runtime.mjs","prGate":"scripts/autobot/pr-quality-gate-runtime.mjs","workflow":".github/workflows/autonomous-builder-v3-gemini-free.yml"}
