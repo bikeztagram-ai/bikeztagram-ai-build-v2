@@ -28,6 +28,28 @@ function treatmentFor({ role = '', subjectType = 'unknown', prompt = '', index =
   return { motion: 'subtle-drift', transition: 'clean-cut', composition: 'natural framing', intensity: 'controlled' };
 }
 
+function allocateTreatmentDurations(rawDurations, budget) {
+  const values = rawDurations.map(value => clamp(Number(value) || 0.5, 0.5, 6));
+  if (!values.length) return [];
+  const target = Math.max(0.5 * values.length, Number(budget) || 15);
+  let output = values.map(value => value);
+  let remaining = target - output.reduce((sum, value) => sum + value, 0);
+
+  for (let pass = 0; pass < values.length * 3 && Math.abs(remaining) > 0.01; pass += 1) {
+    const grow = remaining > 0;
+    const eligible = output.filter(value => grow ? value < 6 - 0.001 : value > 0.5 + 0.001).length;
+    if (!eligible) break;
+    const delta = remaining / eligible;
+    output = output.map(value => {
+      const next = grow ? Math.min(6, value + delta) : Math.max(0.5, value + delta);
+      return Number(next.toFixed(4));
+    });
+    remaining = target - output.reduce((sum, value) => sum + value, 0);
+  }
+
+  return output.map(value => Number(value.toFixed(2)));
+}
+
 export function buildCinematicTreatments({ moments = [], creativePrompt = '', targetDuration = 15 } = {}) {
   const items = Array.isArray(moments) ? moments : [];
   const budget = Math.max(1, Number(targetDuration) || 15);
@@ -46,12 +68,8 @@ export function buildCinematicTreatments({ moments = [], creativePrompt = '', ta
     };
   });
 
-  const rawDuration = raw.reduce((sum, item) => sum + item.treatmentDuration, 0);
-  const scale = rawDuration > budget ? budget / rawDuration : 1;
-  const finalItems = raw.map(item => ({
-    ...item,
-    treatmentDuration: Number((item.treatmentDuration * scale).toFixed(2))
-  }));
+  const durations = allocateTreatmentDurations(raw.map(item => item.treatmentDuration), budget);
+  const finalItems = raw.map((item, index) => ({ ...item, treatmentDuration: durations[index] }));
 
   return {
     version: 'cinematic-treatment-v1',
