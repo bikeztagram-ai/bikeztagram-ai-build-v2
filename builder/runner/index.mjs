@@ -2,206 +2,138 @@ import { Sandbox } from '@vercel/sandbox';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const REPO_URL = process.env.BUILDER_REPO_URL || 'https://github.com/bikeztagram-ai/bikeztagram-ai-build-v2.git';
-const BATCH_ID = process.env.BUILDER_BATCH_ID || 'batch-77';
+const BATCH_ID = process.env.BUILDER_BATCH_ID || `batch-${Date.now()}`;
 const BRANCH = process.env.BUILDER_WORKING_BRANCH || `autonomous-builder/${BATCH_ID}`;
 const BASE_BRANCH = process.env.BUILDER_BASE_BRANCH || 'main';
 const MAX_MINUTES = Math.min(Number(process.env.BUILDER_MAX_MINUTES || 45), 45);
 const MAX_PASSES = Math.min(Math.max(Number(process.env.BUILDER_MAX_PASSES || 8), 1), 8);
-const GEMINI_MODEL = process.env.BUILDER_GEMINI_MODEL || 'gemini-2.5-flash-lite';
-const SANDBOX_ROOT = '/vercel/sandbox';
-const REPO_DIR = `${SANDBOX_ROOT}/repo`;
-const ASKPASS_PATH = `${SANDBOX_ROOT}/git-askpass.sh`;
-const PROTECTED_PATH_PREFIXES = (process.env.BUILDER_PROTECTED_PATHS || '.github/workflows/')
-  .split(',').map((x) => x.trim()).filter(Boolean);
-const AGENT_CMD = process.env.BUILDER_AGENT_CMD
-  ? JSON.parse(process.env.BUILDER_AGENT_CMD)
-  : ['npx', '-y', '@google/gemini-cli', '--yolo', '--skip-trust', '--model', GEMINI_MODEL];
-const OBJECTIVE = process.env.BUILDER_OBJECTIVE || 'Prepare the autonomous builder execution layer without changing production application behavior.';
-const ACCEPTANCE = (process.env.BUILDER_ACCEPTANCE || 'Runner configuration is explicit and bounded.;No automatic merge to main.;Build and relevant verification commands are required before review.')
-  .split(';').map((x) => x.trim()).filter(Boolean);
-const VERIFY_COMMANDS = (process.env.BUILDER_VERIFY_COMMANDS || 'npm run build,npm run verify:batch76')
-  .split(',').map((x) => x.trim()).filter(Boolean);
-
-const safeBranch = (value) => value && value !== 'main' && value !== 'master' && !value.startsWith('production/');
+const CODEX_MODEL = process.env.BUILDER_CODEX_MODEL || 'gpt-5.3-codex';
+const ROOT = '/vercel/sandbox';
+const REPO_DIR = `${ROOT}/repo`;
+const ASKPASS = `${ROOT}/git-askpass.sh`;
+const PROTECTED = (process.env.BUILDER_PROTECTED_PATHS || '.github/workflows/').split(',').map(x => x.trim()).filter(Boolean);
+const AGENT_CMD = process.env.BUILDER_AGENT_CMD ? JSON.parse(process.env.BUILDER_AGENT_CMD) : ['npx', '-y', '@openai/codex@latest', 'exec', '--sandbox', 'workspace-write', '--ephemeral', '--model', CODEX_MODEL];
+const OBJECTIVE = process.env.BUILDER_OBJECTIVE || '';
+const ACCEPTANCE = (process.env.BUILDER_ACCEPTANCE || '').split(';').map(x => x.trim()).filter(Boolean);
+const VERIFY_COMMANDS = (process.env.BUILDER_VERIFY_COMMANDS || 'npm run build').split(',').map(x => x.trim()).filter(Boolean);
 const results = [];
+const compact = (value, limit = 12000) => { const s = String(value || '').trim(); return s.length <= limit ? s : `${s.slice(0, limit)}\n...[truncated]`; };
+const output = r => `${r?.stdout || ''}\n${r?.stderr || ''}`.toLowerCase();
+const providerFailure = r => r?.exitCode !== 0 && /api key|authentication|unauthenticated|permission denied|forbidden|\b401\b|\b403\b|\b404\b|model.*not found|invalid model/.test(output(r));
+const quotaFailure = r => /quota|rate limit|too many requests|resource exhausted|\b429\b|usage limit|credit.*depleted/.test(output(r));
+const safeBranch = b => b && b !== 'main' && b !== 'master' && !b.startsWith('production/');
 
-async function command(sandbox, cmd, args = [], cwd = REPO_DIR, env = undefined) {
+async function run(sandbox, cmd, args = [], cwd = REPO_DIR, env) {
   const r = await sandbox.runCommand({ cmd, args, cwd, ...(env ? { env } : {}) });
-  const result = { command: [cmd, ...args].join(' '), exitCode: r.exitCode, stdout: await r.stdout(), stderr: await r.stderr() };
+  const result = { command: [cmd, ...args].join(' '), exitCode: r.exitCode, stdout: compact(await r.stdout()), stderr: compact(await r.stderr()) };
   results.push(result);
   return result;
 }
 
-function describeSandboxError(error) {
-  const status = error?.response?.status ?? error?.status ?? error?.response?.statusCode;
-  const body = error?.response?.body ?? error?.response?.data ?? error?.json;
-  const details = body ? (typeof body === 'string' ? body : JSON.stringify(body)) : null;
-  return [error?.message || String(error), status ? `status=${status}` : null, details ? `body=${details}` : null].filter(Boolean).join(' | ');
+function prompt(pass, failures) {
+  return [
+    `BIKEZTAGRAM AUTONOMOUS ENGINEERING WORKER — ${BATCH_ID}`,
+    'Use OpenAI Codex as the sole engineering agent. Gemini is not permitted.',
+    'Execute ONLY the supplied objective and acceptance criteria. Do not invent unrelated roadmap work.',
+    `OBJECTIVE:\n${OBJECTIVE}`,
+    `ACCEPTANCE:\n- ${ACCEPTANCE.join('\n- ')}`,
+    `PASS: ${pass}/${MAX_PASSES}`,
+    failures.length ? `PREVIOUS VERIFICATION FAILURES:\n${failures.join('\n\n')}` : '',
+    'Inspect the relevant repository files, implement the largest coherent in-scope improvement you can safely complete, run useful checks, and fix failures before stopping.',
+    'Prefer substantive production improvements over cosmetic edits. Preserve working contracts. Do not modify .github/workflows/**, do not merge, deploy production, or change protected infrastructure.',
+    `Record concise progress in builder/working/${BATCH_ID}.md when the objective is large enough to require continuation.`,
+    'Do not commit or push; the runner owns Git.'
+  ].filter(Boolean).join('\n');
 }
 
-function compact(text, limit = 6000) {
-  const value = String(text || '').trim();
-  return value.length <= limit ? value : `${value.slice(0, limit)}\n...[truncated]`;
-}
-
-function isQuotaFailure(result) {
-  const text = `${result?.stdout || ''}\n${result?.stderr || ''}`.toLowerCase();
-  return /terminalquot(a|e)error|quota exceeded|exhausted your daily quota|generate_content_free_tier_requests|generate_content_free_tier_input_token_count|generativelanguage\.googleapis\.com\/generate_content_free_tier|resource_exhausted|rate limit exceeded/.test(text);
-}
-
-function quotaRetryHint(result) {
-  const text = `${result?.stdout || ''}\n${result?.stderr || ''}`;
-  const seconds = text.match(/retry(?:ing)? after\s+(\d+(?:\.\d+)?)\s*s/i)?.[1];
-  const milliseconds = text.match(/retry(?:ing)? after\s+(\d+)\s*ms/i)?.[1];
-  if (seconds) return `Suggested retry delay: ${seconds}s.`;
-  if (milliseconds) return `Suggested retry delay: ${Math.ceil(Number(milliseconds) / 1000)}s.`;
-  return 'No retry delay was supplied by the provider.';
-}
-
-function isProtectedPath(path) {
-  const normalized = String(path || '').replace(/^\s*[MADRCU?!]{1,2}\s+/, '').trim();
-  return PROTECTED_PATH_PREFIXES.some((prefix) => normalized === prefix || normalized.startsWith(prefix));
-}
-
-async function protectControlPlaneFiles(sandbox) {
-  const statusResult = await command(sandbox, 'git', ['status', '--short']);
-  if (statusResult.exitCode) throw new Error(`git status failed: ${statusResult.stderr}`);
-  const changedFiles = statusResult.stdout.split('\n').map((line) => line.trim()).filter(Boolean);
-  const protectedChanges = changedFiles.map((line) => line.replace(/^[MADRCU?!]{1,2}\s+/, '').trim()).filter(isProtectedPath);
-  if (!protectedChanges.length) return [];
-  const restore = await command(sandbox, 'git', ['restore', '--source=HEAD', '--staged', '--worktree', '--', '.github/workflows']);
-  if (restore.exitCode) throw new Error(`Protected workflow restore failed: ${restore.stderr}`);
-  const clean = await command(sandbox, 'git', ['clean', '-fd', '--', '.github/workflows']);
-  if (clean.exitCode) throw new Error(`Protected workflow cleanup failed: ${clean.stderr}`);
-  return protectedChanges;
-}
-
-async function runVerification(sandbox) {
+async function verify(sandbox) {
   const failures = [];
-  const diffCheck = await command(sandbox, 'git', ['diff', '--check']);
-  if (diffCheck.exitCode) failures.push(`git diff --check failed:\n${compact(diffCheck.stderr || diffCheck.stdout)}`);
+  const diff = await run(sandbox, 'git', ['diff', '--check']);
+  if (diff.exitCode) failures.push(`git diff --check failed: ${compact(diff.stderr || diff.stdout)}`);
   for (const spec of VERIFY_COMMANDS) {
     const [cmd, ...args] = spec.split(/\s+/);
-    const check = await command(sandbox, cmd, args);
-    if (check.exitCode) failures.push(`${spec} failed (exit ${check.exitCode}).\nstdout:\n${compact(check.stdout)}\nstderr:\n${compact(check.stderr)}`);
+    const r = await run(sandbox, cmd, args);
+    if (r.exitCode) failures.push(`${spec} failed (exit ${r.exitCode}).\n${compact(r.stderr || r.stdout)}`);
   }
   return failures;
 }
 
-async function pushWorkingBranch(sandbox, gitEnv) {
-  const fetch = await command(sandbox, 'git', ['fetch', 'origin', `${BRANCH}:refs/remotes/origin/${BRANCH}`], REPO_DIR, gitEnv);
-  const remoteBranchExists = fetch.exitCode === 0;
-  if (fetch.exitCode && !/couldn't find remote ref|could not find remote ref/i.test(fetch.stderr)) {
-    throw new Error(`git fetch existing working branch failed: ${fetch.stderr}`);
+async function protect(sandbox) {
+  const status = await run(sandbox, 'git', ['status', '--short']);
+  if (status.exitCode) throw new Error(`git status failed: ${status.stderr}`);
+  const changed = status.stdout.split('\n').filter(Boolean);
+  const blocked = changed.map(x => x.replace(/^[MADRCU?!]{1,2}\s+/, '').trim()).filter(p => PROTECTED.some(prefix => p === prefix || p.startsWith(prefix)));
+  for (const prefix of PROTECTED) {
+    await run(sandbox, 'git', ['restore', '--source=HEAD', '--staged', '--worktree', '--', prefix]);
+    await run(sandbox, 'git', ['clean', '-fd', '--', prefix]);
   }
-
-  const pushArgs = remoteBranchExists
-    ? ['push', '--force-with-lease=refs/heads/' + BRANCH + ':refs/remotes/origin/' + BRANCH, '--set-upstream', 'origin', `HEAD:${BRANCH}`]
-    : ['push', '--set-upstream', 'origin', `HEAD:refs/heads/${BRANCH}`];
-
-  const push = await command(sandbox, 'git', pushArgs, REPO_DIR, gitEnv);
-  if (push.exitCode) throw new Error(`git push failed: ${push.stderr}`);
+  return blocked;
 }
 
-async function commitAndPublish(sandbox, gitEnv, batchId) {
-  const gitIdentity = await command(sandbox, 'git', ['config', 'user.name', 'Bikeztagram Autonomous Builder']);
-  if (gitIdentity.exitCode) throw new Error(`git user.name configuration failed: ${gitIdentity.stderr}`);
-  const gitEmail = await command(sandbox, 'git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
-  if (gitEmail.exitCode) throw new Error(`git user.email configuration failed: ${gitEmail.stderr}`);
-  const add = await command(sandbox, 'git', ['add', '-A']);
+async function publish(sandbox, gitEnv) {
+  await run(sandbox, 'git', ['config', 'user.name', 'Bikeztagram Autonomous Builder']);
+  await run(sandbox, 'git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+  const add = await run(sandbox, 'git', ['add', '-A']);
   if (add.exitCode) throw new Error(`git add failed: ${add.stderr}`);
-  const commit = await command(sandbox, 'git', ['commit', '-m', `builder: complete ${batchId}`]);
+  const commit = await run(sandbox, 'git', ['commit', '-m', `builder: complete ${BATCH_ID}`]);
   if (commit.exitCode) throw new Error(`git commit failed: ${commit.stderr}`);
-  const shaResult = await command(sandbox, 'git', ['rev-parse', 'HEAD']);
-  const commitSha = shaResult.stdout.trim() || null;
-  await pushWorkingBranch(sandbox, gitEnv);
-  return commitSha;
+  const sha = (await run(sandbox, 'git', ['rev-parse', 'HEAD'])).stdout.trim();
+  const fetch = await run(sandbox, 'git', ['fetch', 'origin', `${BRANCH}:refs/remotes/origin/${BRANCH}`], REPO_DIR, gitEnv);
+  const args = fetch.exitCode === 0
+    ? ['push', '--force-with-lease=refs/heads/' + BRANCH + ':refs/remotes/origin/' + BRANCH, '--set-upstream', 'origin', `HEAD:${BRANCH}`]
+    : ['push', '--set-upstream', 'origin', `HEAD:refs/heads/${BRANCH}`];
+  const push = await run(sandbox, 'git', args, REPO_DIR, gitEnv);
+  if (push.exitCode) throw new Error(`git push failed: ${push.stderr}`);
+  return sha;
 }
 
 async function main() {
   if (!safeBranch(BRANCH)) throw new Error(`Refusing unsafe branch: ${BRANCH}`);
+  if (!OBJECTIVE) throw new Error('BUILDER_OBJECTIVE is required');
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is required; Gemini credentials are not accepted');
   if (!process.env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required');
-  if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY is required');
-  if (!process.env.VERCEL_TOKEN) throw new Error('VERCEL_TOKEN is required');
-  if (!process.env.VERCEL_TEAM_ID) throw new Error('VERCEL_TEAM_ID is required');
-  if (!process.env.VERCEL_PROJECT_ID) throw new Error('VERCEL_PROJECT_ID is required');
-  if (!AGENT_CMD?.length) throw new Error('BUILDER_AGENT_CMD is invalid');
-
-  const gitEnv = { GITHUB_TOKEN: process.env.GITHUB_TOKEN, GIT_ASKPASS: ASKPASS_PATH, GIT_TERMINAL_PROMPT: '0' };
-  const agentEnv = { GEMINI_API_KEY: process.env.GEMINI_API_KEY, GEMINI_MODEL };
+  if (!process.env.VERCEL_TOKEN || !process.env.VERCEL_TEAM_ID || !process.env.VERCEL_PROJECT_ID) throw new Error('Vercel sandbox credentials are required');
+  const gitEnv = { GITHUB_TOKEN: process.env.GITHUB_TOKEN, GIT_ASKPASS: ASKPASS, GIT_TERMINAL_PROMPT: '0' };
+  const agentEnv = { OPENAI_API_KEY: process.env.OPENAI_API_KEY };
+  let sandbox; let status = 'FAILED'; let failure = null; let commitSha = null; let passes = 0; let failures = []; let protectedChangesReset = []; let quotaDetected = false;
   const startedAt = new Date().toISOString();
-  let sandbox; let status = 'FAILED'; let failure = null; let commitSha = null; let passes = 0; let lastFailures = []; let protectedChangesReset = [];
-  let quotaDetected = false; let quotaHint = null;
-
   try {
-    try {
-      sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 2 }, persistent: false, timeout: MAX_MINUTES * 60 * 1000, networkPolicy: 'allow-all' });
-    } catch (error) { throw new Error(`Sandbox.create failed: ${describeSandboxError(error)}`); }
-    await command(sandbox, 'mkdir', ['-p', REPO_DIR], SANDBOX_ROOT);
-    const askpass = await command(sandbox, 'sh', ['-lc', `cat > '${ASKPASS_PATH}' <<'EOF'\n#!/bin/sh\ncase "$1" in\n  *Username*) printf '%s\\n' 'x-access-token' ;;\n  *) printf '%s\\n' "$GITHUB_TOKEN" ;;\nesac\nEOF\nchmod 700 '${ASKPASS_PATH}'`], SANDBOX_ROOT, gitEnv);
-    if (askpass.exitCode) throw new Error(`Git auth helper setup failed: ${askpass.stderr}`);
-    const clone = await command(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], SANDBOX_ROOT, gitEnv);
+    sandbox = await Sandbox.create({ teamId: process.env.VERCEL_TEAM_ID, projectId: process.env.VERCEL_PROJECT_ID, token: process.env.VERCEL_TOKEN, runtime: 'node24', resources: { vcpus: 4 }, persistent: false, timeout: MAX_MINUTES * 60 * 1000, networkPolicy: 'allow-all' });
+    const askpass = await run(sandbox, 'sh', ['-lc', `cat > '${ASKPASS}' <<'EOF'\n#!/bin/sh\ncase "$1" in\n *Username*) printf '%s\\n' 'x-access-token' ;;\n *) printf '%s\\n' "$GITHUB_TOKEN" ;;\nesac\nEOF\nchmod 700 '${ASKPASS}'`], ROOT, gitEnv);
+    if (askpass.exitCode) throw new Error(`Git auth setup failed: ${askpass.stderr}`);
+    const clone = await run(sandbox, 'git', ['clone', '--branch', BASE_BRANCH, '--depth', '1', REPO_URL, REPO_DIR], ROOT, gitEnv);
     if (clone.exitCode) throw new Error(`Clone failed: ${clone.stderr}`);
-    const checkout = await command(sandbox, 'git', ['checkout', '-b', BRANCH]);
-    if (checkout.exitCode) throw new Error(`Branch creation failed: ${checkout.stderr}`);
-    const install = await command(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
+    const branch = await run(sandbox, 'git', ['checkout', '-b', BRANCH]);
+    if (branch.exitCode) throw new Error(`Branch creation failed: ${branch.stderr}`);
+    const install = await run(sandbox, 'npm', ['install', '--no-audit', '--no-fund', '--no-package-lock']);
     if (install.exitCode) throw new Error(`Dependency install failed: ${install.stderr || install.stdout}`);
 
-    const basePrompt = [
-      `Bikeztagram autonomous builder: execute ${BATCH_ID}.`, `Objective: ${OBJECTIVE}`, `Acceptance criteria: ${ACCEPTANCE.join(' | ')}`,
-      `Work only on ${BRANCH}; never touch main, merge, deploy production, or provision paid infrastructure.`,
-      'Inspect the existing application and implement the objective using the largest coherent in-scope batch possible.',
-      'Work on independent in-scope tasks in parallel where safe, but never create conflicting edits.',
-      'Do not commit or push; the runner owns Git.',
-      'Protected control-plane paths: .github/workflows/**. Do not modify GitHub Actions workflow files during application/product batches; the runner will preserve them unchanged.',
-      'You are part of a recovery loop: make real changes, then stop so the runner can verify them.',
-      'If previous verification failures are supplied below, diagnose and fix those failures rather than merely reporting them.',
-      'Keep context efficient: inspect only files relevant to the objective, avoid rereading generated/dependency files, and do not paste the whole repository into your response.'
-    ].join('\n');
-
-    for (passes = 1; passes <= MAX_PASSES; passes += 1) {
-      const failureContext = lastFailures.length ? `\nPrevious verification failures to fix now:\n${lastFailures.map(compact).join('\n\n')}` : '';
-      const prompt = `${basePrompt}\n\nPass ${passes} of ${MAX_PASSES}.${failureContext}\n\nBefore ending this pass, inspect your changes and make sure the next verification run has a concrete chance of passing.`;
-      const agent = await command(sandbox, AGENT_CMD[0], [...AGENT_CMD.slice(1), '--prompt', prompt], REPO_DIR, agentEnv);
-      if (isQuotaFailure(agent)) {
-        quotaDetected = true;
-        quotaHint = quotaRetryHint(agent);
-        lastFailures = [`Gemini quota detected during pass ${passes}; stopping the autonomous retry loop immediately. ${quotaHint}\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
-        break;
-      }
-      if (agent.exitCode) {
-        lastFailures = [`Agent failed (exit ${agent.exitCode}).\nstdout:\n${compact(agent.stdout)}\nstderr:\n${compact(agent.stderr)}`];
-        continue;
-      }
-      lastFailures = await runVerification(sandbox);
-      if (lastFailures.length === 0) { status = 'VERIFIED'; break; }
+    for (passes = 1; passes <= MAX_PASSES; passes++) {
+      const args = [...AGENT_CMD.slice(1), prompt(passes, failures)];
+      const agent = await run(sandbox, AGENT_CMD[0], args, REPO_DIR, agentEnv);
+      if (quotaFailure(agent)) { quotaDetected = true; failures = [`OpenAI quota/rate limit detected on pass ${passes}.\n${compact(agent.stderr || agent.stdout)}`]; break; }
+      if (providerFailure(agent)) { failures = [`OpenAI Codex provider/model failure on pass ${passes}.\n${compact(agent.stderr || agent.stdout)}`]; break; }
+      if (agent.exitCode) { failures = [`Codex failed on pass ${passes} (exit ${agent.exitCode}).\n${compact(agent.stderr || agent.stdout)}`]; continue; }
+      protectedChangesReset = await protect(sandbox);
+      failures = await verify(sandbox);
+      if (!failures.length) { status = 'VERIFIED'; break; }
     }
 
     if (quotaDetected) {
-      const quotaVerification = await runVerification(sandbox);
-      if (quotaVerification.length === 0) {
-        status = 'VERIFIED';
-        lastFailures = [];
-      } else {
-        lastFailures.push(`Post-quota verification is incomplete:\n${quotaVerification.join('\n\n')}`);
-        status = 'PAUSED_FOR_QUOTA';
-        failure = `Gemini input/rate quota was detected. The runner stopped further Gemini passes and preserved the current branch state instead of wasting remaining retries. ${quotaHint || ''}`.trim();
-      }
+      const post = await verify(sandbox);
+      if (!post.length && (await run(sandbox, 'git', ['status', '--short'])).stdout.trim()) { status = 'VERIFIED'; failures = []; }
+      else { status = 'PAUSED_FOR_QUOTA'; failures.push(...post); }
     }
-
-    if (status !== 'VERIFIED' && status !== 'PAUSED_FOR_QUOTA') throw new Error(`Autonomous work loop exhausted after ${MAX_PASSES} passes. Last failures:\n${lastFailures.map(compact).join('\n\n')}`);
-    protectedChangesReset = await protectControlPlaneFiles(sandbox);
-    const statusResult = await command(sandbox, 'git', ['status', '--short']);
-    if (!statusResult.stdout.trim()) {
-      if (status === 'PAUSED_FOR_QUOTA') throw new Error(`${failure} No repository changes were produced to preserve.`);
-      throw new Error('Verification passed but the agent produced no repository changes outside protected control-plane paths');
-    }
-    commitSha = await commitAndPublish(sandbox, gitEnv, BATCH_ID);
+    if (status !== 'VERIFIED' && status !== 'PAUSED_FOR_QUOTA') throw new Error(`Autonomous work loop exhausted after ${MAX_PASSES} passes.\n${failures.join('\n\n')}`);
+    protectedChangesReset = [...new Set([...protectedChangesReset, ...(await protect(sandbox))])];
+    const changed = await run(sandbox, 'git', ['status', '--short']);
+    if (!changed.stdout.trim()) throw new Error('No repository changes were produced outside protected paths.');
+    commitSha = await publish(sandbox, gitEnv);
     if (status === 'VERIFIED') status = 'READY_FOR_REVIEW';
-  } catch (error) { failure = failure || (error instanceof Error ? error.message : String(error)); }
+  } catch (error) { failure = error instanceof Error ? error.message : String(error); }
   finally {
-    if (sandbox) { try { await sandbox.stop(); } catch (error) { failure ??= `Sandbox stop failed: ${describeSandboxError(error)}`; } }
-    const report = { batchId: BATCH_ID, objective: OBJECTIVE, baseBranch: BASE_BRANCH, workingBranch: BRANCH, commitSha, geminiModel: GEMINI_MODEL, protectedPaths: PROTECTED_PATH_PREFIXES, protectedChangesReset, maxDurationMinutes: MAX_MINUTES, maxPasses: MAX_PASSES, passesCompleted: Math.min(passes, MAX_PASSES), quotaDetected, quotaHint, keepAlive: false, autoMerge: false, autoProductionDeploy: false, status, failure, startedAt, finishedAt: new Date().toISOString(), checks: results };
+    if (sandbox) { try { await sandbox.stop(); } catch {} }
+    const report = { batchId: BATCH_ID, objective: OBJECTIVE, provider: 'openai-codex', model: CODEX_MODEL, baseBranch: BASE_BRANCH, workingBranch: BRANCH, commitSha, protectedPaths: PROTECTED, protectedChangesReset, maxDurationMinutes: MAX_MINUTES, maxPasses: MAX_PASSES, passesCompleted: Math.min(passes, MAX_PASSES), quotaDetected, autoMerge: false, autoProductionDeploy: false, status, failure, failures, startedAt, finishedAt: new Date().toISOString(), checks: results };
     await mkdir('./builder/reports', { recursive: true });
     await writeFile(`./builder/reports/${BATCH_ID}.json`, JSON.stringify(report, null, 2));
     console.log(JSON.stringify(report, null, 2));
