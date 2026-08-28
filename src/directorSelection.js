@@ -5,11 +5,12 @@
 const n=(v,f=0)=>{const x=Number(v);return Number.isFinite(x)?x:f};
 const text=v=>String(v||'').toLowerCase();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const describe=m=>text([m.description,m.reason,m.action,m.event,m.editorialRole,m.shotType,m.composition,m.framing,m.cameraAngle].join(' '));
+const describe=m=>text([m.description,m.reason,m.action,m.event,m.editorialRole,m.role,m.purpose,m.intent,m.shotType,m.composition,m.framing,m.cameraAngle].join(' '));
 const subject=m=>text(m.subjectRole||m.subject||m.identity||m.subjectLabel||m.subjectCategory);
 const sourceKey=m=>String(m.mediaId??m.mediaIndex??'unknown');
 const startOf=m=>n(m.start??m.startTime,NaN);
 const durationOf=m=>{const explicit=n(m.duration,NaN);if(Number.isFinite(explicit))return clamp(explicit,.5,6);const start=startOf(m);const end=n(m.end??m.endTime,NaN);if(Number.isFinite(start)&&Number.isFinite(end)&&end>start)return clamp(end-start,.5,6);return 2;};
+function explicitRole(moment){const raw=[moment?.editorialRole,moment?.role,moment?.purpose,moment?.intent].map(text).find(Boolean)||'';if(/hero|hero-ending|final|ending|resolution/.test(raw))return'hero';if(/hook|opening|intro/.test(raw))return'hook';if(/reveal|unveil|showcase/.test(raw))return'reveal';if(/action|chase|impact|movement/.test(raw))return'action';if(/build|approach|journey|setup/.test(raw))return'build';if(/emotional|emotion|beat/.test(raw))return'emotional';return raw;}
 function shotFamily(moment){
  const s=describe(moment);
  if(/extreme close|macro|detail|insert/.test(s))return'detail';
@@ -52,6 +53,7 @@ function scoreMoment(moment,index,total,mode){
  if(mode.reveal&&/product|vehicle|motorcycle|bike/.test(s))score+=8;
  if(mode.trailer&&/hero|reveal|establish|action/.test(s))score+=5;
  if(mode.game&&/world|environment|vehicle|character|action/.test(s))score+=5;
+ const role=explicitRole(moment);if(role)score+=role==='hook'?10:role==='hero'?10:role==='reveal'||role==='action'?8:role==='build'||role==='emotional'?5:0;
  return score;
 }
 function desiredRole(position,total,mode){
@@ -65,7 +67,9 @@ function desiredRole(position,total,mode){
  return'variation';
 }
 function roleBonus(moment,role,mode){
- const s=describe(moment);
+ const s=describe(moment); const explicit=explicitRole(moment);
+ if(explicit&&explicit===role)return role==='hook'||role==='hero'?32:26;
+ if(explicit&&((role==='hero'&&explicit==='hook')||(role==='hook'&&explicit==='hero')))return-24;
  if(role==='hook')return /hook|opening|establish|impact|action|reveal/.test(s)?24:0;
  if(role==='hero')return /hero|ending|resolution|final|showcase|reveal|portrait|landscape/.test(s)?24:0;
  if(role==='build')return /movement|tracking|journey|road|approach|detail|medium|wide/.test(s)?10:0;
@@ -96,9 +100,6 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
    const familyCount=usedFamilies.get(family)||0;
    if(familyCount)value-=12*familyCount;
    const subjectCount=usedSubjects.get(subjectKey)||0;
-   // Keep multi-subject stories from repeatedly showing the same subject when
-   // meaningful alternatives exist. A single-subject library naturally shares
-   // one key, so the bounded penalty does not eliminate valid shots.
    if(subjectKey!=='unknown'&&subjectCount)value-=clamp(9*subjectCount,9,24);
    if(chosen.length&&similarity(m,chosen[chosen.length-1])>.65)value-=18;
    if(usedDescriptions.some(d=>d===describe(m)))value-=30;
