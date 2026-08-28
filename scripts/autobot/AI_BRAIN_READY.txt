@@ -1,0 +1,3 @@
+AI brain V1 ready for review.
+
+Gemini 3.7 Flash provides advisory engineering planning from durable Bikeztagram context. Deterministic implementation and verification remain authoritative. Provider failure falls back safely.
