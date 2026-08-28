@@ -1,0 +1,88 @@
+name: Autonomous Builder V3 (Gemini-free)
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_units:
+        description: 'Safety ceiling on verified implementation units'
+        required: false
+        default: '1000'
+        type: string
+      duration:
+        description: 'Shared work budget'
+        required: false
+        default: '4h'
+        type: choice
+        options: ['15m','30m','1h','2h','3h','4h','5h','6h','7h','8h','9h','10h','11h','12h']
+
+concurrency:
+  group: autonomous-builder-v3
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  BUILDER_MAX_UNITS: ${{ inputs.max_units }}
+  REQUESTED_DURATION: ${{ inputs.duration }}
+  BUILDER_BASE_BRANCH: main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 370
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Resolve work budget
+        run: |
+          case "$REQUESTED_DURATION" in
+            15m) minutes=15;; 30m) minutes=30;; 1h) minutes=60;; 2h) minutes=120;; 3h) minutes=180;; 4h) minutes=240;; 5h) minutes=300;; 6h) minutes=360;; 7h) minutes=420;; 8h) minutes=480;; 9h) minutes=540;; 10h) minutes=600;; 11h) minutes=660;; 12h) minutes=720;;
+            *) echo "Unsupported duration"; exit 1;;
+          esac
+          echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
+          node builder/runner/run-duration.mjs
+      - name: Strategic planning and backlog replenishment
+        run: node builder/brain/strategic-planning-gate.mjs
+      - name: Validate Gemini-free brain and executor
+        run: |
+          node --check builder/brain/strategic-planner.mjs
+          node --check builder/brain/strategic-planning-gate.mjs
+          node --check builder/runner/deterministic-executor.mjs
+          node --check builder/runner/long-run-executor.mjs
+          node scripts/autobot/verify-deterministic-executor.mjs
+          node builder/quality/autobot-ready.mjs
+      - name: Execute sustained build
+        run: node builder/runner/long-run-executor.mjs
+      - name: Production verification
+        if: success()
+        run: |
+          npm run build
+          npm run verify:project-memory
+      - name: Quality feedback and PR gate
+        if: success()
+        run: |
+          node scripts/autobot/quality-feedback-runtime.mjs
+          node scripts/autobot/quality-feedback-contract-check.mjs
+          node scripts/autobot/pr-quality-gate-runtime.mjs
+          node scripts/autobot/pr-quality-gate-contract-check.mjs
+      - name: Publish checkpoint PR
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'Bikeztagram Autonomous Builder V3'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          branch="autonomous-builder-v3/${GITHUB_RUN_ID}"
+          git checkout -b "$branch"
+          git add -A
+          git commit -m 'feat: autonomous builder v3 checkpoint' || true
+          git push --set-upstream origin "$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V3 checkpoint' --body 'Gemini-free autonomous builder checkpoint. Strategic planning replenishes the roadmap only when the existing queue is exhausted. Deterministic implementation, verification, quality feedback and PR gates remain authoritative. No automatic merge or production deployment.' || true
