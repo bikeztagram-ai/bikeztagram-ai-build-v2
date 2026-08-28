@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "provider": "deterministic-local",
+  "gemini": "forbidden",
+  "categoryWeights": {
+    "render_quality": 100,
+    "director_intelligence": 95,
+    "storytelling": 90,
+    "audio": 80,
+    "mobile_ux": 75,
+    "reliability": 70,
+    "tooling": 30,
+    "housekeeping": 10
+  },
+  "rules": {
+    "preferDemonstratedProductImpact": true,
+    "penalizeNoOpAndDuplicateWork": true,
+    "doNotLetDocumentationOrTestChurnOutrankProductDefects": true,
+    "preserveWorkingBaseline": true,
+    "requireVerificationBeforeMerge": true
+  }
+}
