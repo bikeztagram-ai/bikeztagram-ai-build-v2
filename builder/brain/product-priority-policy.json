@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "purpose": "Prefer work that materially improves the Bikeztagram user experience over low-value housekeeping.",
+  "gemini": "forbidden",
+  "priorityOrder": [
+    "real-render-quality",
+    "director-intelligence",
+    "media-selection-and-story",
+    "audio-and-rhythm",
+    "mobile-ux",
+    "reliability-and-regression-prevention",
+    "developer-tooling",
+    "housekeeping"
+  ],
+  "scoring": {
+    "userImpact": 5,
+    "cinematicQuality": 5,
+    "regressionRiskReduction": 4,
+    "measurability": 3,
+    "reuseAcrossFeatures": 3,
+    "housekeepingPenalty": -4,
+    "duplicatePenalty": -8,
+    "noOpPenalty": -10
+  },
+  "protectedAreas": [
+    "Blob/Gemini legacy baseline",
+    "production renderer contract",
+    "deployment secrets",
+    "main branch protection"
+  ],
+  "acceptanceRule": "Prefer the highest-scoring feasible objective; reject work whose primary outcome is only metadata, documentation, or test churn unless it removes a demonstrated production risk."
+}
