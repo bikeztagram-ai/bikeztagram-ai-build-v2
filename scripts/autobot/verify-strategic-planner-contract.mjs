@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+const planner=fs.readFileSync('builder/brain/strategic-planner.mjs','utf8');
+const gate=fs.readFileSync('builder/brain/strategic-planning-gate.mjs','utf8');
+const workflow=fs.readFileSync('.github/workflows/autonomous-builder-v3-gemini-free.yml','utf8');
+if(!planner.includes('externalAi: false'))throw new Error('externalAi flag missing');
+if(/GEMINI_API_KEY|AUTOBOT_AI_MODEL/i.test(planner))throw new Error('provider secret/model dependency found');
+if(!gate.includes('queued.length'))throw new Error('queued work must be preserved');
+if(!workflow.includes('strategic-planning-gate.mjs'))throw new Error('planner not integrated into V3 workflow');
+if(!workflow.includes('quality-feedback-runtime.mjs'))throw new Error('quality feedback not integrated');
+console.log('PASS strategic planner integration contract');
