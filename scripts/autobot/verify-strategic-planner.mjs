@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
+const planner=fs.readFileSync('builder/brain/strategic-planner.mjs','utf8');
+const gate=fs.readFileSync('builder/brain/strategic-planning-gate.mjs','utf8');
+if(!planner.includes('externalAi: false'))throw new Error('Planner must be explicitly Gemini-free');
+if(/GEMINI|gemini/i.test(planner))throw new Error('Strategic planner contains forbidden provider reference');
+if(!gate.includes('queued.length'))throw new Error('Planning gate must preserve queued work');
+execFileSync(process.execPath,['--check','builder/brain/strategic-planner.mjs']);
+execFileSync(process.execPath,['--check','builder/brain/strategic-planning-gate.mjs']);
+console.log('PASS strategic planner verification');
