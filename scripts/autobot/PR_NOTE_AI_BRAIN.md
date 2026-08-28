@@ -1,0 +1,1 @@
+AI Brain V1 adds a real Gemini-backed planning layer, bounded structured output, deterministic fallback, contract verification and workflow integration. It does not grant the model unrestricted write access; the existing executor and quality gates remain authoritative.
