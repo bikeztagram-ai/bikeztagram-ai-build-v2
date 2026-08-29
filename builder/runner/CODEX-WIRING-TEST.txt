@@ -1,0 +1,1 @@
+The launch path is considered valid only when the workflow exposes OPENAI_API_KEY and the Codex CLI starts. A missing secret is a hard failure.
