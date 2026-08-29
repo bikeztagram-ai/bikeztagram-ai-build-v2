@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 2,
+  "updatedAt": "2026-08-29T07:41:50.137Z",
+  "lastReport": {
+    "schemaVersion": 2,
+    "generatedAt": "2026-08-29T07:41:50.091Z",
+    "sourceRunId": "33241421409",
+    "objectiveId": "director-intelligence",
+    "metrics": {
+      "units": 5,
+      "changedUnits": 1,
+      "noOpUnits": 4,
+      "failures": 0,
+      "elapsedMinutes": 0.094,
+      "changedRatio": 0.2,
+      "noOpRatio": 0.8,
+      "failureKinds": []
+    },
+    "failureSignatures": [
+      "high-no-op-rate",
+      "low-production-yield",
+      "premature-run-completion"
+    ],
+    "recommendations": [
+      "Keep protected runner/workflow paths outside product-task scope.",
+      "Prefer substantive production changes over marker-only verification.",
+      "Increase task selection quality so already-satisfied units are deprioritised.",
+      "Penalise task families producing repeated no-op verification and prefer unfinished production work.",
+      "Investigate premature completion when a run ends unusually quickly despite available execution budget."
+    ]
+  },
+  "appliedPolicy": {
+    "schemaVersion": 2,
+    "objectiveWeights": {
+      "production-implementation": 1.25,
+      "production-integration": 1,
+      "production-enhancement": 1.25,
+      "production-hardening": 1,
+      "accessibility-hardening": 1,
+      "builder-analysis": 0.5,
+      "builder-hardening": 1,
+      "self-improvement": 1.25
+    },
+    "maxAdjustment": 1,
+    "updatedAt": "2026-08-29T07:41:50.136Z",
+    "sourceRunId": "33241421409",
+    "sourceSignatures": [
+      "high-no-op-rate",
+      "low-production-yield",
+      "premature-run-completion"
+    ],
+    "sourceMetrics": {
+      "units": 5,
+      "changedUnits": 1,
+      "noOpUnits": 4,
+      "failures": 0,
+      "elapsedMinutes": 0.094,
+      "changedRatio": 0.2,
+      "noOpRatio": 0.8,
+      "failureKinds": []
+    }
+  },
+  "waves": [
+    {
+      "id": "quality-wave-001",
+      "generatedAt": "2026-08-29T07:41:50.178Z",
+      "sourceRunId": "33241421409",
+      "reason": "scheduled-quality-replenishment",
+      "taskIds": [
+        "quality-wave-001:quality-wave-motion-contract",
+        "quality-wave-001:quality-wave-transition-contract",
+        "quality-wave-001:quality-wave-replenish-next",
+        "quality-wave-001:quality-wave-plan-evidence"
+      ]
+    },
+    {
+      "id": "quality-wave-002",
+      "generatedAt": "2026-08-29T07:41:52.460Z",
+      "sourceRunId": "33241421409",
+      "reason": "scheduled-quality-replenishment",
+      "taskIds": [
+        "quality-wave-002:quality-wave-motion-contract",
+        "quality-wave-002:quality-wave-transition-contract",
+        "quality-wave-002:quality-wave-replenish-next",
+        "quality-wave-002:quality-wave-plan-evidence"
+      ]
+    },
+    {
+      "id": "quality-wave-003",
+      "generatedAt": "2026-08-29T07:41:55.889Z",
+      "sourceRunId": "33241421409",
+      "reason": "scheduled-quality-replenishment",
+      "taskIds": [
+        "quality-wave-003:quality-wave-motion-contract",
+        "quality-wave-003:quality-wave-transition-contract",
+        "quality-wave-003:quality-wave-replenish-next",
+        "quality-wave-003:quality-wave-plan-evidence"
+      ]
+    }
+  ]
+}

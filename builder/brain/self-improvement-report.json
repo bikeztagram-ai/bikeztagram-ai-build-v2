@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-29T07:41:50.091Z",
+  "sourceRunId": "33241421409",
+  "objectiveId": "director-intelligence",
+  "metrics": {
+    "units": 5,
+    "changedUnits": 1,
+    "noOpUnits": 4,
+    "failures": 0,
+    "elapsedMinutes": 0.094,
+    "changedRatio": 0.2,
+    "noOpRatio": 0.8,
+    "failureKinds": []
+  },
+  "failureSignatures": [
+    "high-no-op-rate",
+    "low-production-yield",
+    "premature-run-completion"
+  ],
+  "recommendations": [
+    "Keep protected runner/workflow paths outside product-task scope.",
+    "Prefer substantive production changes over marker-only verification.",
+    "Increase task selection quality so already-satisfied units are deprioritised.",
+    "Penalise task families producing repeated no-op verification and prefer unfinished production work.",
+    "Investigate premature completion when a run ends unusually quickly despite available execution budget."
+  ]
+}
