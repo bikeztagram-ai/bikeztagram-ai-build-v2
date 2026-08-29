@@ -1,0 +1,1 @@
+A sustained run must not report success when the Codex credential is unavailable. The workflow now fails fast if OPENAI_API_KEY is missing.
