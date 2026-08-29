@@ -64,7 +64,7 @@ function validPatch(p,obj){
   return codeAdded.length>=3&&add.length<=300&&del.length<=300;
 }
 function apply(p){const f=file('.autobot-feature.patch');fs.writeFileSync(f,p);try{run('git',['apply','--index','--whitespace=fix',f],{stdio:'inherit'});}finally{fs.rmSync(f,{force:true});}}
-function resetFailedPatch(){try{run('git',['reset','--hard','HEAD'],{stdio:'inherit'});run('git',['clean','-fd','--exclude=.git'],{stdio:'inherit'});}catch{}}
+function resetFailedPatch(){run('git',['reset','--hard','HEAD'],{stdio:'inherit'});run('git',['clean','-fd','-e','.git'],{stdio:'inherit'});}
 
 if(process.env.LOCAL_AI_READY!=='1'){console.error('[autobot] local AI unavailable; feature brain refuses paid fallback');process.exit(2);}
 for(let n=1;n<=maxFeatures&&left()>1;n++){
@@ -82,7 +82,7 @@ for(let n=1;n<=maxFeatures&&left()>1;n++){
     console.log(`[autobot] VERIFIED FEATURE: ${obj.id}`);
   } catch(e) {
     state.failed ||= {}; state.failed[obj.id]={message:e.message,at:new Date().toISOString(),attempts:(state.failed[obj.id]?.attempts||0)+1}; save();
-    resetFailedPatch();
+    try { resetFailedPatch(); } catch(resetError) { console.error(`[autobot] reset failed: ${resetError.message}`); process.exit(2); }
     console.error(`[autobot] feature ${obj.id} failed and was reset: ${e.message}`);
   }
 }
