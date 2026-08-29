@@ -1,4 +1,4 @@
-name: Autonomous Builder V2 (Gemini-free)
+name: Autonomous Builder V2 (Local Brain)
 
 on:
   workflow_dispatch:
@@ -14,9 +14,14 @@ on:
         default: '4h'
         type: choice
         options: ['15m','30m','1h','2h','3h','4h','5h','6h','7h','8h','9h','10h','11h','12h']
+      local_model:
+        description: 'Open-source local coding model (no paid API)'
+        required: false
+        default: 'qwen2.5-coder:1.5b-instruct'
+        type: string
 
 concurrency:
-  group: autonomous-builder-v2
+  group: autonomous-builder-v2-local
   cancel-in-progress: false
 
 permissions:
@@ -26,8 +31,8 @@ permissions:
 env:
   BUILDER_MAX_UNITS: ${{ inputs.max_units }}
   REQUESTED_DURATION: ${{ inputs.duration }}
+  LOCAL_AI_MODEL: ${{ inputs.local_model }}
   BUILDER_BASE_BRANCH: main
-  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
 jobs:
   segment-1:
@@ -44,15 +49,17 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Verify Codex credentials
-        run: |
-          if [ -z "${OPENAI_API_KEY:-}" ]; then
-            echo 'ERROR: OPENAI_API_KEY GitHub secret is missing. Refusing to report a fake successful build.'
-            exit 1
-          fi
-          echo 'OpenAI Codex credential is available.'
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
+      - name: Cache local AI model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: bikeztagram-local-ai-${{ runner.os }}-${{ inputs.local_model }}
+      - name: Start local AI brain
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+        run: bash scripts/autobot/install-local-brain.sh
       - name: Resolve shared time budget
         id: budget
         run: |
@@ -75,14 +82,14 @@ jobs:
           echo "BUILDER_SEGMENTS=$segments" >> "$GITHUB_ENV"
           node builder/runner/run-duration.mjs
           node builder/runner/segment-plan.mjs
-      - name: Validate deterministic builder
+      - name: Validate autonomous builder
         run: |
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
-          node --check builder/runner/ai-long-run.mjs
+          node --check builder/runner/local-brain.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node builder/quality/autobot-ready.mjs
-      - name: Run sustained deterministic builder and Codex engineering layer
+      - name: Run sustained deterministic builder and local AI brain
         run: node builder/runner/long-run-executor.mjs
       - name: Production verification
         if: success()
@@ -104,7 +111,7 @@ jobs:
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'feat: autonomous builder v2 segment 1 checkpoint' || true
+          git commit -m 'feat: autonomous builder local brain segment 1 checkpoint' || true
           git push --set-upstream origin "$branch"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
 
@@ -118,30 +125,32 @@ jobs:
       BUILDER_MAX_UNITS: ${{ inputs.max_units }}
       BUILDER_SEGMENT: 2
       BUILDER_SEGMENTS: ${{ needs.segment-1.outputs.segments }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      LOCAL_AI_MODEL: ${{ inputs.local_model }}
     steps:
       - name: Checkout segment 1 branch
         uses: actions/checkout@v5
         with:
           ref: ${{ needs.segment-1.outputs.branch }}
           fetch-depth: 0
-      - name: Verify Codex credentials
-        run: |
-          if [ -z "${OPENAI_API_KEY:-}" ]; then
-            echo 'ERROR: OPENAI_API_KEY GitHub secret is missing. Refusing to report a fake successful build.'
-            exit 1
-          fi
-          echo 'OpenAI Codex credential is available.'
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
-      - name: Validate deterministic builder
+      - name: Cache local AI model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: bikeztagram-local-ai-${{ runner.os }}-${{ inputs.local_model }}
+      - name: Start local AI brain
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+        run: bash scripts/autobot/install-local-brain.sh
+      - name: Validate autonomous builder
         run: |
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
-          node --check builder/runner/ai-long-run.mjs
+          node --check builder/runner/local-brain.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node builder/quality/autobot-ready.mjs
-      - name: Resume sustained deterministic builder and Codex engineering layer
+      - name: Resume sustained deterministic builder and local AI brain
         run: node builder/runner/long-run-executor.mjs
       - name: Production verification
         if: success()
@@ -160,9 +169,9 @@ jobs:
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'feat: autonomous builder v2 final segment' || true
+          git commit -m 'feat: autonomous builder local brain final segment' || true
           git push
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free autonomous product build using OpenAI Codex. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. No Gemini or OpenAI API is used. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
 
   review-single-segment:
     needs: segment-1
@@ -173,4 +182,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free autonomous product build using OpenAI Codex. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. No Gemini or OpenAI API is used. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
