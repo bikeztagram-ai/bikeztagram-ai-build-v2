@@ -2,27 +2,31 @@
 
 ## Current architecture
 
-- **Autonomous engineering worker:** OpenAI Codex CLI in non-interactive execution mode.
-- **Engineering model:** `gpt-5.3-codex` by default, configurable with `BUILDER_CODEX_MODEL`.
-- **Engineering credential:** `OPENAI_API_KEY` GitHub Actions repository secret.
+- **Autonomous engineering worker:** local Ollama coding model.
+- **Engineering model:** `qwen2.5-coder:3b` by default, configurable with `LOCAL_AI_MODEL`.
+- **Engineering credential:** none; the model runs locally on the builder host.
 - **Quality authority:** deterministic verification plus normal PR review/checks.
 - **Release control:** no automatic merge to `main` and no automatic production deployment from the builder.
 
 ## Provider boundary
 
-The autonomous builder is now explicitly OpenAI-only. The runner rejects runs without `OPENAI_API_KEY` and does not accept or invoke Gemini credentials. `BUILDER_AGENT_CMD` remains available as an explicit override for controlled testing, but the default worker is OpenAI Codex.
+The autonomous builder is explicitly local-only. The runner requires `LOCAL_AI_READY=1` before invoking the feature brain and refuses paid-provider fallback. Gemini, OpenAI/Codex and other hosted engineering providers are not part of the AutoBot execution path.
 
-Codex runs non-interactively inside the Vercel Sandbox with workspace-write access to the isolated working branch. The runner owns Git commit/push, verification, protected-path restoration and release boundaries.
+The local engineer works only on isolated builder branches and only within the files declared by the selected product objective. The runner owns Git publishing, verification, protected-path enforcement and release boundaries.
 
 ## Product AI is separate
 
-The autonomous engineering provider is independent from Bikeztagram's product-side AI/runtime integrations. Changing the engineering worker does not change product AI behaviour.
+The autonomous engineering worker is independent from Bikeztagram's product-side AI/runtime integrations. Changing the engineering worker does not change product AI behaviour.
 
 ## Quality and safety constraints
 
-- Up to eight bounded engineering passes per batch.
-- Verification is required before a batch is published for review.
-- `.github/workflows/**` remains protected during product batches.
+- Work is bounded by the requested runtime and feature-pass limits.
+- Verification is required before work is treated as successful.
+- `.github/workflows/**`, builder security/quality controls and release boundaries remain protected.
 - No automatic merge to `main`.
 - No automatic production deployment.
-- OpenAI authentication, quota and model failures stop the batch rather than creating an uncontrolled retry loop.
+- Local-model unavailability stops the builder rather than silently switching to a paid provider.
+
+## Long-term direction
+
+The builder should improve its planning, diagnostics, recovery, prioritisation and engineering efficiency from verified historical evidence. Self-improvement remains isolated and reviewable; it must never weaken the quality or security boundaries that judge the builder itself.
