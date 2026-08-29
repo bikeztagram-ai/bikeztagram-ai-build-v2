@@ -47,10 +47,15 @@ while (pass < maxPasses && minutesLeft() > 1) {
     'Leave the working tree with real, coherent product changes whenever a safe improvement is possible.'
   ].filter(Boolean).join('\n');
 
+  // Codex exec uses CODEX_API_KEY for explicit API-key authentication.
+  // Keep the repository secret named OPENAI_API_KEY, but pass it to the
+  // child process under Codex's exec-specific auth variable.
+  const codexEnv = { ...process.env, CODEX_API_KEY: process.env.OPENAI_API_KEY };
+  delete codexEnv.OPENAI_API_KEY;
   const result = spawnSync('npx', ['-y', '@openai/codex@latest', 'exec', '--sandbox', 'workspace-write', '--ephemeral', '--model', model, prompt], {
     cwd: root,
     stdio: 'inherit',
-    env: { ...process.env, CODEX_AUTONOMOUS_RUN: '1' },
+    env: codexEnv,
     timeout: Math.max(60_000, Math.min(minutesLeft() * 60_000, 55 * 60_000)),
   });
 
