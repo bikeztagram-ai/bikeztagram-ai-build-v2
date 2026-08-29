@@ -1,15 +1,36 @@
 {
-  "runId": "33114794608",
-  "status": "idle",
-  "objectiveId": null,
+  "runId": "33247728698",
+  "status": "objective-complete",
+  "objectiveId": "project-persistence",
   "currentTask": null,
-  "completedUnits": 0,
-  "totalUnits": 0,
-  "startedAt": "2026-08-27T20:45:04.910Z",
-  "updatedAt": "2026-08-27T20:45:04.912Z",
-  "heartbeatAt": "2026-08-27T20:45:04.912Z",
-  "message": "No eligible unfinished roadmap units. Idle.",
-  "files": [],
+  "completedUnits": 4,
+  "totalUnits": 4,
+  "startedAt": "2026-08-29T10:24:09.932Z",
+  "updatedAt": "2026-08-29T10:24:14.782Z",
+  "heartbeatAt": "2026-08-29T10:24:14.782Z",
+  "message": "All deterministic units verified.",
+  "files": [
+    {
+      "status": "M",
+      "path": "uilder/monitor/live-state.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/quality/autobot-readiness.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot-evidence.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot.json"
+    },
+    {
+      "status": "M",
+      "path": "src/projectPersistence.js"
+    }
+  ],
   "verification": [],
   "blockedReason": null
 }

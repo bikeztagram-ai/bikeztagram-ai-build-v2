@@ -1,33 +1,48 @@
 {
   "schemaVersion": 2,
-  "runId": "33114794608",
-  "objectiveId": "cinematic-quality",
-  "startedAt": "2026-08-27T20:45:03.610Z",
+  "runId": "33247728698",
+  "objectiveId": "project-persistence",
+  "startedAt": "2026-08-29T10:24:09.932Z",
   "units": [
     {
-      "id": "cinematic-shot-motion-contract",
-      "startedAt": "2026-08-27T20:45:03.615Z",
+      "id": "persistence-hardening-inspection",
+      "startedAt": "2026-08-29T10:24:10.013Z",
       "implementation": [
-        "node scripts/autobot/cinematic-quality-runtime.mjs"
+        "node scripts/autobot/persistence-hardening-runtime.mjs"
       ],
       "verify": [
-        "npm run build",
-        "node scripts/autobot/cinematic-quality-contract-check.mjs"
+        "npm run build"
       ],
-      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/socialExport.js",
-      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/director.js\n M src/socialExport.js",
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot.json",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot.json\n M src/projectPersistence.js",
       "verification": [
         {
           "command": "npm run build",
           "status": "passed"
-        },
+        }
+      ],
+      "completedAt": "2026-08-29T10:24:12.934Z",
+      "unchangedButVerified": false
+    },
+    {
+      "id": "persistence-migration-hardening",
+      "startedAt": "2026-08-29T10:24:12.939Z",
+      "implementation": [
+        "node scripts/autobot/persistence-migration-hardening-runtime.mjs"
+      ],
+      "verify": [
+        "npm run build"
+      ],
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/projectPersistence.js",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/projectPersistence.js",
+      "verification": [
         {
-          "command": "node scripts/autobot/cinematic-quality-contract-check.mjs",
+          "command": "npm run build",
           "status": "passed"
         }
       ],
-      "completedAt": "2026-08-27T20:45:04.880Z",
-      "unchangedButVerified": false
+      "completedAt": "2026-08-29T10:24:14.781Z",
+      "unchangedButVerified": true
     }
   ]
 }
