@@ -1,0 +1,1 @@
+The autonomous builder requires the GitHub Actions repository secret named OPENAI_API_KEY. If absent, the workflow fails at the credential gate instead of falsely succeeding without AI engineering work.
