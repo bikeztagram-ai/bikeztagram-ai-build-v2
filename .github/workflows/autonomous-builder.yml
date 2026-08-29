@@ -68,6 +68,9 @@ jobs:
             echo '- **Merge:** never automatic'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Select next queued objective
+        run: node scripts/prepare-autonomous-batch.mjs
+
       - name: Install and start local Ollama
         if: env.BUILDER_NO_WORK != 'true'
         run: |
@@ -82,9 +85,6 @@ jobs:
           ollama pull "$LOCAL_AI_MODEL"
           echo 'LOCAL_AI_READY=1' >> "$GITHUB_ENV"
           echo "Local model ready: $LOCAL_AI_MODEL" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Select next queued objective
-        run: node scripts/prepare-autonomous-batch.mjs
 
       - name: Switch to durable builder branch
         if: env.BUILDER_NO_WORK != 'true'
@@ -117,6 +117,9 @@ jobs:
           node --check builder/runner/self-repair.mjs
           node --check builder/quality/merge-readiness.mjs
           node --check scripts/prepare-autonomous-batch.mjs
+          node --check builder/brain/builder-metrics.mjs
+          node --check builder/brain/self-improvement-loop.mjs
+          node --check builder/brain/self-improvement-experiment.mjs
 
       - name: Run sustained autonomous builder
         if: env.BUILDER_NO_WORK != 'true'
@@ -130,7 +133,9 @@ jobs:
 
       - name: Analyse self-improvement opportunities
         if: always() && env.BUILDER_NO_WORK != 'true'
-        run: node builder/brain/self-improvement-loop.mjs
+        run: |
+          node builder/brain/self-improvement-loop.mjs
+          node builder/brain/self-improvement-experiment.mjs
 
       - name: Publish checkpoint summary
         if: always() && env.BUILDER_NO_WORK != 'true'
@@ -175,6 +180,7 @@ jobs:
             builder/reviews/merge-readiness.json
             builder/reviews/builder-metrics.json
             builder/reviews/self-improvement-proposal.json
+            builder/reviews/self-improvement-experiment.json
           if-no-files-found: warn
 
       - name: Continue multi-segment run
