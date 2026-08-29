@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Feature-level local engineer. Unlike the legacy single-file brain, this
- * worker takes one existing product objective, reads all declared runtime
- * files, and asks the local model for one coherent multi-file change.
+ * Feature-level local engineer.
+ * Takes the prepared Bikeztagram backlog, implements one substantive objective
+ * at a time, verifies it, and remembers failures without falsely completing them.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,7 +25,7 @@ const statePath=file('builder/working/feature-brain-state.json');
 let state={completed:[],failed:{}};
 try { state=JSON.parse(fs.readFileSync(statePath,'utf8')); } catch {}
 const completed=new Set(state.completed || []);
-
+const attemptedThisRun=new Set();
 function save() { fs.mkdirSync(path.dirname(statePath),{recursive:true}); fs.writeFileSync(statePath,JSON.stringify({version:1,completed:[...completed],failed:state.failed||{},updatedAt:new Date().toISOString()},null,2)+'\n'); }
 function context(obj) {
   const chunks=[`OBJECTIVE: ${obj.title}\nPriority: ${obj.priority}\nAcceptance:\n- ${obj.acceptance.join('\n- ')}\nConstraints:\n- ${obj.constraints.join('\n- ')}`];
@@ -34,13 +34,18 @@ function context(obj) {
   chunks.push(`===== LESSONS =====\n${read('builder/quality/lessons.md',1800)}`);
   return chunks.join('\n\n').slice(0,15500);
 }
-function choose() { return objectives.filter(o=>!completed.has(o.id)).sort((a,b)=>(b.priority||0)-(a.priority||0))[0]; }
+function choose() {
+  const available=objectives.filter(o=>!completed.has(o.id)&&!attemptedThisRun.has(o.id));
+  if(available.length) return available.sort((a,b)=>(b.priority||0)-(a.priority||0))[0];
+  return null;
+}
 function modelCall(obj) {
-  const prompt=`Implement ONE coherent, production-quality increment of this Bikeztagram objective. You may modify ONLY the files listed for the objective. Prefer the smallest set of those files necessary, but if the behaviour genuinely crosses files, change them coherently in one patch. Preserve exports and contracts. Do not add dependencies. Do not modify builder infrastructure, workflows, secrets, configuration, or protected paths. Do not invent media or APIs. Do not return commentary. Return ONLY a valid unified git diff beginning with diff --git.\n\n${context(obj)}`;
-  const body=JSON.stringify({model,stream:false,keep_alive:'10m',options:{temperature:0.05,num_ctx:8192,num_predict:3500},messages:[{role:'system',content:'You are the senior software engineer for Bikeztagram AI. Produce real working code, not plans or placeholders. Respect the supplied objective and acceptance criteria.'},{role:'user',content:prompt}]});
+  const previous=state.failed?.[obj.id]?.message||'none';
+  const prompt=`You are the primary implementation engineer for Bikeztagram AI. Implement ONE coherent, production-quality increment of this exact objective. This is real product work, not planning. You may modify ONLY the files listed for the objective. Prefer the smallest set of those files necessary, but if behaviour genuinely crosses files, change them coherently. Preserve exports/contracts. Do not add dependencies. Do not modify builder infrastructure, workflows, secrets, Vercel infrastructure, or protected paths. Do not invent media or APIs. Do not return commentary. Return ONLY a valid unified git diff beginning with diff --git. If a previous attempt failed, fix the underlying issue rather than repeating it.\n\n${context(obj)}\n\nPREVIOUS ATTEMPT RESULT: ${previous}`;
+  const body=JSON.stringify({model,stream:false,keep_alive:'10m',options:{temperature:0.05,num_ctx:8192,num_predict:3500},messages:[{role:'system',content:'You are a senior software engineer. Write real maintainable production code and respect the supplied scope.'},{role:'user',content:prompt}]});
   const sec=Math.min(timeoutSeconds,Math.max(60,Math.floor(left()*60)));
   const r=spawnSync('curl',['-sS','--fail','--max-time',String(sec),`${host}/api/chat`,'-H','Content-Type: application/json','-d',body],{cwd:root,encoding:'utf8'});
-  if(r.status!==0) throw new Error(r.stderr||`model request failed (${r.status})`);
+  if(r.status!==0) throw new Error(r.stderr||`local model request failed (${r.status})`);
   return JSON.parse(r.stdout)?.message?.content||'';
 }
 function clean(s){const m=s.match(/```(?:diff|patch)?\s*([\s\S]*?)```/i);const x=m?m[1]:s;const i=x.indexOf('diff --git ');return i>=0?x.slice(i).trim():'';}
@@ -51,30 +56,29 @@ function validPatch(p,obj){
   if(!paths.length||paths.some(x=>!allowed.has(x))) return false;
   const add=p.split('\n').filter(x=>x.startsWith('+')&&!x.startsWith('+++'));
   const del=p.split('\n').filter(x=>x.startsWith('-')&&!x.startsWith('---'));
-  if(add.filter(x=>!/^\+\s*(?:\/\/|\/\*|\*|#|$)/.test(x)).length<3) return false;
-  return add.length<=260&&del.length<=260;
+  const codeAdded=add.filter(x=>!/^\+\s*(?:\/\/|\/\*|\*|#|$)/.test(x));
+  return codeAdded.length>=3&&add.length<=300&&del.length<=300;
 }
 function apply(p){const f=file('.autobot-feature.patch');fs.writeFileSync(f,p);try{run('git',['apply','--index','--whitespace=fix',f],{stdio:'inherit'});}finally{fs.rmSync(f,{force:true});}}
 
 if(process.env.LOCAL_AI_READY!=='1'){console.error('[autobot] local AI unavailable; feature brain refuses paid fallback');process.exit(2);}
-
 for(let n=1;n<=maxFeatures&&left()>1;n++){
   const obj=choose();
-  if(!obj){console.log('[autobot] feature backlog exhausted');break;}
-  console.log(`[autobot] FEATURE ${n}/${maxFeatures}: ${obj.id} — ${left().toFixed(1)} minutes remaining — model=${model}`);
+  if(!obj){console.log('[autobot] no additional unattempted feature objective is available in this run');break;}
+  attemptedThisRun.add(obj.id);
+  console.log(`[autobot] FEATURE ${n}/${maxFeatures}: ${obj.id} — ${left().toFixed(1)}m remaining — model=${model}`);
   try {
     const patch=clean(modelCall(obj));
     if(!validPatch(patch,obj)) throw new Error('model returned an invalid, empty, or out-of-scope feature patch');
     apply(patch);
     run('git',['diff','--check'],{stdio:'inherit'});
     run('npm',['run','build'],{stdio:'inherit',timeout:Math.min(900000,Math.max(60000,Math.floor(left()*60000)))});
-    completed.add(obj.id); save();
+    completed.add(obj.id); delete state.failed?.[obj.id]; save();
     console.log(`[autobot] VERIFIED FEATURE: ${obj.id}`);
   } catch(e) {
-    state.failed ||= {}; state.failed[obj.id]={message:e.message,at:new Date().toISOString()}; save();
+    state.failed ||= {}; state.failed[obj.id]={message:e.message,at:new Date().toISOString(),attempts:(state.failed[obj.id]?.attempts||0)+1}; save();
     console.error(`[autobot] feature ${obj.id} failed: ${e.message}`);
-    // Never loop forever on one objective. The next objective can continue.
-    completed.add(obj.id); save();
   }
 }
-console.log(`[autobot] feature brain finished; verified=${completed.size}; elapsed=${((Date.now()-started)/60000).toFixed(2)}m`);
+save();
+console.log(`[autobot] feature brain finished; verified=${completed.size}; attemptedThisRun=${attemptedThisRun.size}; elapsed=${((Date.now()-started)/60000).toFixed(2)}m`);
