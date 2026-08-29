@@ -1,33 +1,88 @@
 {
   "schemaVersion": 2,
-  "runId": "33114794608",
-  "objectiveId": "cinematic-quality",
-  "startedAt": "2026-08-27T20:45:03.610Z",
+  "runId": "33241201258",
+  "objectiveId": "quality-wave-002",
+  "startedAt": "2026-08-29T07:36:27.307Z",
   "units": [
     {
-      "id": "cinematic-shot-motion-contract",
-      "startedAt": "2026-08-27T20:45:03.615Z",
+      "id": "quality-wave-002:quality-wave-motion-contract",
+      "startedAt": "2026-08-29T07:36:27.316Z",
       "implementation": [
-        "node scripts/autobot/cinematic-quality-runtime.mjs"
+        "node scripts/autobot/quality-wave-motion-runtime.mjs"
       ],
       "verify": [
-        "npm run build",
-        "node scripts/autobot/cinematic-quality-contract-check.mjs"
+        "npm run build"
       ],
-      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/socialExport.js",
-      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/director.js\n M src/socialExport.js",
+      "before": "M builder/brain/priority-policy.json\n M builder/brain/roadmap.json\n M builder/brain/task-library.json\n M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css\n M src/timelineDirector.js\n?? builder/brain/self-improvement-ledger.json\n?? builder/brain/self-improvement-report.json\n?? src/editQuality.js",
+      "after": "M builder/brain/priority-policy.json\n M builder/brain/roadmap.json\n M builder/brain/task-library.json\n M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css\n M src/timelineDirector.js\n?? builder/brain/self-improvement-ledger.json\n?? builder/brain/self-improvement-report.json\n?? src/editQuality.js",
       "verification": [
         {
           "command": "npm run build",
           "status": "passed"
-        },
+        }
+      ],
+      "completedAt": "2026-08-29T07:36:29.270Z",
+      "unchangedButVerified": true
+    },
+    {
+      "id": "quality-wave-002:quality-wave-transition-contract",
+      "startedAt": "2026-08-29T07:36:29.275Z",
+      "implementation": [
+        "node scripts/autobot/quality-wave-transition-runtime.mjs"
+      ],
+      "verify": [
+        "npm run build"
+      ],
+      "before": "M builder/brain/priority-policy.json\n M builder/brain/roadmap.json\n M builder/brain/task-library.json\n M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css\n M src/timelineDirector.js\n?? builder/brain/self-improvement-ledger.json\n?? builder/brain/self-improvement-report.json\n?? src/editQuality.js",
+      "after": "M builder/brain/priority-policy.json\n M builder/brain/roadmap.json\n M builder/brain/task-library.json\n M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css\n M src/timelineDirector.js\n?? builder/brain/self-improvement-ledger.json\n?? builder/brain/self-improvement-report.json\n?? src/editQuality.js",
+      "verification": [
         {
-          "command": "node scripts/autobot/cinematic-quality-contract-check.mjs",
+          "command": "npm run build",
           "status": "passed"
         }
       ],
-      "completedAt": "2026-08-27T20:45:04.880Z",
-      "unchangedButVerified": false
+      "completedAt": "2026-08-29T07:36:31.192Z",
+      "unchangedButVerified": true
+    },
+    {
+      "id": "quality-wave-002:quality-wave-replenish-next",
+      "startedAt": "2026-08-29T07:36:31.198Z",
+      "implementation": [
+        "node scripts/autobot/replenish-production-backlog.mjs"
+      ],
+      "verify": [
+        "node --check scripts/autobot/replenish-production-backlog.mjs"
+      ],
+      "before": "M builder/brain/priority-policy.json\n M builder/brain/roadmap.json\n M builder/brain/task-library.json\n M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css\n M src/timelineDirector.js\n?? builder/brain/self-improvement-ledger.json\n?? builder/brain/self-improvement-report.json\n?? src/editQuality.js",
+      "after": "M builder/brain/priority-policy.json\n M builder/brain/roadmap.json\n M builder/brain/task-library.json\n M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css\n M src/timelineDirector.js\n?? builder/brain/self-improvement-ledger.json\n?? builder/brain/self-improvement-report.json\n?? src/editQuality.js",
+      "verification": [
+        {
+          "command": "node --check scripts/autobot/replenish-production-backlog.mjs",
+          "status": "passed"
+        }
+      ],
+      "completedAt": "2026-08-29T07:36:31.259Z",
+      "unchangedButVerified": true
+    },
+    {
+      "id": "quality-wave-002:quality-wave-plan-evidence",
+      "startedAt": "2026-08-29T07:36:31.264Z",
+      "implementation": [
+        "node scripts/autobot/quality-wave-evidence-runtime.mjs"
+      ],
+      "verify": [
+        "npm run build"
+      ],
+      "before": "M builder/brain/priority-policy.json\n M builder/brain/roadmap.json\n M builder/brain/task-library.json\n M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css\n M src/timelineDirector.js\n?? builder/brain/self-improvement-ledger.json\n?? builder/brain/self-improvement-report.json\n?? src/editQuality.js",
+      "after": "M builder/brain/priority-policy.json\n M builder/brain/roadmap.json\n M builder/brain/task-library.json\n M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/aiEditPlanner.js\n M src/apiRequest.js\n M src/captionPlanner.js\n M src/director.js\n M src/projectPersistence.js\n M src/socialExport.js\n M src/styles.css\n M src/timelineDirector.js\n?? builder/brain/self-improvement-ledger.json\n?? builder/brain/self-improvement-report.json\n?? src/editQuality.js",
+      "verification": [
+        {
+          "command": "npm run build",
+          "status": "passed"
+        }
+      ],
+      "completedAt": "2026-08-29T07:36:33.155Z",
+      "unchangedButVerified": true
     }
   ]
 }
