@@ -1,15 +1,36 @@
 {
-  "runId": "33114794608",
-  "status": "idle",
-  "objectiveId": null,
+  "runId": "33246351083",
+  "status": "objective-complete",
+  "objectiveId": "social-export",
   "currentTask": null,
-  "completedUnits": 0,
-  "totalUnits": 0,
-  "startedAt": "2026-08-27T20:45:04.910Z",
-  "updatedAt": "2026-08-27T20:45:04.912Z",
-  "heartbeatAt": "2026-08-27T20:45:04.912Z",
-  "message": "No eligible unfinished roadmap units. Idle.",
-  "files": [],
+  "completedUnits": 5,
+  "totalUnits": 5,
+  "startedAt": "2026-08-29T09:49:17.711Z",
+  "updatedAt": "2026-08-29T09:49:21.025Z",
+  "heartbeatAt": "2026-08-29T09:49:21.025Z",
+  "message": "All deterministic units verified.",
+  "files": [
+    {
+      "status": "M",
+      "path": "uilder/monitor/live-state.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/quality/autobot-readiness.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot-evidence.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot.json"
+    },
+    {
+      "status": "M",
+      "path": "src/socialExport.js"
+    }
+  ],
   "verification": [],
   "blockedReason": null
 }

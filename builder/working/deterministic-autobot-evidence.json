@@ -1,33 +1,48 @@
 {
   "schemaVersion": 2,
-  "runId": "33114794608",
-  "objectiveId": "cinematic-quality",
-  "startedAt": "2026-08-27T20:45:03.610Z",
+  "runId": "33246351083",
+  "objectiveId": "social-export",
+  "startedAt": "2026-08-29T09:49:17.711Z",
   "units": [
     {
-      "id": "cinematic-shot-motion-contract",
-      "startedAt": "2026-08-27T20:45:03.615Z",
+      "id": "export-delivery-hardening",
+      "startedAt": "2026-08-29T09:49:17.723Z",
       "implementation": [
-        "node scripts/autobot/cinematic-quality-runtime.mjs"
+        "node scripts/autobot/export-delivery-hardening-runtime.mjs"
       ],
       "verify": [
-        "npm run build",
-        "node scripts/autobot/cinematic-quality-contract-check.mjs"
+        "npm run build"
       ],
-      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/socialExport.js",
-      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M public/sw.js\n M src/App.jsx\n M src/apiRequest.js\n M src/director.js\n M src/socialExport.js",
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot.json",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot.json\n M src/socialExport.js",
       "verification": [
         {
           "command": "npm run build",
           "status": "passed"
-        },
+        }
+      ],
+      "completedAt": "2026-08-29T09:49:19.385Z",
+      "unchangedButVerified": false
+    },
+    {
+      "id": "export-validation-hardening",
+      "startedAt": "2026-08-29T09:49:19.441Z",
+      "implementation": [
+        "node scripts/autobot/export-validation-hardening-runtime.mjs"
+      ],
+      "verify": [
+        "npm run build"
+      ],
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/socialExport.js",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/socialExport.js",
+      "verification": [
         {
-          "command": "node scripts/autobot/cinematic-quality-contract-check.mjs",
+          "command": "npm run build",
           "status": "passed"
         }
       ],
-      "completedAt": "2026-08-27T20:45:04.880Z",
-      "unchangedButVerified": false
+      "completedAt": "2026-08-29T09:49:21.025Z",
+      "unchangedButVerified": true
     }
   ]
 }

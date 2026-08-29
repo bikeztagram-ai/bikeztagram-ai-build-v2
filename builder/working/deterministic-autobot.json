@@ -1,21 +1,57 @@
 {
-  "objectiveId": null,
-  "completed": [],
-  "verifiedThisRun": [],
-  "totalUnits": 0,
-  "status": "idle",
+  "objectiveId": "social-export",
+  "completed": [
+    "export-profiles-and-validation",
+    "export-duration-guard",
+    "export-profile-metadata",
+    "export-delivery-hardening",
+    "export-validation-hardening"
+  ],
+  "verifiedThisRun": [
+    "export-delivery-hardening"
+  ],
+  "noOpVerifiedThisRun": [
+    "export-validation-hardening"
+  ],
+  "totalUnits": 5,
   "currentTask": null,
-  "files": [],
+  "status": "objective-complete",
+  "files": [
+    {
+      "status": "M",
+      "path": "uilder/monitor/live-state.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/quality/autobot-readiness.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot-evidence.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot.json"
+    },
+    {
+      "status": "M",
+      "path": "src/socialExport.js"
+    }
+  ],
   "history": {
     "tasks": [
       "cinematic-quality:cinematic-shot-motion-contract",
       "mobile-pwa:pwa-versioned-cache-contract",
       "project-persistence:persistence-audit-and-contract",
+      "project-persistence:persistence-hardening-inspection",
+      "project-persistence:persistence-migration-hardening",
       "project-persistence:persistence-runtime",
       "provider-resilience:provider-failure-classification",
+      "social-export:export-delivery-hardening",
       "social-export:export-duration-guard",
       "social-export:export-profile-metadata",
-      "social-export:export-profiles-and-validation"
+      "social-export:export-profiles-and-validation",
+      "social-export:export-validation-hardening"
     ],
     "objectives": [
       "cinematic-quality",
@@ -25,5 +61,6 @@
       "social-export"
     ]
   },
-  "updatedAt": "2026-08-27T20:45:04.912Z"
+  "lastVerifiedTask": "export-validation-hardening",
+  "updatedAt": "2026-08-29T09:49:21.025Z"
 }
