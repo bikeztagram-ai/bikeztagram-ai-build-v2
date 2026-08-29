@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Free/local AI only. No provider API keys are used.
+# Bikeztagram's autonomous builder uses a local coding model only.
+# No OpenAI, Gemini, or other provider API is required for the builder brain.
 if ! command -v ollama >/dev/null 2>&1; then
   curl -fsSL https://ollama.com/install.sh | sh
 fi
@@ -13,9 +14,20 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-MODEL="${LOCAL_AI_MODEL:-qwen2.5-coder:1.5b-instruct}"
+# 3B is the default because the builder must produce useful production code,
+# not merely plausible-looking edits. The smaller model remains an explicit
+# fallback for constrained runners.
+MODEL="${LOCAL_AI_MODEL:-qwen2.5-coder:3b}"
 echo "[autobot] pulling local coding model: $MODEL"
-ollama pull "$MODEL"
+if ! ollama pull "$MODEL"; then
+  if [[ -z "${LOCAL_AI_MODEL:-}" ]]; then
+    MODEL="qwen2.5-coder:1.5b-instruct"
+    echo "[autobot] 3B model unavailable; falling back to $MODEL"
+    ollama pull "$MODEL"
+  else
+    exit 1
+  fi
+fi
 
 curl -fsS http://127.0.0.1:11434/api/chat \
   -H 'Content-Type: application/json' \
