@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "purpose": "Coherent multi-file product objectives for unattended Bikeztagram engineering.",
+  "features": [
+    {
+      "id": "cinematic-edit-quality",
+      "title": "Cinematic edit quality",
+      "priority": 100,
+      "files": ["src/director.js", "src/aiEditPlanner.js", "src/renderer.js"],
+      "objective": "Improve the real editing pipeline so director decisions produce a coherent hook/build/reveal/action/hero sequence, varied purposeful motion and transitions, and reliable timing in the final render.",
+      "acceptance": ["planner output is consumed by the renderer", "no invented media", "shot variety is deterministic", "rendered timing remains valid", "npm run build passes"]
+    },
+    {
+      "id": "editor-reliability",
+      "title": "Editor reliability",
+      "priority": 95,
+      "files": ["src/App.jsx", "src/projectPersistence.js"],
+      "objective": "Make interrupted analysis, reload and missing-media situations recoverable in the real editor without losing usable project metadata.",
+      "acceptance": ["reload restores usable editor state", "missing media is explicit", "failed operations have actionable recovery", "npm run build passes"]
+    },
+    {
+      "id": "social-export",
+      "title": "Social export reliability",
+      "priority": 90,
+      "files": ["src/renderer.js", "src/socialExport.js", "src/App.jsx"],
+      "objective": "Make final social exports reliable across 9:16, 1:1 and 16:9 profiles with truthful duration, progress and failure handling.",
+      "acceptance": ["profile selection reaches output", "duration metadata agrees with rendered output", "unsupported paths fail clearly", "npm run build passes"]
+    },
+    {
+      "id": "mobile-editor",
+      "title": "Android editor experience",
+      "priority": 80,
+      "files": ["src/App.jsx", "src/styles.css"],
+      "objective": "Improve touch-first editing on Android while preserving the cinematic visual identity and existing workflow.",
+      "acceptance": ["primary controls are touch-safe", "status and errors remain readable", "layout works at narrow widths", "reduced motion is respected"]
+    }
+  ]
+}

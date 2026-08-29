@@ -14,13 +14,17 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# 3B is the default because the builder must produce useful production code,
-# not merely plausible-looking edits. The smaller model remains an explicit
-# fallback for constrained runners.
+# The legacy 1.5B model was too weak/slow for production code generation.
+# Treat that old default as stale and automatically promote it to 3B.
 MODEL="${LOCAL_AI_MODEL:-qwen2.5-coder:3b}"
+if [[ "$MODEL" == "qwen2.5-coder:1.5b" || "$MODEL" == "qwen2.5-coder:1.5b-instruct" ]]; then
+  echo "[autobot] legacy 1.5B model requested; promoting local coding brain to qwen2.5-coder:3b"
+  MODEL="qwen2.5-coder:3b"
+fi
+
 echo "[autobot] pulling local coding model: $MODEL"
 if ! ollama pull "$MODEL"; then
-  if [[ -z "${LOCAL_AI_MODEL:-}" ]]; then
+  if [[ "$MODEL" == "qwen2.5-coder:3b" && -z "${LOCAL_AI_MODEL:-}" ]]; then
     MODEL="qwen2.5-coder:1.5b-instruct"
     echo "[autobot] 3B model unavailable; falling back to $MODEL"
     ollama pull "$MODEL"

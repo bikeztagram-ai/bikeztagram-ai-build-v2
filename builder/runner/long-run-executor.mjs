@@ -45,10 +45,14 @@ function runLocalBrain() {
   localBrainStarted = true;
   const minutes = Math.max(1, Math.floor(remainingMinutes()));
   console.log(`[autobot] deterministic roadmap is exhausted; starting Bikeztagram local AI brain with ${minutes} minutes remaining.`);
-  const env = { ...process.env, BUILDER_MAX_MINUTES: String(minutes), LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || 'qwen2.5-coder:1.5b-instruct', AUTOBOT_LOCAL_PASSES: process.env.AUTOBOT_LOCAL_PASSES || '1000' };
+  const env = { ...process.env, BUILDER_MAX_MINUTES: String(minutes), LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || 'qwen2.5-coder:3b', AUTOBOT_LOCAL_PASSES: process.env.AUTOBOT_LOCAL_PASSES || '1000' };
   const result = spawnSync(process.execPath, ['builder/runner/local-brain.mjs'], { cwd: root, stdio: 'inherit', env });
   if (result.error) { console.error(`[autobot] local AI brain failed to start: ${result.error.message}`); return 1; }
-  return result.status ?? 1;
+  if ((result.status ?? 1) !== 0) return result.status ?? 1;
+  console.log('[autobot] local brain finished; running mandatory self-repair/build verification.');
+  const repair = spawnSync(process.execPath, ['builder/runner/self-repair.mjs'], { cwd: root, stdio: 'inherit', env });
+  if (repair.error) { console.error(`[autobot] self-repair failed to start: ${repair.error.message}`); return 1; }
+  return repair.status ?? 1;
 }
 
 seedFromCheckpoint();
@@ -60,9 +64,7 @@ while (totalUnits < requestedUnits && remainingMinutes() > 0) {
   const verifiedThisRun = Array.isArray(state?.verifiedThisRun) ? state.verifiedThisRun : [];
   totalUnits += verifiedThisRun.length;
   if (state?.history?.objectives) for (const objectiveId of state.history.objectives) completedObjectives.add(objectiveId);
-
   if (state?.status === 'blocked') { console.error(`[autobot] Blocked: ${state.error || 'unknown reason'}`); process.exit(2); }
-
   if (state?.status === 'idle' || state?.status === 'objective-complete') {
     if (remainingMinutes() <= 1) break;
     if (state?.status === 'idle' && totalUnits < requestedUnits && replenishBacklog()) continue;
@@ -70,7 +72,6 @@ while (totalUnits < requestedUnits && remainingMinutes() > 0) {
     if (localStatus !== 0) process.exit(localStatus);
     break;
   }
-
   if (verifiedThisRun.length === 0) {
     console.log('[autobot] Deterministic executor produced no new verified units; handing remaining budget to local AI instead of stopping.');
     const localStatus = runLocalBrain();
