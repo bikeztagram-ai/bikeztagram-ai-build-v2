@@ -1,29 +1,93 @@
 {
-  "objectiveId": null,
-  "completed": [],
+  "objectiveId": "quality-wave-003",
+  "completed": [
+    "quality-wave-003:quality-wave-motion-contract",
+    "quality-wave-003:quality-wave-transition-contract",
+    "quality-wave-003:quality-wave-replenish-next",
+    "quality-wave-003:quality-wave-plan-evidence"
+  ],
   "verifiedThisRun": [],
-  "totalUnits": 0,
-  "status": "idle",
+  "noOpVerifiedThisRun": [
+    "quality-wave-003:quality-wave-motion-contract",
+    "quality-wave-003:quality-wave-transition-contract",
+    "quality-wave-003:quality-wave-replenish-next",
+    "quality-wave-003:quality-wave-plan-evidence"
+  ],
+  "totalUnits": 4,
   "currentTask": null,
-  "files": [],
+  "status": "objective-complete",
+  "files": [
+    {
+      "status": "M",
+      "path": "uilder/monitor/live-state.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/quality/autobot-readiness.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot-evidence.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot.json"
+    }
+  ],
   "history": {
     "tasks": [
+      "builder-self-improvement:self-improvement-analysis",
+      "builder-self-improvement:self-improvement-policy",
+      "builder-self-improvement:self-improvement-replenish-backlog",
+      "cinematic-quality:cinematic-pacing-score",
       "cinematic-quality:cinematic-shot-motion-contract",
+      "cinematic-quality:director-diversity-ranking",
+      "director-intelligence:caption-safety-filter",
+      "director-intelligence:caption-timing-normalisation",
+      "director-intelligence:director-continuity-score",
+      "director-intelligence:director-story-beats",
+      "director-intelligence:director-story-planner-integration",
+      "mobile-pwa:mobile-reduced-motion-hardening",
+      "mobile-pwa:mobile-safe-area-hardening",
       "mobile-pwa:pwa-versioned-cache-contract",
       "project-persistence:persistence-audit-and-contract",
+      "project-persistence:persistence-hardening-inspection",
+      "project-persistence:persistence-migration-hardening",
       "project-persistence:persistence-runtime",
       "provider-resilience:provider-failure-classification",
+      "provider-resilience:provider-recovery-hardening",
+      "provider-resilience:provider-retry-hardening",
+      "quality-wave-001:quality-wave-001:quality-wave-motion-contract",
+      "quality-wave-001:quality-wave-001:quality-wave-plan-evidence",
+      "quality-wave-001:quality-wave-001:quality-wave-replenish-next",
+      "quality-wave-001:quality-wave-001:quality-wave-transition-contract",
+      "quality-wave-002:quality-wave-002:quality-wave-motion-contract",
+      "quality-wave-002:quality-wave-002:quality-wave-plan-evidence",
+      "quality-wave-002:quality-wave-002:quality-wave-replenish-next",
+      "quality-wave-002:quality-wave-002:quality-wave-transition-contract",
+      "quality-wave-003:quality-wave-003:quality-wave-motion-contract",
+      "quality-wave-003:quality-wave-003:quality-wave-plan-evidence",
+      "quality-wave-003:quality-wave-003:quality-wave-replenish-next",
+      "quality-wave-003:quality-wave-003:quality-wave-transition-contract",
+      "social-export:export-delivery-hardening",
       "social-export:export-duration-guard",
       "social-export:export-profile-metadata",
-      "social-export:export-profiles-and-validation"
+      "social-export:export-profiles-and-validation",
+      "social-export:export-validation-hardening"
     ],
     "objectives": [
+      "builder-self-improvement",
       "cinematic-quality",
+      "director-intelligence",
       "mobile-pwa",
       "project-persistence",
       "provider-resilience",
+      "quality-wave-001",
+      "quality-wave-002",
+      "quality-wave-003",
       "social-export"
     ]
   },
-  "updatedAt": "2026-08-27T20:45:04.912Z"
+  "lastVerifiedTask": "quality-wave-003:quality-wave-plan-evidence",
+  "updatedAt": "2026-08-29T07:37:02.918Z"
 }

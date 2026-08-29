@@ -1,15 +1,31 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "objectiveWeights": {
-    "production-implementation": 1,
+    "production-implementation": 1.25,
     "production-integration": 1,
-    "production-enhancement": 1,
+    "production-enhancement": 1.25,
     "production-hardening": 1,
     "accessibility-hardening": 1,
-    "builder-analysis": 1,
+    "builder-analysis": 0.5,
     "builder-hardening": 1,
-    "self-improvement": 1
+    "self-improvement": 1.25
   },
   "maxAdjustment": 1,
-  "updatedAt": null
+  "updatedAt": "2026-08-29T07:36:21.331Z",
+  "sourceRunId": "33241201258",
+  "sourceSignatures": [
+    "high-no-op-rate",
+    "low-production-yield",
+    "premature-run-completion"
+  ],
+  "sourceMetrics": {
+    "units": 5,
+    "changedUnits": 1,
+    "noOpUnits": 4,
+    "failures": 0,
+    "elapsedMinutes": 0.161,
+    "changedRatio": 0.2,
+    "noOpRatio": 0.8,
+    "failureKinds": []
+  }
 }
