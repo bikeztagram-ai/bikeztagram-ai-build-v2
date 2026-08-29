@@ -1,18 +1,19 @@
 {
-  "objectiveId": "project-persistence",
+  "objectiveId": "social-export",
   "completed": [
-    "persistence-audit-and-contract",
-    "persistence-runtime",
-    "persistence-hardening-inspection",
-    "persistence-migration-hardening"
+    "export-profiles-and-validation",
+    "export-duration-guard",
+    "export-profile-metadata",
+    "export-delivery-hardening",
+    "export-validation-hardening"
   ],
   "verifiedThisRun": [
-    "persistence-hardening-inspection"
+    "export-delivery-hardening"
   ],
   "noOpVerifiedThisRun": [
-    "persistence-migration-hardening"
+    "export-validation-hardening"
   ],
-  "totalUnits": 4,
+  "totalUnits": 5,
   "currentTask": null,
   "status": "objective-complete",
   "files": [
@@ -34,7 +35,7 @@
     },
     {
       "status": "M",
-      "path": "src/projectPersistence.js"
+      "path": "src/socialExport.js"
     }
   ],
   "history": {
@@ -46,9 +47,11 @@
       "project-persistence:persistence-migration-hardening",
       "project-persistence:persistence-runtime",
       "provider-resilience:provider-failure-classification",
+      "social-export:export-delivery-hardening",
       "social-export:export-duration-guard",
       "social-export:export-profile-metadata",
-      "social-export:export-profiles-and-validation"
+      "social-export:export-profiles-and-validation",
+      "social-export:export-validation-hardening"
     ],
     "objectives": [
       "cinematic-quality",
@@ -58,6 +61,6 @@
       "social-export"
     ]
   },
-  "lastVerifiedTask": "persistence-migration-hardening",
-  "updatedAt": "2026-08-29T10:49:43.295Z"
+  "lastVerifiedTask": "export-validation-hardening",
+  "updatedAt": "2026-08-29T10:53:09.508Z"
 }
