@@ -15,12 +15,41 @@ export const OUTPUT_PRESETS = Object.freeze({
   })
 });
 
-export function resolveOutputPreset(value = 'portrait', creativePrompt = '') {
-  const explicit = String(value || '').toLowerCase();
-  if (OUTPUT_PRESETS[explicit]) return OUTPUT_PRESETS[explicit];
-  const prompt = String(creativePrompt || '').toLowerCase();
-  if (/\b(16:?9|landscape|horizontal|widescreen|youtube)\b/.test(prompt)) return OUTPUT_PRESETS.landscape;
-  if (/\b(1:?1|square|feed post)\b/.test(prompt)) return OUTPUT_PRESETS.square;
+const NORMALISE_PROMPT = (value) => String(value || '')
+  .toLowerCase()
+  .replace(/[×x]/g, ':')
+  .replace(/[–—]/g, '-')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+/**
+ * Resolve the requested delivery shape from an explicit preset or natural
+ * language creative brief. The renderer owns the actual transcode; this
+ * helper only turns creator intent into one of the supported contracts.
+ *
+ * `undefined`/empty means "infer from the prompt". This matters because the
+ * renderer passes no explicit preset when the creator only describes the
+ * desired format in natural language.
+ */
+export function resolveOutputPreset(value = '', creativePrompt = '') {
+  const explicit = String(value || '').toLowerCase().trim();
+  if (explicit && OUTPUT_PRESETS[explicit]) return OUTPUT_PRESETS[explicit];
+
+  const prompt = NORMALISE_PROMPT(creativePrompt);
+
+  // Social/mobile language should win over the generic default. These aliases
+  // are intentionally broad because creators commonly say "vertical reel"
+  // rather than explicitly typing 9:16.
+  if (/\b(9:?16|vertical|portrait|reel|reels|tiktok|shorts|youtube shorts|instagram reels|stories|story)\b/.test(prompt)) {
+    return OUTPUT_PRESETS.portrait;
+  }
+  if (/\b(1:?1|square|feed post|instagram feed|social square)\b/.test(prompt)) {
+    return OUTPUT_PRESETS.square;
+  }
+  if (/\b(16:?9|landscape|horizontal|widescreen|youtube|desktop video|cinema|cinematic widescreen)\b/.test(prompt)) {
+    return OUTPUT_PRESETS.landscape;
+  }
+
   return OUTPUT_PRESETS.portrait;
 }
 
