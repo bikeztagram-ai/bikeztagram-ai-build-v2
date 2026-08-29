@@ -29,20 +29,24 @@ const attemptedThisRun=new Set();
 function save() { fs.mkdirSync(path.dirname(statePath),{recursive:true}); fs.writeFileSync(statePath,JSON.stringify({version:1,completed:[...completed],failed:state.failed||{},updatedAt:new Date().toISOString()},null,2)+'\n'); }
 function context(obj) {
   const chunks=[`OBJECTIVE: ${obj.title}\nPriority: ${obj.priority}\nAcceptance:\n- ${obj.acceptance.join('\n- ')}\nConstraints:\n- ${obj.constraints.join('\n- ')}`];
-  for(const p of obj.files) chunks.push(`===== ${p} =====\n${read(p,3500)}`);
-  chunks.push(`===== PROJECT MEMORY =====\n${read('builder/quality/project-memory.md',2200)}`);
-  chunks.push(`===== LESSONS =====\n${read('builder/quality/lessons.md',1800)}`);
-  return chunks.join('\n\n').slice(0,15500);
+  for(const p of obj.files) chunks.push(`===== ${p} =====\n${read(p,4500)}`);
+  chunks.push(`===== PROJECT MEMORY =====\n${read('builder/quality/project-memory.md',2600)}`);
+  chunks.push(`===== LESSONS =====\n${read('builder/quality/lessons.md',2200)}`);
+  chunks.push(`===== RECENT BUILDER METRICS =====\n${read('builder/reviews/builder-metrics.json',2200)}`);
+  return chunks.join('\n\n').slice(0,18500);
 }
 function choose() {
   const available=objectives.filter(o=>!completed.has(o.id)&&!attemptedThisRun.has(o.id));
-  if(available.length) return available.sort((a,b)=>(b.priority||0)-(a.priority||0))[0];
-  return null;
+  if(!available.length) return null;
+  return available.sort((a,b)=>{
+    const af=state.failed?.[a.id]?.attempts||0, bf=state.failed?.[b.id]?.attempts||0;
+    return ((b.priority||0)-bf*8)-((a.priority||0)-af*8);
+  })[0];
 }
 function modelCall(obj) {
   const previous=state.failed?.[obj.id]?.message||'none';
-  const prompt=`You are the primary implementation engineer for Bikeztagram AI. Implement ONE coherent, production-quality increment of this exact objective. This is real product work, not planning. You may modify ONLY the files listed for the objective. Prefer the smallest set of those files necessary, but if behaviour genuinely crosses files, change them coherently. Preserve exports/contracts. Do not add dependencies. Do not modify builder infrastructure, workflows, secrets, Vercel infrastructure, or protected paths. Do not invent media or APIs. Do not return commentary. Return ONLY a valid unified git diff beginning with diff --git. If a previous attempt failed, fix the underlying issue rather than repeating it.\n\n${context(obj)}\n\nPREVIOUS ATTEMPT RESULT: ${previous}`;
-  const body=JSON.stringify({model,stream:false,keep_alive:'10m',options:{temperature:0.05,num_ctx:8192,num_predict:3500},messages:[{role:'system',content:'You are a senior software engineer. Write real maintainable production code and respect the supplied scope.'},{role:'user',content:prompt}]});
+  const prompt=`You are the primary implementation engineer for Bikeztagram AI. Implement ONE coherent, production-quality increment of this exact objective. This is real product work, not planning. You may modify ONLY the files listed for the objective. Prefer the smallest set of those files necessary, but if behaviour genuinely crosses files, change them coherently. Preserve exports/contracts. Do not add dependencies. Do not modify builder infrastructure, workflows, secrets, Vercel infrastructure, or protected paths. Do not invent media or APIs. Do not return commentary. Return ONLY a valid unified git diff beginning with diff --git. If a previous attempt failed, diagnose and fix the underlying issue rather than repeating it. Use the acceptance criteria as the definition of done.\n\n${context(obj)}\n\nPREVIOUS ATTEMPT RESULT: ${previous}`;
+  const body=JSON.stringify({model,stream:false,keep_alive:'10m',options:{temperature:0.05,num_ctx:8192,num_predict:3500},messages:[{role:'system',content:'You are a senior software engineer. Write real maintainable production code and respect the supplied objective.'},{role:'user',content:prompt}]});
   const sec=Math.min(timeoutSeconds,Math.max(60,Math.floor(left()*60)));
   const r=spawnSync('curl',['-sS','--fail','--max-time',String(sec),`${host}/api/chat`,'-H','Content-Type: application/json','-d',body],{cwd:root,encoding:'utf8'});
   if(r.status!==0) throw new Error(r.stderr||`local model request failed (${r.status})`);
@@ -60,6 +64,7 @@ function validPatch(p,obj){
   return codeAdded.length>=3&&add.length<=300&&del.length<=300;
 }
 function apply(p){const f=file('.autobot-feature.patch');fs.writeFileSync(f,p);try{run('git',['apply','--index','--whitespace=fix',f],{stdio:'inherit'});}finally{fs.rmSync(f,{force:true});}}
+function resetFailedPatch(){try{run('git',['reset','--hard','HEAD'],{stdio:'inherit'});run('git',['clean','-fd','--exclude=.git'],{stdio:'inherit'});}catch{}}
 
 if(process.env.LOCAL_AI_READY!=='1'){console.error('[autobot] local AI unavailable; feature brain refuses paid fallback');process.exit(2);}
 for(let n=1;n<=maxFeatures&&left()>1;n++){
@@ -77,7 +82,8 @@ for(let n=1;n<=maxFeatures&&left()>1;n++){
     console.log(`[autobot] VERIFIED FEATURE: ${obj.id}`);
   } catch(e) {
     state.failed ||= {}; state.failed[obj.id]={message:e.message,at:new Date().toISOString(),attempts:(state.failed[obj.id]?.attempts||0)+1}; save();
-    console.error(`[autobot] feature ${obj.id} failed: ${e.message}`);
+    resetFailedPatch();
+    console.error(`[autobot] feature ${obj.id} failed and was reset: ${e.message}`);
   }
 }
 save();
