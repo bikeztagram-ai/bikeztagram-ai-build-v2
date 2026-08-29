@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Run the deterministic builder repeatedly, replenishing bounded production work when the queue is exhausted. */
+/** Sustained deterministic work followed by a real OpenAI Codex engineering layer. */
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -32,16 +32,22 @@ function runOnce(minutes, units) {
   return result.status ?? 1;
 }
 function replenishBacklog() {
-  if (replenishments >= maxReplenishments) { console.log(`[autobot] replenishment cap ${maxReplenishments} reached; stopping safely.`); return false; }
-  const env = { ...process.env, AUTOBOT_MAX_GENERATED_WAVES: String(maxReplenishments) };
-  const result = spawnSync(process.execPath, ['scripts/autobot/replenish-production-backlog.mjs'], { cwd: root, stdio: 'inherit', env });
-  if (result.error || result.status !== 0) { console.error('[autobot] bounded backlog replenishment failed; stopping safely.'); return false; }
+  if (replenishments >= maxReplenishments) { console.log(`[autobot] replenishment cap ${maxReplenishments} reached.`); return false; }
+  const result = spawnSync(process.execPath, ['scripts/autobot/replenish-production-backlog.mjs'], { cwd: root, stdio: 'inherit', env: { ...process.env, AUTOBOT_MAX_GENERATED_WAVES: String(maxReplenishments) } });
+  if (result.error || result.status !== 0) { console.error('[autobot] bounded backlog replenishment failed.'); return false; }
   replenishments += 1;
   return true;
 }
+function runCodexLayer() {
+  if (!process.env.OPENAI_API_KEY || remainingMinutes() <= 1) return;
+  console.log(`[autobot] deterministic queue exhausted; handing remaining ${remainingMinutes().toFixed(1)} minutes to OpenAI Codex engineering layer.`);
+  const result = spawnSync(process.execPath, ['builder/runner/ai-long-run.mjs'], { cwd: root, stdio: 'inherit', env: { ...process.env, BUILDER_MAX_MINUTES: String(Math.max(1, Math.floor(remainingMinutes()))) } });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`Codex engineering layer exited with ${result.status}`);
+}
 
 seedFromCheckpoint();
-while (totalUnits < requestedUnits && remainingMinutes() > 0) {
+while (totalUnits < requestedUnits && remainingMinutes() > 1) {
   iteration += 1;
   const status = runOnce(remainingMinutes(), requestedUnits - totalUnits);
   const state = readState();
@@ -50,11 +56,14 @@ while (totalUnits < requestedUnits && remainingMinutes() > 0) {
   totalUnits += verifiedThisRun.length;
   if (state?.history?.objectives) for (const objectiveId of state.history.objectives) completedObjectives.add(objectiveId);
   if (state?.status === 'idle') {
-    if (remainingMinutes() <= 0 || totalUnits >= requestedUnits || !replenishBacklog()) break;
-    continue;
+    if (remainingMinutes() <= 1 || totalUnits >= requestedUnits) break;
+    if (replenishBacklog()) continue;
+    runCodexLayer();
+    break;
   }
   if (state?.status === 'blocked') { console.error(`[autobot] Blocked: ${state.error || 'unknown reason'}`); process.exit(2); }
-  if (verifiedThisRun.length === 0) { console.error('[autobot] No new verified units were produced; stopping to prevent a false sustained loop.'); break; }
+  if (verifiedThisRun.length === 0) { runCodexLayer(); break; }
   if (state?.status !== 'objective-complete' && state?.status !== 'checkpointed') break;
 }
-console.log(`[autobot] Sustained run finished: ${totalUnits}/${requestedUnits} verified units; ${((Date.now() - started) / 60000).toFixed(2)} minutes elapsed; replenishments=${replenishments}.`);
+if (remainingMinutes() > 1 && totalUnits < requestedUnits && process.env.OPENAI_API_KEY) runCodexLayer();
+console.log(`[autobot] Sustained run finished: ${totalUnits}/${requestedUnits} deterministic units; ${((Date.now() - started) / 60000).toFixed(2)} minutes elapsed; replenishments=${replenishments}.`);
