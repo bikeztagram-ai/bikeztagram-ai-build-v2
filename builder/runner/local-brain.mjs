@@ -6,6 +6,10 @@
  * open-source coding model on the GitHub worker. The model proposes one
  * small, targeted unified diff at a time; this agent validates and applies
  * it, then the next pass reviews the real repository again.
+ *
+ * Important: this is a product engineer, not a random code generator.
+ * Every pass receives a concrete quality brief for its target file and must
+ * improve a real user-visible capability while preserving working paths.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,7 +17,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const minutes = Number.parseInt(process.env.BUILDER_MAX_MINUTES || '60', 10);
-const model = process.env.LOCAL_AI_MODEL || 'qwen2.5-coder:1.5b-instruct';
+const model = process.env.LOCAL_AI_MODEL || 'qwen2.5-coder:3b';
 const ollamaUrl = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
 const started = Date.now();
 let pass = 0;
@@ -25,12 +29,35 @@ const left = () => Math.max(0, minutes - (Date.now() - started) / 60000);
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: root, encoding: 'utf8', ...opts });
 const status = () => run('git', ['status', '--porcelain']).trim();
 
-const targetFiles = [
-  'src/App.jsx',
-  'src/director.js',
-  'src/renderer.js',
-  'src/musicProvider.js',
-  'src/styles.css'
+const targetBriefs = [
+  {
+    file: 'src/App.jsx',
+    brief: 'Make the editor lifecycle more production-grade: truthful loading/error/recovery states, resilient analysis/render flows, clear user feedback, and Android-friendly interaction. Do not weaken working upload, render, persistence, or export paths.'
+  },
+  {
+    file: 'src/director.js',
+    brief: 'Improve deterministic director intelligence: quality-aware shot ranking, explicit hook/build/reveal/action/hero/outro story roles, subject diversity, prompt-aware selection, and auditable decisions. Never invent media.'
+  },
+  {
+    file: 'src/aiEditPlanner.js',
+    brief: 'Improve the actual edit plan: stronger pacing and continuity, purposeful shot duration, motion and transition variety, prompt-aware story structure, and protection against repetitive or weak cuts. Preserve existing successful planner inputs and outputs.'
+  },
+  {
+    file: 'src/renderer.js',
+    brief: 'Improve real rendered-film quality and reliability: apply shot-specific motion/transition/timing data consistently, preserve source framing, avoid black frames and timing drift, and keep browser rendering/export stable. Do not rewrite the renderer wholesale.'
+  },
+  {
+    file: 'src/socialExport.js',
+    brief: 'Improve social delivery quality: canonical 9:16, 1:1 and 16:9 profiles, deterministic metadata/filenames, safe validation, and truthful duration/output checks without breaking download/share.'
+  },
+  {
+    file: 'src/projectPersistence.js',
+    brief: 'Improve real project recovery: schema-safe snapshots, migration, last-known-good recovery, truthful missing-media handling, and serialisable state. Never persist File/Blob/object URLs as if they were durable media.'
+  },
+  {
+    file: 'src/styles.css',
+    brief: 'Improve the actual Android/PWA editing experience: safe areas, touch targets, readable status/error states, responsive timeline/control layout, and reduced-motion support without changing the cinematic visual identity.'
+  }
 ];
 
 function readBounded(file, limit = 7000) {
@@ -41,22 +68,20 @@ function readBounded(file, limit = 7000) {
 }
 
 function context(target) {
-  const memory = readBounded('builder/quality/project-memory.md', 4500);
-  const lessons = readBounded('builder/quality/lessons.md', 3500);
-  const packageJson = readBounded('package.json', 3500);
-  const source = readBounded(target, 9000);
+  const memory = readBounded('builder/quality/project-memory.md', 3500);
+  const lessons = readBounded('builder/quality/lessons.md', 3000);
+  const packageJson = readBounded('package.json', 3000);
+  const source = readBounded(target, 10000);
   return [
     `===== TARGET FILE: ${target} =====\n${source}`,
     `===== PROJECT MEMORY =====\n${memory}`,
     `===== LESSONS =====\n${lessons}`,
     `===== PACKAGE =====\n${packageJson}`
-  ].join('\n\n').slice(0, 23000);
+  ].join('\n\n').slice(0, 21000);
 }
 
 function chooseTarget() {
-  // Rotate through real product code so the tiny local model never receives
-  // the entire repository in one prompt.
-  return targetFiles[pass % targetFiles.length];
+  return targetBriefs[pass % targetBriefs.length];
 }
 
 function callModel(prompt) {
@@ -65,14 +90,14 @@ function callModel(prompt) {
     stream: false,
     keep_alive: '10m',
     options: {
-      temperature: 0.1,
+      temperature: 0.05,
       num_ctx: 8192,
-      num_predict: 1400
+      num_predict: 1800
     },
     messages: [
       {
         role: 'system',
-        content: 'You are Bikeztagram AI, a local autonomous software engineer. Return ONLY one small valid unified git diff. Never use markdown fences or commentary. Change only the named target file unless a second file is absolutely required. Prefer a focused production improvement over a large refactor.'
+        content: 'You are Bikeztagram AI, a senior local autonomous product engineer. You are improving a real production React/Vite motorcycle cinematic editor. Return ONLY one small valid unified git diff. Never use markdown fences or commentary. Change only the named target file unless a second file is absolutely required for the same behavior. Do not make cosmetic, formatting-only, speculative, placeholder, TODO, or documentation-only changes. Prefer a measurable user-visible capability. Preserve existing working behavior and public function contracts.'
       },
       { role: 'user', content: prompt }
     ]
@@ -96,6 +121,16 @@ function cleanPatch(text) {
   return start >= 0 ? candidate.slice(start).trim() : '';
 }
 
+function patchLooksMeaningful(patch, target) {
+  if (!patch || !patch.includes(` b/${target}`)) return false;
+  const added = patch.split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++'));
+  const removed = patch.split('\n').filter(line => line.startsWith('-') && !line.startsWith('---'));
+  const nonCommentAdded = added.filter(line => !/^\+\s*(?:\/\/|\/\*|\*|#|$)/.test(line));
+  if (nonCommentAdded.length < 2) return false;
+  if (added.length > 180 || removed.length > 180) return false;
+  return true;
+}
+
 function applyPatch(patch) {
   const file = path.join(root, '.autobot-local.patch');
   fs.writeFileSync(file, patch, 'utf8');
@@ -115,9 +150,9 @@ while (pass < maxPasses && left() > 1) {
   pass += 1;
   const target = chooseTarget();
   const before = status();
-  const prompt = `Build Bikeztagram AI itself. Make ONE small, high-impact, user-visible improvement in the TARGET FILE below. Focus on cinematic editing quality, intelligent media selection, motion/transitions, pacing, audio, export/render reliability, media analysis, or Android UX. Do not change .github/workflows, builder infrastructure, secrets, API keys, or dependencies. Do not rewrite working code unnecessarily. The diff must be small enough to review and apply safely. Run/build-safe code only. If the previous attempt failed, repair that issue first. Return ONLY a unified git diff.\n\nTARGET FILE: ${target}\n\nPrevious validation issue: ${previousFailure || 'none'}\n\nTime remaining: ${left().toFixed(1)} minutes.\n\nRepository context:\n${context(target)}`;
+  const prompt = `Build Bikeztagram AI itself. Make ONE small, high-impact production improvement in the TARGET FILE.\n\nQUALITY BRIEF:\n${target.brief}\n\nRules:\n- Implement real working code, not a comment describing future work.\n- Do not invent APIs, dependencies, media, or test results.\n- Do not change .github/workflows, builder infrastructure, secrets, API keys, or dependencies.\n- Do not rewrite working code unnecessarily.\n- Preserve existing exports and call contracts unless the change is strictly backward compatible.\n- Prefer a small deterministic improvement that can be verified with the existing build/tests.\n- If the previous attempt failed, repair that issue first.\n- Return ONLY a unified git diff for ${target.file}.\n\nTARGET FILE: ${target.file}\n\nPrevious validation issue: ${previousFailure || 'none'}\n\nTime remaining: ${left().toFixed(1)} minutes.\n\nRepository context:\n${context(target.file)}`;
 
-  console.log(`[autobot] Local brain pass ${pass}/${maxPasses}; target=${target}; ${left().toFixed(1)} minutes remaining; model=${model}; timeout=${perPassSeconds}s`);
+  console.log(`[autobot] Local brain pass ${pass}/${maxPasses}; target=${target.file}; ${left().toFixed(1)} minutes remaining; model=${model}; timeout=${perPassSeconds}s`);
   let response;
   try {
     response = callModel(prompt);
@@ -129,9 +164,9 @@ while (pass < maxPasses && left() > 1) {
   }
 
   const patch = cleanPatch(response);
-  if (!patch) {
-    previousFailure = 'Local model returned no applicable unified diff.';
-    console.log('[autobot] no patch returned; moving to the next targeted engineering pass.');
+  if (!patchLooksMeaningful(patch, target.file)) {
+    previousFailure = 'Local model returned no small meaningful product diff for the requested target.';
+    console.log('[autobot] rejected weak/empty model output; moving to the next targeted engineering pass.');
     continue;
   }
 
@@ -152,7 +187,7 @@ while (pass < maxPasses && left() > 1) {
       timeout: Math.min(15 * 60 * 1000, remainingSeconds * 1000)
     });
     previousFailure = '';
-    console.log(`[autobot] Local brain pass ${pass} produced a verified product change in ${target}.`);
+    console.log(`[autobot] Local brain pass ${pass} produced a verified product change in ${target.file}.`);
   } catch (error) {
     previousFailure = 'Validation/build failed after local model change; next pass must repair it.';
     console.error(`[autobot] validation failed: ${error.message}`);
