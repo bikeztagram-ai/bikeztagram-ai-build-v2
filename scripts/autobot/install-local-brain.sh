@@ -14,20 +14,20 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# 3B is the default because the builder must produce useful production code,
-# not merely plausible-looking edits. The smaller model remains an explicit
-# fallback for constrained runners.
-MODEL="${LOCAL_AI_MODEL:-qwen2.5-coder:3b}"
-echo "[autobot] pulling local coding model: $MODEL"
-if ! ollama pull "$MODEL"; then
-  if [[ -z "${LOCAL_AI_MODEL:-}" ]]; then
-    MODEL="qwen2.5-coder:1.5b-instruct"
-    echo "[autobot] 3B model unavailable; falling back to $MODEL"
-    ollama pull "$MODEL"
-  else
-    exit 1
-  fi
+# A useful autonomous product engineer needs more than the tiny 1.5B model.
+# Keep the workflow input backwards-compatible, but transparently upgrade the
+# old 1.5B default to the stronger local 3B coder. A user can explicitly select
+# another model through LOCAL_AI_MODEL when needed.
+REQUESTED_MODEL="${LOCAL_AI_MODEL:-qwen2.5-coder:3b}"
+if [[ "$REQUESTED_MODEL" == "qwen2.5-coder:1.5b-instruct" ]]; then
+  MODEL="qwen2.5-coder:3b"
+  echo "[autobot] upgrading legacy 1.5B default to $MODEL for production-quality coding"
+else
+  MODEL="$REQUESTED_MODEL"
 fi
+
+echo "[autobot] pulling local coding model: $MODEL"
+ollama pull "$MODEL"
 
 curl -fsS http://127.0.0.1:11434/api/chat \
   -H 'Content-Type: application/json' \
@@ -37,4 +37,4 @@ curl -fsS http://127.0.0.1:11434/api/chat \
 echo "LOCAL_AI_READY=1" >> "$GITHUB_ENV"
 echo "OLLAMA_HOST=http://127.0.0.1:11434" >> "$GITHUB_ENV"
 echo "LOCAL_AI_MODEL=$MODEL" >> "$GITHUB_ENV"
-echo "[autobot] local AI brain is ready; no paid AI API configured."
+echo "[autobot] local AI brain is ready; model=$MODEL; no paid AI API configured."
