@@ -61,7 +61,8 @@ jobs:
             echo "- **Requested runtime:** $REQUESTED_DURATION"
             echo "- **Segment:** $segment/$segments"
             echo "- **Execution budget:** $minutes minutes"
-            echo '- **Mode:** Gemini-free deterministic builder'
+            echo '- **Mode:** deterministic + local AI product engineer'
+            echo '- **AI provider:** local Ollama only; no Gemini/OpenAI dependency'
             echo '- **Merge:** never automatic'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -93,14 +94,17 @@ jobs:
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/run-duration.mjs
           node --check builder/runner/task-preflight.mjs
+          node --check builder/runner/long-run-executor.mjs
+          node --check builder/runner/local-brain.mjs
+          node --check builder/runner/self-repair.mjs
           node --check builder/quality/merge-readiness.mjs
           node --check scripts/prepare-autonomous-batch.mjs
 
-      - name: Run deterministic builder
+      - name: Run sustained autonomous builder
         if: env.BUILDER_NO_WORK != 'true'
         run: |
           set -euo pipefail
-          node builder/runner/deterministic-executor.mjs
+          node builder/runner/long-run-executor.mjs
 
       - name: Publish checkpoint summary
         if: always() && env.BUILDER_NO_WORK != 'true'
