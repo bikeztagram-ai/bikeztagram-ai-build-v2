@@ -1,0 +1,1 @@
+Required GitHub Actions repository secret: OPENAI_API_KEY. Never commit the secret value.
