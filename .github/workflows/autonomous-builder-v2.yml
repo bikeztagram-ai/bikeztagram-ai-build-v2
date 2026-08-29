@@ -11,13 +11,13 @@ on:
       duration:
         description: 'Shared work time budget: 15m, 30m, or 1h-12h'
         required: false
-        default: '4h'
+        default: '1h'
         type: choice
         options: ['15m','30m','1h','2h','3h','4h','5h','6h','7h','8h','9h','10h','11h','12h']
       local_model:
         description: 'Open-source local coding model (no paid API)'
         required: false
-        default: 'qwen2.5-coder:1.5b-instruct'
+        default: 'qwen2.5-coder:3b'
         type: string
 
 concurrency:
@@ -44,11 +44,21 @@ jobs:
       remaining_minutes: ${{ steps.budget.outputs.remaining_minutes }}
       segments: ${{ steps.budget.outputs.segments }}
     steps:
-      - name: Checkout
+      - name: Checkout exact workflow revision
         uses: actions/checkout@v5
         with:
-          ref: main
+          ref: ${{ github.sha }}
           fetch-depth: 0
+      - name: Verify checkout revision
+        run: |
+          set -euo pipefail
+          actual=$(git rev-parse HEAD)
+          echo "Workflow SHA: $GITHUB_SHA"
+          echo "Checked out SHA: $actual"
+          test "$actual" = "$GITHUB_SHA"
+          grep -q "completedObjectives" builder/runner/long-run-executor.mjs
+          grep -q "totalUnits+=verifiedThisRun.length" builder/runner/long-run-executor.mjs
+          grep -q "verifiedThisRun.length===0" builder/runner/long-run-executor.mjs
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
       - name: Cache local AI model
