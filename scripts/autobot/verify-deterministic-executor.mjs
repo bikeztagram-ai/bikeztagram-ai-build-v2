@@ -17,11 +17,11 @@ if (!executor.includes('writeCheckpoint') || !executor.includes('history')) fail
 if (!executor.includes('verifiedThisRun')) failures.push('deterministic executor does not expose per-invocation verified units');
 if (!executor.includes('unchangedButVerified')) failures.push('idempotent verified-task evidence is missing');
 if (!executor.includes('history.objectives.has(dep)')) failures.push('executor does not unlock dependencies from durable objective history');
-if (!sustained.includes('seedFromCheckpoint') || !sustained.includes("state.status === 'objective-complete'")) failures.push('sustained runner does not seed completed objectives from durable checkpoint');
-if (!sustained.includes('completedObjectives') || !sustained.includes('verifiedThisRun') || !sustained.includes('totalUnits += verifiedThisRun.length')) failures.push('sustained runner does not track cumulative units/objectives');
+if (!sustained.includes('seedFromCheckpoint') || !/state\.status\s*===\s*['"]objective-complete['"]/.test(sustained)) failures.push('sustained runner does not seed completed objectives from durable checkpoint');
+if (!sustained.includes('completedObjectives') || !sustained.includes('verifiedThisRun') || !/totalUnits\s*\+=\s*verifiedThisRun\.length/.test(sustained)) failures.push('sustained runner does not track cumulative units/objectives');
 if (!sustained.includes('verifiedThisRun')) failures.push('sustained runner does not count only newly verified units');
 if (!sustained.includes('BUILDER_COMPLETED_OBJECTIVES')) failures.push('sustained runner does not carry completed objectives between iterations');
-if (!sustained.includes('verifiedThisRun.length === 0')) failures.push('sustained runner lacks no-progress guard');
+if (!/verifiedThisRun\.length\s*===\s*0/.test(sustained)) failures.push('sustained runner lacks no-progress guard');
 if (!executor.includes('process.env.BUILDER_COMPLETED_OBJECTIVES')) failures.push('deterministic executor does not consume carried objectives');
 
 const allTasks = [...library.tasks, ...selfImprovementLibrary.tasks];
