@@ -33,6 +33,8 @@ jobs:
       BUILDER_BASE_BRANCH: main
       BUILDER_MAX_UNITS: '100'
       BUILDER_PROTECTED_PATHS: .github/workflows/,builder/runner/,builder/quality/,builder/monitor/,builder/review/,config/autonomous-builder-queue.json,scripts/prepare-autonomous-batch.mjs
+      LOCAL_AI_MODEL: qwen2.5-coder:3b
+      OLLAMA_HOST: http://127.0.0.1:11434
 
     steps:
       - name: Checkout repository
@@ -61,12 +63,28 @@ jobs:
             echo "- **Requested runtime:** $REQUESTED_DURATION"
             echo "- **Segment:** $segment/$segments"
             echo "- **Execution budget:** $minutes minutes"
-            echo '- **Mode:** Gemini-free deterministic builder'
+            echo '- **Mode:** deterministic + local Ollama product engineer'
+            echo '- **AI provider:** local Ollama only; no Gemini/OpenAI dependency'
             echo '- **Merge:** never automatic'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Select next queued objective
         run: node scripts/prepare-autonomous-batch.mjs
+
+      - name: Install and start local Ollama
+        if: env.BUILDER_NO_WORK != 'true'
+        run: |
+          set -euo pipefail
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve > /tmp/ollama.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS "$OLLAMA_HOST/api/tags" >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          curl -fsS "$OLLAMA_HOST/api/tags" >/dev/null
+          ollama pull "$LOCAL_AI_MODEL"
+          echo 'LOCAL_AI_READY=1' >> "$GITHUB_ENV"
+          echo "Local model ready: $LOCAL_AI_MODEL" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Switch to durable builder branch
         if: env.BUILDER_NO_WORK != 'true'
@@ -93,14 +111,31 @@ jobs:
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/run-duration.mjs
           node --check builder/runner/task-preflight.mjs
+          node --check builder/runner/long-run-executor.mjs
+          node --check builder/runner/feature-brain.mjs
+          node --check builder/runner/local-brain.mjs
+          node --check builder/runner/self-repair.mjs
           node --check builder/quality/merge-readiness.mjs
           node --check scripts/prepare-autonomous-batch.mjs
+          node --check builder/brain/builder-metrics.mjs
+          node --check builder/brain/self-improvement-loop.mjs
+          node --check builder/brain/self-improvement-experiment.mjs
 
-      - name: Run deterministic builder
+      - name: Run sustained autonomous builder
         if: env.BUILDER_NO_WORK != 'true'
         run: |
           set -euo pipefail
-          node builder/runner/deterministic-executor.mjs
+          node builder/runner/long-run-executor.mjs
+
+      - name: Analyse builder performance
+        if: always() && env.BUILDER_NO_WORK != 'true'
+        run: node builder/brain/builder-metrics.mjs
+
+      - name: Analyse self-improvement opportunities
+        if: always() && env.BUILDER_NO_WORK != 'true'
+        run: |
+          node builder/brain/self-improvement-loop.mjs
+          node builder/brain/self-improvement-experiment.mjs
 
       - name: Publish checkpoint summary
         if: always() && env.BUILDER_NO_WORK != 'true'
@@ -141,8 +176,11 @@ jobs:
           path: |
             builder/working/deterministic-autobot.json
             builder/working/deterministic-autobot-evidence.json
-            builder/monitor/live-state.json
+            builder/working/feature-brain-state.json
             builder/reviews/merge-readiness.json
+            builder/reviews/builder-metrics.json
+            builder/reviews/self-improvement-proposal.json
+            builder/reviews/self-improvement-experiment.json
           if-no-files-found: warn
 
       - name: Continue multi-segment run
