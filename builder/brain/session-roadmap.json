@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "sessions": [
+    {"id":1,"name":"Capable local coding brain","goal":"Produce verified, user-visible Bikeztagram improvements with a stronger local model, targeted context, bounded patches and hard quality gates.","status":"active"},
+    {"id":2,"name":"Self-review and repair","goal":"Diagnose build/test failures and repair the bot's own changes safely."},
+    {"id":3,"name":"Multi-file feature builder","goal":"Build complete product features spanning multiple files with dependency-aware sequencing."},
+    {"id":4,"name":"Persistent engineering memory","goal":"Persist architecture, completed work, failures and lessons between unattended sessions."},
+    {"id":5,"name":"Autonomous product manager","goal":"Select the highest-value unfinished Bikeztagram work and reject low-value churn."},
+    {"id":6,"name":"Unattended 1-4 hour builder","goal":"Run the complete loop unattended and produce a measurable set of verified product improvements."}
+  ],
+  "qualityBar":["real product code","user-visible or reliability value","build/test verified","no placeholder work","no paid AI dependency","protected infrastructure preserved"]
+}
