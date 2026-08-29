@@ -27,6 +27,7 @@ env:
   BUILDER_MAX_UNITS: ${{ inputs.max_units }}
   REQUESTED_DURATION: ${{ inputs.duration }}
   BUILDER_BASE_BRANCH: main
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
 jobs:
   segment-1:
@@ -43,6 +44,13 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      - name: Verify Codex credentials
+        run: |
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo 'ERROR: OPENAI_API_KEY GitHub secret is missing. Refusing to report a fake successful build.'
+            exit 1
+          fi
+          echo 'OpenAI Codex credential is available.'
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
       - name: Resolve shared time budget
@@ -71,9 +79,10 @@ jobs:
         run: |
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
+          node --check builder/runner/ai-long-run.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node builder/quality/autobot-ready.mjs
-      - name: Run sustained deterministic builder
+      - name: Run sustained deterministic builder and Codex engineering layer
         run: node builder/runner/long-run-executor.mjs
       - name: Production verification
         if: success()
@@ -109,21 +118,30 @@ jobs:
       BUILDER_MAX_UNITS: ${{ inputs.max_units }}
       BUILDER_SEGMENT: 2
       BUILDER_SEGMENTS: ${{ needs.segment-1.outputs.segments }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - name: Checkout segment 1 branch
         uses: actions/checkout@v5
         with:
           ref: ${{ needs.segment-1.outputs.branch }}
           fetch-depth: 0
+      - name: Verify Codex credentials
+        run: |
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo 'ERROR: OPENAI_API_KEY GitHub secret is missing. Refusing to report a fake successful build.'
+            exit 1
+          fi
+          echo 'OpenAI Codex credential is available.'
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
       - name: Validate deterministic builder
         run: |
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
+          node --check builder/runner/ai-long-run.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node builder/quality/autobot-ready.mjs
-      - name: Resume sustained deterministic builder
+      - name: Resume sustained deterministic builder and Codex engineering layer
         run: node builder/runner/long-run-executor.mjs
       - name: Production verification
         if: success()
@@ -144,7 +162,7 @@ jobs:
           git add -A
           git commit -m 'feat: autonomous builder v2 final segment' || true
           git push
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free deterministic builder run. The selected duration is a shared work budget; the same roadmap, brain and quality gates apply for every duration. Review checkpoint, evidence and verification before merging. No automatic merge or production deployment.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free autonomous product build using OpenAI Codex. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
 
   review-single-segment:
     needs: segment-1
@@ -155,4 +173,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free deterministic builder run. The selected duration is a shared work budget; the same roadmap, brain and quality gates apply for every duration. Review checkpoint, evidence and verification before merging. No automatic merge or production deployment.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 progress' --body 'Gemini-free autonomous product build using OpenAI Codex. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
