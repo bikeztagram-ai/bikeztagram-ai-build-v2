@@ -1,47 +1,47 @@
 {
   "schemaVersion": 2,
   "runId": "33248338184",
-  "objectiveId": "project-persistence",
-  "startedAt": "2026-08-29T10:40:02.957Z",
+  "objectiveId": "social-export",
+  "startedAt": "2026-08-29T10:42:43.207Z",
   "units": [
     {
-      "id": "persistence-hardening-inspection",
-      "startedAt": "2026-08-29T10:40:02.972Z",
+      "id": "export-delivery-hardening",
+      "startedAt": "2026-08-29T10:42:43.221Z",
       "implementation": [
-        "node scripts/autobot/persistence-hardening-runtime.mjs"
+        "node scripts/autobot/export-delivery-hardening-runtime.mjs"
       ],
       "verify": [
         "npm run build"
       ],
       "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot.json",
-      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot.json\n M src/projectPersistence.js",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot.json\n M src/socialExport.js",
       "verification": [
         {
           "command": "npm run build",
           "status": "passed"
         }
       ],
-      "completedAt": "2026-08-29T10:40:05.131Z",
+      "completedAt": "2026-08-29T10:42:45.346Z",
       "unchangedButVerified": false
     },
     {
-      "id": "persistence-migration-hardening",
-      "startedAt": "2026-08-29T10:40:05.136Z",
+      "id": "export-validation-hardening",
+      "startedAt": "2026-08-29T10:42:45.351Z",
       "implementation": [
-        "node scripts/autobot/persistence-migration-hardening-runtime.mjs"
+        "node scripts/autobot/export-validation-hardening-runtime.mjs"
       ],
       "verify": [
         "npm run build"
       ],
-      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/projectPersistence.js",
-      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/projectPersistence.js",
+      "before": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/socialExport.js",
+      "after": "M builder/monitor/live-state.json\n M builder/quality/autobot-readiness.json\n M builder/working/deterministic-autobot-evidence.json\n M builder/working/deterministic-autobot.json\n M src/socialExport.js",
       "verification": [
         {
           "command": "npm run build",
           "status": "passed"
         }
       ],
-      "completedAt": "2026-08-29T10:40:07.160Z",
+      "completedAt": "2026-08-29T10:42:47.371Z",
       "unchangedButVerified": true
     }
   ]

@@ -1,13 +1,13 @@
 {
   "runId": "33248338184",
   "status": "objective-complete",
-  "objectiveId": "project-persistence",
+  "objectiveId": "social-export",
   "currentTask": null,
-  "completedUnits": 4,
-  "totalUnits": 4,
-  "startedAt": "2026-08-29T10:40:02.957Z",
-  "updatedAt": "2026-08-29T10:40:07.161Z",
-  "heartbeatAt": "2026-08-29T10:40:07.161Z",
+  "completedUnits": 5,
+  "totalUnits": 5,
+  "startedAt": "2026-08-29T10:42:43.207Z",
+  "updatedAt": "2026-08-29T10:42:47.372Z",
+  "heartbeatAt": "2026-08-29T10:42:47.372Z",
   "message": "All deterministic units verified.",
   "files": [
     {
@@ -28,7 +28,7 @@
     },
     {
       "status": "M",
-      "path": "src/projectPersistence.js"
+      "path": "src/socialExport.js"
     }
   ],
   "verification": [],
