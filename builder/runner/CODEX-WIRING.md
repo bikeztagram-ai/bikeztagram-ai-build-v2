@@ -1,0 +1,1 @@
+The workflow now maps secrets.OPENAI_API_KEY to OPENAI_API_KEY for both sustained builder segments. This is required for ai-long-run.mjs to invoke OpenAI Codex.

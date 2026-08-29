@@ -1,0 +1,1 @@
+This file documents that the workflow must expose OPENAI_API_KEY to the sustained builder. It is intentionally not a secret and contains no credentials.

@@ -1,0 +1,1 @@
+The sustained workflow requires the repository secret `OPENAI_API_KEY`. The key is exposed only to the workflow process and is not written to logs or committed. A missing key intentionally fails the run instead of silently skipping the AI engineering layer.

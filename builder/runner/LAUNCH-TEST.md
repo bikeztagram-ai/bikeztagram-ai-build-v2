@@ -1,0 +1,1 @@
+Launch test is intentionally executed inside GitHub Actions because the OpenAI credential is a repository secret and must never be exposed here.
