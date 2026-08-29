@@ -1,16 +1,49 @@
 {
-  "objectiveId": null,
-  "completed": [],
-  "verifiedThisRun": [],
-  "totalUnits": 0,
-  "status": "idle",
+  "objectiveId": "project-persistence",
+  "completed": [
+    "persistence-audit-and-contract",
+    "persistence-runtime",
+    "persistence-hardening-inspection",
+    "persistence-migration-hardening"
+  ],
+  "verifiedThisRun": [
+    "persistence-hardening-inspection"
+  ],
+  "noOpVerifiedThisRun": [
+    "persistence-migration-hardening"
+  ],
+  "totalUnits": 4,
   "currentTask": null,
-  "files": [],
+  "status": "objective-complete",
+  "files": [
+    {
+      "status": "M",
+      "path": "uilder/monitor/live-state.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/quality/autobot-readiness.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot-evidence.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot.json"
+    },
+    {
+      "status": "M",
+      "path": "src/projectPersistence.js"
+    }
+  ],
   "history": {
     "tasks": [
       "cinematic-quality:cinematic-shot-motion-contract",
       "mobile-pwa:pwa-versioned-cache-contract",
       "project-persistence:persistence-audit-and-contract",
+      "project-persistence:persistence-hardening-inspection",
+      "project-persistence:persistence-migration-hardening",
       "project-persistence:persistence-runtime",
       "provider-resilience:provider-failure-classification",
       "social-export:export-duration-guard",
@@ -25,5 +58,6 @@
       "social-export"
     ]
   },
-  "updatedAt": "2026-08-27T20:45:04.912Z"
+  "lastVerifiedTask": "persistence-migration-hardening",
+  "updatedAt": "2026-08-29T10:40:07.161Z"
 }
