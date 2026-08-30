@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "completed": [],
+  "failed": {
+    "cinematic-quality": {
+      "message": "curl: (28) Operation timed out after 180001 milliseconds with 0 bytes received\n",
+      "at": "2026-08-30T06:27:13.969Z",
+      "attempts": 1
+    },
+    "editor-reliability": {
+      "message": "curl: (28) Operation timed out after 180002 milliseconds with 0 bytes received\n",
+      "at": "2026-08-30T06:30:14.000Z",
+      "attempts": 1
+    },
+    "social-export": {
+      "message": "curl: (28) Operation timed out after 180002 milliseconds with 0 bytes received\n",
+      "at": "2026-08-30T06:33:14.033Z",
+      "attempts": 1
+    },
+    "mobile-editor": {
+      "message": "curl: (28) Operation timed out after 180001 milliseconds with 0 bytes received\n",
+      "at": "2026-08-30T06:36:14.063Z",
+      "attempts": 1
+    }
+  },
+  "updatedAt": "2026-08-30T06:36:14.076Z"
+}
