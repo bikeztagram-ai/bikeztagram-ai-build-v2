@@ -35,6 +35,21 @@ assert.ok(result.cuts.every((cut, index) => cut.motionStyle === result.renderCue
 assert.ok(result.cuts.every((cut, index) => cut.transition === result.renderCues[index].transition));
 assert.ok(result.cuts.every((cut, index) => cut.speedEnd === result.renderCues[index].speedEnd));
 
+// Explicit roles must survive treatment even when their position would imply another role.
+const explicitFirst = buildExecutableScenePlan({
+  creativePrompt: 'cinematic reveal',
+  targetDuration: 4,
+  scenePlan: { slots: [
+    { id: 'reveal-first', role: 'reveal', duration: 2, subjectType: 'vehicle' },
+    { id: 'end', role: 'hero', duration: 2, subjectType: 'vehicle' }
+  ] }
+});
+assert.equal(explicitFirst.clips[0].editorialRole, 'reveal');
+assert.equal(explicitFirst.clips[0].motion, 'orbit');
+assert.equal(explicitFirst.clips[0].transition, 'crossfade');
+assert.equal(explicitFirst.clips[1].editorialRole, 'hero-ending');
+assert.equal(explicitFirst.clips[1].transition, 'fade-out');
+
 console.log('Executable cinematic director verification: PASS');
 console.log(JSON.stringify({
   cueCount: result.renderCues.length,
@@ -42,5 +57,6 @@ console.log(JSON.stringify({
   totalDuration: result.totalDuration,
   motions: result.renderCues.map(cue => cue.motion),
   transitions: result.renderCues.map(cue => cue.transition),
-  speedRamps: result.renderCues.filter(cue => cue.speedEnd !== cue.speed).length
+  speedRamps: result.renderCues.filter(cue => cue.speedEnd !== cue.speed).length,
+  explicitRoleCheck: 'PASS'
 }, null, 2));
