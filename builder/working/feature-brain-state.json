@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "completed": [],
+  "failed": {
+    "cinematic-quality": {
+      "message": "curl: (28) Operation timed out after 480001 milliseconds with 0 bytes received",
+      "at": "2026-08-30T08:15:55.666Z",
+      "attempts": 2
+    },
+    "editor-reliability": {
+      "message": "Command failed: git apply --index --whitespace=fix /home/runner/work/bikeztagram-ai-build-v2/bikeztagram-ai-build-v2/.autobot-feature.patch",
+      "at": "2026-08-30T08:21:02.976Z",
+      "attempts": 2
+    },
+    "social-export": {
+      "message": "Command failed: git apply --index --whitespace=fix /home/runner/work/bikeztagram-ai-build-v2/bikeztagram-ai-build-v2/.autobot-feature.patch",
+      "at": "2026-08-30T08:27:46.946Z",
+      "attempts": 2
+    },
+    "mobile-editor": {
+      "message": "Command failed: git apply --index --whitespace=fix /home/runner/work/bikeztagram-ai-build-v2/bikeztagram-ai-build-v2/.autobot-feature.patch",
+      "at": "2026-08-30T08:40:56.312Z",
+      "attempts": 2
+    }
+  },
+  "updatedAt": "2026-08-30T08:40:56.320Z"
+}
