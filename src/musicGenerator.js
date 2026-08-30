@@ -5,26 +5,41 @@ import { requestJson } from './apiRequest.js';
 
 function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(reader.error||new Error('Could not encode fallback soundtrack.'));reader.readAsDataURL(blob);});}
 
+export function resolveMusicDuration(duration){
+  const value=Number(duration);
+  if(!Number.isFinite(value)||value<=0)return 15;
+  return Math.max(5,Math.min(60,value));
+}
+
+export function resolveMusicBpm(bpm){
+  const value=Number(bpm);
+  if(!Number.isFinite(value)||value<=0)return 112;
+  return Math.max(60,Math.min(180,Math.round(value)));
+}
+
 async function buildLocalFallback({duration=15,bpm=112}={}){
-  const seconds=Math.max(15,Math.min(30,Number(duration)||15));
-  const blob=createOriginalPulseWav(seconds,bpm);
+  const seconds=resolveMusicDuration(duration);
+  const resolvedBpm=resolveMusicBpm(bpm);
+  const blob=createOriginalPulseWav(seconds,resolvedBpm);
   const audioDataUrl=await blobToDataUrl(blob);
   let audioAnalysis;
-  try{audioAnalysis=await analyseAudioDataUrl(audioDataUrl,{targetBpm:bpm});}catch(error){audioAnalysis={analysis:'planned-local-original',warning:error?.message||'Fallback audio analysis unavailable.'};}
-  return {audioAvailable:true,audioMimeType:'audio/wav',audioDataUrl,bpm,beatGrid:audioAnalysis?.beatGrid||null,audioAnalysis,generationModel:'local-original-safety-fallback',generationMode:'procedural-original'};
+  try{audioAnalysis=await analyseAudioDataUrl(audioDataUrl,{targetBpm:resolvedBpm});}catch(error){audioAnalysis={analysis:'planned-local-original',warning:error?.message||'Fallback audio analysis unavailable.'};}
+  return {audioAvailable:true,audioMimeType:'audio/wav',audioDataUrl,bpm:resolvedBpm,durationSeconds:seconds,beatGrid:audioAnalysis?.beatGrid||null,audioAnalysis,generationModel:'local-original-safety-fallback',generationMode:'procedural-original'};
 }
 
 export async function generateOriginalMusic({prompt='',duration=15,genre,mood,energy,bpm}={}){
+  const requestedDuration=resolveMusicDuration(duration);
+  const requestedBpm=resolveMusicBpm(bpm);
   try{
-    const {data}=await requestJson('/api/generate-music',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,duration,genre,mood,energy,bpm}),timeoutMs:120000},{attempts:3,baseDelayMs:900});
+    const {data}=await requestJson('/api/generate-music',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,duration:requestedDuration,genre,mood,energy,bpm:requestedBpm}),timeoutMs:120000},{attempts:3,baseDelayMs:900});
     if(!data?.success)throw new Error(data?.error||'Music generator returned an unsuccessful response.');
-    if(data?.soundtrack?.audioAvailable&&data?.soundtrack?.audioDataUrl){try{data.soundtrack.audioAnalysis=await analyseAudioDataUrl(data.soundtrack.audioDataUrl,{targetBpm:data.soundtrack.bpm||bpm||120});}catch(error){data.soundtrack.audioAnalysis={analysis:'unavailable',warning:error?.message||'Actual audio analysis unavailable.'};}}
+    if(data?.soundtrack?.audioAvailable&&data?.soundtrack?.audioDataUrl){try{data.soundtrack.audioAnalysis=await analyseAudioDataUrl(data.soundtrack.audioDataUrl,{targetBpm:data.soundtrack.bpm||requestedBpm||120});}catch(error){data.soundtrack.audioAnalysis={analysis:'unavailable',warning:error?.message||'Actual audio analysis unavailable.'};}}
     if(data?.soundtrack?.audioAvailable&&data?.soundtrack?.audioDataUrl)return data;
-    const fallback=await buildLocalFallback({duration,bpm:Number(data?.soundtrack?.bpm)||Number(bpm)||112});
+    const fallback=await buildLocalFallback({duration:requestedDuration,bpm:Number(data?.soundtrack?.bpm)||requestedBpm});
     return {...data,source:'planning-plus-local-audio-fallback',warning:data?.warning||'AI music audio was unavailable; an original local safety soundtrack was generated so the render remains audible.',soundtrack:{...(data.soundtrack||{}),...fallback}};
   }catch(error){
     console.warn('[MUSIC] AI generation unavailable; using original local fallback.',error);
-    const fallback=await buildLocalFallback({duration,bpm:Number(bpm)||112});
+    const fallback=await buildLocalFallback({duration:requestedDuration,bpm:requestedBpm});
     return {success:true,source:'local-audio-fallback',warning:error?.message||'AI music generation unavailable; original local soundtrack used.',soundtrack:fallback};
   }
 }
