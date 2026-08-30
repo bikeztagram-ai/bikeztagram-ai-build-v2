@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { scoreMedia, classifyMediaSubject, buildShotDirection, buildUniversalMediaProfile } from '../src/director.js';
+const parked=scoreMedia({type:'video',name:'motorcycle parked outside',duration:5,width:1920,height:1080});
+const action=scoreMedia({type:'video',name:'motorcycle accelerating cornering chase',duration:5,width:1920,height:1080,actionScore:.9,cinematicScore:.85,compositionScore:.8});
+const long=scoreMedia({type:'video',name:'motorcycle moving',duration:40,width:1920,height:1080});
+const medium=scoreMedia({type:'video',name:'motorcycle moving',duration:6,width:1920,height:1080});
+assert.ok(action>parked+20,`action should outrank parked: ${action} vs ${parked}`);
+assert.ok(medium>long,`social-friendly duration should outrank very long footage: ${medium} vs ${long}`);
+assert.equal(classifyMediaSubject({name:'red scooter riding through town'}),'vehicle');
+assert.equal(classifyMediaSubject({name:'ATV quad trail ride'}),'vehicle');
+const direction=buildShotDirection({subjectType:'vehicle',role:'action'});
+assert.equal(direction.cameraIntent,'escalate-motion');
+assert.equal(direction.motion.type,'tracking-push-pan');
+const profile=buildUniversalMediaProfile([{type:'video',name:'motorcycle accelerating',duration:6},{type:'image',name:'mountain sunset'}]);
+assert.equal(profile.version,'universal-director-v2');
+assert.equal(profile.mediaCount,2);
+assert.equal(profile.primarySubjectType,'vehicle');
+console.log('director-intelligence-v2: PASS');
