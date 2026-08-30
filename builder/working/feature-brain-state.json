@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "completed": [],
+  "failed": {
+    "director-score-quality-v3": {
+      "message": "Verification failed after your change: Command failed: node scripts/verify-autobot-director-score.mjs",
+      "at": "2026-08-30T13:37:51.875Z",
+      "attempts": 2
+    },
+    "director-subject-vocabulary-v3": {
+      "message": "Verification failed after your change: Command failed: node scripts/verify-autobot-subject-vocabulary.mjs",
+      "at": "2026-08-30T13:40:36.904Z",
+      "attempts": 2
+    }
+  },
+  "updatedAt": "2026-08-30T13:40:36.912Z"
+}

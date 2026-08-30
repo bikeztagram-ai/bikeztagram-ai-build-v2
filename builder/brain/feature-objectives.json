@@ -1,9 +1,42 @@
 {
-  "version": 1,
+  "version": 2,
   "objectives": [
-    {"id":"cinematic-quality","priority":100,"title":"Improve cinematic edit quality end to end","files":["src/director.js","src/aiEditPlanner.js","src/renderer.js"],"acceptance":["auditable director decisions","purposeful shot timing motion and transition intent","renderer consumes plan without black frames or timing regressions","npm run build passes"],"constraints":["preserve public contracts","do not rewrite renderer wholesale","do not invent media","do not modify protected infrastructure"]},
-    {"id":"editor-reliability","priority":95,"title":"Improve editor lifecycle reliability","files":["src/App.jsx","src/projectPersistence.js"],"acceptance":["truthful loading error and recovery states","saved metadata restores into real editor state","missing local media is explicit and recoverable","npm run build passes"],"constraints":["never persist File Blob or object URLs as durable media","preserve upload render export contracts"]},
-    {"id":"social-export","priority":85,"title":"Improve creator export delivery","files":["src/socialExport.js","src/App.jsx"],"acceptance":["9:16 1:1 and 16:9 profiles are coherent","deterministic output metadata and filenames","truthful duration/output validation","npm run build passes"],"constraints":["preserve successful MP4 export","do not alter director or renderer implementation"]},
-    {"id":"mobile-editor","priority":75,"title":"Improve Android/PWA editing usability","files":["src/App.jsx","src/styles.css"],"acceptance":["usable touch targets","safe areas and responsive layout","readable error/status states","reduced-motion support","npm run build passes"],"constraints":["preserve cinematic visual identity","do not redesign unrelated product areas"]}
+    {
+      "id": "director-score-quality-v3",
+      "priority": 100,
+      "title": "Improve director scoring for cinematic social footage",
+      "files": ["src/director.js"],
+      "acceptance": [
+        "static or parked footage is scored below comparable moving action footage",
+        "very long clips do not receive a higher duration score than a social-friendly medium clip",
+        "preserve scoreMedia export and existing contracts",
+        "npm run build passes"
+      ],
+      "verify": ["node scripts/verify-autobot-director-score.mjs"],
+      "constraints": [
+        "modify only src/director.js",
+        "do not rewrite the scoring function wholesale",
+        "do not add dependencies",
+        "do not modify protected infrastructure"
+      ]
+    },
+    {
+      "id": "director-subject-vocabulary-v3",
+      "priority": 90,
+      "title": "Expand motorcycle and vehicle subject recognition",
+      "files": ["src/director.js"],
+      "acceptance": [
+        "scooter, moped and ATV footage is classified as vehicle",
+        "preserve existing motorcycle, car and person classifications",
+        "npm run build passes"
+      ],
+      "verify": ["node scripts/verify-autobot-subject-vocabulary.mjs"],
+      "constraints": [
+        "modify only src/director.js",
+        "make the smallest coherent rule change",
+        "do not add dependencies",
+        "do not modify protected infrastructure"
+      ]
+    }
   ]
 }
