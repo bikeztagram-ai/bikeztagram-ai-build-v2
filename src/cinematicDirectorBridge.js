@@ -44,17 +44,21 @@ export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', 
     const start = cursor;
     cursor += duration;
     const treatmentInfo = item.cinematicTreatment || {};
+    const motion = normalizeMotion(treatmentInfo.motion, index);
+    const transition = normalizeTransition(treatmentInfo.transition, index, treatment.items.length);
+    const intensity = treatmentInfo.intensity;
+    const motionIntensity = intensity === 'high' ? 1.25 : intensity === 'rising' ? 1 : 0.8;
     return {
       ...item,
       id: item.id || `scene-${index + 1}`,
       start,
       end: cursor,
       duration,
-      motion: normalizeMotion(treatmentInfo.motion, index),
-      transition: normalizeTransition(treatmentInfo.transition, index, treatment.items.length),
+      motion,
+      transition,
       composition: treatmentInfo.composition,
-      intensity: treatmentInfo.intensity,
-      motionIntensity: treatmentInfo.intensity === 'high' ? 1.25 : treatmentInfo.intensity === 'rising' ? 1 : 0.8,
+      intensity,
+      motionIntensity,
       speed: treatmentInfo.motion === 'speed-ramp' ? 1 : 1,
       speedEnd: treatmentInfo.motion === 'speed-ramp' ? 1.7 : 1
     };
