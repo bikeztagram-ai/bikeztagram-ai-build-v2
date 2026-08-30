@@ -32,6 +32,8 @@ assert.equal(result.renderCues[3].transition, 'fade-out');
 assert.ok(result.renderCues.every(cue => cue.editorialOrder >= 0));
 assert.equal(validateRenderCueTrack(result.renderCues).valid, true);
 assert.ok(result.cuts.every((cut, index) => cut.motionStyle === result.renderCues[index].motion));
+assert.ok(result.cuts.every((cut, index) => cut.transition === result.renderCues[index].transition));
+assert.ok(result.cuts.every((cut, index) => cut.speedEnd === result.renderCues[index].speedEnd));
 
 console.log('Executable cinematic director verification: PASS');
 console.log(JSON.stringify({
