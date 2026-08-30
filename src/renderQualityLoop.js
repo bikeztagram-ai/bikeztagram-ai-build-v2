@@ -5,6 +5,7 @@ import { attachGeneratedAudioToVideo } from './finalAudioMux.js';
 import { validateRenderedVideo, buildDirectorQAReport } from './qa.js';
 import { resolveOutputPreset } from './outputPresets.js';
 import { transcodeRenderedFilmToPreset } from './outputPresetTranscoder.js';
+import { applyDirectorRenderCues } from './directorRenderRuntime.js';
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
 export function revisePlanAfterQA(plan, qa) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
@@ -15,14 +16,16 @@ export function revisePlanAfterQA(plan, qa) {
   if (number(qa?.durationDifferenceSeconds, 0) > 1.5) { reasons.push('correct-editorial-duration'); const expected = Math.max(1, number(qa?.expectedDurationSeconds, plan.targetDuration || plan.duration || 15)); const actual = Math.max(.1, number(qa?.durationSeconds, expected)); const scale = expected / actual; revisedCuts.forEach((cut) => { cut.duration = Math.max(.5, Number((number(cut.duration, 1) * scale).toFixed(3))); }); }
   if (qa?.playbackAdvanced === false) reasons.push('renderer-playback-failure');
   if (qa?.verdict === 'FAIL_NO_AUDIO') reasons.push('final-audio-attachment-failed');
-  return reasons.length ? { plan: { ...plan, cuts: revisedCuts, qaRevision: { version: 'render-qa-revision-v4', reasons, pass: 1 } }, changed: true, reasons } : { plan, changed: false, reasons: [] };
+  const nextPlan = reasons.length ? { ...plan, cuts: revisedCuts, qaRevision: { version: 'render-qa-revision-v5', reasons, pass: 1 } } : plan;
+  return reasons.length ? { plan: applyDirectorRenderCues(nextPlan), changed: true, reasons } : { plan, changed: false, reasons: [] };
 }
 export async function renderInspectImprove({ mediaItems, plan, expectedDuration, onProgress, maxAttempts = 2 } = {}) {
   if (!Array.isArray(mediaItems) || !mediaItems.length) throw new Error('Render loop requires media items.');
   if (!plan?.cuts?.length && !plan?.scenes?.length) throw new Error('Render loop requires an executable plan.');
   const renderMediaItems = mediaItems.map((item) => item?.file ? { ...item, sourceUrl: undefined } : item);
-  let currentPlan = plan; const attempts = []; const limit = Math.max(1, Math.min(3, maxAttempts));
+  let currentPlan = applyDirectorRenderCues(plan); const attempts = []; const limit = Math.max(1, Math.min(3, maxAttempts));
   for (let attempt = 1; attempt <= limit; attempt += 1) {
+    currentPlan = applyDirectorRenderCues(currentPlan);
     if (currentPlan?.music?.audioAnalysis || currentPlan?.music?.beatGrid || currentPlan?.soundtrack?.audioAnalysis || currentPlan?.soundtrack?.beatGrid) {
       const beatSync = applyAudioBeatSyncToPlan(currentPlan);
       currentPlan = beatSync.plan;
@@ -36,33 +39,17 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
     if (musicUrl) {
       onProgress?.({ stage: 'audio', attempt, value: 0 });
       const audioResult = await attachGeneratedAudioToVideo(rendered, musicUrl, { onProgress: (value) => onProgress?.({ stage: 'audio', attempt, value }) });
-      if (audioResult.attached && audioResult.blob?.size) {
-        output = audioResult.blob;
-        audioAttached = true;
-        currentPlan = { ...currentPlan, music: { ...(currentPlan.music || {}), finalAudioAttached: true, finalAudioMimeType: audioResult.mimeType, finalAudioDuration: audioResult.duration } };
-      } else {
-        currentPlan = { ...currentPlan, music: { ...(currentPlan.music || {}), finalAudioAttached: false, finalAudioWarning: audioResult.reason || 'audio-mux-unavailable' } };
-        console.warn('[RENDER] Final soundtrack attachment unavailable:', audioResult.reason || 'unknown reason');
-      }
+      if (audioResult.attached && audioResult.blob?.size) { output = audioResult.blob; audioAttached = true; currentPlan = { ...currentPlan, music: { ...(currentPlan.music || {}), finalAudioAttached: true, finalAudioMimeType: audioResult.mimeType, finalAudioDuration: audioResult.duration } }; }
+      else { currentPlan = { ...currentPlan, music: { ...(currentPlan.music || {}), finalAudioAttached: false, finalAudioWarning: audioResult.reason || 'audio-mux-unavailable' } }; }
       onProgress?.({ stage: 'audio', attempt, value: 100, attached: audioAttached });
     }
     const outputPreset = resolveOutputPreset(currentPlan?.outputPreset, currentPlan?.creativePrompt || '');
-    if (outputPreset.id !== 'portrait') {
-      onProgress?.({ stage: 'format', attempt, value: 0, preset: outputPreset.id });
-      try {
-        output = await transcodeRenderedFilmToPreset(output, outputPreset.id, currentPlan?.creativePrompt || '');
-      } catch (error) {
-        throw new Error(`Requested ${outputPreset.label} output could not be created: ${error?.message || String(error)}`);
-      }
-      currentPlan = { ...currentPlan, outputPreset: outputPreset.id, outputWidth: outputPreset.width, outputHeight: outputPreset.height, outputAspectRatio: outputPreset.aspectRatio };
-      onProgress?.({ stage: 'format', attempt, value: 100, preset: outputPreset.id });
-    } else {
-      currentPlan = { ...currentPlan, outputPreset: 'portrait', outputWidth: outputPreset.width, outputHeight: outputPreset.height, outputAspectRatio: outputPreset.aspectRatio };
-    }
+    if (outputPreset.id !== 'portrait') { onProgress?.({ stage: 'format', attempt, value: 0, preset: outputPreset.id }); output = await transcodeRenderedFilmToPreset(output, outputPreset.id, currentPlan?.creativePrompt || ''); currentPlan = { ...currentPlan, outputPreset: outputPreset.id, outputWidth: outputPreset.width, outputHeight: outputPreset.height, outputAspectRatio: outputPreset.aspectRatio }; onProgress?.({ stage: 'format', attempt, value: 100, preset: outputPreset.id }); }
+    else currentPlan = { ...currentPlan, outputPreset: 'portrait', outputWidth: outputPreset.width, outputHeight: outputPreset.height, outputAspectRatio: outputPreset.aspectRatio };
     let qa;
     try { qa = await validateRenderedVideo(output, expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15, { requireAudio: Boolean(musicUrl) }); }
     catch (error) { qa = { passed: false, verdict: 'FAIL_DECODE', error: error?.message || String(error), expectedDurationSeconds: expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15 }; }
-    attempts.push({ attempt, bytes: output.size, qa, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied), outputPreset: outputPreset.id, outputWidth: outputPreset.width, outputHeight: outputPreset.height });
+    attempts.push({ attempt, bytes: output.size, qa, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied), outputPreset: outputPreset.id, outputWidth: outputPreset.width, outputHeight: outputPreset.height, directorRuntime: currentPlan?.directorRuntime?.version || null });
     onProgress?.({ stage: 'qa', attempt, value: 100, qa });
     if (qa.passed && (qa.verdict === 'PASS' || qa.verdict === 'PASS_WITH_DURATION_DIFFERENCE')) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
     if (attempt >= limit) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
