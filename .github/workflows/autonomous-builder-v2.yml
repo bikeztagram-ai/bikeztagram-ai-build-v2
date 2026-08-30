@@ -62,7 +62,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
       - name: Cache local AI model
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.ollama/models
           key: bikeztagram-local-ai-${{ runner.os }}-${{ inputs.local_model }}
@@ -96,6 +96,7 @@ jobs:
         run: |
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
+          node --check builder/runner/feature-brain.mjs
           node --check builder/runner/local-brain.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node builder/quality/autobot-ready.mjs
@@ -145,7 +146,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
       - name: Cache local AI model
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.ollama/models
           key: bikeztagram-local-ai-${{ runner.os }}-${{ inputs.local_model }}
@@ -157,6 +158,7 @@ jobs:
         run: |
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
+          node --check builder/runner/feature-brain.mjs
           node --check builder/runner/local-brain.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node builder/quality/autobot-ready.mjs
