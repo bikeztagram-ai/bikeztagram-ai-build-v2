@@ -2,11 +2,12 @@
    Scores Gemini-verified moments before editorial styling. Never invents media.
    The selector deliberately trades a small amount of raw score for story coverage,
    shot-family diversity, subject diversity, source diversity, temporal separation and duration fit. */
+import { scoreMedia, classifyMediaSubject } from './director.js';
 const n=(v,f=0)=>{const x=Number(v);return Number.isFinite(x)?x:f};
 const text=v=>String(v||'').toLowerCase();
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const describe=m=>text([m.description,m.reason,m.action,m.event,m.editorialRole,m.role,m.purpose,m.intent,m.shotType,m.composition,m.framing,m.cameraAngle].join(' '));
-const subject=m=>text(m.subjectRole||m.subject||m.identity||m.subjectLabel||m.subjectCategory);
+const subject=m=>text(m.subjectRole||m.subject||m.identity||m.subjectLabel||m.subjectCategory||classifyMediaSubject(m));
 const sourceKey=m=>String(m.mediaId??m.mediaIndex??'unknown');
 const startOf=m=>n(m.start??m.startTime,NaN);
 const durationOf=m=>{const explicit=n(m.duration,NaN);if(Number.isFinite(explicit))return clamp(explicit,.5,6);const start=startOf(m);const end=n(m.end??m.endTime,NaN);if(Number.isFinite(start)&&Number.isFinite(end)&&end>start)return clamp(end-start,.5,6);return 2;};
@@ -24,8 +25,8 @@ function shotFamily(moment){
 function subjectFamily(moment){
  const s=subject(moment);
  if(!s)return'unknown';
- if(/motorcycle|motorbike|bike|vehicle|car|truck|machine/.test(s))return'vehicle';
- if(/person|people|rider|driver|character|face|human|man|woman|child/.test(s))return'person';
+ if(/motorcycle|motorbike|bike|biker|rider|vehicle|car|truck|machine|scooter|moped|vespa|scooty|atv|quad/.test(s))return'vehicle';
+ if(/person|people|driver|character|face|human|man|woman|child|traveller|traveler|athlete|dancer/.test(s))return'person';
  if(/landscape|road|street|city|building|environment|scene|location/.test(s))return'environment';
  return s.slice(0,48);
 }
@@ -39,7 +40,8 @@ function modes(prompt){const p=text(prompt);return{
  funny:/funny|comedy|comic|humorous|meme/.test(p)
 };}
 function scoreMoment(moment,index,total,mode){
- const s=describe(moment); let score=n(moment.score,0)*2;
+ const s=describe(moment); let score=scoreMedia(moment)*.55+n(moment.score,0)*1.1;
+ if(/parked|stationary|static|stopped|idle/.test(s))score-=10;
  if(/hook|opening|establish/.test(s))score+=18;
  if(/reveal|unveil|showcase|profile|detail|close-up|macro/.test(s))score+=12;
  if(/action|movement|moving|speed|race|ride|drive|travel|impact|chase/.test(s))score+=mode.action?20:8;
@@ -73,7 +75,7 @@ function roleBonus(moment,role,mode){
  if(role==='hook')return /hook|opening|establish|impact|action|reveal/.test(s)?24:0;
  if(role==='hero')return /hero|ending|resolution|final|showcase|reveal|portrait|landscape/.test(s)?24:0;
  if(role==='build')return /movement|tracking|journey|road|approach|detail|medium|wide/.test(s)?10:0;
- if(role==='reveal')return /reveal|unveil|showcase|profile|product|vehicle|motorcycle|bike|portrait/.test(s)?18:0;
+ if(role==='reveal')return /reveal|unveil|showcase|profile|product|vehicle|motorcycle|bike/.test(s)?18:0;
  if(role==='action')return /action|movement|speed|race|ride|drive|chase|impact/.test(s)?18:0;
  if(role==='emotional')return /emotion|beautiful|sunset|landscape|reaction|smile|laugh|calm/.test(s)?16:0;
  return 0;
@@ -97,10 +99,8 @@ export function selectDirectorMoments(moments,{maxCuts=8,targetDuration=15,creat
   for(let i=0;i<ordered.length;i++){
    const m=ordered[i];let value=m.__directorScore+roleBonus(m,role,mode)+durationFit(m,usedDuration,targetDuration,remainingSlots);const source=sourceKey(m);const family=m.__shotFamily;const subjectKey=m.__subjectFamily;
    if(usedSources.has(source))value-=12;
-   const familyCount=usedFamilies.get(family)||0;
-   if(familyCount)value-=12*familyCount;
-   const subjectCount=usedSubjects.get(subjectKey)||0;
-   if(subjectKey!=='unknown'&&subjectCount)value-=clamp(9*subjectCount,9,24);
+   const familyCount=usedFamilies.get(family)||0;if(familyCount)value-=12*familyCount;
+   const subjectCount=usedSubjects.get(subjectKey)||0;if(subjectKey!=='unknown'&&subjectCount)value-=clamp(9*subjectCount,9,24);
    if(chosen.length&&similarity(m,chosen[chosen.length-1])>.65)value-=18;
    if(usedDescriptions.some(d=>d===describe(m)))value-=30;
    if(chosen.some(c=>temporalDistance(m,c)<1.25))value-=12;
