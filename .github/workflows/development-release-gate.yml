@@ -1,0 +1,46 @@
+name: Bikeztagram Development Release Gate
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-release-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout proposed batch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build production bundle
+        run: npm run build
+      - name: Run authoritative release gate
+        run: npm run verify:release-gate
+      - name: Publish gate summary
+        if: always()
+        run: |
+          {
+            echo '## Bikeztagram Development Release Gate'
+            echo ''
+            if [ "${{ job.status }}" = "success" ]; then
+              echo 'PASS — batch is verified and eligible for merge.'
+            else
+              echo 'FAIL — batch must be fixed before merge.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
