@@ -73,7 +73,7 @@ function applyEdits(plan,obj){
       const needle=String(edit.find??''); const replacement=String(edit.replace??'');
       if(edit.operation==='append'){fs.writeFileSync(target,original+replacement);continue;}
       const idx=original.indexOf(needle); if(!needle||idx<0) throw new Error(`exact edit anchor not found in ${edit.file}`);
-      const next=edit.operation==='insert_after'?original.slice(0,idx+needle.length)+replacement+original.slice(idx):edit.operation==='insert_before'?original.slice(0,idx)+replacement+original.slice(idx):original.slice(0,idx)+replacement+original.slice(idx+needle.length);
+      const next=edit.operation==='insert_after'?original.slice(0,idx+needle.length)+replacement+original.slice(idx+needle.length):edit.operation==='insert_before'?original.slice(0,idx)+replacement+original.slice(idx):original.slice(0,idx)+replacement+original.slice(idx+needle.length);
       fs.writeFileSync(target,next);
     }
     run('git',['diff','--check'],{stdio:'inherit'});
@@ -92,7 +92,7 @@ for(let n=1;n<=maxFeatures&&left()>1;n++){
       const plan=await modelCall(obj,lastError); console.log(`[autobot] model plan: ${plan.summary||'no summary'}`); applyEdits(plan,obj);
       try {
         run('npm',['run','build'],{stdio:'inherit',timeout:Math.min(900000,Math.max(60000,Math.floor(left()*60000)))});
-        for(const command of obj.verify||[]) runCommand(command,`${obj.id} verification`);
+        for(const command of obj.verify||[]) { const parts=command.split(/\s+/).filter(Boolean); if(!parts.length) throw new Error('empty verification command'); run(parts.shift(),parts,{stdio:'inherit'}); }
         verified=true;
       } catch(e) {
         lastError=`Verification failed after your change: ${e.message}`; resetFailed();
