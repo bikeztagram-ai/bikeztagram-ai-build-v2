@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { scoreMedia, classifyMediaSubject, buildShotDirection } from '../src/director.js';
+const parked=scoreMedia({type:'video',name:'motorcycle parked',duration:5,width:1920,height:1080});
+const action=scoreMedia({type:'video',name:'motorcycle accelerating cornering chase',duration:5,width:1920,height:1080,actionScore:.9,cinematicScore:.85,compositionScore:.8});
+const long=scoreMedia({type:'video',name:'motorcycle moving',duration:40,width:1920,height:1080});
+const medium=scoreMedia({type:'video',name:'motorcycle moving',duration:6,width:1920,height:1080});
+assert.ok(action>parked+20);assert.ok(medium>long);
+assert.equal(classifyMediaSubject({name:'red scooter riding'}),'vehicle');
+const d=buildShotDirection({subjectType:'vehicle',role:'action'});assert.equal(d.cameraIntent,'escalate-motion');assert.equal(d.motion.type,'tracking-push-pan');
+console.log('director-intelligence-v2b: PASS');
