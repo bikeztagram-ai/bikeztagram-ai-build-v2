@@ -3,22 +3,15 @@ import { spawnSync } from 'node:child_process';
 
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const entries = Object.entries(pkg.scripts)
-  .filter(([name]) => /^verify:batch\d+(?:runtime|audio)?$/.test(name))
+  .filter(([name]) => /^verify:(?:batch\d+(?:runtime|audio)?|director-execution-bridge)$/.test(name))
   .map(([name, command]) => ({ name, command }))
-  .filter(({ name }) => {
-    const m = name.match(/^verify:batch(\d+)/);
-    return Number(m[1]) >= 23;
-  })
+  .filter(({ name }) => name === 'verify:director-execution-bridge' || Number(name.match(/^verify:batch(\d+)/)[1]) >= 23)
   .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
 const failures = [];
 for (const { name, command } of entries) {
   console.log(`\\n=== ${name} ===`);
-  const result = spawnSync(command.replace(/^node\\s+/, 'node ').trim(), {
-    shell: true,
-    stdio: 'inherit',
-    env: process.env
-  });
+  const result = spawnSync(command.replace(/^node\s+/, 'node ').trim(), { shell: true, stdio: 'inherit', env: process.env });
   if (result.status !== 0) failures.push(name);
 }
 
@@ -27,3 +20,4 @@ if (failures.length) {
   console.error(`Failed checks: ${failures.join(', ')}`);
   process.exit(1);
 }
+console.log('MAIN SUITE: PASS');
