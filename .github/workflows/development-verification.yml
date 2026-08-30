@@ -1,0 +1,30 @@
+name: Bikeztagram Development Verification
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v6
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build production bundle
+        run: npm run build
+      - name: Verify director intelligence
+        run: node scripts/verify-director-v2-intelligence.mjs
+      - name: Verify subject-aware cinematic direction
+        run: node scripts/verify-subject-aware-cinematic-direction.mjs
+      - name: Verify existing director selection contract
+        run: node scripts/verify-batch48-director-selection.mjs
