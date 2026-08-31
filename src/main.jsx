@@ -3,9 +3,12 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import OutputFormatEnhancer from './outputFormatEnhancer.jsx';
 import PromptSceneStudio from './promptSceneStudio.jsx';
+import { installLocalAnalysisRuntime } from './localAnalysisRuntime.js';
 import './styles.css';
 import './qa.js';
 import './exportTools.js';
+
+installLocalAnalysisRuntime();
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {

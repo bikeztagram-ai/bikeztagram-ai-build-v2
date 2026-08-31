@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const runtime=fs.readFileSync(new URL('../src/localAnalysisRuntime.js',import.meta.url),'utf8');
+const analysis=fs.readFileSync(new URL('../src/localMediaAnalysis.js',import.meta.url),'utf8');
+assert.match(runtime,/analyseLocalMedia/);
+assert.match(runtime,/local-browser-analysis/);
+assert.doesNotMatch(runtime,/@google\/genai|GoogleGenAI/);
+assert.doesNotMatch(analysis,/@google\/genai|GoogleGenAI/);
+assert.match(runtime,/api\/analyse-library/);
+assert.match(runtime,/api\/analyse-image/);
+assert.match(runtime,/api\/analyse/);
+console.log('Local analysis runtime contract: PASS');
