@@ -24,7 +24,5 @@ jobs:
         run: npm install
       - name: Build production bundle
         run: npm run build
-      - name: Verify legacy Blob route contract
-        run: npm run verify:batch75
       - name: Verify signed Blob upload contract
-        run: npm run verify:batch76
+        run: npm run verify:blob-upload
