@@ -23,6 +23,16 @@ const normalizeTransition = (transition, index, total) => {
   return value;
 };
 
+const cameraForRole = (role) => ({
+  hook: 'immediate-attention',
+  build: 'controlled-cinematic',
+  action: 'escalate-motion',
+  reveal: 'controlled-reveal',
+  'hero-ending': 'hold-and-settle',
+  emotional: 'intimate-hold',
+  variation: 'controlled-cinematic'
+}[String(role || '').toLowerCase()] || 'controlled-cinematic');
+
 export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', targetDuration = 15, beats = [] } = {}) {
   const slots = Array.isArray(scenePlan.slots) ? scenePlan.slots : [];
   const treatment = buildCinematicTreatments({
@@ -44,12 +54,16 @@ export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', 
     const start = cursor;
     cursor += duration;
     const treatmentInfo = item.cinematicTreatment || {};
+    const role = String(item.editorialRole || 'variation').toLowerCase();
     return {
       ...item,
       id: item.id || `scene-${index + 1}`,
       start,
       end: cursor,
       duration,
+      role,
+      editorialRole: role,
+      cameraIntent: item.cameraIntent || cameraForRole(role),
       motion: normalizeMotion(treatmentInfo.motion, index),
       transition: normalizeTransition(treatmentInfo.transition, index, treatment.items.length),
       composition: treatmentInfo.composition,
@@ -61,24 +75,37 @@ export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', 
   });
 
   const renderCues = clips.map((clip, index) => buildRenderCue(clip, index, clips.length, beats));
-  const cuts = renderCues.map((cue, index) => ({
-    id: cue.id || `cut-${index + 1}`,
-    mediaId: cue.mediaId,
-    mediaIndex: clips.findIndex(clip => clip.id === cue.id),
-    sourceType: cue.sourceType,
-    generated: Boolean(cue.generated),
-    generationPrompt: cue.generationPrompt || '',
-    startTime: cue.sourceStart,
-    duration: cue.outputDuration,
-    purpose: cue.editorialRole,
-    transition: cue.transition,
-    motionStyle: cue.motion,
-    motionIntensity: cue.motionIntensity,
-    colorGrade: cue.colorGrade,
-    speed: cue.speed,
-    speedEnd: cue.speedEnd,
-    beatAnchor: cue.beatAnchor
-  }));
+  const cuts = renderCues.map((cue, index) => {
+    const clip = clips[index];
+    return {
+      id: cue.id || `cut-${index + 1}`,
+      mediaId: cue.mediaId,
+      mediaIndex: clips.findIndex(item => item.id === cue.id),
+      sourceType: cue.sourceType,
+      generated: Boolean(cue.generated),
+      generationPrompt: cue.generationPrompt || '',
+      startTime: cue.sourceStart,
+      duration: cue.outputDuration,
+      purpose: cue.editorialRole,
+      role: clip.role,
+      editorialRole: clip.editorialRole,
+      cameraIntent: clip.cameraIntent,
+      transition: cue.transition,
+      motionStyle: cue.motion,
+      motionIntensity: cue.motionIntensity,
+      colorGrade: cue.colorGrade,
+      speed: cue.speed,
+      speedEnd: cue.speedEnd,
+      beatAnchor: cue.beatAnchor,
+      directorExecution: {
+        version: 'director-render-runtime-v1',
+        role: clip.role,
+        cameraIntent: clip.cameraIntent,
+        motionStyle: cue.motion,
+        transition: cue.transition
+      }
+    };
+  });
   const validation = validateRenderCueTrack(renderCues);
   if (!validation.valid) throw new Error(`Executable cinematic cue validation failed: ${validation.errors.join('; ')}`);
 
