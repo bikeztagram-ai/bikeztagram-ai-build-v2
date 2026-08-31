@@ -22,7 +22,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
       const ease = (v) => v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
       const seed = (n) => { const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
       let cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
-      if (!cuts.length && Array.isArray(plan?.scenes)) cuts = plan.scenes.map((scene, i) => ({ mediaIndex: scene.mediaIndex ?? 0, mediaId: scene.mediaId, startTime: Number(scene.startTime) || 0, duration: Number(scene.duration) || 2, purpose: scene.purpose || 'cinematic-scene', sourceType: scene.sourceType || 'uploaded', generated: scene.sourceType === 'generated', generationPrompt: scene.generationPrompt || '', transition: scene.transitionIn || (i ? 'crossfade' : 'fade-in'), motionStyle: scene.motionStyle || 'slow-push', motionIntensity: scene.motionIntensity || 0.9, colorGrade: scene.colorGrade || plan.colorGrade || 'cinematic' }));
+      if (!cuts.length && Array.isArray(plan?.scenes)) cuts = plan.scenes.map((scene, i) => ({ mediaIndex: scene.mediaIndex ?? 0, mediaId: scene.mediaId, startTime: Number(scene.startTime) || 0, duration: Number(scene.duration) || 2, purpose: scene.purpose || 'cinematic-scene', sourceType: scene.sourceType || 'uploaded', generated: scene.sourceType === 'generated', generationPrompt: scene.generationPrompt || '', transition: scene.transitionIn || (i ? 'crossfade' : 'fade-in'), motionStyle: scene.motionStyle || 'slow-push', motionIntensity: scene.motionIntensity || 0.9, colorGrade: scene.colorGrade || plan.colorGrade || 'cinematic', focalFraming: scene.focalFraming || null }));
       if (!cuts.length) return fail(new Error('AI edit plan contains no cuts.'));
 
       const findMedia = (cut) => {
@@ -33,12 +33,16 @@ export async function renderProject(mediaItems, plan, onProgress) {
       const generated = (cut) => Boolean(cut?.generated || cut?.sourceType === 'generated' || cut?.sourceType === 'procedural' || cut?.generationPrompt);
       const gradeFilter = (grade) => { const g = String(grade || '').toLowerCase(); if (g.includes('natural') || g.includes('neutral')) return 'brightness(.98) contrast(1.08) saturate(1.08)'; if (g.includes('warm') || g.includes('golden')) return 'brightness(.94) contrast(1.15) saturate(1.14) sepia(.08)'; if (g.includes('blue') || g.includes('moody') || g.includes('dark')) return 'brightness(.88) contrast(1.20) saturate(1.14) hue-rotate(-6deg)'; if (g.includes('vivid') || g.includes('energetic')) return 'brightness(.95) contrast(1.20) saturate(1.28)'; return 'brightness(.90) contrast(1.18) saturate(1.12)'; };
 
-      const drawCover = (element, t, grade) => {
+      const drawCover = (element, t, grade, focalFraming) => {
         const sw = element.videoWidth || element.naturalWidth || 1080, sh = element.videoHeight || element.naturalHeight || 1920;
         if (!sw || !sh) throw new Error('Source media has no decoded dimensions.');
         const ratio = sw / sh, target = canvas.width / canvas.height;
         let width, height; if (ratio > target) { height = canvas.height * t.scale; width = height * ratio; } else { width = canvas.width * t.scale; height = width / ratio; }
-        const x = (canvas.width - width) / 2 + t.x, y = (canvas.height - height) / 2 + t.y;
+        const focalX = clamp(Number(focalFraming?.x) || .5,.12,.88), focalY = clamp(Number(focalFraming?.y) || .5,.12,.88);
+        const focalScale = clamp(Number(focalFraming?.scale) || 1, .96, 1.12);
+        width *= focalScale; height *= focalScale;
+        const x = (canvas.width - width) / 2 + t.x + (0.5 - focalX) * width;
+        const y = (canvas.height - height) / 2 + t.y + (0.5 - focalY) * height;
         ctx.save(); ctx.filter = gradeFilter(grade); if (t.r) { ctx.translate(canvas.width/2,canvas.height/2); ctx.rotate(t.r); ctx.translate(-canvas.width/2,-canvas.height/2); } ctx.drawImage(element,x,y,width,height); ctx.restore();
       };
 
@@ -72,10 +76,6 @@ export async function renderProject(mediaItems, plan, onProgress) {
         else if(m.includes('tilt-down')){scale=Math.max(scale,1.08);y=(e-.5)*canvas.height*.09*intensity;}
         else if(m.includes('orbit')||m.includes('parallax')){scale=Math.max(scale,1.09);x=Math.sin(e*Math.PI*2)*canvas.width*.035*intensity;y=Math.cos(e*Math.PI*2)*canvas.height*.018*intensity;r=Math.sin(e*Math.PI*2)*.006*intensity;}
         const purpose=String(cut.purpose||'').toLowerCase(), action=/action|chase|impact|energetic|race|speed/.test(purpose+' '+String(plan?.creativePrompt||''));
-        // Stabilised footage must stay visually stable. The previous renderer injected
-        // a continuous artificial shake even when stabilization=true, which made
-        // motorcycle footage look like a damaged/handheld camera. Only allow the
-        // micro-jitter when a plan explicitly disables stabilization.
         if(action && cut.stabilization===false){x+=Math.sin(p*Math.PI*34)*.7*intensity;y+=Math.cos(p*Math.PI*29)*.5*intensity;r+=Math.sin(p*Math.PI*20)*.001*intensity;}
         return {scale:clamp(scale,1.01,1.28),x,y,r};
       };
@@ -130,7 +130,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
               const start=Number(cut.startTime);if(Number.isFinite(start)&&start>=0){element.currentTime=Math.min(start,Math.max(0,element.duration-.05));await new Promise((done)=>{let finished=false;const finish=()=>{if(finished)return;finished=true;clearTimeout(timer);element.removeEventListener('seeked',finish);done();};const timer=setTimeout(finish,1800);element.addEventListener('seeked',finish,{once:true});});}element.playbackRate=speedStart;await element.play();
             }else if(!isGen){element.src=source.url;await new Promise((done,failLoad)=>{const timer=setTimeout(()=>failLoad(new Error('Timed out loading source image.')),10000);element.onload=()=>{clearTimeout(timer);done();};element.onerror=()=>{clearTimeout(timer);failLoad(new Error('Could not load source image.'));};});}
             const started=performance.now();
-            await new Promise((done)=>{const tick=()=>{const p=clamp((performance.now()-started)/(duration*1000),0,1);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);if(isGen)drawWorld(cut,p);else drawCover(element,motion(cut,p),cut.colorGrade||plan.colorGrade);if(isVideo&&element.readyState>=2){try{element.playbackRate=lerp(speedStart,speedEnd,ease(p));}catch{}}finish(cut,p);transition(cut.transition,p,index===0);textOverlay(cut,p);onProgress?.(Math.round(((index+p)/cuts.length)*100));if(p>=1){done();return;}requestAnimationFrame(tick);};requestAnimationFrame(tick);});
+            await new Promise((done)=>{const tick=()=>{const p=clamp((performance.now()-started)/(duration*1000),0,1);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);if(isGen)drawWorld(cut,p);else drawCover(element,motion(cut,p),cut.colorGrade||plan.colorGrade,cut.focalFraming);if(isVideo&&element.readyState>=2){try{element.playbackRate=lerp(speedStart,speedEnd,ease(p));}catch{}}finish(cut,p);transition(cut.transition,p,index===0);textOverlay(cut,p);onProgress?.(Math.round(((index+p)/cuts.length)*100));if(p>=1){done();return;}requestAnimationFrame(tick);};requestAnimationFrame(tick);});
             if(isVideo)element.pause();if(source?.revoke)URL.revokeObjectURL(source.url);await renderCut(index+1);
           }catch(error){if(source?.revoke){try{URL.revokeObjectURL(source.url);}catch{}}throw new Error(`Cut ${index+1} failed: ${error?.message||String(error)}`);}
         };
