@@ -22,7 +22,7 @@ export async function renderProject(mediaItems, plan, onProgress) {
       const ease = (v) => v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
       const seed = (n) => { const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
       let cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
-      if (!cuts.length && Array.isArray(plan?.scenes)) cuts = plan.scenes.map((scene, i) => ({ mediaIndex: scene.mediaIndex ?? 0, mediaId: scene.mediaId, startTime: Number(scene.startTime) || 0, duration: Number(scene.duration) || 2, purpose: scene.purpose || 'cinematic-scene', sourceType: scene.sourceType || 'uploaded', generated: scene.sourceType === 'generated', generationPrompt: scene.generationPrompt || '', transition: scene.transitionIn || (i ? 'crossfade' : 'fade-in'), motionStyle: scene.motionStyle || 'slow-push', motionIntensity: scene.motionIntensity || 0.9, colorGrade: scene.colorGrade || plan.colorGrade || 'cinematic', focalFraming: scene.focalFraming || null }));
+      if (!cuts.length && Array.isArray(plan?.scenes)) cuts = plan.scenes.map((scene, i) => ({ mediaIndex: scene.mediaIndex ?? 0, mediaId: scene.mediaId, startTime: Number(scene.startTime) || 0, duration: Number(scene.duration) || 2, purpose: scene.purpose || 'cinematic-scene', sourceType: scene.sourceType || 'uploaded', generated: scene.sourceType === 'generated', generationPrompt: scene.generationPrompt || '', transition: scene.transitionIn || (i ? 'crossfade' : 'fade-in'), motionStyle: scene.motionStyle || 'slow-push', motionIntensity: scene.motionIntensity || 0.9, colorGrade: scene.colorGrade || plan.colorGrade || 'cinematic', focalFraming: scene.focalFraming }));
       if (!cuts.length) return fail(new Error('AI edit plan contains no cuts.'));
 
       const findMedia = (cut) => {
@@ -33,17 +33,16 @@ export async function renderProject(mediaItems, plan, onProgress) {
       const generated = (cut) => Boolean(cut?.generated || cut?.sourceType === 'generated' || cut?.sourceType === 'procedural' || cut?.generationPrompt);
       const gradeFilter = (grade) => { const g = String(grade || '').toLowerCase(); if (g.includes('natural') || g.includes('neutral')) return 'brightness(.98) contrast(1.08) saturate(1.08)'; if (g.includes('warm') || g.includes('golden')) return 'brightness(.94) contrast(1.15) saturate(1.14) sepia(.08)'; if (g.includes('blue') || g.includes('moody') || g.includes('dark')) return 'brightness(.88) contrast(1.20) saturate(1.14) hue-rotate(-6deg)'; if (g.includes('vivid') || g.includes('energetic')) return 'brightness(.95) contrast(1.20) saturate(1.28)'; return 'brightness(.90) contrast(1.18) saturate(1.12)'; };
 
-      const drawCover = (element, t, grade, focalFraming) => {
+      const drawCover = (element, t, grade, focal) => {
         const sw = element.videoWidth || element.naturalWidth || 1080, sh = element.videoHeight || element.naturalHeight || 1920;
         if (!sw || !sh) throw new Error('Source media has no decoded dimensions.');
         const ratio = sw / sh, target = canvas.width / canvas.height;
         let width, height; if (ratio > target) { height = canvas.height * t.scale; width = height * ratio; } else { width = canvas.width * t.scale; height = width / ratio; }
-        const focalX = clamp(Number(focalFraming?.x) || .5,.12,.88), focalY = clamp(Number(focalFraming?.y) || .5,.12,.88);
-        const focalScale = clamp(Number(focalFraming?.scale) || 1, .96, 1.12);
-        width *= focalScale; height *= focalScale;
-        const x = (canvas.width - width) / 2 + t.x + (0.5 - focalX) * width;
-        const y = (canvas.height - height) / 2 + t.y + (0.5 - focalY) * height;
-        ctx.save(); ctx.filter = gradeFilter(grade); if (t.r) { ctx.translate(canvas.width/2,canvas.height/2); ctx.rotate(t.r); ctx.translate(-canvas.width/2,-canvas.height/2); } ctx.drawImage(element,x,y,width,height); ctx.restore();
+        const fx=clamp(Number(focal?.x),.15,.85), fy=clamp(Number(focal?.y),.15,.85), focalScale=clamp(Number(focal?.scale)||1,1,1.18);
+        const baseX=(canvas.width-width)/2+t.x, baseY=(canvas.height-height)/2+t.y;
+        const focalOffsetX=(.5-fx)*(width-canvas.width)*.72, focalOffsetY=(.5-fy)*(height-canvas.height)*.72;
+        const x=baseX+clamp(focalOffsetX,-Math.abs(width-canvas.width)*.45,Math.abs(width-canvas.width)*.45), y=baseY+clamp(focalOffsetY,-Math.abs(height-canvas.height)*.45,Math.abs(height-canvas.height)*.45);
+        ctx.save();ctx.filter=gradeFilter(grade);if(t.r){ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(t.r);ctx.translate(-canvas.width/2,-canvas.height/2);}ctx.drawImage(element,x,y,width*focalScale,height*focalScale);ctx.restore();
       };
 
       const drawWorld = (cut, progress) => {
