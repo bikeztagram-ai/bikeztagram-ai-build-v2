@@ -30,7 +30,7 @@ export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', 
       ...slot,
       id: slot.id || `scene-${index + 1}`,
       duration: n(slot.duration, 2),
-      editorialRole: slot.role,
+      editorialRole: slot.role || slot.editorialRole || slot.purpose || slot.intent,
       sourceType: slot.generation === 'preferred' ? 'generated' : 'uploaded',
       subjectType: slot.subjectType || slot.subjectFamily || 'unknown'
     })),
