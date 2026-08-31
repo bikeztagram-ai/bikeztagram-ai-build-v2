@@ -25,4 +25,4 @@ jobs:
       - name: Build production bundle
         run: npm run build
       - name: Verify signed Blob upload contract
-        run: npm run verify:blob-upload
+        run: node scripts/verify-batch76-signed-blob-upload.mjs
