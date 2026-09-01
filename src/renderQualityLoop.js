@@ -51,9 +51,9 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
     catch (error) { qa = { passed: false, verdict: 'FAIL_DECODE', error: error?.message || String(error), expectedDurationSeconds: expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15 }; }
     attempts.push({ attempt, bytes: output.size, qa, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied), outputPreset: outputPreset.id, outputWidth: outputPreset.width, outputHeight: outputPreset.height, directorRuntime: currentPlan?.directorRuntime?.version || null });
     onProgress?.({ stage: 'qa', attempt, value: 100, qa });
-    if (qa.passed && (qa.verdict === 'PASS' || qa.verdict === 'PASS_WITH_DURATION_DIFFERENCE')) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
-    if (attempt >= limit) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
-    const revision = revisePlanAfterQA(currentPlan, qa); if (!revision.changed) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
+    if (qa.passed && (qa.verdict === 'PASS' || qa.verdict === 'PASS_WITH_DURATION_DIFFERENCE')) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1, accepted: true };
+    if (attempt >= limit) throw new Error(`Production render rejected after ${attempt} attempt(s): ${qa?.verdict || 'QA_FAILED'}`);
+    const revision = revisePlanAfterQA(currentPlan, qa); if (!revision.changed) throw new Error(`Production render rejected: ${qa?.verdict || 'QA_FAILED'}`);
     currentPlan = revision.plan; onProgress?.({ stage: 'revise', attempt, value: 100, reasons: revision.reasons });
   }
   throw new Error('Render quality loop ended without a render result.');
