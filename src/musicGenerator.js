@@ -1,4 +1,4 @@
-/* BIKEZTAGRAM AI — client-side music generation contract. */
+/* BIKEZTAGRAM AI — client-side original music generation contract. */
 import { analyseAudioDataUrl } from './audioBeatAnalyzer.js';
 import { createOriginalPulseWav } from './musicProvider.js';
 import { requestJson } from './apiRequest.js';
@@ -17,14 +17,14 @@ async function buildLocalFallback({duration=15,bpm=112}={}){
 export async function generateOriginalMusic({prompt='',duration=15,genre,mood,energy,bpm}={}){
   try{
     const {data}=await requestJson('/api/generate-music',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,duration,genre,mood,energy,bpm}),timeoutMs:120000},{attempts:3,baseDelayMs:900});
-    if(!data?.success)throw new Error(data?.error||'Music generator returned an unsuccessful response.');
+    if(!data?.success)throw new Error(data?.error||'Original music generator returned an unsuccessful response.');
     if(data?.soundtrack?.audioAvailable&&data?.soundtrack?.audioDataUrl){try{data.soundtrack.audioAnalysis=await analyseAudioDataUrl(data.soundtrack.audioDataUrl,{targetBpm:data.soundtrack.bpm||bpm||120});}catch(error){data.soundtrack.audioAnalysis={analysis:'unavailable',warning:error?.message||'Actual audio analysis unavailable.'};}}
     if(data?.soundtrack?.audioAvailable&&data?.soundtrack?.audioDataUrl)return data;
     const fallback=await buildLocalFallback({duration,bpm:Number(data?.soundtrack?.bpm)||Number(bpm)||112});
-    return {...data,source:'planning-plus-local-audio-fallback',warning:data?.warning||'AI music audio was unavailable; an original local safety soundtrack was generated so the render remains audible.',soundtrack:{...(data.soundtrack||{}),...fallback}};
+    return {...data,source:'planning-plus-local-audio-fallback',warning:data?.warning||'Server-side original audio was unavailable; an original local safety soundtrack was generated so the render remains audible.',soundtrack:{...(data.soundtrack||{}),...fallback}};
   }catch(error){
-    console.warn('[MUSIC] AI generation unavailable; using original local fallback.',error);
+    console.warn('[MUSIC] Original music endpoint unavailable; using local original fallback.',error);
     const fallback=await buildLocalFallback({duration,bpm:Number(bpm)||112});
-    return {success:true,source:'local-audio-fallback',warning:error?.message||'AI music generation unavailable; original local soundtrack used.',soundtrack:fallback};
+    return {success:true,source:'local-audio-fallback',warning:error?.message||'Original music endpoint unavailable; local original soundtrack used.',soundtrack:fallback};
   }
 }
