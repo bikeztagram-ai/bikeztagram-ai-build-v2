@@ -1,7 +1,7 @@
 /* BIKEZTAGRAM AI — large-batch production conductor.
    Coordinates the universal filmmaker pipeline without requiring Gemini. */
 import { buildNoGeminiCreativePlan, createNoGeminiCreativeRuntime } from './creativeEngineNoGemini.js';
-import { buildAudioDirection } from './audioDirector.js';
+import { planAudioDirector } from './audioDirector.js';
 import { buildAudioMixPlan } from './audioMixPlan.js';
 import { buildAudioTimeline } from './audioTimeline.js';
 import { planEditorialRhythm } from './editorialRhythm.js';
@@ -12,7 +12,7 @@ export function buildUniversalProduction(input = {}) {
   const duration = Number(input.targetDuration || 15);
   const selected = selectDirectorMoments(input.moments || [], { maxCuts: input.maxCuts || 8, targetDuration: duration, creativePrompt: prompt });
   const rhythm = planEditorialRhythm(selected, { targetDuration: duration, creativePrompt: prompt });
-  const audioDirection = buildAudioDirection({ creativePrompt: prompt, duration, energy: input.energy || 'auto', mood: input.mood || 'auto', musicEnabled: input.musicEnabled !== false });
+  const audioDirection = planAudioDirector({ creativePrompt: prompt, duration, cuts: rhythm });
   const mixPlan = buildAudioMixPlan({ audioDirection, hasVoiceover: Boolean(input.hasVoiceover), hasSfx: input.hasSfx !== false });
   const audioTimeline = buildAudioTimeline({ audioDirection, cuts: rhythm, mixPlan });
   const creativePlan = buildNoGeminiCreativePlan({ ...input, prompt, duration, moments: selected });
