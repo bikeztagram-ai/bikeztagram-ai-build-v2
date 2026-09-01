@@ -1,0 +1,5 @@
+/* Bridges composition + edit timing into the render/audio contract without requiring a provider. */
+import { buildCompositionRuntime, buildMusicTimeline } from './musicCompositionRuntime.js';
+import { planAudioDirector } from './audioDirector.js';
+export function buildMusicRenderBridge({prompt='',duration=15,cuts=[],bpm='auto',mood='auto',energy='auto'}={}){const direction=planAudioDirector({creativePrompt:prompt,duration,cuts});const composition=buildCompositionRuntime({prompt,duration,bpm:bpm==='auto'?direction.preferredBpm:bpm,mood,energy});const timeline=buildMusicTimeline(composition,cuts);return{version:'music-render-bridge-v1',direction,composition,timeline,renderAudio:{enabled:true,originalOnly:true,beatGrid:composition.events.map(e=>e.time),impactMarkers:composition.stems.impacts.map(e=>e.time),duckingDb:direction.mix.voiceoverDuckDb,master:{targetLufs:direction.mix.targetLufs,peakDbtp:direction.mix.peakDbtp}}};}
+export function scoreMusicEditSync(bridge){const rows=bridge?.timeline||[];if(!rows.length)return 0;const inTolerance=rows.filter(x=>Math.abs(Number(x.delta)||0)<=.14).length;return Number((inTolerance/rows.length).toFixed(3));}
