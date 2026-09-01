@@ -10,6 +10,6 @@ assert.match(runtime,/\/api\/analyse-library/);
 assert.match(runtime,/\/api\/captions/);
 assert.match(runtime,/local-browser-analysis/);
 assert.match(analysis,/browser frame metrics/);
-assert.match(analysis,/local-frame-analysis-v1/);
+assert.match(analysis,/local-frame-analysis-v4/);
 assert.doesNotMatch(main,/GEMINI_API_KEY|GoogleGenAI|@google\/genai/i);
 console.log('local-only runtime contract: PASS');
