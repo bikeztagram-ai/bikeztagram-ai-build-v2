@@ -7,7 +7,7 @@ const director = fs.readFileSync(new URL('../src/directorSelection.js', import.m
 
 assert.match(model, /sourceIndex/);
 assert.match(model, /mediaIndex: sourceIndex \?\? mediaIndex/);
-assert.match(planner, /const sourceIndex =/);
+assert.match(planner, /const sourceIndex\s*=/);
 assert.match(planner, /moment\.sourceIndex/);
 assert.match(planner, /mediaIndex:sourceIndex/);
 assert.match(planner, /sourceIndex,/);
