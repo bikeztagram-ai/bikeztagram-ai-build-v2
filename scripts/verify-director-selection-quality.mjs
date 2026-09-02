@@ -5,9 +5,9 @@ const source=fs.readFileSync('src/directorSelection.js','utf8');
 
 for(const pattern of [
  /function subjectFamily\(/,
- /sources=new Set\(\)/,
- /families=new Map\(\)/,
- /subjects=new Map\(\)/,
+ /(?:const\s+)?sources=new Set\(\)/,
+ /(?:const\s+)?families=new Map\(\)/,
+ /(?:const\s+)?subjects=new Map\(\)/,
  /durationFit\(/,
  /usedDuration/,
  /sources\.has\(/,
