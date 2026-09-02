@@ -16,9 +16,12 @@ assert.match(analysis, /local-frame-analysis-v4/);
 assert.match(analysis, /browser frame metrics/);
 assert.match(analysis, /URL\.createObjectURL/);
 assert.match(app, /analyseLocalMedia/);
-assert.doesNotMatch(main, /GEMINI_API_KEY|GoogleGenAI|@google\/genai/i);
-assert.doesNotMatch(runtime, /GEMINI_API_KEY|GoogleGenAI|@google\/genai/i);
-assert.doesNotMatch(analysis, /GEMINI_API_KEY|GoogleGenAI|@google\/genai/i);
-assert.doesNotMatch(app, /GEMINI_API_KEY|GoogleGenAI|@google\/genai/i);
+
+// These API-shaped paths are compatibility shims handled entirely in the browser.
+// The production runtime must not contain a Gemini dependency or credential path.
+assert.doesNotMatch(main, /GEMINI_API_KEY|GoogleGenAI|@google\/genai|gemini-[0-9]/i);
+assert.doesNotMatch(runtime, /GEMINI_API_KEY|GoogleGenAI|@google\/genai|gemini-[0-9]/i);
+assert.doesNotMatch(analysis, /GEMINI_API_KEY|GoogleGenAI|@google\/genai|gemini-[0-9]/i);
+assert.doesNotMatch(app, /GEMINI_API_KEY|GoogleGenAI|@google\/genai|gemini-[0-9]/i);
 
 console.log('Local analysis runtime contract: PASS');
