@@ -23,17 +23,36 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
           protected='^(vercel\.json|api/blob-presign\.js|api/upload\.js|api/render\.js|\.env\.example|docs/PRODUCTION-CONTRACT\.md|\.github/workflows/production-contract-guard\.yml)$'
-          if echo "$changed" | grep -Eq "$protected"; then
-            subject="$(git log -1 --format=%s "$HEAD_SHA")"
-            if [[ "$subject" != *"[production-contract-approved]"* ]]; then
-              echo "Protected production contract files changed."
-              echo "Explicit production-contract approval is required."
-              echo "A deliberately reviewed contract change must carry [production-contract-approved] in its final commit message."
-              exit 1
-            fi
-            echo "Protected change explicitly approved by commit marker."
+          changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+          protected_changed="$(printf '%s\n' "$changed" | grep -E "$protected" || true)"
+          if [[ -z "$protected_changed" ]]; then
+            echo "No protected production contract files changed."
             exit 0
           fi
-          echo "No protected production contract files changed."
+
+          echo "Protected production contract changes detected:"
+          printf '%s\n' "$protected_changed"
+
+          # Approval is attached to the commit that introduced each protected
+          # change, rather than requiring unrelated later commits to repeat it.
+          approved=0
+          while IFS= read -r commit; do
+            [[ -z "$commit" ]] && continue
+            files="$(git diff-tree --no-commit-id --name-only -r "$commit")"
+            if printf '%s\n' "$files" | grep -Eq "$protected"; then
+              subject="$(git log -1 --format=%s "$commit")"
+              if [[ "$subject" == *"[production-contract-approved]"* ]]; then
+                approved=1
+                echo "Approved protected change: $commit"
+              fi
+            fi
+          done < <(git rev-list "$BASE_SHA..$HEAD_SHA")
+
+          if [[ "$approved" -ne 1 ]]; then
+            echo "Protected production contract files changed without an approval marker."
+            echo "A deliberately reviewed contract change must carry [production-contract-approved] on the commit that changes it."
+            exit 1
+          fi
+
+          echo "Production contract guard: PASS"
