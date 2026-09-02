@@ -11,7 +11,7 @@ assert.match(planner, /const sourceIndex\s*=/);
 assert.match(planner, /moment\.sourceIndex/);
 assert.match(planner, /mediaIndex:sourceIndex/);
 assert.match(planner, /sourceIndex,/);
-assert.match(director, /function sourceKey/);
+assert.match(director, /(?:function|const) sourceKey/);
 assert.match(director, /mediaId\?\?m\.mediaIndex/);
 
 console.log('Mixed-media source identity contract: PASS');
