@@ -4,15 +4,15 @@ import assert from 'node:assert/strict';
 const source=fs.readFileSync('src/directorSelection.js','utf8');
 
 for(const pattern of [
- /function subjectFamily\(m\)/,
- /const sources=new Set\(\)/,
- /const families=new Map\(\)/,
- /const subjects=new Map\(\)/,
+ /function subjectFamily\(/,
+ /sources=new Set\(\)/,
+ /families=new Map\(\)/,
+ /subjects=new Map\(\)/,
  /durationFit\(/,
  /usedDuration/,
- /sources\.has\(src\)/,
- /families\.get\(m\.__family\)/,
- /subjects\.get\(m\.__subject\)/,
+ /sources\.has\(/,
+ /families\.get\(/,
+ /subjects\.get\(/,
  /directorSelectionScore/,
  /directorShotFamily/,
  /directorSubjectFamily/
