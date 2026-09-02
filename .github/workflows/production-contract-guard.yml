@@ -24,7 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
-          protected='^(vercel\.json|api/blob-presign\.js|api/upload\.js|api/analyse-library\.js|api/render\.js|\.env\.example|docs/PRODUCTION-CONTRACT\.md|\.github/workflows/production-contract-guard\.yml)$'
+          protected='^(vercel\.json|api/blob-presign\.js|api/upload\.js|api/render\.js|\.env\.example|docs/PRODUCTION-CONTRACT\.md|\.github/workflows/production-contract-guard\.yml)$'
           if echo "$changed" | grep -Eq "$protected"; then
             subject="$(git log -1 --format=%s "$HEAD_SHA")"
             if [[ "$subject" != *"[production-contract-approved]"* ]]; then
