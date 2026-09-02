@@ -52,7 +52,7 @@ assert.match(director,/selectDirectorMoments/);
 assert.match(director,/similarity/);
 assert.match(conductor,/buildUniversalProduction/);
 assert.match(conductor,/without requiring Gemini/);
-assert.match(noGemini,/no-Gemini/);
+assert.match(noGemini,/no-Gemini/i);
 assert.doesNotMatch(app,/@google\/genai|GoogleGenAI|GEMINI_API_KEY|gemini-[0-9]/);
 
 // Executable render + QA loop.
