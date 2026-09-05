@@ -15,3 +15,4 @@ export function normalizeCreativeBrief(prompt='',options={}){
   const aspectRatio=options.aspectRatio||pick(s,['9:16','16:9','1:1','2.39:1'],'portrait');
   return {subject,setting,mood,camera,lighting,actions,style,pace,aspectRatio,raw:text(prompt)};
 }
+export function briefToGenerationDirectives(brief={}){return{subject:brief.subject||'subject',environment:brief.setting||'environment',mood:brief.mood||'cinematic',camera:brief.camera||'cinematic',lighting:brief.lighting||'cinematic',actions:Array.isArray(brief.actions)?brief.actions:[],style:brief.style||'cinematic',pace:brief.pace||'cinematic',aspectRatio:brief.aspectRatio||'portrait'};}
