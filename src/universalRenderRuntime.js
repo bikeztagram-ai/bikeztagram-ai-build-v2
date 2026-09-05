@@ -17,14 +17,11 @@ export async function renderUniversalProduction({ media = [], mediaItems = null,
   let productionMedia = resolvedMediaItems;
   let aiVideo = { generatedCount: 0, provider: 'none' };
   try {
-    const enhanced = await enhanceStillCutsWithAIVideo({ mediaItems: resolvedMediaItems, plan: directedPlan, creativePrompt: prompt, onProgress });
+    const enhanced = await enhanceStillCutsWithAIVideo({ mediaItems: resolvedMediaItems, plan: directedPlan, creativePrompt: prompt, outputPreset, onProgress });
     productionMedia = enhanced.mediaItems;
     aiVideo = enhanced;
   } catch (error) { console.warn('[UNIVERSAL RENDER] AI video enhancement unavailable; authentic media retained.', error); }
-  for (const item of productionMedia) {
-    const contract = generationContract(item);
-    if (!contract.valid) throw new Error(`Generated media contract failed: ${contract.reason}`);
-  }
+  for (const item of productionMedia) { const contract = generationContract(item); if (!contract.valid) throw new Error(`Generated media contract failed: ${contract.reason}`); }
   if (aiVideo.generatedCount) onProgress?.({ stage: 'ai-video-complete', value: 100, generatedCount: aiVideo.generatedCount, provider: aiVideo.provider });
   const musicBridge = music ? await buildMusicRenderBridge({ creativePrompt: prompt, duration, cuts: directedPlan.cuts || directedPlan.clips || [], onProgress }) : null;
   const musicAudioUrl = musicBridge?.renderAudio?.audioDataUrl || null;
