@@ -5,6 +5,7 @@ import { evaluateRenderAcceptance, chooseRevisionActions } from './renderQuality
 import { enhanceStillCutsWithAIVideo } from './aiVideoEnhancer.js';
 import { prepareCreativeContinuity } from './creativeContinuityEngine.js';
 import { compileCreativeIntent, mergeCreativeIntent } from './creativeIntentCompiler.js';
+import { generationContract } from './mediaGenerationPolicy.js';
 
 export async function renderUniversalProduction({ media = [], mediaItems = null, plan, prompt = '', duration = 15, music = true, outputPreset = 'portrait', onProgress } = {}) {
   if (!plan) throw new Error('A render plan is required.');
@@ -14,17 +15,32 @@ export async function renderUniversalProduction({ media = [], mediaItems = null,
   const intent = compileCreativeIntent(prompt, { duration, aspectRatio: outputPreset });
   const directedPlan = prepareCreativeContinuity(mergeCreativeIntent(plan, intent), { creativePrompt: prompt, duration });
   let productionMedia = resolvedMediaItems;
-  let aiVideo = { generatedCount: 0, provider: 'none' };
+  let aiVideo = { generatedCount: 0, attemptedCount: 0, failedCount: 0, provider: 'none' };
   try {
-    const enhanced = await enhanceStillCutsWithAIVideo({ mediaItems: resolvedMediaItems, plan: directedPlan, creativePrompt: prompt, onProgress });
+    const enhanced = await enhanceStillCutsWithAIVideo({ mediaItems: resolvedMediaItems, plan: directedPlan, creativePrompt: prompt, outputPreset, onProgress });
     productionMedia = enhanced.mediaItems;
     aiVideo = enhanced;
   } catch (error) { console.warn('[UNIVERSAL RENDER] AI video enhancement unavailable; authentic media retained.', error); }
+  for (const item of productionMedia) {
+    const contract = generationContract(item);
+    if (!contract.valid) throw new Error(`Generated media contract failed: ${contract.reason}`);
+  }
   if (aiVideo.generatedCount) onProgress?.({ stage: 'ai-video-complete', value: 100, generatedCount: aiVideo.generatedCount, provider: aiVideo.provider });
-  const musicBridge = music ? await buildMusicRenderBridge({ creativePrompt: prompt, duration, cuts: directedPlan.cuts || directedPlan.clips || [], onProgress }) : null;
+  const musicBridge = music ? await buildMusicRenderBridge({ prompt, duration, cuts: directedPlan.cuts || directedPlan.clips || [], onProgress }) : null;
   const musicAudioUrl = musicBridge?.renderAudio?.audioDataUrl || null;
   const beatGrid = musicBridge?.renderAudio?.beatGrid || [];
-  const renderPlan = musicBridge ? { ...directedPlan, audioAnalysis: musicBridge.composition?.events, beatGrid, music: { ...(directedPlan.music || {}), audioDataUrl: musicAudioUrl, audioAnalysis: musicBridge.composition?.events, beatGrid, provider: musicBridge.renderAudio?.provider || 'original-fallback' } } : directedPlan;
+  const audioAnalysis = musicBridge?.renderAudio?.audioAnalysis || null;
+  const renderPlan = musicBridge ? {
+    ...directedPlan,
+    audioAnalysis,
+    beatGrid,
+    music: {
+      ...(directedPlan.music || {}), audioDataUrl: musicAudioUrl,
+      audioAnalysis, beatGrid,
+      impactMarkers: musicBridge.renderAudio?.impactMarkers || [],
+      provider: musicBridge.renderAudio?.provider || 'original-fallback'
+    }
+  } : directedPlan;
   const result = await renderInspectImprove({ mediaItems: productionMedia, plan: renderPlan, expectedDuration: duration, prompt, outputPreset, musicUrl: musicAudioUrl, onProgress });
   const beatSyncScore = musicBridge ? scoreMusicEditSync(musicBridge) : null;
   const policy = evaluateRenderAcceptance({ qa: result?.qa, audioExpected: Boolean(music), audioAttached: Boolean(result?.audioAttached), beatSyncScore });
