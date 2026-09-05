@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { createArrangementProject, updateArrangementSection, toggleArrangementStem, updateMastering, analyseArrangement, renderArrangementWav, renderArrangementStemWav } from '../src/musicArrangementRuntime.js';
+const project=createArrangementProject({brief:{prompt:'cinematic electronic trailer',duration:30}});
+assert.equal(project.version,3);assert.ok(project.composition.sections.length>=4);assert.ok(project.composition.beatGrid.length>0);assert.ok(project.composition.bass.length>0);assert.ok(project.composition.drums.length>0);
+let edited=updateArrangementSection(project,0,{energy:1.2,octave:1});assert.equal(edited.composition.sections[0].energy,1.2);assert.equal(edited.composition.sections[0].octave,1);assert.equal(edited.sectionEdits.length,1);
+edited=toggleArrangementStem(edited,'bass');assert.deepEqual(edited.mutedStems,['bass']);const muted=await renderArrangementWav(edited,{sampleRate:8000});assert.equal(muted.stem,'master');assert.ok(muted.bytes>44);edited=toggleArrangementStem(edited,'bass');assert.deepEqual(edited.mutedStems,[]);
+edited=updateMastering(edited,{gainDb:3,limiterDb:-1.5,stereoWidth:1.2,lowCutHz:40});assert.equal(edited.master.gainDb,3);assert.equal(edited.master.limiterDb,-1.5);assert.equal(edited.master.stereoWidth,1.2);assert.equal(edited.master.lowCutHz,40);
+const stem=await renderArrangementStemWav(edited,'drums',{sampleRate:8000});assert.equal(stem.stem,'drums');assert.ok(stem.bytes>44);
+const report=analyseArrangement(edited);assert.equal(report.ok,true);assert.equal(report.activeStemCount,5);assert.ok(report.events>0);assert.equal(report.stems.drums,true);assert.equal(report.stems.bass,true);
+console.log(JSON.stringify({ok:true,bpm:report.bpm,key:report.key,sections:report.sections,events:report.events,activeStemCount:report.activeStemCount,stemExport:true}));

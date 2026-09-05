@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { revisePlanAfterQA } from '../src/renderQualityLoop.js';
+const plan={targetDuration:10,cuts:[{duration:5,motionStyle:'slow-push',transition:'hard-cut',role:'hook',colorGrade:'dark-cinematic'},{duration:5,motionStyle:'slow-pull',transition:'fade-out',role:'hero-ending'}]};
+const dark=revisePlanAfterQA(plan,{verdict:'FAIL_TOO_DARK',frameQA:{averageLuma:10},durationDifferenceSeconds:0});
+assert.equal(dark.changed,true);assert.equal(dark.plan.cuts[0].colorGrade,'cinematic');
+const duration=revisePlanAfterQA(plan,{verdict:'PASS_WITH_DURATION_DIFFERENCE',durationDifferenceSeconds:4,durationSeconds:14,expectedDurationSeconds:10});
+assert.equal(duration.changed,true);assert.ok(duration.plan.cuts.every(c=>c.duration<5));
+const good=revisePlanAfterQA(plan,{verdict:'PASS',durationDifferenceSeconds:0});
+assert.equal(good.changed,false);
+console.log('Render quality-loop revision contract: PASS');
