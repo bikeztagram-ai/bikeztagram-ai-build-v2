@@ -1,0 +1,1 @@
+Continue pass: integration, media lifecycle, output selection, regression coverage.

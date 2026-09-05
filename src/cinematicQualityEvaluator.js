@@ -40,8 +40,8 @@ function scorePacing(cuts,targetDuration){
  return{score:clamp(Math.round(score),0,100),issues};
 }
 function scoreAudio(cuts,render={}){
- const issues=[];let score=100;const audio=render.audio||{};const required=audio.required!==false&&audio.present!==false;
- if(required&&audio.present===false){score-=25;issues.push('Required audio is missing');}
+ const issues=[];let score=100;const audio=render.audio||{};const required=audio.required!==false;
+ if(required&&audio.present!==true){score-=25;issues.push('Required audio is missing');}
  if(audio.durationAligned===false){score-=25;issues.push('Audio/video duration mismatch');}
  if(audio.beatAligned===false){score-=12;issues.push('Audio is not aligned to edit rhythm');}
  if(cuts.length>1){const beatCuts=cuts.filter(c=>c.nearestBeatTime!=null||c.beatAligned===true).length;if(audio.present&&beatCuts===0&&audio.beatAligned==null){score-=5;issues.push('No beat-boundary evidence');}}
