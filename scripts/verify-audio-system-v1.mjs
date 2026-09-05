@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { planAudioDirector } from '../src/audioDirector.js';
+import { buildAudioMixPlan } from '../src/audioMixPlan.js';
+const direction=planAudioDirector({creativePrompt:'dark cinematic trailer with energetic action and reveal',duration:15,cuts:[{startTime:0,editorialRole:'hook'},{startTime:4,editorialRole:'action'},{startTime:10,editorialRole:'reveal'},{startTime:13,editorialRole:'hero'}]});
+assert.equal(direction.version,'audio-director-v2');
+assert.ok(direction.preferredBpm>=90&&direction.preferredBpm<=160);
+assert.ok(direction.beatMarkers.length>0);
+assert.equal(direction.editSync.cutMap.length,4);
+assert.equal(direction.copyright.disallowUnlicensedKnownSongs,true);
+const mix=buildAudioMixPlan({audioDirection:direction,hasVoiceover:true,hasSfx:true});
+assert.equal(mix.master.targetLufs,-14);
+assert.equal(mix.voiceover.enabled,true);
+assert.equal(mix.voiceover.duckMusicDb,-6);
+assert.equal(mix.sfx.transitionWhoosh,true);
+assert.equal(mix.copyright.unlicensedKnownMusicBlocked,true);
+console.log('audio-system-v1: PASS');
