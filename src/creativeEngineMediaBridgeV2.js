@@ -1,49 +1,9 @@
 /* Bridge Creative Engine plans into the existing renderer contract. */
 import { createOriginalCinematicWav } from './musicProviderV2.js';
 import { createVideoGenerationRuntime } from './videoGenerationRuntimeV2.js';
-
+import { generateAIVideoScene } from './aiVideoProvider.js';
 const safeNumber=(v,fallback=0)=>Number.isFinite(Number(v))?Number(v):fallback;
-
-export function buildRendererPlanFromCreativeJob(job,{prompt='',targetDuration=15}={}){
- const scenes=Array.isArray(job?.scenes)?job.scenes:[];
- const cuts=scenes.map((scene,i)=>({
-  mediaIndex:Number.isInteger(Number(scene.mediaIndex))?Number(scene.mediaIndex):0,
-  mediaId:scene.mediaId,
-  sourceType:scene.sourceType||'uploaded',
-  generated:Boolean(scene.generated||scene.sourceType==='generated'||scene.sourceType==='procedural'),
-  generationPrompt:scene.generationPrompt||scene.prompt||'',
-  purpose:scene.purpose||scene.role||'cinematic-scene',
-  startTime:safeNumber(scene.startTime,0),
-  duration:safeNumber(scene.duration,Math.max(1,Number(targetDuration)/Math.max(1,scenes.length))),
-  transition:scene.transitionIn||scene.transition||((i===0)?'fade-in':'hard-cut'),
-  motionStyle:scene.motionStyle||'slow-push',
-  motionIntensity:safeNumber(scene.motionIntensity,1),
-  colorGrade:scene.colorGrade||job?.style?.colorGrade||'dark-cinematic',
-  text:scene.text||''
- }));
- return {title:job?.title||'Creative Engine Film',style:job?.style?.name||'cinematic',creativePrompt:prompt,colorGrade:job?.style?.colorGrade||'dark-cinematic',targetDuration:safeNumber(job?.targetDuration,targetDuration),cuts,speechCaptions:job?.captions||[],captioning:job?.captioning||{enabled:false}};
-}
-
-export async function materializeGeneratedScenesV2(job,{onProgress,modelAdapter=null}={}){
- const scenes=Array.isArray(job?.scenes)?job.scenes:[],generated=[];const runtime=createVideoGenerationRuntime({modelAdapter});
- const total=scenes.filter(s=>s.generated||s.sourceType==='generated'||s.sourceType==='procedural'||s.generationPrompt).length;let completed=0;
- for(let i=0;i<scenes.length;i++){
-  const scene=scenes[i],needs=Boolean(scene.generated||scene.sourceType==='generated'||scene.sourceType==='procedural'||scene.generationPrompt);if(!needs)continue;
-  const result=await runtime.generate({type:scene.referenceAssets?.length?'image-to-video':'text-to-video',prompt:scene.generationPrompt||scene.prompt||scene.purpose||'',duration:scene.duration||4,aspectRatio:'9:16',referenceAssets:scene.referenceAssets||[],subjectIds:scene.subjectIds||[],camera:scene.camera||scene.motionStyle||'',motion:scene.motionStyle||'',lighting:scene.lighting||'',environment:scene.environment||'',timelineRole:scene.purpose||'generated scene'},{title:job?.title||'',onProgress:p=>onProgress?.({sceneIndex:i,sceneProgress:p,completed,total})});
-  if(!result?.blob&&!result?.videoBlob&&!result?.videoUrl)throw new Error(`Generated scene ${i+1} returned no media output.`);
-  generated.push({sceneIndex:i,blob:result.blob||result.videoBlob||null,url:result.url||result.videoUrl||'',sourceUrl:result.sourceUrl||result.url||result.videoUrl||'',sourceType:'generated',generated:true,mimeType:result.mimeType||result.blob?.type||result.videoBlob?.type||'video/webm',name:`generated-scene-${i+1}.webm`,duration:result.duration||scene.duration||4,provider:result.source||'local-procedural',request:result.request});completed++;onProgress?.({sceneIndex:i,sceneProgress:100,completed,total});
- }
- return generated;
-}
-
-export function buildOriginalMusicForCreativeJob(job){
- const music=job?.music||{};const duration=safeNumber(job?.targetDuration,15);const bpm=safeNumber(music.bpm,112);const energy=safeNumber(music.energy,.78);return {audioBlob:createOriginalCinematicWav({seconds:duration,bpm,energy}),metadata:{original:true,provider:'in-house-procedural',bpm,duration,energy,genre:music.genre||'cinematic-electronic'}};
-}
-
-export async function materializeCreativeJobV2(job,context={}){
- const generated=await materializeGeneratedScenesV2(job,context);const plan=buildRendererPlanFromCreativeJob(job,context);const media=[...(context.mediaItems||[])];
- generated.forEach((item,i)=>media.push({...item,id:`generated-${i}`,file:null}));
- const generatedByScene=new Map(generated.map(item=>[item.sceneIndex,item]));
- plan.cuts=plan.cuts.map((cut,index)=>{const generatedItem=generatedByScene.get(index);return generatedItem?{...cut,mediaId:generatedItem.id,mediaIndex:media.length-generated.length+generated.findIndex(x=>x.sceneIndex===index),sourceType:'generated',generated:true,generationPrompt:cut.generationPrompt}:cut;});
- return {mediaItems:media,plan,music:buildOriginalMusicForCreativeJob(job),generatedScenes:generated};
-}
+export function buildRendererPlanFromCreativeJob(job,{prompt='',targetDuration=15}={}){const scenes=Array.isArray(job?.scenes)?job.scenes:[];const cuts=scenes.map((scene,i)=>({mediaIndex:Number.isInteger(Number(scene.mediaIndex))?Number(scene.mediaIndex):0,mediaId:scene.mediaId,sourceType:scene.sourceType||'uploaded',generated:Boolean(scene.generated||scene.sourceType==='generated'||scene.sourceType==='procedural'),generationPrompt:scene.generationPrompt||scene.prompt||'',purpose:scene.purpose||scene.role||'cinematic-scene',startTime:safeNumber(scene.startTime,0),duration:safeNumber(scene.duration,Math.max(1,Number(targetDuration)/Math.max(1,scenes.length))),transition:scene.transitionIn||scene.transition||((i===0)?'fade-in':'crossfade'),motionStyle:scene.motionStyle||'slow-push',motionIntensity:safeNumber(scene.motionIntensity,1),colorGrade:scene.colorGrade||job?.style?.colorGrade||'dark-cinematic',text:scene.text||''}));return{title:job?.title||'Creative Engine Film',style:job?.style?.name||'cinematic',creativePrompt:prompt,colorGrade:job?.style?.colorGrade||'dark-cinematic',targetDuration:safeNumber(job?.targetDuration,targetDuration),cuts,speechCaptions:job?.captions||[],captioning:job?.captioning||{enabled:false}};}
+export async function materializeGeneratedScenesV2(job,{onProgress,modelAdapter=null}={}){const scenes=Array.isArray(job?.scenes)?job.scenes:[];const generated=[];const aiAdapter=modelAdapter|| (async(request,context)=>{try{return await generateAIVideoScene({prompt:request.prompt,duration:request.duration,ratio:'720:1280',onProgress:p=>onProgress?.({sceneIndex:context.sceneIndex??0,sceneProgress:p,provider:'Runway Gen-4.5'})})}catch(error){if(/not configured|could not start/i.test(error?.message||''))return null;throw error}});const runtime=createVideoGenerationRuntime({modelAdapter:aiAdapter});const total=scenes.filter(s=>s.generated||s.sourceType==='generated'||s.sourceType==='procedural'||s.generationPrompt).length;let completed=0;for(let i=0;i<scenes.length;i++){const scene=scenes[i],needs=Boolean(scene.generated||scene.sourceType==='generated'||scene.sourceType==='procedural'||scene.generationPrompt);if(!needs)continue;const result=await runtime.generate({type:scene.referenceAssets?.length?'image-to-video':'text-to-video',prompt:scene.generationPrompt||scene.prompt||scene.purpose||'',duration:Math.min(5,Math.max(2,scene.duration||4)),aspectRatio:'9:16',referenceAssets:scene.referenceAssets||[],subjectIds:scene.subjectIds||[],camera:scene.camera||scene.motionStyle||'',motion:scene.motionStyle||'',lighting:scene.lighting||'',environment:scene.environment||'',timelineRole:scene.purpose||'generated scene'},{title:job?.title||'',sceneIndex:i,onProgress:p=>onProgress?.({sceneIndex:i,sceneProgress:p,completed,total})});if(!result?.blob&&!result?.videoBlob&&!result?.videoUrl&&!result?.url)throw Error(`Generated scene ${i+1} returned no media output.`);generated.push({sceneIndex:i,blob:result.blob||result.videoBlob||null,url:result.url||result.videoUrl||'',sourceUrl:result.sourceUrl||result.url||result.videoUrl||'',sourceType:'generated',generated:true,mimeType:result.mimeType||result.blob?.type||result.videoBlob?.type||'video/mp4',name:`generated-scene-${i+1}.mp4`,duration:result.duration||scene.duration||4,provider:result.source||result.provider||'local-procedural',request:result.request});completed++;onProgress?.({sceneIndex:i,sceneProgress:100,completed,total});}return generated;}
+export function buildOriginalMusicForCreativeJob(job){const music=job?.music||{};const duration=safeNumber(job?.targetDuration,15);const bpm=safeNumber(music.bpm,112);const energy=safeNumber(music.energy,.78);return{audioBlob:createOriginalCinematicWav({seconds:duration,bpm,energy}),metadata:{original:true,provider:'in-house-procedural',bpm,duration,energy,genre:music.genre||'cinematic-electronic'}};}
+export async function materializeCreativeJobV2(job,context={}){const generated=await materializeGeneratedScenesV2(job,context);const plan=buildRendererPlanFromCreativeJob(job,context);const media=[...(context.mediaItems||[])];generated.forEach((item,i)=>media.push({...item,id:`generated-${i}`,file:null}));const generatedByScene=new Map(generated.map(item=>[item.sceneIndex,item]));plan.cuts=plan.cuts.map((cut,index)=>{const generatedItem=generatedByScene.get(index);return generatedItem?{...cut,mediaId:generatedItem.id,mediaIndex:media.length-generated.length+generated.findIndex(x=>x.sceneIndex===index),sourceType:'generated',generated:true,generationPrompt:cut.generationPrompt}:cut});return{mediaItems:media,plan,music:buildOriginalMusicForCreativeJob(job),generatedScenes:generated};}
