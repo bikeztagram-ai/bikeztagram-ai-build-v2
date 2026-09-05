@@ -1,7 +1,7 @@
 /* Lightweight analysis of the actual rendered AI audio for edit-sync markers. */
 
 export async function analyzeAudioBlob(blob, { maxMarkers = 96 } = {}) {
-  if (!blob || typeof AudioContext === 'undefined') return null;
+  if (!blob || typeof window === 'undefined') return null;
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return null;
   const context = new AudioCtx();
@@ -34,8 +34,21 @@ export async function analyzeAudioBlob(blob, { maxMarkers = 96 } = {}) {
     const impacts = frames.filter((frame, index) => frame.flux >= threshold && frame.flux >= (frames[index - 1]?.flux || 0) && frame.flux >= (frames[index + 1]?.flux || 0));
     const step = Math.max(1, Math.ceil(impacts.length / maxMarkers));
     const impactMarkers = impacts.filter((_, index) => index % step === 0).map((frame) => Number(frame.time.toFixed(3)));
-    const beatGrid = frames.filter((frame, index) => frame.flux >= threshold * 0.65 && frame.rms > 0.01 && (index === 0 || frame.time - frames[index - 1].time >= 0.18)).slice(0, maxMarkers).map((frame) => Number(frame.time.toFixed(3)));
-    return { duration: buffer.duration, sampleRate, rms: Number((frames.reduce((sum, frame) => sum + frame.rms, 0) / frames.length).toFixed(5)), beatGrid, impactMarkers };
+    const beatGrid = frames.filter((frame, index) => {
+      const previous = frames[index - 1];
+      return frame.flux >= threshold * 0.65 && frame.rms > 0.01 && (!previous || frame.time - previous.time >= 0.18);
+    }).slice(0, maxMarkers).map((frame) => Number(frame.time.toFixed(3)));
+    return {
+      duration: buffer.duration,
+      sampleRate,
+      channels,
+      rms: Number((frames.reduce((sum, frame) => sum + frame.rms, 0) / frames.length).toFixed(5)),
+      peakRms: Number(Math.max(...frames.map((frame) => frame.rms)).toFixed(5)),
+      dynamicRange: Number((Math.max(...frames.map((frame) => frame.rms)) - Math.min(...frames.map((frame) => frame.rms))).toFixed(5)),
+      beatGrid,
+      impactMarkers,
+      analyzedActualAudio: true,
+    };
   } finally {
     await context.close();
   }
