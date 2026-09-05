@@ -6,142 +6,15 @@ import { resolveRenderOutput } from './renderOutputRuntime.js';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = v => v < .5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
 const supported = () => ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=h264', 'video/mp4'].find(t => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) || '';
-
-function grade(name) {
-  const g = String(name || '').toLowerCase();
-  if (g.includes('warm')) return 'brightness(.96) contrast(1.14) saturate(1.15) sepia(.06)';
-  if (g.includes('vivid')) return 'brightness(.96) contrast(1.22) saturate(1.3)';
-  if (g.includes('natural')) return 'brightness(1) contrast(1.06) saturate(1.06)';
-  if (g.includes('blue') || g.includes('moody') || g.includes('dark')) return 'brightness(.92) contrast(1.18) saturate(1.14) hue-rotate(-5deg)';
-  return 'brightness(.95) contrast(1.16) saturate(1.12)';
-}
-
-function motion(cut, p, w, h) {
-  const m = String(cut.motionStyle || cut.motion || 'cinematic').toLowerCase();
-  const e = ease(p);
-  const i = clamp(Number(cut.motionIntensity) || .9, .35, 1.7);
-  let scale = 1.045, x = 0, y = 0, r = 0;
-  if (m.includes('push') || m === 'zoom') scale += e * .13 * i;
-  else if (m.includes('pull')) scale += (1 - e) * .13 * i;
-  else if (m.includes('pan-right')) { scale = 1.10; x = (e - .5) * w * .16 * i; }
-  else if (m.includes('pan-left')) { scale = 1.10; x = (.5 - e) * w * .16 * i; }
-  else if (m.includes('tilt-up')) { scale = 1.09; y = (.5 - e) * h * .10 * i; }
-  else if (m.includes('tilt-down')) { scale = 1.09; y = (e - .5) * h * .10 * i; }
-  else if (m.includes('orbit') || m.includes('parallax')) { scale = 1.11; x = Math.sin(e * Math.PI * 2) * w * .045 * i; y = Math.cos(e * Math.PI * 2) * h * .025 * i; r = Math.sin(e * Math.PI * 2) * .008 * i; }
-  else if (m === 'static') scale = 1.015;
-  return { scale: clamp(scale, 1.01, 1.32), x, y, r };
-}
-
-function drawCover(ctx, el, t, gradeName, focal, w, h) {
-  const sw = el.videoWidth || el.naturalWidth;
-  const sh = el.videoHeight || el.naturalHeight;
-  if (!sw || !sh) return false;
-  const ratio = sw / sh, target = w / h;
-  let dw, dh;
-  if (ratio > target) { dh = h * t.scale; dw = dh * ratio; } else { dw = w * t.scale; dh = dw / ratio; }
-  const fx = clamp(Number(focal?.x) || .5, .1, .9), fy = clamp(Number(focal?.y) || .5, .1, .9), fs = clamp(Number(focal?.scale) || 1, 1, 1.18);
-  let x = (w - dw) / 2 + t.x + (.5 - fx) * (dw - w) * .72;
-  let y = (h - dh) / 2 + t.y + (.5 - fy) * (dh - h) * .72;
-  x += (.5 - fx) * w * .025; y += (.5 - fy) * h * .025;
-  ctx.save(); ctx.filter = grade(gradeName); ctx.translate(w / 2, h / 2); ctx.rotate(t.r); ctx.translate(-w / 2, -h / 2); ctx.drawImage(el, x, y, dw * fs, dh * fs); ctx.restore();
-  return true;
-}
-
-function effect(ctx, name, p, w, h) {
-  const n = String(name || 'hard-cut').toLowerCase(), d = .28;
-  const q = clamp(p / d, 0, 1), mid = Math.max(0, 1 - Math.abs(p - .5) / .5);
-  if (n === 'fade-in') { ctx.fillStyle = '#000'; ctx.globalAlpha = 1 - q; ctx.fillRect(0, 0, w, h); }
-  else if (n === 'fade-out') { ctx.fillStyle = '#000'; ctx.globalAlpha = q; ctx.fillRect(0, 0, w, h); }
-  else if (n === 'dip-black') { ctx.fillStyle = '#000'; ctx.globalAlpha = mid * .95; ctx.fillRect(0, 0, w, h); }
-  else if (n === 'flash-cut' || n === 'zoom-punch') { ctx.fillStyle = '#fff'; ctx.globalAlpha = Math.pow(mid, 2) * (n === 'flash-cut' ? .8 : .16); ctx.fillRect(0, 0, w, h); }
-  else if (n.startsWith('light-leak')) { const dir = n.endsWith('left') ? -1 : n.endsWith('right') ? 1 : 0; const g = ctx.createLinearGradient(dir < 0 ? w : 0, 0, dir > 0 ? w : 0, 0); g.addColorStop(0, 'rgba(255,255,220,.38)'); g.addColorStop(.45, 'rgba(255,170,70,.16)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.globalAlpha = Math.pow(mid, 1.5); ctx.fillRect(0, 0, w, h); }
-  else if (n === 'whip-left' || n === 'whip-right') { const dir = n === 'whip-right' ? 1 : -1; ctx.fillStyle = '#05070b'; ctx.globalAlpha = .55 * (1 - q); ctx.fillRect((1 - q) * dir * w * .18, 0, w, h); }
-  ctx.globalAlpha = 1;
-}
-
+function grade(name) { const g = String(name || '').toLowerCase(); if (g.includes('warm')) return 'brightness(.96) contrast(1.14) saturate(1.15) sepia(.06)'; if (g.includes('vivid')) return 'brightness(.96) contrast(1.22) saturate(1.3)'; if (g.includes('natural')) return 'brightness(1) contrast(1.06) saturate(1.06)'; if (g.includes('blue') || g.includes('moody') || g.includes('dark')) return 'brightness(.92) contrast(1.18) saturate(1.14) hue-rotate(-5deg)'; return 'brightness(.95) contrast(1.16) saturate(1.12)'; }
+function motion(cut, p, w, h) { const m = String(cut.motionStyle || cut.motion || 'cinematic').toLowerCase(), e = ease(p), i = clamp(Number(cut.motionIntensity) || .9, .35, 1.7); let scale = 1.045, x = 0, y = 0, r = 0; if (m.includes('push') || m === 'zoom') scale += e * .13 * i; else if (m.includes('pull')) scale += (1 - e) * .13 * i; else if (m.includes('pan-right')) { scale = 1.10; x = (e - .5) * w * .16 * i; } else if (m.includes('pan-left')) { scale = 1.10; x = (.5 - e) * w * .16 * i; } else if (m.includes('tilt-up')) { scale = 1.09; y = (.5 - e) * h * .10 * i; } else if (m.includes('tilt-down')) { scale = 1.09; y = (e - .5) * h * .10 * i; } else if (m.includes('orbit') || m.includes('parallax')) { scale = 1.11; x = Math.sin(e * Math.PI * 2) * w * .045 * i; y = Math.cos(e * Math.PI * 2) * h * .025 * i; r = Math.sin(e * Math.PI * 2) * .008 * i; } else if (m === 'static') scale = 1.015; return { scale: clamp(scale, 1.01, 1.32), x, y, r }; }
+function drawCover(ctx, el, t, gradeName, focal, w, h) { const sw = el.videoWidth || el.naturalWidth, sh = el.videoHeight || el.naturalHeight; if (!sw || !sh) return false; const ratio = sw / sh, target = w / h; let dw, dh; if (ratio > target) { dh = h * t.scale; dw = dh * ratio; } else { dw = w * t.scale; dh = dw / ratio; } const fx = clamp(Number(focal?.x) || .5, .1, .9), fy = clamp(Number(focal?.y) || .5, .1, .9), fs = clamp(Number(focal?.scale) || 1, 1, 1.18); let x = (w - dw) / 2 + t.x + (.5 - fx) * (dw - w) * .72, y = (h - dh) / 2 + t.y + (.5 - fy) * (dh - h) * .72; x += (.5 - fx) * w * .025; y += (.5 - fy) * h * .025; ctx.save(); ctx.filter = grade(gradeName); ctx.translate(w / 2, h / 2); ctx.rotate(t.r); ctx.translate(-w / 2, -h / 2); ctx.drawImage(el, x, y, dw * fs, dh * fs); ctx.restore(); return true; }
+function effect(ctx, name, p, w, h) { const n = String(name || 'hard-cut').toLowerCase(), d = .28, q = clamp(p / d, 0, 1), mid = Math.max(0, 1 - Math.abs(p - .5) / .5); if (n === 'fade-in') { ctx.fillStyle = '#000'; ctx.globalAlpha = 1 - q; ctx.fillRect(0, 0, w, h); } else if (n === 'fade-out') { ctx.fillStyle = '#000'; ctx.globalAlpha = q; ctx.fillRect(0, 0, w, h); } else if (n === 'dip-black') { ctx.fillStyle = '#000'; ctx.globalAlpha = mid * .95; ctx.fillRect(0, 0, w, h); } else if (n === 'flash-cut' || n === 'zoom-punch') { ctx.fillStyle = '#fff'; ctx.globalAlpha = Math.pow(mid, 2) * (n === 'flash-cut' ? .8 : .16); ctx.fillRect(0, 0, w, h); } else if (n.startsWith('light-leak')) { const dir = n.endsWith('left') ? -1 : n.endsWith('right') ? 1 : 0, g = ctx.createLinearGradient(dir < 0 ? w : 0, 0, dir > 0 ? w : 0, 0); g.addColorStop(0, 'rgba(255,255,220,.38)'); g.addColorStop(.45, 'rgba(255,170,70,.16)'); g.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = g; ctx.globalAlpha = Math.pow(mid, 1.5); ctx.fillRect(0, 0, w, h); } else if (n === 'whip-left' || n === 'whip-right') { const dir = n === 'whip-right' ? 1 : -1; ctx.fillStyle = '#05070b'; ctx.globalAlpha = .55 * (1 - q); ctx.fillRect((1 - q) * dir * w * .18, 0, w, h); } ctx.globalAlpha = 1; }
 function vignette(ctx, w, h) { const g = ctx.createRadialGradient(w / 2, h / 2, h * .16, w / 2, h / 2, h * .8); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(.7, 'rgba(0,0,0,.06)'); g.addColorStop(1, 'rgba(0,0,0,.58)'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); }
 function finish(ctx, plan, w, h) { vignette(ctx, w, h); if (/cinematic|trailer|film|commercial/i.test(String(plan?.creativePrompt || plan?.style || ''))) { const b = Math.round(h * .028); ctx.fillStyle = 'rgba(0,0,0,.9)'; ctx.fillRect(0, 0, w, b); ctx.fillRect(0, h - b, w, b); } }
-
-function mediaForCut(mediaItems, cut) {
-  if (cut.mediaId != null) return mediaItems.find(x => String(x.id) === String(cut.mediaId)) || mediaItems[Number(cut.mediaIndex)];
-  return mediaItems[Number(cut.mediaIndex)];
-}
-
-function playableSource(media) {
-  if (!media) return null;
-  if (media.sourceUrl) return { url: media.sourceUrl, revoke: false };
-  if (media.url && /^blob:|^data:|^https?:/i.test(media.url)) return { url: media.url, revoke: false };
-  if (media.file instanceof Blob) return { url: URL.createObjectURL(media.file), revoke: true };
-  if (media.blob instanceof Blob) return { url: URL.createObjectURL(media.blob), revoke: true };
-  return null;
-}
-
-export async function renderProject(mediaItems, plan, onProgress) {
-  return new Promise((resolve, reject) => {
-    let recorder = null, audioBridge = null, raf = 0, stopped = false;
-    const urls = [];
-    try {
-      const output = resolveRenderOutput(plan);
-      const canvas = document.createElement('canvas'); canvas.width = output.width; canvas.height = output.height;
-      const ctx = canvas.getContext('2d'); if (!ctx) throw Error('Could not create canvas context.');
-      const stream = canvas.captureStream(output.fps); const type = supported(); const chunks = [];
-      const fail = e => { if (stopped) return; stopped = true; cancelAnimationFrame(raf); try { recorder?.stop(); } catch {} try { audioBridge?.cleanup?.(); } catch {} urls.forEach(u => { try { URL.revokeObjectURL(u); } catch {} }); reject(e instanceof Error ? e : Error(String(e))); };
-      const cuts = Array.isArray(plan?.cuts) ? plan.cuts : Array.isArray(plan?.scenes) ? plan.scenes.map((s, i) => ({ ...s, mediaIndex: s.mediaIndex ?? 0, duration: s.duration ?? 2, transition: s.transitionIn || s.transition || (i ? 'crossfade' : 'fade-in'), motionStyle: s.motionStyle || 'slow-push' })) : [];
-      if (!cuts.length) throw Error('AI edit plan contains no cuts.');
-      let previousFrame = null;
-
-      const load = async (el, src, isVideo) => {
-        if (!src?.url) throw Error('Generated or source media has no playable URL.');
-        if (isVideo) {
-          el.muted = true; el.playsInline = true; el.preload = 'auto'; el.src = src.url; el.load();
-          await new Promise((res, rej) => { const timer = setTimeout(() => rej(Error('Timed out decoding source video.')), 12000); const ok = () => { if (el.videoWidth && el.videoHeight) { clearTimeout(timer); res(); } }; el.addEventListener('loadeddata', ok, { once: true }); el.addEventListener('canplay', ok, { once: true }); el.addEventListener('error', () => { clearTimeout(timer); rej(Error('Could not decode source video.')); }, { once: true }); });
-        } else { el.src = src.url; await new Promise((res, rej) => { el.onload = () => res(); el.onerror = () => rej(Error('Could not load source image.')); }); }
-      };
-
-      const renderCut = async index => {
-        if (index >= cuts.length) { if (recorder?.state !== 'inactive') recorder.stop(); return; }
-        const c = cuts[index] || {}, dur = clamp(Number(c.duration) || 2, .5, 8), media = mediaForCut(mediaItems, c), src = playableSource(media);
-        if (!src) throw Error(`Cut ${index + 1} has no playable media. Generated visuals must contain a real video source.`);
-        if (src.revoke) urls.push(src.url);
-        const isVideo = String(media?.type || media?.mimeType || '').startsWith('video/') || media?.file instanceof Blob && String(media.file.type || '').startsWith('video/');
-        const el = isVideo ? document.createElement('video') : new Image();
-        try {
-          await load(el, src, isVideo);
-          if (isVideo) { const start = Math.max(0, Number(c.startTime) || 0); try { el.currentTime = Math.min(start, Math.max(0, (el.duration || start + .1) - .05)); } catch {} el.playbackRate = clamp(Number(c.speed) || 1, .5, 1.75); await el.play(); }
-          const started = performance.now();
-          await new Promise(done => {
-            const tick = () => {
-              const p = clamp((performance.now() - started) / (dur * 1000), 0, 1);
-              ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-              const mm = motion(c, p, canvas.width, canvas.height); const tm = mergeFocalMotion(mm, c.temporalFocal, p, .65);
-              drawCover(ctx, el, tm, c.colorGrade || plan.colorGrade, { ...(c.focalFraming || {}), x: tm.focalX ?? c.focalFraming?.x ?? .5, y: tm.focalY ?? c.focalFraming?.y ?? .5 }, canvas.width, canvas.height);
-              if (isVideo) try { el.playbackRate = clamp(Number(c.speedEnd ?? c.speed) || 1, .5, 1.75); } catch {}
-              const tr = String(c.transition || 'hard-cut').toLowerCase(), td = clamp(Number(c.transitionDuration) || .28, .12, Math.min(.8, dur * .45));
-              if (previousFrame && index > 0 && tr === 'crossfade' && p < td) { ctx.save(); ctx.globalAlpha = 1 - p / td; ctx.drawImage(previousFrame, 0, 0); ctx.restore(); }
-              else if (previousFrame && index > 0 && (tr === 'whip-left' || tr === 'whip-right') && p < td) { ctx.save(); ctx.globalAlpha = .7 * (1 - p / td); const dir = tr === 'whip-right' ? 1 : -1; ctx.drawImage(previousFrame, (p / td - 1) * dir * canvas.width * .35, 0, canvas.width, canvas.height); ctx.restore(); }
-              effect(ctx, tr, p, canvas.width, canvas.height); finish(ctx, plan, canvas.width, canvas.height);
-              if (c.text) { ctx.save(); ctx.fillStyle = '#fff'; ctx.font = `800 ${Math.max(28, Math.round(canvas.width * .045))}px Arial`; ctx.textAlign = 'center'; ctx.shadowColor = '#000'; ctx.shadowBlur = 18; ctx.fillText(String(c.text).toUpperCase(), canvas.width / 2, canvas.height * .88); ctx.restore(); }
-              onProgress?.(Math.round(((index + p) / cuts.length) * 100));
-              if (p >= 1) { previousFrame = document.createElement('canvas'); previousFrame.width = canvas.width; previousFrame.height = canvas.height; previousFrame.getContext('2d').drawImage(canvas, 0, 0); done(); return; }
-              raf = requestAnimationFrame(tick);
-            };
-            raf = requestAnimationFrame(tick);
-          });
-          if (isVideo) el.pause();
-          await renderCut(index + 1);
-        } catch (e) { throw Error(`Cut ${index + 1} failed: ${e?.message || e}`); }
-      };
-
-      (async () => {
-        try {
-          audioBridge = await attachPlanAudioToRenderStream(stream, plan);
-          recorder = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
-          recorder.ondataavailable = e => e.data?.size && chunks.push(e.data);
-          recorder.onerror = e => fail(e.error || Error('Video recording failed.'));
-          recorder.onstop = () => { if (stopped) return; stopped = true; cancelAnimationFrame(raf); try { audioBridge?.cleanup?.(); } catch {} urls.forEach(u => { try { URL.revokeObjectURL(u); } catch {} }); if (!chunks.length) return reject(Error('MediaRecorder produced no video data.')); resolve(new Blob(chunks, { type: chunks[0]?.type || type || 'video/webm' })); };
-          recorder.start(250); await renderCut(0);
-        } catch (e) { fail(e); }
-      })();
-    } catch (e) { reject(e); }
-  });
-}
+function mediaForCut(mediaItems, cut) { if (cut.mediaId != null) return mediaItems.find(x => String(x.id) === String(cut.mediaId)) || mediaItems[Number(cut.mediaIndex)]; return mediaItems[Number(cut.mediaIndex)]; }
+function playableSource(media) { if (!media) return null; if (media.sourceUrl) return { url: media.sourceUrl, revoke: false }; if (media.url && /^blob:|^data:|^https?:/i.test(media.url)) return { url: media.url, revoke: false }; if (media.file instanceof Blob) return { url: URL.createObjectURL(media.file), revoke: true }; if (media.blob instanceof Blob) return { url: URL.createObjectURL(media.blob), revoke: true }; return null; }
+export async function renderProject(mediaItems, plan, onProgress) { return new Promise((resolve, reject) => { let recorder = null, audioBridge = null, raf = 0, stopped = false; const urls = []; try { const output = resolveRenderOutput(plan), canvas = document.createElement('canvas'); canvas.width = output.width; canvas.height = output.height; const ctx = canvas.getContext('2d'); if (!ctx) throw Error('Could not create canvas context.'); const stream = canvas.captureStream(output.fps), type = supported(), chunks = []; const fail = e => { if (stopped) return; stopped = true; cancelAnimationFrame(raf); try { recorder?.stop(); } catch {} try { audioBridge?.cleanup?.(); } catch {} urls.forEach(u => { try { URL.revokeObjectURL(u); } catch {} }); reject(e instanceof Error ? e : Error(String(e))); }; const cuts = Array.isArray(plan?.cuts) ? plan.cuts : Array.isArray(plan?.scenes) ? plan.scenes.map((s, i) => ({ ...s, mediaIndex: s.mediaIndex ?? 0, duration: s.duration ?? 2, transition: s.transitionIn || s.transition || (i ? 'crossfade' : 'fade-in'), motionStyle: s.motionStyle || 'slow-push' })) : []; if (!cuts.length) throw Error('AI edit plan contains no cuts.'); let previousFrame = null;
+const load = async (el, src, isVideo) => { if (!src?.url) throw Error('Generated or source media has no playable URL.'); if (isVideo) { el.muted = true; el.playsInline = true; el.preload = 'auto'; el.src = src.url; el.load(); await new Promise((res, rej) => { const timer = setTimeout(() => rej(Error('Timed out decoding source video.')), 12000), ok = () => { if (el.videoWidth && el.videoHeight) { clearTimeout(timer); res(); } }; el.addEventListener('loadeddata', ok, { once: true }); el.addEventListener('canplay', ok, { once: true }); el.addEventListener('error', () => { clearTimeout(timer); rej(Error('Could not decode source video.')); }, { once: true }); }); } else { el.src = src.url; await new Promise((res, rej) => { el.onload = () => res(); el.onerror = () => rej(Error('Could not load source image.')); }); } };
+const renderCut = async index => { if (index >= cuts.length) { if (recorder?.state !== 'inactive') recorder.stop(); return; } const c = cuts[index] || {}, dur = clamp(Number(c.duration) || 2, .5, 8), media = mediaForCut(mediaItems, c), src = playableSource(media); if (!src) throw Error(`Cut ${index + 1} has no playable media. Generated visuals must contain a real video source.`); if (src.revoke) urls.push(src.url); const isVideo = String(media?.type || media?.mimeType || '').startsWith('video/') || media?.file instanceof Blob && String(media.file.type || '').startsWith('video/'), el = isVideo ? document.createElement('video') : new Image(); try { await load(el, src, isVideo); if (isVideo) { const start = Math.max(0, Number(c.startTime) || 0); try { el.currentTime = Math.min(start, Math.max(0, (el.duration || start + .1) - .05)); } catch {} el.playbackRate = clamp(Number(c.speed) || 1, .5, 1.75); await el.play(); } const started = performance.now(); await new Promise(done => { const tick = () => { const p = clamp((performance.now() - started) / (dur * 1000), 0, 1); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); const mm = motion(c, p, canvas.width, canvas.height), tm = mergeFocalMotion(mm, c.temporalFocal, p, .65); drawCover(ctx, el, tm, c.colorGrade || plan.colorGrade, { ...(c.focalFraming || {}), x: tm.focalX ?? c.focalFraming?.x ?? .5, y: tm.focalY ?? c.focalFraming?.y ?? .5 }, canvas.width, canvas.height); const tr = String(c.transition || 'hard-cut').toLowerCase(), td = clamp(Number(c.transitionDuration) || .28, .12, Math.min(.8, dur * .45)); if (previousFrame && index > 0 && tr === 'crossfade' && p < td) { ctx.save(); ctx.globalAlpha = 1 - p / td; ctx.drawImage(previousFrame, 0, 0); ctx.restore(); } else if (previousFrame && index > 0 && (tr === 'whip-left' || tr === 'whip-right') && p < td) { ctx.save(); ctx.globalAlpha = .7 * (1 - p / td); const dir = tr === 'whip-right' ? 1 : -1; ctx.drawImage(previousFrame, (p / td - 1) * dir * canvas.width * .35, 0, canvas.width, canvas.height); ctx.restore(); } effect(ctx, tr, p, canvas.width, canvas.height); finish(ctx, plan, canvas.width, canvas.height); if (c.text) { ctx.save(); ctx.fillStyle = '#fff'; ctx.font = `800 ${Math.max(28, Math.round(canvas.width * .045))}px Arial`; ctx.textAlign = 'center'; ctx.shadowColor = '#000'; ctx.shadowBlur = 18; ctx.fillText(String(c.text).toUpperCase(), canvas.width / 2, canvas.height * .88); ctx.restore(); } onProgress?.(Math.round(((index + p) / cuts.length) * 100)); if (p >= 1) { previousFrame = document.createElement('canvas'); previousFrame.width = canvas.width; previousFrame.height = canvas.height; previousFrame.getContext('2d').drawImage(canvas, 0, 0); done(); return; } raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); }); if (isVideo) el.pause(); await renderCut(index + 1); } catch (e) { throw Error(`Cut ${index + 1} failed: ${e?.message || e}`); } };
+(async () => { try { audioBridge = await attachPlanAudioToRenderStream(stream, plan); recorder = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream); recorder.ondataavailable = e => e.data?.size && chunks.push(e.data); recorder.onerror = e => fail(e.error || Error('Video recording failed.')); recorder.onstop = () => { if (stopped) return; stopped = true; cancelAnimationFrame(raf); try { audioBridge?.cleanup?.(); } catch {} urls.forEach(u => { try { URL.revokeObjectURL(u); } catch {} }); if (!chunks.length) return reject(Error('MediaRecorder produced no video data.')); resolve(new Blob(chunks, { type: chunks[0]?.type || type || 'video/webm' })); }; recorder.start(250); await renderCut(0); } catch (e) { fail(e); } })(); } catch (e) { reject(e); } }); }
