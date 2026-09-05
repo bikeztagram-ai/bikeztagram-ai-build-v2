@@ -23,10 +23,20 @@ export async function renderUniversalProduction({ media = [], mediaItems = null,
   } catch (error) { console.warn('[UNIVERSAL RENDER] AI video enhancement unavailable; authentic media retained.', error); }
   for (const item of productionMedia) { const contract = generationContract(item); if (!contract.valid) throw new Error(`Generated media contract failed: ${contract.reason}`); }
   if (aiVideo.generatedCount) onProgress?.({ stage: 'ai-video-complete', value: 100, generatedCount: aiVideo.generatedCount, provider: aiVideo.provider });
-  const musicBridge = music ? await buildMusicRenderBridge({ creativePrompt: prompt, duration, cuts: directedPlan.cuts || directedPlan.clips || [], onProgress }) : null;
+  const musicBridge = music ? await buildMusicRenderBridge({ prompt, duration, cuts: directedPlan.cuts || directedPlan.clips || [], onProgress }) : null;
   const musicAudioUrl = musicBridge?.renderAudio?.audioDataUrl || null;
   const beatGrid = musicBridge?.renderAudio?.beatGrid || [];
-  const renderPlan = musicBridge ? { ...directedPlan, audioAnalysis: musicBridge.composition?.events, beatGrid, music: { ...(directedPlan.music || {}), audioDataUrl: musicAudioUrl, audioAnalysis: musicBridge.composition?.events, beatGrid, provider: musicBridge.renderAudio?.provider || 'original-fallback' } } : directedPlan;
+  const renderPlan = musicBridge ? {
+    ...directedPlan,
+    audioAnalysis: musicBridge.renderAudio?.audioAnalysis || musicBridge.composition?.events,
+    beatGrid,
+    music: {
+      ...(directedPlan.music || {}), audioDataUrl: musicAudioUrl,
+      audioAnalysis: musicBridge.renderAudio?.audioAnalysis || musicBridge.composition?.events,
+      beatGrid, impactMarkers: musicBridge.renderAudio?.impactMarkers || [],
+      provider: musicBridge.renderAudio?.provider || 'original-fallback'
+    }
+  } : directedPlan;
   const result = await renderInspectImprove({ mediaItems: productionMedia, plan: renderPlan, expectedDuration: duration, prompt, outputPreset, musicUrl: musicAudioUrl, onProgress });
   const beatSyncScore = musicBridge ? scoreMusicEditSync(musicBridge) : null;
   const policy = evaluateRenderAcceptance({ qa: result?.qa, audioExpected: Boolean(music), audioAttached: Boolean(result?.audioAttached), beatSyncScore });
