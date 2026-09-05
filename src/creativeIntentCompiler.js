@@ -29,11 +29,11 @@ export function compileCreativeIntent(prompt = '', options = {}) {
   const directives = briefToGenerationDirectives(normalized);
   const brief = {
     ...baseBrief,
-    ...normalized,
-    subject: normalized.subject !== 'subject' ? normalized.subject : baseBrief.subject,
-    world: baseBrief.world || normalized.setting,
-    actions: directives.actions,
+    normalized,
     generation: directives,
+    actions: directives.actions.length ? directives.actions : baseBrief.actions,
+    style: normalized.style !== 'cinematic' ? normalized.style : baseBrief.style,
+    setting: normalized.setting !== 'environment' ? normalized.setting : baseBrief.world,
   };
   const graph = buildCreativeSceneGraph(prompt, options);
   const continuity = {
@@ -51,21 +51,21 @@ export function compileCreativeIntent(prompt = '', options = {}) {
     const style = normalized.style !== 'cinematic' ? normalized.style : 'cinematic';
     const generationPrompt = [
       `Subject: ${shot.subject || brief.subject}`,
-      `World: ${shot.world || brief.setting}`,
+      `World: ${shot.world || normalized.setting}`,
       `Shot role: ${shot.role}`,
       `Camera: ${cameraMovement}`,
       `Action: ${action.join(', ')}`,
       `Lighting: ${lighting.join(', ')}`,
       `Atmosphere: ${shot.effects.join(', ') || 'clean cinematic air'}`,
-      `Mood: ${normalized.mood || shot.mood}`,
+      `Mood: ${normalized.mood !== 'cinematic' ? normalized.mood : shot.mood}`,
       `Style: ${style}`,
-      `Pace: ${normalized.pace || 'cinematic'}`,
+      `Pace: ${normalized.pace !== 'cinematic' ? normalized.pace : 'cinematic'}`,
       `Continuity: preserve ${continuity.subjectIdentity} and ${continuity.worldIdentity} across shots`,
       `Original creative brief: ${text(prompt)}`,
     ].join('. ');
     return {
       id: shot.id, index, role: shot.role, duration: shot.duration,
-      subject: shot.subject || brief.subject, world: shot.world || brief.setting,
+      subject: shot.subject || brief.subject, world: shot.world || normalized.setting,
       camera: { movement: cameraMovement, intensity: shot.motionIntensity }, action, lighting,
       atmosphere: shot.effects, weather: shot.weather, time: shot.time, mood: shot.mood,
       transition: shot.transition, depthLayers: shot.depthLayers,
