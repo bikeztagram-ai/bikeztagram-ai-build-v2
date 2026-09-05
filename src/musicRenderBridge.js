@@ -3,6 +3,7 @@ import { buildCompositionRuntime, buildMusicTimeline } from './musicCompositionR
 import { planAudioDirector } from './audioDirector.js';
 import { createMusicBrief, composeFullMusic, renderMusicWav } from './musicStudioEngine.js';
 import { generateAIMusic } from './aiMusicProvider.js';
+import { analyzeAudioBlob } from './aiAudioAnalysis.js';
 
 const blobToDataUrl = blob => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -19,13 +20,13 @@ function wantsVocals(prompt) {
 function aiMusicPrompt({ creativePrompt, direction, duration }) {
   const vocal = wantsVocals(creativePrompt);
   return [
-    'Create an original premium cinematic soundtrack for a motorcycle social film.',
-    creativePrompt || 'Dark, powerful, modern motorcycle cinematography with a strong final hero moment.',
+    'Create an original professional soundtrack that directly serves the supplied creative brief.',
+    creativePrompt || 'Create a cinematic audiovisual piece with a strong opening, evolving middle and satisfying final moment.',
     `Approximate length ${Math.round(duration)} seconds.`,
-    `Tempo around ${direction.preferredBpm} BPM.`,
-    'Strong musical structure with a clear intro, build, peak/drop and satisfying ending.',
-    'Professional commercial production, punchy drums, controlled low end, memorable melodic hook, layered instrumentation and dynamic arrangement.',
-    vocal ? 'Use expressive original vocals with a strong memorable chorus; do not imitate any artist.' : 'Instrumental only: no lead vocals, no spoken word.',
+    `Tempo around ${direction.preferredBpm} BPM where musically appropriate.`,
+    'Use a deliberate structure that follows the brief: establish the mood, build anticipation, reach the requested emotional or action peak, then resolve cleanly.',
+    'Professional commercial production, intentional rhythm, controlled low end, memorable musical motifs, layered instrumentation and meaningful dynamic variation.',
+    vocal ? 'Use expressive original vocals with lyrics and a memorable chorus when the brief calls for them; never imitate an artist.' : 'Instrumental only: no lead vocals, no spoken word.',
     'Do not reference or imitate any named artist, existing song, copyrighted lyrics or recognisable recording.'
   ].join(' ');
 }
@@ -38,6 +39,7 @@ export async function buildMusicRenderBridge({ prompt = '', duration = 15, cuts 
   let audioBlob;
   let provider = 'in-house-procedural-fallback';
   let songId = '';
+  let audioAnalysis = null;
   try {
     onProgress?.({ stage: 'ai-music', value: 5, provider: 'Eleven Music v2' });
     const generated = await generateAIMusic({
@@ -48,20 +50,22 @@ export async function buildMusicRenderBridge({ prompt = '', duration = 15, cuts 
     audioBlob = generated.blob;
     provider = generated.provider || 'Eleven Music v2';
     songId = generated.songId || '';
-    onProgress?.({ stage: 'ai-music', value: 100, provider });
+    audioAnalysis = await analyzeAudioBlob(audioBlob);
+    onProgress?.({ stage: 'ai-music', value: 100, provider, audioAnalysisReady: Boolean(audioAnalysis) });
   } catch (error) {
     if (!/not configured|provider is not configured/i.test(error?.message || '')) console.warn('[MUSIC] AI provider failed; using local original fallback.', error);
     const studioComposition = composeFullMusic(createMusicBrief({ prompt, duration, bpm: preferredBpm, mood, energy, key, mode }));
     audioBlob = renderMusicWav(studioComposition);
   }
   const audioDataUrl = await blobToDataUrl(audioBlob);
+  const beatGrid = audioAnalysis?.beatGrid?.length ? audioAnalysis.beatGrid : composition.events.map(e => e.time);
+  const impactMarkers = audioAnalysis?.impactMarkers?.length ? audioAnalysis.impactMarkers : composition.stems.impacts.map(e => e.time);
   return {
-    version: 'music-render-bridge-v3', direction, composition, timeline,
+    version: 'music-render-bridge-v4', direction, composition, timeline,
     renderAudio: {
       enabled: true, originalOnly: true, provider, songId, audioDataUrl,
       audioMimeType: audioBlob.type || (provider === 'Eleven Music v2' ? 'audio/mpeg' : 'audio/wav'),
-      beatGrid: composition.events.map(e => e.time),
-      impactMarkers: composition.stems.impacts.map(e => e.time),
+      beatGrid, impactMarkers, audioAnalysis,
       duckingDb: direction.mix.voiceoverDuckDb,
       master: { targetLufs: direction.mix.targetLufs, peakDbtp: direction.mix.peakDbtp }
     }
