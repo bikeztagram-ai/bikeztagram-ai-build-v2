@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const main=fs.readFileSync(new URL('../src/main.jsx',import.meta.url),'utf8');
+const runtime=fs.readFileSync(new URL('../src/localAnalysisRuntime.js',import.meta.url),'utf8');
+const analysis=fs.readFileSync(new URL('../src/localMediaAnalysis.js',import.meta.url),'utf8');
+assert.match(main,/installLocalAnalysisRuntime/);
+assert.match(runtime,/analyseLocalMedia/);
+assert.match(runtime,/\/api\/analyse/);
+assert.match(runtime,/\/api\/analyse-library/);
+assert.match(runtime,/\/api\/captions/);
+assert.match(runtime,/local-browser-analysis/);
+assert.match(analysis,/browser frame metrics/);
+assert.match(analysis,/local-frame-analysis-v4/);
+assert.doesNotMatch(main,/GEMINI_API_KEY|GoogleGenAI|@google\/genai/i);
+console.log('local-only runtime contract: PASS');

@@ -1,0 +1,50 @@
+name: Bikeztagram V1 Candidate Verification
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v6
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Build production bundle
+        run: npm run build
+      - name: Verify local-only runtime
+        run: npm run verify:local-only-runtime
+      - name: Verify Gemini-free runtime
+        run: npm run verify:gemini-free-runtime
+      - name: Verify local analysis runtime
+        run: npm run verify:local-analysis-runtime
+      - name: Verify mixed-media source identity
+        run: npm run verify:mixed-media-source-identity
+      - name: Verify director selection quality
+        run: npm run verify:director-selection-quality
+      - name: Verify director render handoff
+        run: npm run verify:director-render-handoff-integrity
+      - name: Verify render quality loop
+        run: npm run verify:render-quality-loop
+      - name: Verify director runtime contract
+        run: npm run verify:director-runtime-contract
+      - name: Verify executable timeline
+        run: npm run verify:executable-timeline
+      - name: Verify cinematic quality
+        run: npm run verify:cinematic-quality-evaluator
+      - name: Verify output presets
+        run: npm run verify:output-presets
+      - name: Verify release hardening
+        run: npm run verify:release-hardening

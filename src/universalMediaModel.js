@@ -2,64 +2,9 @@
    Keeps the director independent from any one subject category. */
 const text = (value) => String(value ?? '').trim();
 const num = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
-
-export function normalizeSubject(analysis = {}) {
-  const subject = analysis.subject || {};
-  const primary = Array.isArray(analysis.subjects) && analysis.subjects.length ? analysis.subjects[0] : subject;
-  return {
-    label: text(primary.label) || text(primary.description) || text(primary.primarySubject) || text(subject.description) || text(analysis.subjectDescription) || 'the uploaded subject',
-    category: text(primary.category) || text(subject.category) || text(analysis.contentType) || 'unknown',
-    identity: text(primary.identity) || text(subject.identity) || text(primary.label) || 'unknown',
-    attributes: Array.isArray(primary.attributes) ? primary.attributes.map(text).filter(Boolean).slice(0, 20) : [],
-    confidence: Math.max(0, Math.min(1, num(primary.confidence ?? subject.confidence, 0)))
-  };
-}
-
-export function normalizeScene(analysis = {}) {
-  const scene = analysis.scene || {};
-  return {
-    environment: text(scene.environment) || text(scene.locationType) || 'unknown environment',
-    locationType: text(scene.locationType),
-    timeOfDay: text(scene.timeOfDay),
-    lighting: text(scene.lighting),
-    continuityAnchors: Array.isArray(scene.continuityAnchors) ? scene.continuityAnchors.map(text).filter(Boolean).slice(0, 20) : []
-  };
-}
-
-export function normalizeMoment(moment = {}, index = 0) {
-  return {
-    ...moment,
-    start: num(moment.start ?? moment.startTime, 0),
-    end: num(moment.end ?? moment.endTime, num(moment.start ?? moment.startTime, 0) + Math.max(.5, num(moment.duration, 2))),
-    description: text(moment.description),
-    reason: text(moment.reason),
-    editorialRole: text(moment.editorialRole) || text(moment.purpose),
-    shotType: text(moment.shotType),
-    score: num(moment.score, 0),
-    mediaIndex: Number.isInteger(Number(moment.mediaIndex)) ? Number(moment.mediaIndex) : index,
-    mediaId: text(moment.mediaId)
-  };
-}
-
-export function normalizeUniversalAnalysis(analysis = {}) {
-  const moments = Array.isArray(analysis.bestMoments) ? analysis.bestMoments : Array.isArray(analysis.cuts) ? analysis.cuts : [];
-  return {
-    ...analysis,
-    subject: normalizeSubject(analysis),
-    scene: normalizeScene(analysis),
-    bestMoments: moments.map(normalizeMoment),
-    mediaType: text(analysis.mediaType) || 'mixed-media',
-    continuityNotes: text(analysis.continuityNotes),
-    avoid: text(analysis.avoid)
-  };
-}
-
-export function isLikelyAction(moment = {}) {
-  const value = [moment.description, moment.reason, moment.action, moment.event, moment.editorialRole].join(' ').toLowerCase();
-  return /action|movement|moving|running|walking|jump|chase|pursuit|race|speed|impact|fight|dance|play|playful|explosion|travel|journey|drive|ride|accelerat|passing|turning|motion/.test(value);
-}
-
-export function isLikelyReveal(moment = {}) {
-  const value = [moment.description, moment.reason, moment.editorialRole, moment.shotType].join(' ').toLowerCase();
-  return /reveal|profile|showcase|unveil|introduction|establish|wide|detail|close-up|macro|portrait|landscape|landmark|product/.test(value);
-}
+export function normalizeSubject(analysis = {}) { const subject = analysis.subject || {}; const primary = Array.isArray(analysis.subjects) && analysis.subjects.length ? analysis.subjects[0] : subject; return { label: text(primary.label) || text(primary.description) || text(primary.primarySubject) || text(subject.description) || text(analysis.subjectDescription) || 'the uploaded subject', category: text(primary.category) || text(subject.category) || text(analysis.contentType) || 'unknown', identity: text(primary.identity) || text(subject.identity) || text(primary.label) || 'unknown', attributes: Array.isArray(primary.attributes) ? primary.attributes.map(text).filter(Boolean).slice(0, 20) : [], confidence: Math.max(0, Math.min(1, num(primary.confidence ?? subject.confidence, 0))) }; }
+export function normalizeScene(analysis = {}) { const scene = analysis.scene || {}; return { environment: text(scene.environment) || text(scene.locationType) || 'unknown environment', locationType: text(scene.locationType), timeOfDay: text(scene.timeOfDay), lighting: text(scene.lighting), continuityAnchors: Array.isArray(scene.continuityAnchors) ? scene.continuityAnchors.map(text).filter(Boolean).slice(0, 20) : [] }; }
+export function normalizeMoment(moment = {}, index = 0) { const sourceIndex = Number.isInteger(Number(moment.sourceIndex)) ? Number(moment.sourceIndex) : null; const mediaIndex = Number.isInteger(Number(moment.mediaIndex)) ? Number(moment.mediaIndex) : index; return { ...moment, start: num(moment.start ?? moment.startTime, 0), end: num(moment.end ?? moment.endTime, num(moment.start ?? moment.startTime, 0) + Math.max(.5, num(moment.duration, 2))), description: text(moment.description), reason: text(moment.reason), editorialRole: text(moment.editorialRole) || text(moment.purpose), shotType: text(moment.shotType), score: num(moment.score, 0), sourceIndex, mediaIndex: sourceIndex ?? mediaIndex, mediaId: text(moment.mediaId) }; }
+export function normalizeUniversalAnalysis(analysis = {}) { const moments = Array.isArray(analysis.bestMoments) ? analysis.bestMoments : Array.isArray(analysis.cuts) ? analysis.cuts : []; return { ...analysis, subject: normalizeSubject(analysis), scene: normalizeScene(analysis), bestMoments: moments.map(normalizeMoment), mediaType: text(analysis.mediaType) || 'mixed-media', continuityNotes: text(analysis.continuityNotes), avoid: text(analysis.avoid) }; }
+export function isLikelyAction(moment = {}) { const value = [moment.description, moment.reason, moment.action, moment.event, moment.editorialRole].join(' ').toLowerCase(); return /action|movement|moving|running|walking|jump|chase|pursuit|race|speed|impact|fight|dance|play|playful|explosion|travel|journey|drive|ride|accelerat|passing|turning|motion/.test(value); }
+export function isLikelyReveal(moment = {}) { const value = [moment.description, moment.reason, moment.editorialRole, moment.shotType].join(' ').toLowerCase(); return /reveal|profile|showcase|unveil|introduction|establish|wide|detail|close-up|macro|portrait|landscape|landmark|product/.test(value); }

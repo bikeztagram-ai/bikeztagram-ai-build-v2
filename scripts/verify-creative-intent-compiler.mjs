@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import { compileCreativeIntent, mergeCreativeIntent } from '../src/creativeIntentCompiler.js';
+
+const intent = compileCreativeIntent('dark cyberpunk motorcycle chase at night with neon rain, fast FPV camera and an epic reveal', { duration: 15, aspectRatio: '9:16' });
+assert.equal(intent.type, 'creative-intent-graph');
+assert.ok(intent.brief);
+assert.equal(intent.brief.world, 'cyberpunk');
+assert.equal(intent.brief.subject, 'motorcycle');
+assert.equal(intent.brief.camera, 'first-person');
+assert.equal(intent.brief.time, 'night');
+assert.equal(intent.brief.pace, 'fast');
+assert.ok(intent.brief.weather === 'rain' || intent.brief.weather === 'wet');
+assert.ok(intent.continuity.preserveAcrossShots.includes('subject'));
+assert.ok(intent.shots.length >= 3);
+assert.ok(intent.shots.every((shot) => shot.generationPrompt && shot.transition && shot.camera));
+const merged = mergeCreativeIntent({ cuts: [{ mediaIndex: 0 }] }, intent);
+assert.equal(merged.creativeIntent, intent);
+assert.ok(Array.isArray(merged.cuts));
+assert.equal(merged.cuts[0].creativeIntent, intent.shots[0]);
+assert.equal(merged.cuts[0].generationPrompt, intent.shots[0].generationPrompt);
+console.log('creative-intent-compiler: PASS');
