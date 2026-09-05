@@ -4,13 +4,13 @@ import fs from 'node:fs';
 const read=(path)=>fs.readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
 const mustExist=(path)=>{assert.ok(fs.existsSync(new URL(`../${path}`,import.meta.url)),`Missing required release file: ${path}`);};
 
-// Current V1 release surface. Keep this contract aligned with the no-Gemini,
-// browser-local production architecture rather than retired API modules.
+// Current release surface. Keep this contract aligned with the no-Gemini,
+// browser-local production architecture and the V3 cinematic renderer.
 const requiredFiles=[
  'index.html','public/manifest.webmanifest','src/main.jsx','src/App.jsx',
  'src/localMediaAnalysis.js','src/localAnalysisRuntime.js','src/aiEditPlanner.js',
  'src/directorSelection.js','src/universalProductionConductor.js','src/universalRenderRuntime.js',
- 'src/renderQualityLoop.js','src/renderer.js','src/outputPresets.js',
+ 'src/renderQualityLoop.js','src/renderer.js','src/cinematicRendererV3.js','src/outputPresets.js',
  'src/audioDirector.js','src/musicCompositionRuntime.js','src/musicRenderBridge.js',
  'src/noGeminiRuntimePolicy.js','vercel.json'
 ];
@@ -28,6 +28,7 @@ const conductor=read('src/universalProductionConductor.js');
 const render=read('src/universalRenderRuntime.js');
 const qa=read('src/renderQualityLoop.js');
 const renderer=read('src/renderer.js');
+const cinematicRenderer=read('src/cinematicRendererV3.js');
 const presets=read('src/outputPresets.js');
 const audio=read('src/audioDirector.js');
 const music=read('src/musicCompositionRuntime.js');
@@ -55,13 +56,18 @@ assert.match(conductor,/without requiring Gemini/i);
 assert.match(noGemini,/no-Gemini/i);
 assert.doesNotMatch(app,/@google\/genai|GoogleGenAI|GEMINI_API_KEY|gemini-[0-9]/);
 
-// Executable render + QA loop.
+// Executable render + QA loop. The public renderer entrypoint delegates to
+// V3; captureStream is asserted against the actual implementation, not the
+// thin compatibility/export shim.
 assert.match(render,/renderInspectImprove/);
 assert.match(render,/buildMusicRenderBridge/);
 assert.match(qa,/maxAttempts/);
 assert.match(qa,/validateRenderedVideo/);
 assert.match(renderer,/renderProject/);
-assert.match(renderer,/captureStream/);
+assert.match(cinematicRenderer,/captureStream/);
+assert.match(cinematicRenderer,/MediaRecorder/);
+assert.match(cinematicRenderer,/crossfade/);
+assert.match(cinematicRenderer,/zoom-punch/);
 
 // Original audio/music bridge.
 assert.match(audio,/planAudioDirector/);
@@ -78,4 +84,4 @@ assert.match(presets,/cinema/);
 assert.match(vercel,/rewrites/);
 
 console.log('release-hardening-pass: PASS');
-console.log(`checked ${requiredFiles.length} current V1 release files and no-Gemini/browser-local contracts`);
+console.log(`checked ${requiredFiles.length} current release files and no-Gemini/browser-local contracts`);
