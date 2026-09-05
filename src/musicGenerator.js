@@ -1,30 +1,20 @@
-/* BIKEZTAGRAM AI — client-side original music generation contract. */
+/* BIKEZTAGRAM AI — browser-local original music generation facade. */
 import { analyseAudioDataUrl } from './audioBeatAnalyzer.js';
-import { createOriginalPulseWav } from './musicProvider.js';
-import { requestJson } from './apiRequest.js';
+import { createMusicBrief,composeFullMusic,renderMusicWav } from './musicStudioEngine.js';
 
-function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(reader.error||new Error('Could not encode fallback soundtrack.'));reader.readAsDataURL(blob);});}
+function blobToDataUrl(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||''));reader.onerror=()=>reject(reader.error||new Error('Could not encode soundtrack.'));reader.readAsDataURL(blob);});}
 
-async function buildLocalFallback({duration=15,bpm=112}={}){
-  const seconds=Math.max(15,Math.min(30,Number(duration)||15));
-  const blob=createOriginalPulseWav(seconds,bpm);
+export async function generateOriginalMusic({prompt='',duration=15,genre,mood,energy,bpm,key='auto',mode='auto',seed=''}={}){
+  const brief=createMusicBrief({prompt,duration,bpm,key,mode,seed});
+  if(genre)brief.genre=genre;
+  if(mood)brief.mood=mood;
+  if(energy)brief.energy=energy;
+  const composition=composeFullMusic(brief);
+  const blob=renderMusicWav(composition);
   const audioDataUrl=await blobToDataUrl(blob);
-  let audioAnalysis;
-  try{audioAnalysis=await analyseAudioDataUrl(audioDataUrl,{targetBpm:bpm});}catch(error){audioAnalysis={analysis:'planned-local-original',warning:error?.message||'Fallback audio analysis unavailable.'};}
-  return {audioAvailable:true,audioMimeType:'audio/wav',audioDataUrl,bpm,beatGrid:audioAnalysis?.beatGrid||null,audioAnalysis,generationModel:'local-original-safety-fallback',generationMode:'procedural-original'};
+  let audioAnalysis=null;
+  try{audioAnalysis=await analyseAudioDataUrl(audioDataUrl,{targetBpm:brief.bpm});}catch(error){audioAnalysis={analysis:'local-generated',warning:error?.message||'Beat analysis unavailable.'};}
+  return{success:true,source:'browser-local-music-studio',soundtrack:{audioAvailable:true,audioMimeType:'audio/wav',audioDataUrl,bpm:brief.bpm,key:brief.key,mode:brief.mode,mood:brief.mood,genre:brief.genre,energy:brief.energy,generationModel:'browser-local-music-studio-v1',generationMode:'procedural-original',copyright:brief.copyright,composition,audioAnalysis,beatGrid:composition.beatGrid}};
 }
 
-export async function generateOriginalMusic({prompt='',duration=15,genre,mood,energy,bpm}={}){
-  try{
-    const {data}=await requestJson('/api/generate-music',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,duration,genre,mood,energy,bpm}),timeoutMs:120000},{attempts:3,baseDelayMs:900});
-    if(!data?.success)throw new Error(data?.error||'Original music generator returned an unsuccessful response.');
-    if(data?.soundtrack?.audioAvailable&&data?.soundtrack?.audioDataUrl){try{data.soundtrack.audioAnalysis=await analyseAudioDataUrl(data.soundtrack.audioDataUrl,{targetBpm:data.soundtrack.bpm||bpm||120});}catch(error){data.soundtrack.audioAnalysis={analysis:'unavailable',warning:error?.message||'Actual audio analysis unavailable.'};}}
-    if(data?.soundtrack?.audioAvailable&&data?.soundtrack?.audioDataUrl)return data;
-    const fallback=await buildLocalFallback({duration,bpm:Number(data?.soundtrack?.bpm)||Number(bpm)||112});
-    return {...data,source:'planning-plus-local-audio-fallback',warning:data?.warning||'Server-side original audio was unavailable; an original local safety soundtrack was generated so the render remains audible.',soundtrack:{...(data.soundtrack||{}),...fallback}};
-  }catch(error){
-    console.warn('[MUSIC] Original music endpoint unavailable; using local original fallback.',error);
-    const fallback=await buildLocalFallback({duration,bpm:Number(bpm)||112});
-    return {success:true,source:'local-audio-fallback',warning:error?.message||'Original music endpoint unavailable; local original soundtrack used.',soundtrack:fallback};
-  }
-}
+export function planOriginalMusic(options={}){const brief=createMusicBrief(options);return composeFullMusic(brief);}
