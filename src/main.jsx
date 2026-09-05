@@ -6,6 +6,7 @@ import PromptSceneStudio from './promptSceneStudio.jsx';
 import MusicStudio from './musicStudio.jsx';
 import MusicArrangementStudio from './musicArrangementStudio.jsx';
 import { installLocalAnalysisRuntime } from './localAnalysisRuntime.js';
+import { creativeRuntime } from './creativeRuntimeBootstrap.js';
 import './styles.css';
 
 class RuntimeBoundary extends React.Component {
@@ -40,6 +41,7 @@ root.render(
 );
 
 try { installLocalAnalysisRuntime(); } catch (error) { console.error('[Bikeztagram Local Runtime]', error); }
+try { void creativeRuntime; } catch (error) { console.error('[Bikeztagram Creative Runtime]', error); }
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
@@ -49,6 +51,5 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   });
 }
 
-// Non-essential observers must never be able to prevent the editor UI from mounting.
 import('./qa.js').catch((error) => console.warn('[QA] Observer failed to load:', error));
 import('./exportTools.js').catch((error) => console.warn('[Export] Observer failed to load:', error));
