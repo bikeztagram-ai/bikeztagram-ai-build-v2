@@ -55,8 +55,9 @@ jobs:
           actual=$(git rev-parse HEAD)
           test "$actual" = "$GITHUB_SHA"
           grep -q "completedObjectives" builder/runner/long-run-executor.mjs
-          grep -q "totalUnits+=verifiedThisRun.length" builder/runner/long-run-executor.mjs
-          grep -q "verifiedThisRun.length===0" builder/runner/long-run-executor.mjs
+          grep -q "AUTOBOT_DETERMINISTIC_SLICE_MINUTES" builder/runner/long-run-executor.mjs
+          grep -q "AUTOBOT_FEATURE_SLICE_MINUTES" builder/runner/long-run-executor.mjs
+          grep -q "featureCycles" builder/runner/long-run-executor.mjs
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
       - name: Cache local AI model
@@ -94,6 +95,7 @@ jobs:
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node scripts/autobot/verify-autobot-continuous-loop.mjs
           node builder/quality/autobot-ready.mjs
       - name: Run sustained deterministic builder and local AI brain
         run: node builder/runner/long-run-executor.mjs
@@ -102,6 +104,8 @@ jobs:
         run: |
           npm run autobot-production-gate
           npm run verify:project-memory
+          npm run verify:autobot-continuous-loop
+          npm run verify:autobot-dependencies
       - name: Persist continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
@@ -157,6 +161,7 @@ jobs:
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node scripts/autobot/verify-autobot-continuous-loop.mjs
           node builder/quality/autobot-ready.mjs
       - name: Resume sustained deterministic builder and local AI brain
         run: node builder/runner/long-run-executor.mjs
@@ -165,6 +170,8 @@ jobs:
         run: |
           npm run autobot-production-gate
           npm run verify:project-memory
+          npm run verify:autobot-continuous-loop
+          npm run verify:autobot-dependencies
       - name: Persist final continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
