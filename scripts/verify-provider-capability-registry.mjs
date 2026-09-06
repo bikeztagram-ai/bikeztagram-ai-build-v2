@@ -10,5 +10,7 @@ assert.equal(listCreativeProviders(CREATIVE_CAPABILITIES.TEXT_TO_VIDEO).length, 
 assert.deepEqual(capabilitiesFor('text-to-video'), ['creative-planning', 'text-to-video', 'render']);
 assert.equal(hasCapabilities(['creative-planning', 'text-to-video', 'render'], capabilitiesFor('text-to-video')), true);
 assert.equal(hasCapabilities(['creative-planning', 'render'], capabilitiesFor('text-to-video')), false);
+assert.throws(() => registerCreativeProvider({ id: 'gemini-video', capabilities: [CREATIVE_CAPABILITIES.TEXT_TO_VIDEO] }), /Forbidden provider integration/);
+assert.throws(() => registerCreativeProvider({ id: 'safe-provider', label: 'Google GenAI', capabilities: [CREATIVE_CAPABILITIES.TEXT_TO_VIDEO] }), /Forbidden provider integration/);
 clearCreativeProviders();
 console.log('Provider/capability registry contract: PASS');
