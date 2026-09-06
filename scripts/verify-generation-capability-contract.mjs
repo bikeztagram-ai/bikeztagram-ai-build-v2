@@ -4,6 +4,8 @@ assert.equal(chooseVisualStrategy({ prompt: 'create a cinematic dragon video', c
 assert.equal(chooseVisualStrategy({ prompt: 'create a poster', canGenerateImage: true }).mode, 'ai-image');
 assert.equal(chooseVisualStrategy({ prompt: 'create a cinematic film' }).mode, 'unavailable');
 assert.equal(chooseVisualStrategy({ prompt: 'edit this footage', hasUploadedMedia: true }).mode, 'edit-source');
+assert.equal(chooseVisualStrategy({ prompt: 'edit and enhance my uploaded video', hasUploadedMedia: true, canGenerateVideo: true }).mode, 'edit-source');
+assert.equal(chooseVisualStrategy({ prompt: 'create a new cinematic scene from my uploaded footage', hasUploadedMedia: true, canGenerateVideo: true }).mode, 'ai-video');
 const report = generationCapabilityReport({ prompt: 'create a cinematic scene', canGenerateVideo: true });
 assert.equal(report.realGenerationRequired, true);
 assert.equal(report.fakeGenerationAllowed, false);
