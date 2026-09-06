@@ -25,9 +25,15 @@ function clampBody(body) {
 }
 
 const server = http.createServer(async (req, res) => {
+  if (req.method === 'GET' && req.url === '/health') {
+    res.writeHead(200, { 'content-type': 'text/plain' });
+    res.end('ok\n');
+    return;
+  }
+
   if (req.method !== 'POST' || req.url !== '/api/chat') {
     res.writeHead(404, { 'content-type': 'text/plain' });
-    res.end('ollama-performance-proxy: POST /api/chat only\n');
+    res.end('ollama-performance-proxy: GET /health or POST /api/chat only\n');
     return;
   }
 
