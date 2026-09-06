@@ -48,6 +48,8 @@ jobs:
         run: npm run verify:cinematic-quality-gate
       - name: Verify final acceptance quality gate
         run: npm run verify:render-acceptance-quality-gate
+      - name: Verify generation capability contract
+        run: npm run verify:generation-capability-contract
       - name: Verify output presets
         run: npm run verify:output-presets
       - name: Verify release hardening
