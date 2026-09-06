@@ -6,6 +6,7 @@ import { analyseDirectorRhythm } from './directorRhythm.js';
 import { resolveCreativeDuration } from './creativeDuration.js';
 import { evaluateCinematicOutput } from './cinematicQualityEvaluator.js';
 import { buildFocalFraming } from './focalFraming.js';
+export { createPromptOnlyEditPlan } from './promptOnlyDirector.js';
 function clamp(value,min,max){return Math.max(min,Math.min(max,value));}
 function num(value,fallback){const n=Number(value);return Number.isFinite(n)?n:fallback;}
 function text(value){return String(value||'').trim();}
