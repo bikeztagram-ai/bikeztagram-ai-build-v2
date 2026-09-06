@@ -16,11 +16,12 @@ Bikeztagram AI is a high-quality, Android-friendly cinematic creator. The long-t
 - Green tests are necessary but not sufficient evidence of product quality.
 - Acceptance criteria describe observable behaviour, not merely implementation techniques. If an objective uses terms such as atomic, reliable, seamless, integrated, recovery or end-to-end, verify the behaviour those terms imply.
 - A technically valid partial implementation must be reported as partial. Do not turn a limitation into a false success through wording, placeholders or test-only evidence.
+- The project is explicitly Gemini-free. Do not add, restore, invoke, document as required, or route work through Gemini or Google generative-AI services.
 
 ## Current state
 - React/Vite browser application with local media handling and browser rendering.
 - Core systems include media profiling/intake, director/edit planning, original music generation/analysis, beat-aware timing, captions, social export and procedural original-scene generation.
-- Gemini CLI is the bounded autonomous engineering worker.
+- AutoBot uses a local coding model as its bounded autonomous engineering worker; provider-specific AI is kept behind explicit adapters.
 - AutoBot uses `config/autonomous-builder-queue.json` and batch-specific branches/PRs.
 - `builder/quality/lessons.md` contains detailed lessons and must be read before every batch.
 - Builder reports/checkpoints provide historical evidence.
