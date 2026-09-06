@@ -1,0 +1,1 @@
+Performance diagnosis recorded: Qwen feature requests timed out at ~210s in the first 15-minute run. The isolated fast-brain workflow uses a localhost Ollama proxy to cap context/output and a 120s feature timeout.
