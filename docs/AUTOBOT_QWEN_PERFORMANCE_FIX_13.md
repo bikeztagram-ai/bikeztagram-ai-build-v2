@@ -1,0 +1,1 @@
+The staged validation target is one real completed product objective.
