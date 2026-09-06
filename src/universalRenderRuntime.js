@@ -2,7 +2,8 @@
 import { renderInspectImprove } from './renderQualityLoop.js';
 import { buildMusicRenderBridge, scoreMusicEditSync } from './musicRenderBridge.js';
 import { evaluateRenderAcceptance, chooseRevisionActions } from './renderQualityPolicy.js';
-import { enhanceStillCutsWithAIVideo, generatePromptOnlyVideoCuts } from './aiVideoEnhancer.js';
+import { enhanceStillCutsWithAIVideo } from './aiVideoEnhancer.js';
+import { generatePromptOnlyVideoCutsParallel } from './promptOnlyVideoBatch.js';
 import { prepareCreativeContinuity } from './creativeContinuityEngine.js';
 import { compileCreativeIntent, mergeCreativeIntent } from './creativeIntentCompiler.js';
 import { generationContract } from './mediaGenerationPolicy.js';
@@ -23,7 +24,7 @@ export async function renderUniversalProduction({ media = [], mediaItems = null,
       console.warn('[UNIVERSAL RENDER] Reference-video enhancement unavailable; authentic media retained.', error);
     }
   } else {
-    const generated = await generatePromptOnlyVideoCuts({ plan: directedPlan, creativePrompt: prompt, outputPreset, onProgress });
+    const generated = await generatePromptOnlyVideoCutsParallel({ plan: directedPlan, creativePrompt: prompt, outputPreset, concurrency: 3, onProgress });
     productionMedia = generated.mediaItems;
     aiVideo = generated;
   }
