@@ -1,1 +1,0 @@
-This checkpoint is isolated from production app code. Merge only after review and a successful fast-brain test.
