@@ -44,6 +44,8 @@ jobs:
         run: npm run verify:executable-timeline
       - name: Verify cinematic quality
         run: npm run verify:cinematic-quality-evaluator
+      - name: Verify cinematic quality gate
+        run: npm run verify:cinematic-quality-gate
       - name: Verify output presets
         run: npm run verify:output-presets
       - name: Verify release hardening
