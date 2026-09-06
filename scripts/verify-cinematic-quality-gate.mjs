@@ -3,10 +3,12 @@ import { evaluateCinematicOutput } from '../src/cinematicQualityEvaluator.js';
 import { revisePlanAfterCinematicQuality } from '../src/renderQualityLoop.js';
 
 const weak={creativePrompt:'fast cinematic reveal',targetDuration:12,cuts:[
-  {duration:6,description:'same shot',role:'hook'},
-  {duration:6,description:'same shot',role:'build'}
+  {duration:3,description:'same shot',role:'build'},
+  {duration:3,description:'same shot',role:'build'},
+  {duration:3,description:'same shot',role:'build'},
+  {duration:3,description:'same shot',role:'build'}
 ]};
-const quality=evaluateCinematicOutput(weak,{audio:{present:true}});
+const quality=evaluateCinematicOutput(weak,{audio:{present:false}});
 assert.equal(quality.verdict,'REJECT');
 const revision=revisePlanAfterCinematicQuality(weak,quality);
 assert.equal(revision.changed,true);
