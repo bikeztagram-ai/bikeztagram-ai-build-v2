@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
+import { appendAudit } from '../quality/audit-log.mjs';
 
 const root = process.cwd();
 const minutes = Number.parseInt(process.env.BUILDER_MAX_MINUTES || '60', 10);
@@ -29,6 +30,16 @@ try { state=JSON.parse(fs.readFileSync(statePath,'utf8')); } catch {}
 const completed=new Set(state.completed || []);
 const attemptsThisRun=new Map();
 function save() { fs.mkdirSync(path.dirname(statePath),{recursive:true}); fs.writeFileSync(statePath,JSON.stringify({version:1,completed:[...completed],failed:state.failed||{},updatedAt:new Date().toISOString()},null,2)+'\n'); }
+function classifyFailure(message='') {
+  const m=String(message).toLowerCase();
+  if(/timed out|timeout|etimedout/.test(m)) return 'timeout';
+  if(/rate.?limit|429|too many requests/.test(m)) return 'rate-limit';
+  if(/connection refused|econnrefused|network|fetch failed|could not resolve|curl/.test(m)) return 'network';
+  if(/invalid|empty|out-of-scope|patch|diff/.test(m)) return 'invalid-patch';
+  if(/build|vite|syntax|module|compile/.test(m)) return 'verification-build';
+  if(/permission|protected|forbidden|denied/.test(m)) return 'policy-or-permission';
+  return 'implementation';
+}
 function context(obj, compact=false) {
   const chunks=[`OBJECTIVE: ${obj.title}\nPriority: ${obj.priority}\nAcceptance:\n- ${obj.acceptance.join('\n- ')}\nConstraints:\n- ${obj.constraints.join('\n- ')}`];
   for(const p of obj.files) chunks.push(`===== ${p} =====\n${read(p,compact?2800:4500)}`);
@@ -46,7 +57,8 @@ function choose() {
 }
 function modelCall(obj, compact=false) {
   const previous=state.failed?.[obj.id]?.message||'none';
-  const prompt=`You are the primary implementation engineer for Bikeztagram AI. Implement ONE coherent, production-quality increment of this exact objective. This is real product work, not planning. You may modify ONLY the files listed for the objective. Prefer the smallest set of those files necessary, but if behaviour genuinely crosses files, change them coherently. Preserve exports/contracts. Do not add dependencies. Do not modify builder infrastructure, workflows, secrets, Vercel infrastructure, or protected paths. Do not invent media or APIs. Do not return commentary. Return ONLY a valid unified git diff beginning with diff --git. If a previous attempt failed, diagnose and fix the underlying issue rather than repeating it. Use the acceptance criteria as the definition of done.\n\n${context(obj,compact)}\n\nPREVIOUS ATTEMPT RESULT: ${previous}`;
+  const previousClass=state.failed?.[obj.id]?.class||'none';
+  const prompt=`You are the primary implementation engineer for Bikeztagram AI. Implement ONE coherent, production-quality increment of this exact objective. This is real product work, not planning. You may modify ONLY the files listed for the objective. Prefer the smallest set of those files necessary, but if behaviour genuinely crosses files, change them coherently. Preserve exports/contracts. Do not add dependencies. Do not modify builder infrastructure, workflows, secrets, Vercel infrastructure, or protected paths. Do not invent media or APIs. Do not return commentary. Return ONLY a valid unified git diff beginning with diff --git. If a previous attempt failed, diagnose and fix the underlying issue rather than repeating it. Use the acceptance criteria as the definition of done.\n\n${context(obj,compact)}\n\nPREVIOUS FAILURE CLASS: ${previousClass}\nPREVIOUS ATTEMPT RESULT: ${previous}`;
   const body=JSON.stringify({model,stream:false,keep_alive:'10m',options:{temperature:0.05,num_ctx:compact?6144:8192,num_predict:compact?1800:2600},messages:[{role:'system',content:'You are a senior software engineer. Write real maintainable production code and respect the supplied objective.'},{role:'user',content:prompt}]});
   const sec=Math.min(timeoutSeconds,Math.max(60,Math.floor(left()*60)));
   return new Promise((resolve,reject)=>{
@@ -79,6 +91,7 @@ function apply(p){const f=file('.autobot-feature.patch');fs.writeFileSync(f,p);t
 function resetFailedPatch(){run('git',['reset','--hard','HEAD'],{stdio:'inherit'});run('git',['clean','-fd','-e','.git'],{stdio:'inherit'});}
 
 if(process.env.LOCAL_AI_READY!=='1'){console.error('[autobot] local AI unavailable; feature brain refuses paid fallback');process.exit(2);}
+appendAudit('feature-brain-run-started',{minutes,model,maxFeatures,maxAttemptsPerFeature});
 for(let n=1;n<=maxFeatures&&left()>1;n++){
   const obj=choose();
   if(!obj){console.log('[autobot] no further eligible feature objective is available in this run');break;}
@@ -88,8 +101,11 @@ for(let n=1;n<=maxFeatures&&left()>1;n++){
     let response;
     try { response=await modelCall(obj,false); }
     catch(e) {
-      console.error(`[autobot] primary model attempt failed: ${e.message}`);
-      if(left()>3 && attempt<maxAttemptsPerFeature) response=await modelCall(obj,true); else throw e;
+      const failureClass=classifyFailure(e.message);
+      state.failed ||= {}; state.failed[obj.id]={...(state.failed[obj.id]||{}),message:e.message,class:failureClass,at:new Date().toISOString(),attempts:(state.failed[obj.id]?.attempts||0)}; save();
+      appendAudit('feature-model-failure',{objectiveId:obj.id,attempt,failureClass,message:e.message});
+      console.error(`[autobot] primary model attempt failed (${failureClass}): ${e.message}`);
+      if(left()>3 && attempt<maxAttemptsPerFeature && ['timeout','network','invalid-patch'].includes(failureClass)) response=await modelCall(obj,true); else throw e;
     }
     const patch=clean(response);
     if(!validPatch(patch,obj)) throw new Error('model returned an invalid, empty, or out-of-scope feature patch');
@@ -97,12 +113,16 @@ for(let n=1;n<=maxFeatures&&left()>1;n++){
     run('git',['diff','--check'],{stdio:'inherit'});
     run('npm',['run','build'],{stdio:'inherit',timeout:Math.min(900000,Math.max(60000,Math.floor(left()*60000)))});
     completed.add(obj.id); delete state.failed?.[obj.id]; save();
+    appendAudit('feature-verified',{objectiveId:obj.id,attempt});
     console.log(`[autobot] VERIFIED FEATURE: ${obj.id}`);
   } catch(e) {
-    state.failed ||= {}; state.failed[obj.id]={message:e.message,at:new Date().toISOString(),attempts:(state.failed[obj.id]?.attempts||0)+1}; save();
-    try { resetFailedPatch(); } catch(resetError) { console.error(`[autobot] reset failed: ${resetError.message}`); process.exit(2); }
-    console.error(`[autobot] feature ${obj.id} failed and was reset: ${e.message}`);
+    const failureClass=classifyFailure(e.message);
+    state.failed ||= {}; state.failed[obj.id]={message:e.message,class:failureClass,at:new Date().toISOString(),attempts:(state.failed[obj.id]?.attempts||0)+1}; save();
+    appendAudit('feature-failed',{objectiveId:obj.id,attempt,failureClass,message:e.message});
+    try { resetFailedPatch(); } catch(resetError) { appendAudit('feature-reset-failed',{objectiveId:obj.id,message:resetError.message}); console.error(`[autobot] reset failed: ${resetError.message}`); process.exit(2); }
+    console.error(`[autobot] feature ${obj.id} failed and was reset (${failureClass}): ${e.message}`);
   }
 }
 save();
+appendAudit('feature-brain-run-finished',{verified:completed.size,attemptedThisRun:[...attemptsThisRun.values()].reduce((a,b)=>a+b,0),elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2))});
 console.log(`[autobot] feature brain finished; verified=${completed.size}; attemptedThisRun=${[...attemptsThisRun.values()].reduce((a,b)=>a+b,0)}; elapsed=${((Date.now()-started)/60000).toFixed(2)}m`);
