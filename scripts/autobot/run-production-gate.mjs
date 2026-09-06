@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process';
 const steps = [
   ['build', 'npm', ['run', 'build']],
   ['generation-contract', 'npm', ['run', 'verify:generation-capability-contract']],
+  ['ai-video-provider-hardening', 'npm', ['run', 'verify:ai-video-provider-hardening']],
   ['executable-timeline', 'npm', ['run', 'verify:executable-timeline']],
   ['director-handoff', 'npm', ['run', 'verify:director-timeline-handoff']],
   ['cinematic-quality', 'npm', ['run', 'verify:cinematic-quality-gate']],
