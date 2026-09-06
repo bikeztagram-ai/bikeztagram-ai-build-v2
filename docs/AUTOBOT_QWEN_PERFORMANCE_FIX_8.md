@@ -1,1 +1,0 @@
-Do not run six-hour validation until the fast 15-minute proof demonstrates at least one completed product objective.
