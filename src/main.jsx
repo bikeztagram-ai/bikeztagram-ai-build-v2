@@ -6,6 +6,7 @@ import PromptSceneStudio from './promptSceneStudio.jsx';
 import MusicStudio from './musicStudio.jsx';
 import MusicArrangementStudio from './musicArrangementStudio.jsx';
 import { installLocalAnalysisRuntime } from './localAnalysisRuntime.js';
+import './registerCreativeCapabilities.js';
 import { creativeRuntime } from './creativeRuntimeBootstrap.js';
 import './styles.css';
 
