@@ -1,0 +1,36 @@
+name: 🤖 AutoBot Continuous Builder
+
+on:
+  schedule:
+    # Keep the autonomous builder moving without requiring repeated manual starts.
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: autobot-heartbeat
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch-builder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch sustained AutoBot run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          active=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2.yml --status in_progress --json databaseId --jq 'length')
+          queued=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2.yml --status queued --json databaseId --jq 'length')
+          if [ "$active" -gt 0 ] || [ "$queued" -gt 0 ]; then
+            echo "AutoBot is already active/queued; no duplicate run will be dispatched."
+            exit 0
+          fi
+          gh workflow run autonomous-builder-v2.yml --repo "$GITHUB_REPOSITORY" --ref main \
+            -f duration='6h' \
+            -f max_units='1000' \
+            -f local_model='qwen2.5-coder:7b'
+          echo "Dispatched a fresh 6-hour AutoBot build run."
