@@ -73,7 +73,10 @@ while(totalUnits<requestedUnits&&remainingMinutes()>0){
   }
 
   const featureStatus=runFeatureBrain();
-  if(featureStatus!==0){appendAudit('run-blocked',{iteration,status:featureStatus,phase:'feature-brain'});writeRuntimeState('blocked');process.exit(featureStatus);}
+  if(featureStatus!==0){
+    appendAudit('feature-brain-recoverable-failure',{iteration,status:featureStatus,remainingMinutes:Number(remainingMinutes().toFixed(2))});
+    writeRuntimeState('running');
+  }
   if(remainingMinutes()<=1)break;
 
   if(state?.status==='idle'&&featureCycles>=maxFeatureCycles)break;
