@@ -1,5 +1,6 @@
 /* Provider-neutral registry. Providers implement contracts; the product never depends on a named vendor. */
 const registry = new Map();
+const FORBIDDEN_PROVIDER = /gemini|google-genai|googleai/i;
 
 const normalise = (provider = {}) => ({
   id: String(provider.id || '').trim(),
@@ -14,6 +15,7 @@ const normalise = (provider = {}) => ({
 export function registerCreativeProvider(provider) {
   const item = normalise(provider);
   if (!item.id) throw new Error('Creative provider requires an id.');
+  if (FORBIDDEN_PROVIDER.test(item.id) || FORBIDDEN_PROVIDER.test(item.label) || FORBIDDEN_PROVIDER.test(JSON.stringify(item.metadata))) throw new Error(`Forbidden provider integration: ${item.id}`);
   if (!item.capabilities.length) throw new Error(`Creative provider ${item.id} requires capabilities.`);
   registry.set(item.id, item);
   return item;
