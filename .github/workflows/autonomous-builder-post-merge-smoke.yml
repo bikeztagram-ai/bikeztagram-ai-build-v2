@@ -1,0 +1,49 @@
+name: AutoBot Post-Merge Smoke
+
+on:
+  workflow_run:
+    workflows: ['Bikeztagram Main Verification']
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: autobot-post-merge-smoke
+  cancel-in-progress: false
+
+jobs:
+  trigger-smoke:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for an existing AutoBot run
+        id: active
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          active=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2.yml --status in_progress --json databaseId --jq 'length')
+          queued=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2.yml --status queued --json databaseId --jq 'length')
+          echo "active=$active queued=$queued"
+          if [ "$active" -gt 0 ] || [ "$queued" -gt 0 ]; then
+            echo 'AutoBot already has a queued/running run; no duplicate smoke will be dispatched.'
+            echo 'dispatch=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'dispatch=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dispatch 15-minute AutoBot smoke
+        if: steps.active.outputs.dispatch == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run autonomous-builder-v2.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f duration=15m \
+            -f max_units=1000 \
+            -f local_model=qwen2.5-coder:3b
+          echo 'Dispatched bounded 15-minute AutoBot smoke from verified main.'
