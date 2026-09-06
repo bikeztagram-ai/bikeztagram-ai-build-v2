@@ -29,8 +29,13 @@ if (!continuation.includes('continuation_ref') || !continuation.includes('remain
 if (!/timeout-minutes:\s*370/.test(continuation)) failures.push('continuation hosted-run ceiling is unsafe');
 if (!/--ref \"\$CONTINUATION_REF\"/.test(continuation)) failures.push('continuation must execute against its checkpoint ref');
 if (!/remaining.*360|budget.*360/.test(continuation)) failures.push('continuation must cap each hosted segment at six hours');
+if (!continuation.includes('long-run-state.json')) failures.push('continuation must consume authoritative long-run runtime state');
+if (!/remaining=\$\(\( REMAINING_MINUTES - used \)\)/.test(continuation)) failures.push('continuation must subtract measured elapsed runtime from shared budget');
+if (!continuation.includes("remaining != '0'")) failures.push('continuation must stop recursion at zero shared budget');
 if (!continuation.includes('gh workflow run autonomous-builder-continuation.yml')) failures.push('continuation recursion missing');
 if (!sustained.includes('verifyAuditLog')) failures.push('sustained runner missing audit verification');
+if (!sustained.includes('long-run-state.json')) failures.push('sustained runner lacks durable runtime budget state');
+if (!sustained.includes('writeRuntimeState')) failures.push('sustained runner lacks runtime checkpoint updates');
 if (!sustained.includes('AUTOBOT_DETERMINISTIC_SLICE_MINUTES')) failures.push('deterministic work is not bounded into resumable slices');
 if (!sustained.includes('AUTOBOT_FEATURE_SLICE_MINUTES')) failures.push('feature work is not bounded into resumable slices');
 if (!sustained.includes('AUTOBOT_MAX_FEATURE_CYCLES')) failures.push('feature cycle ceiling missing');
@@ -42,4 +47,4 @@ if (!deterministic.includes('dependsOn')) failures.push('deterministic executor 
 if (!gate.includes('verify:generation-capability-contract') || !gate.includes('verify:autobot-audit-tamper')) failures.push('authoritative production gate is incomplete');
 if (!packageJson.includes('verify:autobot-production-gate')) failures.push('production gate is not registered in package scripts');
 if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
-console.log('AutoBot safety contract PASS: local-only AI, no automatic merge/deploy, non-canceling concurrency, bounded recovery, protected paths, dependency handling, audit verification, continuous bounded execution, continuation safety, authoritative production gate, and resumable long-duration execution.');
+console.log('AutoBot safety contract PASS: local-only AI, no automatic merge/deploy, non-canceling concurrency, bounded recovery, protected paths, dependency handling, audit verification, continuous bounded execution, continuation budget integrity, authoritative production gate, and resumable long-duration execution.');
