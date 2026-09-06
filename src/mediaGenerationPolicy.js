@@ -1,11 +1,14 @@
 /* Universal media-generation policy: generated assets must always resolve to real playable media. */
 const text = (value) => String(value ?? '').trim().toLowerCase();
-export function chooseVisualStrategy({ prompt = '', hasUploadedMedia = false, canGenerateVideo = false } = {}) {
-  const brief = text(prompt);
-  const asksForGeneration = /create|generate|invent|imagine|make|show me|scene|world|character|creature|environment/.test(brief);
-  if (canGenerateVideo && asksForGeneration) return { mode: 'ai-video', reason: 'Creative brief requests generated visual content and a video provider is available.' };
+const GENERATION_INTENT = /\b(create|generate|invent|imagine|make|show me|design|produce|build|render|animate|film|video|scene|world|character|creature|environment|story|trailer|commercial|advert|music video)\b/i;
+const IMAGE_ONLY_INTENT = /\b(image|picture|photo|poster|illustration|artwork|still)\b/i;
+export function chooseVisualStrategy({ prompt = '', hasUploadedMedia = false, canGenerateVideo = false, canGenerateImage = false } = {}) {
+  const brief = text(prompt); const asksForGeneration = GENERATION_INTENT.test(brief); const asksForStill = IMAGE_ONLY_INTENT.test(brief) && !/video|film|animate|motion|moving/i.test(brief);
+  if (asksForGeneration && canGenerateVideo) return { mode: 'ai-video', reason: 'Creative brief requests generated moving visual content and a real video provider is available.' };
+  if (asksForGeneration && canGenerateImage) return { mode: 'ai-image', reason: 'Creative brief requests generated visual content and an image provider is available.' };
   if (hasUploadedMedia) return { mode: 'edit-source', reason: 'Use supplied media as the visual source.' };
-  return { mode: 'procedural', reason: 'No generation provider or uploaded media is available.' };
+  if (asksForStill && canGenerateImage) return { mode: 'ai-image', reason: 'Creative brief explicitly requests still imagery.' };
+  return { mode: 'unavailable', reason: 'No real generation provider or uploaded media is available; do not fabricate generated media.' };
 }
 export function generationContract(asset = {}) {
   if (asset.sourceType !== 'generated') return { valid: true, playable: Boolean(asset.file || asset.blob || asset.sourceUrl || asset.url), reason: 'source-media' };
