@@ -1,0 +1,25 @@
+{
+  "version": 4,
+  "completed": [],
+  "failed": {
+    "cinematic-quality": {
+      "message": "Command failed: npm run build",
+      "class": "verification-build",
+      "at": "2026-09-06T17:56:09.098Z",
+      "attempts": 3
+    },
+    "editor-reliability": {
+      "message": "Command failed: npm run build",
+      "class": "verification-build",
+      "at": "2026-09-06T17:55:53.181Z",
+      "attempts": 2
+    },
+    "generation-runtime": {
+      "message": "curl: (28) Operation timed out after 119002 milliseconds with 0 bytes received",
+      "class": "timeout",
+      "at": "2026-09-06T17:58:11.872Z",
+      "attempts": 1
+    }
+  },
+  "updatedAt": "2026-09-06T17:58:11.887Z"
+}
