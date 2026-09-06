@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 
 const required = [
   'builder/runner/deterministic-executor.mjs',
+  'builder/runner/long-run-executor.mjs',
   'builder/runner/run-duration.mjs',
   'builder/runner/recovery-controller.mjs',
   'builder/runner/segment-plan.mjs',
@@ -19,17 +20,21 @@ const required = [
   'builder/learning/analyse-patterns.mjs',
   'builder/learning/improvement-proposal.mjs',
   'builder/learning/lesson-validator.mjs',
-  'builder/monitor/heartbeat-watchdog.mjs'
+  'builder/monitor/heartbeat-watchdog.mjs',
+  'scripts/autobot/verify-autobot-continuous-loop.mjs'
 ];
 const missing = required.filter(f => !fs.existsSync(f));
 let syntax = 'failed';
+let continuous = 'failed';
 try { execFileSync('node', ['--check', 'builder/runner/deterministic-executor.mjs'], { stdio: 'ignore' }); syntax = 'passed'; } catch {}
+try { execFileSync('node', ['scripts/autobot/verify-autobot-continuous-loop.mjs'], { stdio: 'ignore' }); continuous = 'passed'; } catch {}
 const result = {
-  version: 1,
-  status: missing.length || syntax !== 'passed' ? 'not-ready' : 'ready-for-live-run',
+  version: 2,
+  status: missing.length || syntax !== 'passed' || continuous !== 'passed' ? 'not-ready' : 'ready-for-live-run',
   requiredComponents: required.length,
   missing,
   executorSyntax: syntax,
+  continuousLoopContract: continuous,
   merge: 'human-review-only',
   deployment: 'human-review-only',
   geminiRequired: false,
