@@ -8,16 +8,11 @@ const directorFile = 'src/director.js';
 
 function read(file) { return fs.readFileSync(file, 'utf8'); }
 function write(file, source) { fs.writeFileSync(file, source); }
-function run(file) {
-  execFileSync(process.execPath, [file], { stdio: 'inherit' });
-}
+function run(file) { execFileSync(process.execPath, [file], { stdio: 'inherit' }); }
 
 let planner = read(plannerFile);
 let director = read(directorFile);
 
-// The previous implementation trusted the checkpoint dependency state. A stale
-// checkpoint could therefore attempt integration before the actual export existed.
-// Repair the prerequisite from the canonical deterministic runtime when needed.
 if (!director.includes('export function buildDirectorStory')) {
   run('scripts/autobot/director-story-runtime.mjs');
   director = read(directorFile);
@@ -36,7 +31,7 @@ if (!planner.includes('const storyBeats=buildDirectorStory(')) {
   const selectedPattern = /const\s+selectedMoments\s*=\s*selectDirectorMoments\([\s\S]*?\);/;
   const selected = planner.match(selectedPattern);
   if (!selected) throw new Error('selectedMoments call boundary not found; refusing blind edit.');
-  const storyCall = `${selected[0]};const storyBeats=buildDirectorStory(rawMoments,{creativePrompt:options.creativePrompt,targetDuration});`;
+  const storyCall = `${selected[0]}const storyBeats=buildDirectorStory(rawMoments,{creativePrompt:options.creativePrompt,targetDuration});`;
   planner = planner.replace(selected[0], storyCall);
 }
 
