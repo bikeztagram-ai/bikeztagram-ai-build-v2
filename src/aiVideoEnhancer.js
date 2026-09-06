@@ -1,13 +1,17 @@
-/* Universal creative runtime — real Runway video generation for reference images and text-only briefs. */
+/* Universal creative video generation: real Runway video for prompt-only scenes and reference-image animation. */
 import { generateAIVideoScene } from './aiVideoProvider.js';
+
 const DEFAULT_MAX_GENERATED_INSERTS = 6;
 const MAX_DATA_URI_BYTES = 3200000;
+const DEFAULT_CONCURRENCY = 2;
+
 const blobToDataUri = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(String(reader.result || ''));
   reader.onerror = () => reject(reader.error || new Error('Could not read image for AI video generation.'));
   reader.readAsDataURL(blob);
 });
+
 async function prepareImageForRunway(file) {
   if (!(file instanceof Blob)) return '';
   if (file.size <= MAX_DATA_URI_BYTES) return blobToDataUri(file);
@@ -19,6 +23,7 @@ async function prepareImageForRunway(file) {
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
     canvas.height = Math.max(1, Math.round(bitmap.height * scale));
     const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return '';
     ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     bitmap.close?.();
     const resized = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', .82));
@@ -26,6 +31,7 @@ async function prepareImageForRunway(file) {
     return blobToDataUri(resized);
   } catch { return ''; }
 }
+
 function cinematicPrompt({ creativePrompt, cut, reference = true }) {
   const intent = cut?.creativeIntent || {};
   const subject = intent.subject || cut?.subject || 'the main subject';
@@ -40,51 +46,76 @@ function cinematicPrompt({ creativePrompt, cut, reference = true }) {
     `Generate a real moving video shot for the ${role}.`,
     `Subject: ${subject}. Environment: ${world}. Action: ${action}.`,
     `Camera: ${motion}. Lighting: ${lighting}. Visual language: ${style}.`,
-    reference ? 'Preserve subject identity, spatial continuity and the important visual details from the reference image.' : 'Invent the complete scene faithfully from the creative brief while maintaining strong visual continuity.',
+    reference ? 'Preserve subject identity, spatial continuity and important visual details from the reference image.' : 'Invent the complete scene faithfully from the creative brief while maintaining strong visual continuity.',
     'Natural purposeful motion, believable physics, coherent temporal movement and premium commercial cinematography.',
     'Do not add unrelated objects, text, logos or watermarks, or create surreal deformation unless explicitly requested by the creative brief.'
   ].join(' ');
 }
+
 function ratioForPreset(preset = 'portrait') {
   if (preset === 'square') return '960:960';
   if (preset === 'landscape' || preset === 'cinema') return '1280:720';
   return '720:1280';
 }
+
 function generatedMedia(result, id, generationPrompt, provider = 'Runway Gen-4.5') {
   const url = URL.createObjectURL(result.blob);
   return { id, file: result.blob, blob: result.blob, url, sourceUrl: url, mimeType: result.blob.type || 'video/mp4', type: result.blob.type || 'video/mp4', sourceType: 'generated', generated: true, provider, generationPrompt };
 }
-export async function generatePromptOnlyVideoCuts({ plan, creativePrompt = '', outputPreset = 'portrait', maxGeneratedCuts = 6, onProgress } = {}) {
+
+async function mapBounded(items, concurrency, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, concurrency), items.length || 1) }, async () => {
+    while (true) {
+      const index = cursor++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+export async function generatePromptOnlyVideoCuts({ plan, creativePrompt = '', outputPreset = 'portrait', maxGeneratedCuts = 6, concurrency = DEFAULT_CONCURRENCY, onProgress } = {}) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
   const count = Math.min(cuts.length, Math.max(1, Number(maxGeneratedCuts) || 6));
-  const mediaItems = [];
-  let generatedCount = 0;
-  let failedCount = 0;
-  for (let i = 0; i < count; i += 1) {
-    const cut = cuts[i];
+  if (!count) return { mediaItems: [], generatedCount: 0, attemptedCount: 0, failedCount: 0, provider: 'none' };
+  let completed = 0;
+  const results = await mapBounded(cuts.slice(0, count), concurrency, async (cut, i) => {
     const generationPrompt = cinematicPrompt({ creativePrompt, cut, reference: false });
     const duration = Math.max(2, Math.min(10, Number(cut?.duration) || 5));
-    onProgress?.({ stage: 'ai-video', value: Math.round(i / count * 100), current: i + 1, total: count, mode: 'text-to-video' });
+    onProgress?.({ stage: 'ai-video', value: Math.round(completed / count * 100), current: completed + 1, total: count, mode: 'text-to-video', concurrency });
     try {
-      const result = await generateAIVideoScene({ prompt: generationPrompt, duration, ratio: ratioForPreset(outputPreset), onProgress: (value) => onProgress?.({ stage: 'ai-video', value: Math.round((i + value / 100) / count * 100), current: i + 1, total: count, mode: 'text-to-video' }) });
-      if (!result?.blob) { failedCount += 1; continue; }
+      const result = await generateAIVideoScene({ prompt: generationPrompt, duration, ratio: ratioForPreset(outputPreset), onProgress: (value) => onProgress?.({ stage: 'ai-video', value: Math.round((completed + value / 100) / count * 100), current: i + 1, total: count, mode: 'text-to-video', concurrency }) });
+      if (!result?.blob) return { ok: false };
       const id = `generated-text-video-${i}-${Date.now()}`;
-      mediaItems.push(generatedMedia(result, id, generationPrompt));
-      cut.mediaId = id;
-      cut.generatedMediaId = id;
-      cut.generated = true;
-      cut.mediaIndex = mediaItems.length - 1;
-      generatedCount += 1;
+      return { ok: true, media: generatedMedia(result, id, generationPrompt), id };
     } catch (error) {
-      failedCount += 1;
-      if (/not configured/i.test(error?.message || '')) break;
+      if (/not configured/i.test(error?.message || '')) return { ok: false, fatal: true, error };
       console.warn('[AI VIDEO] Text-to-video generation failed.', error);
+      return { ok: false, error };
+    } finally {
+      completed += 1;
+      onProgress?.({ stage: 'ai-video', value: Math.round(completed / count * 100), current: completed, total: count, mode: 'text-to-video', concurrency });
     }
-  }
-  onProgress?.({ stage: 'ai-video', value: 100, current: count, total: count, generatedCount, failedCount, mode: 'text-to-video' });
-  return { mediaItems, generatedCount, attemptedCount: count, failedCount, provider: generatedCount ? 'Runway Gen-4.5' : 'none' };
+  });
+  const mediaItems = [];
+  let failedCount = 0;
+  let fatal = false;
+  results.forEach((result, index) => {
+    if (result?.ok) {
+      result.media.mediaIndex = mediaItems.length;
+      mediaItems.push(result.media);
+      const cut = cuts[index];
+      cut.mediaId = result.id; cut.generatedMediaId = result.id; cut.generated = true; cut.mediaIndex = mediaItems.length - 1;
+    } else { failedCount += 1; if (result?.fatal) fatal = true; }
+  });
+  onProgress?.({ stage: 'ai-video', value: 100, current: count, total: count, generatedCount: mediaItems.length, failedCount, fatal, mode: 'text-to-video', concurrency });
+  return { mediaItems, generatedCount: mediaItems.length, attemptedCount: count, failedCount, provider: mediaItems.length ? 'Runway Gen-4.5' : 'none', concurrency };
 }
-export async function enhanceStillCutsWithAIVideo({ mediaItems = [], plan, creativePrompt = '', outputPreset = 'portrait', maxGeneratedInserts = DEFAULT_MAX_GENERATED_INSERTS, onProgress } = {}) {
+
+export async function enhanceStillCutsWithAIVideo({ mediaItems = [], plan, creativePrompt = '', outputPreset = 'portrait', maxGeneratedInserts = DEFAULT_MAX_GENERATED_INSERTS, concurrency = DEFAULT_CONCURRENCY, onProgress } = {}) {
   if (!Array.isArray(mediaItems) || !plan?.cuts?.length) return { mediaItems, generatedCount: 0, attemptedCount: 0, failedCount: 0, provider: 'none' };
   const next = mediaItems.map((item) => ({ ...item }));
   const candidates = [];
@@ -98,27 +129,36 @@ export async function enhanceStillCutsWithAIVideo({ mediaItems = [], plan, creat
     if (candidates.length >= Math.max(0, Number(maxGeneratedInserts) || DEFAULT_MAX_GENERATED_INSERTS)) break;
   }
   if (!candidates.length) return { mediaItems: next, generatedCount: 0, attemptedCount: 0, failedCount: 0, provider: 'none' };
-  let generatedCount = 0; let failedCount = 0;
-  for (let i = 0; i < candidates.length; i += 1) {
-    const candidate = candidates[i];
-    onProgress?.({ stage: 'ai-video', value: Math.round(i / candidates.length * 100), current: i + 1, total: candidates.length });
+  let completed = 0;
+  const results = await mapBounded(candidates, concurrency, async (candidate, i) => {
+    onProgress?.({ stage: 'ai-video', value: Math.round(completed / candidates.length * 100), current: i + 1, total: candidates.length, concurrency });
     const promptImage = await prepareImageForRunway(candidate.source.file || candidate.source.blob);
-    if (!promptImage) { failedCount += 1; continue; }
+    if (!promptImage) return { ok: false };
     try {
       const generationPrompt = cinematicPrompt({ creativePrompt, cut: candidate.cut, reference: true });
       const duration = Math.max(2, Math.min(10, Number(candidate.cut?.duration) || 5));
-      const result = await generateAIVideoScene({ prompt: generationPrompt, duration, ratio: ratioForPreset(outputPreset), promptImage, onProgress: (value) => onProgress?.({ stage: 'ai-video', value: Math.round((i + value / 100) / candidates.length * 100), current: i + 1, total: candidates.length }) });
-      if (!result?.blob) { failedCount += 1; continue; }
+      const result = await generateAIVideoScene({ prompt: generationPrompt, duration, ratio: ratioForPreset(outputPreset), promptImage, onProgress: (value) => onProgress?.({ stage: 'ai-video', value: Math.round((completed + value / 100) / candidates.length * 100), current: i + 1, total: candidates.length, concurrency }) });
+      if (!result?.blob) return { ok: false };
       const generatedId = `generated-video-${candidate.cutIndex}-${Date.now()}-${i}`;
-      const generated = generatedMedia(result, generatedId, generationPrompt);
-      next.push({ ...candidate.source, ...generated, generatedFrom: candidate.source.id || `source-${candidate.mediaIndex}` });
-      candidate.cut.mediaId = generatedId; candidate.cut.generatedMediaId = generatedId; candidate.cut.generated = true; generatedCount += 1;
+      return { ok: true, generated: generatedMedia(result, generatedId, generationPrompt), candidate };
     } catch (error) {
-      failedCount += 1;
-      if (/not configured/i.test(error?.message || '')) break;
+      if (/not configured/i.test(error?.message || '')) return { ok: false, fatal: true, error };
       console.warn('[AI VIDEO] Generation failed; retaining original source.', error);
+      return { ok: false, error };
+    } finally {
+      completed += 1;
+      onProgress?.({ stage: 'ai-video', value: Math.round(completed / candidates.length * 100), current: completed, total: candidates.length, concurrency });
     }
-  }
-  onProgress?.({ stage: 'ai-video', value: 100, current: candidates.length, total: candidates.length, generatedCount, failedCount });
-  return { mediaItems: next, generatedCount, attemptedCount: candidates.length, failedCount, provider: generatedCount ? 'Runway Gen-4.5' : 'none' };
+  });
+  let generatedCount = 0; let failedCount = 0; let fatal = false;
+  results.forEach((result) => {
+    if (!result?.ok) { failedCount += 1; if (result?.fatal) fatal = true; return; }
+    const candidate = result.candidate;
+    const generated = result.generated;
+    next.push({ ...candidate.source, ...generated, generatedFrom: candidate.source.id || `source-${candidate.mediaIndex}` });
+    candidate.cut.mediaId = generated.id; candidate.cut.generatedMediaId = generated.id; candidate.cut.generated = true;
+    generatedCount += 1;
+  });
+  onProgress?.({ stage: 'ai-video', value: 100, current: candidates.length, total: candidates.length, generatedCount, failedCount, fatal, concurrency });
+  return { mediaItems: next, generatedCount, attemptedCount: candidates.length, failedCount, provider: generatedCount ? 'Runway Gen-4.5' : 'none', concurrency };
 }
