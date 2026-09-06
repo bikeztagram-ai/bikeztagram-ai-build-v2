@@ -2,7 +2,7 @@ name: 🤖 AutoBot Control Center
 
 on:
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '17 */2 * * *'
   workflow_dispatch:
 
 permissions:
@@ -38,14 +38,18 @@ jobs:
           get() { gh api "$api/$1?ref=main" --jq .content | base64 --decode; }
           workflow="$(get '.github/workflows/autonomous-builder-v2.yml')"
           safety="$(get 'scripts/autobot/verify-autobot-safety-contract.mjs')"
+          dependencies="$(get 'scripts/autobot/verify-autobot-safety-contract-v2.mjs')"
           package="$(get 'package.json')"
           printf '%s\n' "$workflow" | grep -q 'cancel-in-progress: false'
           printf '%s\n' "$workflow" | grep -q 'actions/cache@v4'
           printf '%s\n' "$workflow" | grep -q 'segment-2'
           printf '%s\n' "$workflow" | grep -q -- '--draft'
+          printf '%s\n' "$workflow" | grep -q 'verify-autobot-safety-contract-v2.mjs'
           printf '%s\n' "$package" | grep -q 'verify:autobot-safety'
+          printf '%s\n' "$package" | grep -q 'verify:autobot-dependencies'
           printf '%s\n' "$safety" | grep -q 'verifyAuditLog'
-          echo 'Main-branch AutoBot safety preflight PASS.'
+          printf '%s\n' "$dependencies" | grep -q 'dependency cycle detected'
+          echo 'Main-branch AutoBot safety and dependency preflight PASS.'
 
       - name: Dispatch a fresh sustained builder run
         if: steps.active.outputs.active == '0'
