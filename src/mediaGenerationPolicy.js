@@ -3,11 +3,13 @@ const text=(value)=>String(value??'').trim().toLowerCase();
 const GENERATION_INTENT=/\b(create|generate|invent|imagine|make|show me|design|produce|build|render|animate|film|scene|world|character|creature|environment|story|trailer|commercial|advert|music video)\b/i;
 const EDIT_SOURCE_INTENT=/\b(edit|editing|cut|trim|reframe|grade|enhance|improve|remix|use|uploaded|footage|clip|clips|recording|source media)\b/i;
 const IMAGE_ONLY_INTENT=/\b(image|picture|photo|poster|illustration|artwork|still)\b/i;
+const MOVING_MEDIA_INTENT=/\b(video|film|animate|animation|motion|moving|scene|shot|trailer|commercial|advert|music video|reel)\b/i;
 export function chooseVisualStrategy({prompt='',hasUploadedMedia=false,canGenerateVideo=false,canGenerateImage=false}={}){
- const brief=text(prompt);const asksForGeneration=GENERATION_INTENT.test(brief);const asksForStill=IMAGE_ONLY_INTENT.test(brief)&&!/video|film|animate|motion|moving/i.test(brief);
+ const brief=text(prompt);const asksForGeneration=GENERATION_INTENT.test(brief);const asksForMovingMedia=MOVING_MEDIA_INTENT.test(brief);const asksForStill=IMAGE_ONLY_INTENT.test(brief)&&!asksForMovingMedia;
  const explicitlyEditsSource=hasUploadedMedia&&EDIT_SOURCE_INTENT.test(brief)&&!/(create|generate|invent|imagine|design|produce|build|animate|from scratch|new scene)/i.test(brief);
  if(explicitlyEditsSource)return{mode:'edit-source',reason:'Use supplied media as the visual source because the brief explicitly asks to edit or enhance existing footage.'};
- if(asksForGeneration&&canGenerateVideo)return{mode:'ai-video',reason:'Creative brief requests generated moving visual content and a real video provider is available.'};
+ if(asksForGeneration&&asksForMovingMedia&&canGenerateVideo)return{mode:'ai-video',reason:'Creative brief requests generated moving visual content and a real video provider is available.'};
+ if(asksForGeneration&&asksForMovingMedia&&!canGenerateVideo)return{mode:'unavailable',reason:'Creative brief requires real generated moving media, but no video provider is available; do not substitute still imagery.'};
  if(asksForGeneration&&canGenerateImage)return{mode:'ai-image',reason:'Creative brief requests generated visual content and an image provider is available.'};
  if(hasUploadedMedia)return{mode:'edit-source',reason:'Use supplied media as the visual source.'};
  if(asksForStill&&canGenerateImage)return{mode:'ai-image',reason:'Creative brief explicitly requests still imagery.'};
