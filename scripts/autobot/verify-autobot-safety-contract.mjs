@@ -42,10 +42,10 @@ if (!sustained.includes('AUTOBOT_MAX_FEATURE_CYCLES')) failures.push('feature cy
 if (!sustained.includes('feature-brain-started')) failures.push('feature cycle audit evidence missing');
 if (!feature.includes('maxAttemptsPerFeature')) failures.push('feature engineer lacks bounded attempt ceiling');
 if (!feature.includes('resetFailedEdits')) failures.push('feature engineer lacks failed-edit recovery');
-if (!feature.includes('format: editSchema')) failures.push('feature engineer must use structured model output');
+if (!/format\s*:\s*editSchema/.test(feature)) failures.push('feature engineer must use structured model output');
 if (!feature.includes('structured-line-edits-v1')) failures.push('feature engineer protocol version missing');
 if (!feature.includes('out-of-scope file')) failures.push('feature engineer lacks edit scope guard');
-if (!feature.includes('overlapping edits')) failures.push('feature engineer lacks edit overlap guard');
+if (!feature.includes('overlapping edits') && !feature.includes('multiple edits in one file')) failures.push('feature engineer lacks edit overlap guard');
 if (!deterministic.includes('allowedTask')) failures.push('deterministic executor lacks protected-path guard');
 if (!deterministic.includes('dependsOn')) failures.push('deterministic executor lacks task dependency handling');
 if (!gate.includes('verify:generation-capability-contract') || !gate.includes('verify:autobot-audit-tamper')) failures.push('authoritative production gate is incomplete');

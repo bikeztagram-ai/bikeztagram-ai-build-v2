@@ -15,7 +15,7 @@ on:
         type: choice
         options: ['15m','30m','1h','2h','3h','4h','5h','6h','7h','8h','9h','10h','11h','12h']
       local_model:
-        description: 'Open-source local coding model (no paid API)'
+        description: 'Open-source local coding model (no paid AI)'
         required: false
         default: 'qwen2.5-coder:7b'
         type: string
@@ -96,6 +96,7 @@ jobs:
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v3.mjs
           node scripts/autobot/verify-autobot-continuous-loop.mjs
           node scripts/autobot/verify-autobot-segment-chain.mjs
           node builder/quality/autobot-ready.mjs
@@ -163,6 +164,7 @@ jobs:
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v3.mjs
           node scripts/autobot/verify-autobot-continuous-loop.mjs
           node scripts/autobot/verify-autobot-segment-chain.mjs
           node builder/quality/autobot-ready.mjs
