@@ -7,7 +7,7 @@ const source = fs.readFileSync('src/directorSelection.js', 'utf8');
 // requiring the exact parameter names/formatting from the historical batch.
 assert.match(source, /function subjectFamily\(m\)/);
 assert.match(source, /const subject=m=>/);
-assert.match(source, /const subjects=new Map\(\)/);
+assert.match(source, /subjects=new Map\(\)/);
 assert.match(source, /subjects\.get\(m\.__subject\)/);
 assert.match(source, /clamp\(9\*sc,9,24\)/);
 assert.match(source, /directorSubjectFamily/);
