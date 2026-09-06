@@ -6,7 +6,9 @@ import { validateRenderedVideo, buildDirectorQAReport } from './qa.js';
 import { resolveOutputPreset } from './outputPresets.js';
 import { transcodeRenderedFilmToPreset } from './outputPresetTranscoder.js';
 import { applyDirectorRenderCues } from './directorRenderRuntime.js';
+import { evaluateCinematicOutput } from './cinematicQualityEvaluator.js';
 function number(value, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
+
 export function revisePlanAfterQA(plan, qa) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
   if (!cuts.length) return { plan, changed: false, reasons: ['no-cuts'] };
@@ -19,6 +21,33 @@ export function revisePlanAfterQA(plan, qa) {
   const nextPlan = reasons.length ? { ...plan, cuts: revisedCuts, qaRevision: { version: 'render-qa-revision-v5', reasons, pass: 1 } } : plan;
   return reasons.length ? { plan: applyDirectorRenderCues(nextPlan), changed: true, reasons } : { plan, changed: false, reasons: [] };
 }
+
+export function revisePlanAfterCinematicQuality(plan, quality) {
+  const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
+  if (!cuts.length || quality?.verdict !== 'REJECT') return { plan, changed: false, reasons: [] };
+  const issues = Array.isArray(quality.issues) ? quality.issues : [];
+  const revisedCuts = cuts.map((cut, index) => ({ ...cut }));
+  const reasons = [];
+  if (issues.some((x) => /motion variety/i.test(x))) {
+    reasons.push('increase-motion-variety');
+    revisedCuts.forEach((cut, index) => { if (!cut.motionStyle) cut.motionStyle = ['static','slow-push','lateral-pan','orbit'][index % 4]; });
+  }
+  if (issues.some((x) => /transition variety/i.test(x))) {
+    reasons.push('increase-transition-variety');
+    revisedCuts.forEach((cut, index) => { if (!cut.transition) cut.transition = index === 0 ? 'fade-in' : index === revisedCuts.length - 1 ? 'fade-out' : ['hard-cut','match-cut','impact-cut'][index % 3]; });
+  }
+  if (issues.some((x) => /duration|pacing/i.test(x))) {
+    reasons.push('rebalance-pacing');
+    const target = Math.max(3, number(plan.targetDuration || plan.duration, 15));
+    const perShot = Math.max(.7, Math.min(4, target / revisedCuts.length));
+    revisedCuts.forEach((cut) => { cut.duration = Number(perShot.toFixed(2)); });
+  }
+  if (issues.some((x) => /hook|opening/i.test(x)) && revisedCuts[0]) { reasons.push('strengthen-hook'); revisedCuts[0].role = 'hook'; revisedCuts[0].purpose = 'hook'; }
+  if (issues.some((x) => /ending|payoff/i.test(x)) && revisedCuts.at(-1)) { reasons.push('strengthen-ending'); revisedCuts.at(-1).role = 'hero-ending'; revisedCuts.at(-1).purpose = 'hero-ending'; }
+  if (!reasons.length) return { plan, changed: false, reasons: [] };
+  return { plan: applyDirectorRenderCues({ ...plan, cuts: revisedCuts, cinematicQualityRevision: { version: 'cinematic-quality-revision-v1', reasons, previousScore: quality.score } }), changed: true, reasons };
+}
+
 export async function renderInspectImprove({ mediaItems, plan, expectedDuration, onProgress, maxAttempts = 2 } = {}) {
   if (!Array.isArray(mediaItems) || !mediaItems.length) throw new Error('Render loop requires media items.');
   if (!plan?.cuts?.length && !plan?.scenes?.length) throw new Error('Render loop requires an executable plan.');
@@ -49,13 +78,20 @@ export async function renderInspectImprove({ mediaItems, plan, expectedDuration,
     let qa;
     try { qa = await validateRenderedVideo(output, expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15, { requireAudio: Boolean(musicUrl) }); }
     catch (error) { qa = { passed: false, verdict: 'FAIL_DECODE', error: error?.message || String(error), expectedDurationSeconds: expectedDuration || currentPlan.targetDuration || currentPlan.duration || 15 }; }
-    attempts.push({ attempt, bytes: output.size, qa, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied), outputPreset: outputPreset.id, outputWidth: outputPreset.width, outputHeight: outputPreset.height, directorRuntime: currentPlan?.directorRuntime?.version || null });
-    onProgress?.({ stage: 'qa', attempt, value: 100, qa });
-    if (qa.passed && (qa.verdict === 'PASS' || qa.verdict === 'PASS_WITH_DURATION_DIFFERENCE')) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
-    if (attempt >= limit) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
-    const revision = revisePlanAfterQA(currentPlan, qa); if (!revision.changed) return { output, plan: currentPlan, qa, attempts, improved: attempt > 1 };
-    currentPlan = revision.plan; onProgress?.({ stage: 'revise', attempt, value: 100, reasons: revision.reasons });
+    const cinematicQuality = evaluateCinematicOutput(currentPlan, { duration: qa?.durationSeconds, audio: { present: musicUrl ? audioAttached : true, durationAligned: qa?.durationDifferenceSeconds == null || Math.abs(number(qa.durationDifferenceSeconds)) <= 1.5, beatAligned: Boolean(currentPlan?.music?.beatSyncApplied) || undefined } });
+    attempts.push({ attempt, bytes: output.size, qa, cinematicQuality, audioExpected: Boolean(musicUrl), audioAttached, beatSyncApplied: Boolean(currentPlan?.music?.beatSyncApplied), outputPreset: outputPreset.id, outputWidth: outputPreset.width, outputHeight: outputPreset.height, directorRuntime: currentPlan?.directorRuntime?.version || null });
+    onProgress?.({ stage: 'qa', attempt, value: 100, qa, cinematicQuality });
+    currentPlan = { ...currentPlan, cinematicQuality };
+    const qaPass = qa.passed && (qa.verdict === 'PASS' || qa.verdict === 'PASS_WITH_DURATION_DIFFERENCE');
+    const qualityPass = cinematicQuality.verdict !== 'REJECT';
+    if (qaPass && qualityPass) return { output, plan: currentPlan, qa, cinematicQuality, attempts, improved: attempt > 1 };
+    if (attempt >= limit) return { output, plan: currentPlan, qa, cinematicQuality, attempts, improved: attempt > 1 };
+    const qaRevision = revisePlanAfterQA(currentPlan, qa);
+    const qualityRevision = revisePlanAfterCinematicQuality(qaRevision.changed ? qaRevision.plan : currentPlan, cinematicQuality);
+    if (!qaRevision.changed && !qualityRevision.changed) return { output, plan: currentPlan, qa, cinematicQuality, attempts, improved: attempt > 1 };
+    currentPlan = qualityRevision.changed ? qualityRevision.plan : qaRevision.plan;
+    onProgress?.({ stage: 'revise', attempt, value: 100, reasons: [...qaRevision.reasons, ...qualityRevision.reasons] });
   }
   throw new Error('Render quality loop ended without a render result.');
 }
-export function buildRenderLoopReport({ file, analysis, productionPlan, renderPlan, result } = {}) { return buildDirectorQAReport({ file, analysis, productionPlan, renderPlan, renderQA: result?.qa || null }); }
+export function buildRenderLoopReport({ file, analysis, productionPlan, renderPlan, result } = {}) { return buildDirectorQAReport({ file, analysis, productionPlan, renderPlan, renderQA: result?.qa || null, cinematicQuality: result?.cinematicQuality || null }); }
