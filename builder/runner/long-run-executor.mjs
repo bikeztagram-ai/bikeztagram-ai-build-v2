@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 /**
  * Sustained AutoBot controller.
- * Alternates deterministic backlog work and bounded local feature-engineering
- * slices until the shared time/unit budget is exhausted. This keeps the agent
- * productive across an entire run instead of handing the remaining budget to
- * the feature brain once and then stopping.
+ * Alternates bounded deterministic backlog slices and bounded local
+ * feature-engineering slices until the shared run budget is exhausted.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,6 +20,7 @@ let iteration = 0;
 let replenishments = 0;
 let featureCycles = 0;
 const maxReplenishments = Number.parseInt(process.env.AUTOBOT_MAX_GENERATED_WAVES || '3', 10);
+const deterministicSliceMinutes = Math.max(3, Number.parseInt(process.env.AUTOBOT_DETERMINISTIC_SLICE_MINUTES || '10', 10));
 const featureSliceMinutes = Math.max(3, Number.parseInt(process.env.AUTOBOT_FEATURE_SLICE_MINUTES || '15', 10));
 const maxFeatureCycles = Math.max(1, Number.parseInt(process.env.AUTOBOT_MAX_FEATURE_CYCLES || '24', 10));
 const featurePassesPerSlice = Math.max(1, Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES_PER_SLICE || '3', 10));
@@ -37,12 +36,13 @@ function runFeatureBrain(){if(remainingMinutes()<=1||featureCycles>=maxFeatureCy
 
 seedFromCheckpoint();
 assertAuditIntegrity('run-start');
-appendAudit('run-started',{requestedMinutes,requestedUnits,completedObjectives:[...completedObjectives].sort(),maxReplenishments,featureSliceMinutes,maxFeatureCycles,featurePassesPerSlice});
+appendAudit('run-started',{requestedMinutes,requestedUnits,completedObjectives:[...completedObjectives].sort(),maxReplenishments,deterministicSliceMinutes,featureSliceMinutes,maxFeatureCycles,featurePassesPerSlice});
 
 while(totalUnits<requestedUnits&&remainingMinutes()>0){
   iteration++;
-  appendAudit('iteration-started',{iteration,remainingMinutes:Math.floor(remainingMinutes()),remainingUnits:requestedUnits-totalUnits,featureCycles});
-  const status=runOnce(remainingMinutes(),requestedUnits-totalUnits);
+  const deterministicSlice=Math.min(deterministicSliceMinutes,Math.max(1,Math.floor(remainingMinutes())));
+  appendAudit('iteration-started',{iteration,remainingMinutes:Math.floor(remainingMinutes()),remainingUnits:requestedUnits-totalUnits,featureCycles,deterministicSlice});
+  const status=runOnce(deterministicSlice,requestedUnits-totalUnits);
   const state=readState();
   if(status!==0){appendAudit('run-blocked',{iteration,status,objectiveId:state?.objectiveId||null,taskId:state?.blockedTask||null,error:state?.error||null});process.exit(status);}
   const verifiedThisRun=Array.isArray(state?.verifiedThisRun)?state.verifiedThisRun:[];
@@ -53,19 +53,13 @@ while(totalUnits<requestedUnits&&remainingMinutes()>0){
   if(state?.status==='blocked'){appendAudit('run-blocked',{iteration,objectiveId:state.objectiveId||null,taskId:state.blockedTask||null,error:state.error||null});process.exit(2);}
   if(remainingMinutes()<=1)break;
 
-  if(state?.status==='idle'&&totalUnits<requestedUnits){
-    if(replenishBacklog()) continue;
-    appendAudit('deterministic-idle',{iteration,featureCycles});
-  }
+  if(state?.status==='idle'&&totalUnits<requestedUnits&&replenishBacklog())continue;
 
-  if(featureCycles<maxFeatureCycles&&remainingMinutes()>1){
-    const featureStatus=runFeatureBrain();
-    if(featureStatus!==0){appendAudit('run-blocked',{iteration,status:featureStatus,phase:'feature-brain'});process.exit(featureStatus);}
-  }
+  const featureStatus=runFeatureBrain();
+  if(featureStatus!==0){appendAudit('run-blocked',{iteration,status:featureStatus,phase:'feature-brain'});process.exit(featureStatus);}
+  if(remainingMinutes()<=1)break;
 
-  if(verifiedThisRun.length===0&&state?.status!=='idle'&&featureCycles>=maxFeatureCycles)break;
-  if(state?.status==='checkpointed'||state?.status==='objective-complete'||state?.status==='idle')continue;
-  break;
+  if(state?.status==='idle'&&featureCycles>=maxFeatureCycles)break;
 }
 
 const summary={totalUnits,totalObjectives,iterations:iteration,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),replenishments,featureBrain:featureCycles>0,featureCycles,remainingMinutes:Number(remainingMinutes().toFixed(2))};
