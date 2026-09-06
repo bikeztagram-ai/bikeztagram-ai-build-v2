@@ -42,7 +42,7 @@ export function compileCreativeIntent(prompt = '', options = {}) {
     palette: graph.palette,
     weather: brief.weather,
     time: brief.time,
-    preserveAcrossShots: ['subject', 'world', 'lighting-direction', 'color-language', 'camera-language', 'action-language'],
+    preserveAcrossShots: ['subject', 'world', 'lighting-direction', 'color-language', 'camera-language', 'action-language', 'style-language'],
   };
   const shots = graph.shots.map((shot, index) => {
     const action = inferActions(prompt, brief, shot);
@@ -53,6 +53,7 @@ export function compileCreativeIntent(prompt = '', options = {}) {
       `Subject: ${shot.subject || brief.subject}`,
       `World: ${shot.world || normalized.setting}`,
       `Shot role: ${shot.role}`,
+      `Shot language: ${normalized.shotLanguage}`,
       `Camera: ${cameraMovement}`,
       `Action: ${action.join(', ')}`,
       `Lighting: ${lighting.join(', ')}`,
@@ -61,8 +62,10 @@ export function compileCreativeIntent(prompt = '', options = {}) {
       `Style: ${style}`,
       `Pace: ${normalized.pace !== 'cinematic' ? normalized.pace : 'cinematic'}`,
       `Continuity: preserve ${continuity.subjectIdentity} and ${continuity.worldIdentity} across shots`,
+      normalized.constraints.noText ? 'No text.' : '',
+      normalized.constraints.noWatermark ? 'No watermark.' : '',
       `Original creative brief: ${text(prompt)}`,
-    ].join('. ');
+    ].filter(Boolean).join('. ');
     return {
       id: shot.id, index, role: shot.role, duration: shot.duration,
       subject: shot.subject || brief.subject, world: shot.world || normalized.setting,
