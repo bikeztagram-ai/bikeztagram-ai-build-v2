@@ -13,7 +13,8 @@ for (const [label, text, markers] of [
 if (!/timeout-minutes:\s*370/.test(continuation)) failures.push('continuation job exceeds safe hosted-run ceiling');
 if (!/cancel-in-progress:\s*false/.test(continuation)) failures.push('continuation workflow may cancel active work');
 if (!/--ref \"\$CONTINUATION_REF\"/.test(continuation)) failures.push('continuation must run against the checkpoint ref');
-if (!/remaining_minutes.*360/.test(continuation)) failures.push('continuation must cap each segment at six hours');
+if (!/REMAINING_MINUTES/.test(continuation) || !/budget.*360/s.test(continuation)) failures.push('continuation must cap each segment at six hours');
+if (!/gh workflow run autonomous-builder-continuation\.yml/.test(continuation)) failures.push('continuation recursion missing');
 if (!/--draft/.test(continuation)) failures.push('final continuation must publish a draft review PR');
 if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
 console.log('AutoBot segment-chain contract PASS: checkpoint ref propagation, six-hour segment ceiling, non-canceling continuation, recursive dispatch, and draft review boundary.');
