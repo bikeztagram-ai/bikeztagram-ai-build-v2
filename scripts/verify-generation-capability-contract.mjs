@@ -3,6 +3,7 @@ import { chooseVisualStrategy, generationCapabilityReport, generationContract, s
 assert.equal(chooseVisualStrategy({ prompt: 'create a cinematic dragon video', canGenerateVideo: true }).mode, 'ai-video');
 assert.equal(chooseVisualStrategy({ prompt: 'create a poster', canGenerateImage: true }).mode, 'ai-image');
 assert.equal(chooseVisualStrategy({ prompt: 'create a cinematic film' }).mode, 'unavailable');
+assert.equal(chooseVisualStrategy({ prompt: 'create a cinematic video', canGenerateImage: true }).mode, 'unavailable');
 assert.equal(chooseVisualStrategy({ prompt: 'edit this footage', hasUploadedMedia: true }).mode, 'edit-source');
 assert.equal(chooseVisualStrategy({ prompt: 'edit and enhance my uploaded video', hasUploadedMedia: true, canGenerateVideo: true }).mode, 'edit-source');
 assert.equal(chooseVisualStrategy({ prompt: 'create a new cinematic scene from my uploaded footage', hasUploadedMedia: true, canGenerateVideo: true }).mode, 'ai-video');
