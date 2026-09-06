@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import { createArrangementProject, analyseArrangement, updateArrangementSection } from '../src/musicArrangementRuntime.js';
+import { evaluateMusicArrangement, suggestMusicArrangementRepairs } from '../src/musicArrangementQuality.js';
+
+const project=createArrangementProject({brief:{prompt:'cinematic electronic trailer',duration:30}});
+const initial=analyseArrangement(project);
+assert.equal(project.version,4);
+assert.ok(initial.quality);
+assert.ok(['PASS','REVIEW','REJECT'].includes(initial.quality.verdict));
+assert.ok(initial.quality.score>=0&&initial.quality.score<=100);
+assert.ok(initial.quality.dimensions.structure>=0);
+assert.ok(initial.quality.dimensions.rhythm>=0);
+
+const edited=updateArrangementSection(project,0,{energy:0.2,density:0.25});
+const editedAnalysis=analyseArrangement(edited);
+assert.ok(editedAnalysis.quality);
+assert.ok(Array.isArray(editedAnalysis.repairSuggestions));
+
+const rejected=evaluateMusicArrangement({brief:{duration:20},sections:[{start:0,end:20,energy:.5,density:.5}],beatGrid:[],drums:[],bass:[],harmony:[],melody:[],fx:[]});
+assert.equal(rejected.verdict,'REJECT');
+assert.ok(rejected.issues.includes('weak-section-arc'));
+assert.ok(rejected.issues.includes('missing-stem-layer'));
+assert.ok(rejected.issues.includes('weak-rhythmic-coverage'));
+assert.ok(rejected.issues.includes('weak-melodic-variation'));
+assert.ok(suggestMusicArrangementRepairs({},rejected).length>=3);
+
+console.log('music-arrangement-quality: PASS',JSON.stringify({score:initial.quality.score,verdict:initial.quality.verdict,issues:initial.quality.issues}));
