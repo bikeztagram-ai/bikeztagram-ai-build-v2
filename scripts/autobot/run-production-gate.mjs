@@ -13,6 +13,7 @@ const steps = [
   ['director-handoff', 'npm', ['run', 'verify:director-timeline-handoff']],
   ['cinematic-quality', 'npm', ['run', 'verify:cinematic-quality-gate']],
   ['render-acceptance', 'npm', ['run', 'verify:render-acceptance-quality-gate']],
+  ['music-arrangement-quality', 'npm', ['run', 'verify:music-arrangement-quality']],
   ['universal-production', 'npm', ['run', 'verify:universal-production-contract']],
   ['autobot-safety', 'npm', ['run', 'verify:autobot-safety']],
   ['autobot-dependencies', 'npm', ['run', 'verify:autobot-dependencies']],
