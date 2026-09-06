@@ -28,6 +28,25 @@ jobs:
           echo "active=$active" >> "$GITHUB_OUTPUT"
           echo "Active AutoBot V2 runs: $active"
 
+      - name: Preflight main-branch builder safety contract
+        if: steps.active.outputs.active == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$GITHUB_REPOSITORY/contents"
+          get() { gh api "$api/$1?ref=main" --jq .content | base64 --decode; }
+          workflow="$(get '.github/workflows/autonomous-builder-v2.yml')"
+          safety="$(get 'scripts/autobot/verify-autobot-safety-contract.mjs')"
+          package="$(get 'package.json')"
+          printf '%s\n' "$workflow" | grep -q 'cancel-in-progress: false'
+          printf '%s\n' "$workflow" | grep -q 'actions/cache@v4'
+          printf '%s\n' "$workflow" | grep -q 'segment-2'
+          printf '%s\n' "$workflow" | grep -q -- '--draft'
+          printf '%s\n' "$package" | grep -q 'verify:autobot-safety'
+          printf '%s\n' "$safety" | grep -q 'verifyAuditLog'
+          echo 'Main-branch AutoBot safety preflight PASS.'
+
       - name: Dispatch a fresh sustained builder run
         if: steps.active.outputs.active == '0'
         env:
@@ -48,7 +67,7 @@ jobs:
             echo '# 🤖 AutoBot V2 heartbeat'
             echo
             if [[ '${{ steps.active.outputs.active }}' == '0' ]]; then
-              echo 'A fresh sustained AutoBot V2 run was dispatched.'
+              echo 'A fresh sustained AutoBot V2 run was dispatched after main-branch safety preflight.'
             else
               echo 'An AutoBot V2 run was already queued/running; no duplicate was dispatched.'
             fi
