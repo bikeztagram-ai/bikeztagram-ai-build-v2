@@ -1,0 +1,125 @@
+name: Autonomous Builder V2 — continuation segment
+
+on:
+  workflow_dispatch:
+    inputs:
+      continuation_ref:
+        description: 'Checkpoint branch produced by the previous AutoBot segment'
+        required: true
+        type: string
+      remaining_minutes:
+        description: 'Remaining shared budget; capped to six hours per hosted run'
+        required: true
+        type: string
+      max_units:
+        description: 'Remaining verified-unit ceiling'
+        required: false
+        default: '1000'
+        type: string
+      local_model:
+        description: 'Open-source local coding model'
+        required: false
+        default: 'qwen2.5-coder:3b'
+        type: string
+
+concurrency:
+  group: autobot-continuation-${{ inputs.continuation_ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+env:
+  CONTINUATION_REF: ${{ inputs.continuation_ref }}
+  REMAINING_MINUTES: ${{ inputs.remaining_minutes }}
+  BUILDER_MAX_UNITS: ${{ inputs.max_units }}
+  LOCAL_AI_MODEL: ${{ inputs.local_model }}
+  BUILDER_BASE_BRANCH: main
+
+jobs:
+  continue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 370
+    steps:
+      - name: Checkout checkpoint
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.continuation_ref }}
+          fetch-depth: 0
+      - name: Validate continuation request
+        run: |
+          set -euo pipefail
+          test -n "$CONTINUATION_REF"
+          minutes="$REMAINING_MINUTES"
+          [[ "$minutes" =~ ^[0-9]+$ ]]
+          test "$minutes" -gt 0
+          test "$minutes" -le 720
+          grep -q 'while(totalUnits<requestedUnits&&remainingMinutes()>0)' builder/runner/long-run-executor.mjs
+          node scripts/autobot/verify-autobot-segment-chain.mjs
+          node scripts/autobot/verify-autobot-safety-contract.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Cache local AI model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: bikeztagram-local-ai-${{ runner.os }}-${{ inputs.local_model }}
+      - name: Start local AI brain
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+        run: bash scripts/autobot/install-local-brain.sh
+      - name: Run bounded continuation segment
+        run: |
+          set -euo pipefail
+          budget="$REMAINING_MINUTES"
+          if [ "$budget" -gt 360 ]; then budget=360; fi
+          export BUILDER_MAX_MINUTES="$budget"
+          export BUILDER_SEGMENT=2
+          node builder/runner/run-duration.mjs "$budget" || true
+          node builder/runner/long-run-executor.mjs
+      - name: Production verification
+        if: success()
+        run: |
+          npm run autobot-production-gate
+          npm run verify:project-memory
+          npm run verify:autobot-segment-chain
+          npm run verify:autobot-dependencies
+      - name: Publish checkpoint and calculate continuation
+        if: always()
+        id: checkpoint
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'Bikeztagram Autonomous Builder V2'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: autonomous builder continuation checkpoint' || true
+          git push
+          elapsed="$(node -e "const s=JSON.parse(require('fs').readFileSync('builder/working/deterministic-autobot.json','utf8')); console.log(Number(s.elapsedMinutes||0))" 2>/dev/null || echo 0)"
+          used="$(node -e "const s=JSON.parse(require('builder/working/deterministic-autobot.json')); console.log(Number(s.elapsedMinutes||0))" 2>/dev/null || echo 0)"
+          remaining="$(node -e "const r=Number(process.env.REMAINING_MINUTES),u=Number(process.argv[1]); console.log(Math.max(0,Math.floor(r-u)))" "$used")"
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          echo "Continuation checkpoint published; estimated remaining minutes: $remaining"
+      - name: Dispatch next continuation segment
+        if: success() && steps.checkpoint.outputs.remaining != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run autonomous-builder-continuation.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$CONTINUATION_REF" \
+            -f continuation_ref="$CONTINUATION_REF" \
+            -f remaining_minutes="${{ steps.checkpoint.outputs.remaining }}" \
+            -f max_units="$BUILDER_MAX_UNITS" \
+            -f local_model="$LOCAL_AI_MODEL"
+      - name: Final draft PR
+        if: success() && steps.checkpoint.outputs.remaining == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$CONTINUATION_REF" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
