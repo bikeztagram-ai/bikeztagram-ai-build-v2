@@ -100,10 +100,8 @@ jobs:
       - name: Production verification
         if: success()
         run: |
-          npm run build
+          npm run autobot-production-gate
           npm run verify:project-memory
-          npm run verify:autobot-safety
-          npm run autobot-dependencies
       - name: Persist continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
@@ -165,10 +163,8 @@ jobs:
       - name: Production verification
         if: success()
         run: |
-          npm run build
+          npm run autobot-production-gate
           npm run verify:project-memory
-          npm run verify:autobot-safety
-          npm run autobot-dependencies
       - name: Persist final continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
