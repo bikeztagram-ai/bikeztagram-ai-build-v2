@@ -39,17 +39,20 @@ jobs:
           workflow="$(get '.github/workflows/autonomous-builder-v2.yml')"
           safety="$(get 'scripts/autobot/verify-autobot-safety-contract.mjs')"
           dependencies="$(get 'scripts/autobot/verify-autobot-safety-contract-v2.mjs')"
+          continuous="$(get 'scripts/autobot/verify-autobot-continuous-loop.mjs')"
           package="$(get 'package.json')"
           printf '%s\n' "$workflow" | grep -q 'cancel-in-progress: false'
           printf '%s\n' "$workflow" | grep -q 'actions/cache@v4'
           printf '%s\n' "$workflow" | grep -q 'segment-2'
           printf '%s\n' "$workflow" | grep -q -- '--draft'
-          printf '%s\n' "$workflow" | grep -q 'verify-autobot-safety-contract-v2.mjs'
+          printf '%s\n' "$workflow" | grep -q 'verify-autobot-continuous-loop.mjs'
           printf '%s\n' "$package" | grep -q 'verify:autobot-safety'
           printf '%s\n' "$package" | grep -q 'verify:autobot-dependencies'
+          printf '%s\n' "$package" | grep -q 'verify:autobot-continuous-loop'
           printf '%s\n' "$safety" | grep -q 'verifyAuditLog'
           printf '%s\n' "$dependencies" | grep -q 'dependency cycle detected'
-          echo 'Main-branch AutoBot safety and dependency preflight PASS.'
+          printf '%s\n' "$continuous" | grep -q 'bounded deterministic slices'
+          echo 'Main-branch AutoBot safety, dependency, and continuous-loop preflight PASS.'
 
       - name: Dispatch a fresh sustained builder run
         if: steps.active.outputs.active == '0'
