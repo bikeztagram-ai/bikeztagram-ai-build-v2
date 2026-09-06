@@ -21,4 +21,7 @@ assert.ok(new Set(revision.plan.cuts.map(c=>c.motionStyle)).size>=3);
 assert.ok(new Set(revision.plan.cuts.map(c=>c.transition)).size>=3);
 assert.ok(new Set(revision.plan.cuts.map(c=>c.directorShotFamily)).size>=3);
 assert.equal(revision.plan.cinematicQualityRevision.version,'cinematic-quality-revision-v3');
+const improved=evaluateCinematicOutput(revision.plan,{audio:{present:false}});
+assert.notEqual(improved.verdict,'REJECT');
+assert.ok(improved.score>quality.score);
 console.log('cinematic-quality-gate: PASS');
