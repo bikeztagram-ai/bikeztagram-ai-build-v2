@@ -100,7 +100,11 @@ jobs:
           node scripts/autobot/verify-autobot-segment-chain.mjs
           node builder/quality/autobot-ready.mjs
       - name: Run sustained deterministic builder and local AI brain
-        run: node builder/runner/long-run-executor.mjs
+        run: |
+          set -euo pipefail
+          hard_limit=$((BUILDER_MAX_MINUTES + 2))
+          echo "[autobot] hard execution ceiling: ${hard_limit}m for ${BUILDER_MAX_MINUTES}m work budget"
+          timeout --signal=TERM --kill-after=30s "${hard_limit}m" node builder/runner/long-run-executor.mjs
       - name: Production verification
         if: success()
         run: |
@@ -172,7 +176,9 @@ jobs:
           budget="$BUILDER_MAX_MINUTES"
           if [ "$budget" -gt 360 ]; then budget=360; fi
           export BUILDER_MAX_MINUTES="$budget"
-          node builder/runner/long-run-executor.mjs
+          hard_limit=$((BUILDER_MAX_MINUTES + 2))
+          echo "[autobot] hard execution ceiling: ${hard_limit}m for ${BUILDER_MAX_MINUTES}m work budget"
+          timeout --signal=TERM --kill-after=30s "${hard_limit}m" node builder/runner/long-run-executor.mjs
       - name: Production verification
         if: success()
         run: |
