@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { evaluateCinematicOutput } from '../src/cinematicQualityEvaluator.js';
 import { revisePlanAfterCinematicQuality } from '../src/renderQualityLoop.js';
 
-const weak={creativePrompt:'fast cinematic reveal',targetDuration:12,cuts:[
+const weak={creativePrompt:'fast cinematic reveal',targetDuration:20,cuts:[
   {duration:3,description:'same shot',role:'build',motionStyle:'static',transition:'hard-cut'},
   {duration:3,description:'same shot',role:'build',motionStyle:'static',transition:'hard-cut'},
   {duration:3,description:'same shot',role:'build',motionStyle:'static',transition:'hard-cut'},
