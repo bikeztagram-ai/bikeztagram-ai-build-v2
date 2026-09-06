@@ -1,0 +1,1 @@
+Review gate: do not merge automatically; run the fast-brain workflow manually and inspect product-code changes before merging.
