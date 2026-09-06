@@ -53,8 +53,6 @@ jobs:
         run: |
           set -euo pipefail
           actual=$(git rev-parse HEAD)
-          echo "Workflow SHA: $GITHUB_SHA"
-          echo "Checked out SHA: $actual"
           test "$actual" = "$GITHUB_SHA"
           grep -q "completedObjectives" builder/runner/long-run-executor.mjs
           grep -q "totalUnits+=verifiedThisRun.length" builder/runner/long-run-executor.mjs
@@ -74,11 +72,7 @@ jobs:
         id: budget
         run: |
           case "$REQUESTED_DURATION" in
-            15m) requested=15;; 30m) requested=30;;
-            1h) requested=60;; 2h) requested=120;; 3h) requested=180;;
-            4h) requested=240;; 5h) requested=300;; 6h) requested=360;;
-            7h) requested=420;; 8h) requested=480;; 9h) requested=540;;
-            10h) requested=600;; 11h) requested=660;; 12h) requested=720;;
+            15m) requested=15;; 30m) requested=30;; 1h) requested=60;; 2h) requested=120;; 3h) requested=180;; 4h) requested=240;; 5h) requested=300;; 6h) requested=360;; 7h) requested=420;; 8h) requested=480;; 9h) requested=540;; 10h) requested=600;; 11h) requested=660;; 12h) requested=720;;
             *) echo "Unsupported duration: $REQUESTED_DURATION"; exit 1;;
           esac
           segments=$(( (requested + 359) / 360 ))
@@ -98,6 +92,8 @@ jobs:
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/local-brain.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
+          node scripts/autobot/verify-autobot-safety-contract.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node builder/quality/autobot-ready.mjs
       - name: Run sustained deterministic builder and local AI brain
         run: node builder/runner/long-run-executor.mjs
@@ -106,6 +102,8 @@ jobs:
         run: |
           npm run build
           npm run verify:project-memory
+          npm run verify:autobot-safety
+          npm run verify:autobot-safety-v2
       - name: Persist continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
@@ -159,6 +157,8 @@ jobs:
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/local-brain.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
+          node scripts/autobot/verify-autobot-safety-contract.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node builder/quality/autobot-ready.mjs
       - name: Resume sustained deterministic builder and local AI brain
         run: node builder/runner/long-run-executor.mjs
@@ -167,6 +167,8 @@ jobs:
         run: |
           npm run build
           npm run verify:project-memory
+          npm run verify:autobot-safety
+          npm run verify:autobot-safety-v2
       - name: Persist final continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
