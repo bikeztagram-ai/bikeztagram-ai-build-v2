@@ -1,8 +1,18 @@
 /* Universal media-generation policy: generated assets must always resolve to real playable media. */
 const text=(value)=>String(value??'').trim().toLowerCase();
-const GENERATION_INTENT=/\b(create|generate|invent|imagine|make|show me|design|produce|build|render|animate|film|video|scene|world|character|creature|environment|story|trailer|commercial|advert|music video)\b/i;
+const GENERATION_INTENT=/\b(create|generate|invent|imagine|make|show me|design|produce|build|render|animate|film|scene|world|character|creature|environment|story|trailer|commercial|advert|music video)\b/i;
+const EDIT_SOURCE_INTENT=/\b(edit|editing|cut|trim|reframe|grade|enhance|improve|remix|use|uploaded|footage|clip|clips|recording|source media)\b/i;
 const IMAGE_ONLY_INTENT=/\b(image|picture|photo|poster|illustration|artwork|still)\b/i;
-export function chooseVisualStrategy({prompt='',hasUploadedMedia=false,canGenerateVideo=false,canGenerateImage=false}={}){const brief=text(prompt);const asksForGeneration=GENERATION_INTENT.test(brief);const asksForStill=IMAGE_ONLY_INTENT.test(brief)&&!/video|film|animate|motion|moving/i.test(brief);if(asksForGeneration&&canGenerateVideo)return{mode:'ai-video',reason:'Creative brief requests generated moving visual content and a real video provider is available.'};if(asksForGeneration&&canGenerateImage)return{mode:'ai-image',reason:'Creative brief requests generated visual content and an image provider is available.'};if(hasUploadedMedia)return{mode:'edit-source',reason:'Use supplied media as the visual source.'};if(asksForStill&&canGenerateImage)return{mode:'ai-image',reason:'Creative brief explicitly requests still imagery.'};return{mode:'unavailable',reason:'No real generation provider or uploaded media is available; do not fabricate generated media.'};}
+export function chooseVisualStrategy({prompt='',hasUploadedMedia=false,canGenerateVideo=false,canGenerateImage=false}={}){
+ const brief=text(prompt);const asksForGeneration=GENERATION_INTENT.test(brief);const asksForStill=IMAGE_ONLY_INTENT.test(brief)&&!/video|film|animate|motion|moving/i.test(brief);
+ const explicitlyEditsSource=hasUploadedMedia&&EDIT_SOURCE_INTENT.test(brief)&&!/(create|generate|invent|imagine|design|produce|build|animate|from scratch|new scene)/i.test(brief);
+ if(explicitlyEditsSource)return{mode:'edit-source',reason:'Use supplied media as the visual source because the brief explicitly asks to edit or enhance existing footage.'};
+ if(asksForGeneration&&canGenerateVideo)return{mode:'ai-video',reason:'Creative brief requests generated moving visual content and a real video provider is available.'};
+ if(asksForGeneration&&canGenerateImage)return{mode:'ai-image',reason:'Creative brief requests generated visual content and an image provider is available.'};
+ if(hasUploadedMedia)return{mode:'edit-source',reason:'Use supplied media as the visual source.'};
+ if(asksForStill&&canGenerateImage)return{mode:'ai-image',reason:'Creative brief explicitly requests still imagery.'};
+ return{mode:'unavailable',reason:'No real generation provider or uploaded media is available; do not fabricate generated media.'};
+}
 export function generationContract(asset={}){if(asset.sourceType!=='generated')return{valid:true,playable:Boolean(asset.file||asset.blob||asset.sourceUrl||asset.url),reason:'source-media'};const playable=Boolean(asset.file||asset.blob||asset.sourceUrl||asset.url);return playable?{valid:true,playable:true,reason:'generated-real-media'}:{valid:false,playable:false,reason:'Generated asset has no playable file, blob or source URL.'};}
 export function shouldRejectFakeGeneration(asset={}){return asset.sourceType==='generated'&&!generationContract(asset).valid;}
 export function generationCapabilityReport({prompt='',hasUploadedMedia=false,canGenerateVideo=false,canGenerateImage=false}={}){const strategy=chooseVisualStrategy({prompt,hasUploadedMedia,canGenerateVideo,canGenerateImage});return{...strategy,realGenerationRequired:strategy.mode==='ai-video'||strategy.mode==='ai-image',providerReady:Boolean(canGenerateVideo||canGenerateImage),fallbackAllowed:Boolean(hasUploadedMedia),fakeGenerationAllowed:false};}
