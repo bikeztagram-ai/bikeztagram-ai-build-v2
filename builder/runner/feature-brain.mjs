@@ -29,7 +29,7 @@ let state={completed:[],failed:{}};
 try { state=JSON.parse(fs.readFileSync(statePath,'utf8')); } catch {}
 const completed=new Set(state.completed || []);
 const attemptsThisRun=new Map();
-function save() { fs.mkdirSync(path.dirname(statePath),{recursive:true}); fs.writeFileSync(statePath,JSON.stringify({version:1,completed:[...completed],failed:state.failed||{},updatedAt:new Date().toISOString()},null,2)+'\n'); }
+function save() { fs.mkdirSync(path.dirname(statePath),{recursive:true}); fs.writeFileSync(statePath,JSON.stringify({version:2,completed:[...completed],failed:state.failed||{},updatedAt:new Date().toISOString()},null,2)+'\n'); }
 function classifyFailure(message='') {
   const m=String(message).toLowerCase();
   if(/timed out|timeout|etimedout/.test(m)) return 'timeout';
@@ -40,15 +40,18 @@ function classifyFailure(message='') {
   if(/permission|protected|forbidden|denied/.test(m)) return 'policy-or-permission';
   return 'implementation';
 }
+function dependenciesMet(obj) {
+  return (obj.dependsOn || []).every(dep => completed.has(dep) || !objectives.some(candidate => candidate.id === dep));
+}
 function context(obj, compact=false) {
-  const chunks=[`OBJECTIVE: ${obj.title}\nPriority: ${obj.priority}\nAcceptance:\n- ${obj.acceptance.join('\n- ')}\nConstraints:\n- ${obj.constraints.join('\n- ')}`];
+  const chunks=[`OBJECTIVE: ${obj.title}\nPriority: ${obj.priority}\nDependencies: ${(obj.dependsOn||[]).join(', ')||'none'}\nAcceptance:\n- ${obj.acceptance.join('\n- ')}\nConstraints:\n- ${obj.constraints.join('\n- ')}`];
   for(const p of obj.files) chunks.push(`===== ${p} =====\n${read(p,compact?2800:4500)}`);
   chunks.push(`===== PROJECT MEMORY =====\n${read('builder/quality/project-memory.md',compact?1600:2600)}`);
   chunks.push(`===== LESSONS =====\n${read('builder/quality/lessons.md',compact?1400:2200)}`);
   return chunks.join('\n\n').slice(0,compact?11500:18500);
 }
 function choose() {
-  const available=objectives.filter(o=>!completed.has(o.id)&&(attemptsThisRun.get(o.id)||0)<maxAttemptsPerFeature);
+  const available=objectives.filter(o=>!completed.has(o.id)&&dependenciesMet(o)&&(attemptsThisRun.get(o.id)||0)<maxAttemptsPerFeature);
   if(!available.length) return null;
   return available.sort((a,b)=>{
     const af=state.failed?.[a.id]?.attempts||0, bf=state.failed?.[b.id]?.attempts||0;
@@ -91,10 +94,14 @@ function apply(p){const f=file('.autobot-feature.patch');fs.writeFileSync(f,p);t
 function resetFailedPatch(){run('git',['reset','--hard','HEAD'],{stdio:'inherit'});run('git',['clean','-fd','-e','.git'],{stdio:'inherit'});}
 
 if(process.env.LOCAL_AI_READY!=='1'){console.error('[autobot] local AI unavailable; feature brain refuses paid fallback');process.exit(2);}
-appendAudit('feature-brain-run-started',{minutes,model,maxFeatures,maxAttemptsPerFeature});
+appendAudit('feature-brain-run-started',{minutes,model,maxFeatures,maxAttemptsPerFeature,completed:[...completed]});
 for(let n=1;n<=maxFeatures&&left()>1;n++){
   const obj=choose();
-  if(!obj){console.log('[autobot] no further eligible feature objective is available in this run');break;}
+  if(!obj){
+    const blocked=objectives.filter(o=>!completed.has(o.id)&&!dependenciesMet(o)).map(o=>({id:o.id,dependsOn:o.dependsOn||[]}));
+    console.log(blocked.length?`[autobot] no eligible feature objective; dependency-blocked=${JSON.stringify(blocked)}`:'[autobot] no further eligible feature objective is available in this run');
+    break;
+  }
   const attempt=(attemptsThisRun.get(obj.id)||0)+1; attemptsThisRun.set(obj.id,attempt);
   console.log(`[autobot] FEATURE ${n}/${maxFeatures}: ${obj.id} — attempt ${attempt}/${maxAttemptsPerFeature} — ${left().toFixed(1)}m remaining — model=${model}`);
   try {
