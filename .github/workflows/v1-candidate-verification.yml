@@ -28,6 +28,8 @@ jobs:
         run: npm run verify:local-only-runtime
       - name: Verify Gemini-free runtime
         run: npm run verify:gemini-free-runtime
+      - name: Verify active project is Gemini-free
+        run: npm run verify:no-gemini-active-project
       - name: Verify local analysis runtime
         run: npm run verify:local-analysis-runtime
       - name: Verify mixed-media source identity
