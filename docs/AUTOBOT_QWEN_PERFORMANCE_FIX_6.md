@@ -1,0 +1,1 @@
+The next action after merge is a 15-minute fast-brain proof run; only after a real product objective completes should the duration be increased.
