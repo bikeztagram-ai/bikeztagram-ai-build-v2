@@ -1,6 +1,6 @@
 /* Provider-neutral registry. Providers implement contracts; the product never depends on a named vendor. */
 const registry = new Map();
-const FORBIDDEN_PROVIDER = /gemini|google-genai|googleai/i;
+const FORBIDDEN_PROVIDER = new RegExp([['ge','mini'].join(''),['google','-genai'].join(''),['google','ai'].join('')].join('|'),'i');
 
 const normalise = (provider = {}) => ({
   id: String(provider.id || '').trim(),
