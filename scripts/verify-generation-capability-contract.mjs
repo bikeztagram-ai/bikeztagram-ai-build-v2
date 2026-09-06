@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { chooseVisualStrategy, generationCapabilityReport, generationContract, shouldRejectFakeGeneration } from '../src/mediaGenerationPolicy.js';
+assert.equal(chooseVisualStrategy({ prompt: 'create a cinematic dragon video', canGenerateVideo: true }).mode, 'ai-video');
+assert.equal(chooseVisualStrategy({ prompt: 'create a poster', canGenerateImage: true }).mode, 'ai-image');
+assert.equal(chooseVisualStrategy({ prompt: 'create a cinematic film' }).mode, 'unavailable');
+assert.equal(chooseVisualStrategy({ prompt: 'edit this footage', hasUploadedMedia: true }).mode, 'edit-source');
+const report = generationCapabilityReport({ prompt: 'create a cinematic scene', canGenerateVideo: true });
+assert.equal(report.realGenerationRequired, true);
+assert.equal(report.fakeGenerationAllowed, false);
+assert.equal(generationContract({ sourceType: 'generated', blob: new Blob(['real']) }).valid, true);
+assert.equal(generationContract({ sourceType: 'generated' }).valid, false);
+assert.equal(shouldRejectFakeGeneration({ sourceType: 'generated' }), true);
+console.log('generation-capability-contract: PASS');
