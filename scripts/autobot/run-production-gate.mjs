@@ -15,6 +15,7 @@ const steps = [
   ['render-acceptance', 'npm', ['run', 'verify:render-acceptance-quality-gate']],
   ['music-arrangement-quality', 'npm', ['run', 'verify:music-arrangement-quality']],
   ['universal-production', 'npm', ['run', 'verify:universal-production-contract']],
+  ['autobot-feature-edit-protocol', 'npm', ['run', 'verify:autobot-feature-edit-protocol']],
   ['autobot-safety', 'npm', ['run', 'verify:autobot-safety']],
   ['autobot-dependencies', 'npm', ['run', 'verify:autobot-dependencies']],
   ['audit-tamper', 'npm', ['run', 'verify:autobot-audit-tamper']],
