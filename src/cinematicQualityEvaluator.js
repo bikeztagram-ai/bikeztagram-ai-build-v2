@@ -14,8 +14,11 @@ function scoreNarrative(cuts){
  if(!['hook','opening','intro'].some(x=>roleOf(cuts[0]).includes(x))){score-=10;issues.push('Weak or unspecified opening hook');}
  const last=roleOf(cuts.at(-1));
  if(!/hero|ending|resolution|payoff|outro|final/.test(last)){score-=10;issues.push('Weak or unspecified ending payoff');}
- const roles=cuts.map(roleOf).join(' ');
- if(cuts.length>=4&&!/reveal|action|build/.test(roles)){score-=8;issues.push('Narrative progression is under-specified');}
+ const roles=cuts.map(roleOf);
+ const hasBuild=roles.some(r=>/build|anticipation|establish|setup/.test(r));
+ const hasReveal=roles.some(r=>/reveal|showcase|unveil|hero|profile|product/.test(r));
+ const hasAction=roles.some(r=>/action|escalation|chase|race|movement/.test(r));
+ if(cuts.length>=4&&(!hasBuild||!hasReveal||!hasAction)){score-=18;issues.push('Narrative progression is under-specified');}
  return{score:clamp(Math.round(score),0,100),issues};
 }
 function scoreDiversity(cuts){
