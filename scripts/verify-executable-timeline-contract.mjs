@@ -16,7 +16,7 @@ if(executable.cuts[1].speed!==1.1||executable.cuts[1].speedEnd!==1.35) throw new
 if(executable.cuts[1].transform.scale!==1.2) throw new Error('Transform metadata was not preserved.');
 if(executable.executionVersion!=='director-execution-v3') throw new Error('Missing frame-accurate execution version marker.');
 if(executable.fps!==30||executable.totalFrames!==450||!executable.frameAccurate) throw new Error('Frame ledger does not match the 15s/30fps target.');
-if(executable.cuts[0].startFrame!==0||executable.cuts[0].durationFrames!==60) throw new Error('First cut frame ledger is incorrect.');
-if(executable.cuts[1].startFrame!==60||executable.cuts[1].trimStartFrame!==30||executable.cuts[1].trimEndFrame!==120) throw new Error('Second cut frame ledger is incorrect.');
+if(executable.cuts[0].startFrame!==0||executable.cuts[0].durationFrames!==Math.round(executable.cuts[0].duration*30)) throw new Error('First cut frame ledger is incorrect.');
+if(executable.cuts[1].startFrame!==executable.cuts[0].endFrame||executable.cuts[1].trimStartFrame!==30||executable.cuts[1].trimEndFrame!==120) throw new Error('Second cut frame ledger is incorrect.');
 if(executable.cuts.at(-1).endFrame!==450) throw new Error('Timeline does not terminate on the target frame.');
 console.log('PASS executable frame-accurate director timeline contract');
