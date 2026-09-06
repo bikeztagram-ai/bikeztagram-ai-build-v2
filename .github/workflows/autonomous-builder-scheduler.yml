@@ -24,9 +24,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          active="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
+          primary="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
+          continuation="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-continuation.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
+          active=$((primary + continuation))
           echo "active=$active" >> "$GITHUB_OUTPUT"
-          echo "Active AutoBot V2 runs: $active"
+          echo "Active AutoBot runs: $active (primary=$primary continuation=$continuation)"
 
       - name: Preflight main-branch builder safety contract
         if: steps.active.outputs.active == '0'
@@ -37,6 +39,7 @@ jobs:
           api="https://api.github.com/repos/$GITHUB_REPOSITORY/contents"
           get() { gh api "$api/$1?ref=main" --jq .content | base64 --decode; }
           workflow="$(get '.github/workflows/autonomous-builder-v2.yml')"
+          continuation="$(get '.github/workflows/autonomous-builder-continuation.yml')"
           safety="$(get 'scripts/autobot/verify-autobot-safety-contract.mjs')"
           dependencies="$(get 'scripts/autobot/verify-autobot-safety-contract-v2.mjs')"
           continuous="$(get 'scripts/autobot/verify-autobot-continuous-loop.mjs')"
@@ -46,13 +49,18 @@ jobs:
           printf '%s\n' "$workflow" | grep -q 'segment-2'
           printf '%s\n' "$workflow" | grep -q -- '--draft'
           printf '%s\n' "$workflow" | grep -q 'verify-autobot-continuous-loop.mjs'
+          printf '%s\n' "$continuation" | grep -q 'workflow_dispatch'
+          printf '%s\n' "$continuation" | grep -q 'continuation_ref'
+          printf '%s\n' "$continuation" | grep -q 'remaining_minutes'
+          printf '%s\n' "$continuation" | grep -q -- '--ref "$CONTINUATION_REF"'
+          printf '%s\n' "$continuation" | grep -q 'timeout-minutes: 370'
           printf '%s\n' "$package" | grep -q 'verify:autobot-safety'
           printf '%s\n' "$package" | grep -q 'verify:autobot-dependencies'
           printf '%s\n' "$package" | grep -q 'verify:autobot-continuous-loop'
           printf '%s\n' "$safety" | grep -q 'verifyAuditLog'
           printf '%s\n' "$dependencies" | grep -q 'dependency cycle detected'
           printf '%s\n' "$continuous" | grep -q 'bounded deterministic slices'
-          echo 'Main-branch AutoBot safety, dependency, and continuous-loop preflight PASS.'
+          echo 'Main-branch AutoBot safety, dependency, continuation, and continuous-loop preflight PASS.'
 
       - name: Dispatch a fresh sustained builder run
         if: steps.active.outputs.active == '0'
