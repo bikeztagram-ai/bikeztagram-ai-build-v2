@@ -1,6 +1,7 @@
 /* BIKEZTAGRAM AI — compositional creative intent compiler. */
 import { interpretCreativeBrief, buildCreativeSceneGraph } from './universalCreativeEngine.js';
 import { normalizeCreativeBrief, briefToGenerationDirectives } from './creativeBriefModel.js';
+import { decomposeCreativePrompt, buildShotBriefs } from './creativePromptDecomposer.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const text = (v) => String(v ?? '').trim();
@@ -24,32 +25,37 @@ function lightingFor(brief) {
 }
 
 export function compileCreativeIntent(prompt = '', options = {}) {
+  const decomposition = decomposeCreativePrompt(prompt);
   const baseBrief = interpretCreativeBrief(prompt, options);
   const normalized = normalizeCreativeBrief(prompt, options);
   const directives = briefToGenerationDirectives(normalized);
   const brief = {
     ...baseBrief,
     normalized,
+    decomposition,
     generation: directives,
     actions: directives.actions.length ? directives.actions : baseBrief.actions,
     style: normalized.style !== 'cinematic' ? normalized.style : baseBrief.style,
     setting: normalized.setting !== 'environment' ? normalized.setting : baseBrief.world,
   };
   const graph = buildCreativeSceneGraph(prompt, options);
+  const shotBriefs = buildShotBriefs(prompt, graph.shots.length);
   const continuity = {
     subjectIdentity: brief.subject,
     worldIdentity: brief.world,
     palette: graph.palette,
     weather: brief.weather,
     time: brief.time,
-    preserveAcrossShots: ['subject', 'world', 'lighting-direction', 'color-language', 'camera-language', 'action-language', 'style-language'],
+    preserveAcrossShots: ['subject', 'world', 'lighting-direction', 'color-language', 'camera-language', 'action-language', 'style-language', 'user-constraints'],
   };
   const shots = graph.shots.map((shot, index) => {
-    const action = inferActions(prompt, brief, shot);
+    const shotBrief = shotBriefs[index] || shotBriefs[0];
+    const action = inferActions(shotBrief?.sourceClause || prompt, brief, shot);
     const lighting = lightingFor(brief);
     const cameraMovement = normalized.camera !== 'cinematic' ? normalized.camera : shot.camera;
     const style = normalized.style !== 'cinematic' ? normalized.style : 'cinematic';
     const generationPrompt = [
+      `Shot-specific user direction: ${shotBrief?.sourceClause || text(prompt)}`,
       `Subject: ${shot.subject || brief.subject}`,
       `World: ${shot.world || normalized.setting}`,
       `Shot role: ${shot.role}`,
@@ -61,6 +67,12 @@ export function compileCreativeIntent(prompt = '', options = {}) {
       `Mood: ${normalized.mood !== 'cinematic' ? normalized.mood : shot.mood}`,
       `Style: ${style}`,
       `Pace: ${normalized.pace !== 'cinematic' ? normalized.pace : 'cinematic'}`,
+      decomposition.cameraCues.length ? `User camera cues: ${decomposition.cameraCues.join(', ')}` : '',
+      decomposition.motionCues.length ? `User motion cues: ${decomposition.motionCues.join(', ')}` : '',
+      decomposition.visualCues.length ? `User visual cues: ${decomposition.visualCues.join(', ')}` : '',
+      shotBrief?.requirements?.length ? `Must include: ${shotBrief.requirements.join('; ')}` : '',
+      shotBrief?.avoid?.length ? `Avoid: ${shotBrief.avoid.join('; ')}` : '',
+      shotBrief?.quotedText?.length ? `Exact requested text: ${shotBrief.quotedText.join('; ')}` : '',
       `Continuity: preserve ${continuity.subjectIdentity} and ${continuity.worldIdentity} across shots`,
       normalized.constraints.noText ? 'No text.' : '',
       normalized.constraints.noWatermark ? 'No watermark.' : '',
@@ -74,11 +86,11 @@ export function compileCreativeIntent(prompt = '', options = {}) {
       mood: normalized.mood !== 'cinematic' ? normalized.mood : shot.mood,
       transition: shot.transition, depthLayers: shot.depthLayers,
       beatTargets: shot.beats.map((beat) => ({ ...beat, energy: clamp(beat.energy * (brief.intensity || 1), 0.05, 1) })),
-      directives,
+      directives, sourceClause: shotBrief?.sourceClause || text(prompt),
       generationPrompt,
     };
   });
-  return { version: 3, type: 'creative-intent-graph', brief, continuity, shots, duration: graph.totalDuration, output: graph.render, providers: graph.providers, policy: graph.copyright };
+  return { version: 4, type: 'creative-intent-graph', brief, decomposition, continuity, shots, duration: graph.totalDuration, output: graph.render, providers: graph.providers, policy: graph.copyright };
 }
 
 export function mergeCreativeIntent(plan = {}, intent = {}) {
