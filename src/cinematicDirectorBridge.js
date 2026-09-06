@@ -79,7 +79,20 @@ export function buildExecutableScenePlan({ scenePlan = {}, creativePrompt = '', 
     };
   });
 
-  const renderCues = clips.map((clip, index) => buildRenderCue(clip, index, clips.length, beats));
+  const renderCues = clips.map((clip, index) => buildRenderCue(clip, index, clips.length, beats)).map((cue, index) => {
+    const clip = clips[index];
+    return {
+      ...cue,
+      directorExecution: {
+        version: 'director-render-runtime-v1',
+        role: clip.role,
+        cameraIntent: clip.cameraIntent,
+        motionStyle: cue.motion,
+        transition: cue.transition,
+        motionIntensity: cue.motionIntensity
+      }
+    };
+  });
   const cuts = renderCues.map((cue, index) => {
     const clip = clips[index];
     return {

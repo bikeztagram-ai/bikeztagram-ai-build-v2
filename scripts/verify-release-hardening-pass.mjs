@@ -1,90 +1,87 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
-const mustExist = (path) => { assert.ok(fs.existsSync(new URL(`../${path}`, import.meta.url)), `Missing required release file: ${path}`); };
+const read=(path)=>fs.readFileSync(new URL(`../${path}`,import.meta.url),'utf8');
+const mustExist=(path)=>{assert.ok(fs.existsSync(new URL(`../${path}`,import.meta.url)),`Missing required release file: ${path}`);};
 
-const requiredFiles = [
-  'index.html',
-  'public/manifest.webmanifest',
-  'src/main.jsx',
-  'src/App.jsx',
-  'src/directorSelection.js',
-  'src/timelineDirector.js',
-  'src/captionPlanner.js',
-  'src/musicGenerator.js',
-  'src/apiRequest.js',
-  'src/finalAudioMux.js',
-  'src/renderAudioBridge.js',
-  'src/renderQualityLoop.js',
-  'src/socialExport.js',
-  'src/outputFormatEnhancer.jsx',
-  'api/analyse-media.js',
-  'api/generate-music.js',
-  'vercel.json',
+// Current release surface. Keep this contract aligned with the no-Gemini,
+// browser-local production architecture and the V3 cinematic renderer.
+const requiredFiles=[
+ 'index.html','public/manifest.webmanifest','src/main.jsx','src/App.jsx',
+ 'src/localMediaAnalysis.js','src/localAnalysisRuntime.js','src/aiEditPlanner.js',
+ 'src/directorSelection.js','src/universalProductionConductor.js','src/universalRenderRuntime.js',
+ 'src/renderQualityLoop.js','src/renderer.js','src/cinematicRendererV3.js','src/outputPresets.js',
+ 'src/audioDirector.js','src/musicCompositionRuntime.js','src/musicRenderBridge.js',
+ 'src/noGeminiRuntimePolicy.js','vercel.json'
 ];
 requiredFiles.forEach(mustExist);
 
-const app = read('src/App.jsx');
-const index = read('index.html');
-const manifest = read('public/manifest.webmanifest');
-const main = read('src/main.jsx');
-const director = read('src/directorSelection.js');
-const timeline = read('src/timelineDirector.js');
-const captions = read('src/captionPlanner.js');
-const music = read('src/musicGenerator.js');
-const musicApi = read('api/generate-music.js');
-const request = read('src/apiRequest.js');
-const qa = read('src/renderQualityLoop.js');
-const social = read('src/socialExport.js');
-const formats = read('src/outputFormatEnhancer.jsx');
-const analysis = read('src/mediaAnalysisClient.js');
-const vercel = read('vercel.json');
+const app=read('src/App.jsx');
+const index=read('index.html');
+const manifest=read('public/manifest.webmanifest');
+const main=read('src/main.jsx');
+const analysis=read('src/localMediaAnalysis.js');
+const localRuntime=read('src/localAnalysisRuntime.js');
+const planner=read('src/aiEditPlanner.js');
+const director=read('src/directorSelection.js');
+const conductor=read('src/universalProductionConductor.js');
+const render=read('src/universalRenderRuntime.js');
+const qa=read('src/renderQualityLoop.js');
+const renderer=read('src/renderer.js');
+const cinematicRenderer=read('src/cinematicRendererV3.js');
+const presets=read('src/outputPresets.js');
+const audio=read('src/audioDirector.js');
+const music=read('src/musicCompositionRuntime.js');
+const musicBridge=read('src/musicRenderBridge.js');
+const noGemini=read('src/noGeminiRuntimePolicy.js');
+const vercel=read('vercel.json');
 
-// PWA/browser shell: the manifest referenced by index.html must actually ship.
-assert.match(index, /manifest\.webmanifest/);
-assert.match(index, /id=\"root\"/);
-assert.match(main, /createRoot/);
-assert.match(main, /<App \/>/);
-assert.match(manifest, /\"display\":\s*\"standalone\"/);
-assert.match(manifest, /\"start_url\":\s*\"\/\"/);
-assert.match(manifest, /\"orientation\":\s*\"portrait-primary\"/);
+// PWA/browser shell.
+assert.match(index,/manifest\.webmanifest/);
+assert.match(index,/id=\"root\"/);
+assert.match(main,/createRoot/);
+assert.match(main,/<App \/>/);
+assert.match(manifest,/\"display\":\s*\"standalone\"/);
+assert.match(manifest,/\"start_url\":\s*\"\/\"/);
+assert.match(manifest,/\"orientation\":\s*\"portrait-primary\"/);
 
-// Director: real-source selection, diversity and story roles.
-assert.match(director, /selectDirectorMoments/);
-assert.match(director, /usedSources/);
-assert.match(director, /similarity/);
-assert.match(timeline, /hero-ending/);
-assert.match(timeline, /pacingIntent/);
-assert.match(app, /createAIEditPlan/);
-assert.match(app, /renderInspectImprove/);
+// Local-only analysis and planning.
+assert.match(analysis,/analyseLocalMedia/);
+assert.match(localRuntime,/local-browser-analysis/);
+assert.match(planner,/createAIEditPlan/);
+assert.match(director,/selectDirectorMoments/);
+assert.match(director,/similarity/);
+assert.match(conductor,/buildUniversalProduction/);
+assert.match(conductor,/without requiring Gemini/i);
+assert.match(noGemini,/no-Gemini/i);
+assert.doesNotMatch(app,/@google\/genai|GoogleGenAI|GEMINI_API_KEY|gemini-[0-9]/);
 
-// Captions: only verified, time-coded speech cues may reach the plan.
-assert.match(captions, /verified-speech-cues/);
-assert.match(captions, /minimumConfidence/);
-assert.match(captions, /captionCueIndex/);
-assert.match(app, /applySpeechCaptionsToPlan/);
+// Executable render + QA loop. The public renderer entrypoint delegates to
+// V3; captureStream is asserted against the actual implementation, not the
+// thin compatibility/export shim.
+assert.match(render,/renderInspectImprove/);
+assert.match(render,/buildMusicRenderBridge/);
+assert.match(qa,/maxAttempts/);
+assert.match(qa,/validateRenderedVideo/);
+assert.match(renderer,/renderProject/);
+assert.match(cinematicRenderer,/captureStream/);
+assert.match(cinematicRenderer,/MediaRecorder/);
+assert.match(cinematicRenderer,/crossfade/);
+assert.match(cinematicRenderer,/zoom-punch/);
 
-// Zero-spend soundtrack safety: the API cannot silently invoke paid Lyria audio.
-assert.match(musicApi, /zero-cost-local-music/);
-assert.match(musicApi, /paidAiMusicDisabled:true/);
-assert.match(musicApi, /procedural-original/);
-assert.match(music, /local-audio-fallback/);
-assert.match(music, /timeoutMs:120000/);
-assert.match(music, /attempts:3/);
+// Original audio/music bridge.
+assert.match(audio,/planAudioDirector/);
+assert.match(music,/buildCompositionRuntime/);
+assert.match(musicBridge,/buildMusicRenderBridge/);
 
-// Resilient API/media boundary and render QA remain part of the release path.
-assert.match(request, /RETRYABLE/);
-assert.match(request, /retryableNetwork/);
-assert.match(analysis, /requestJson/);
-assert.match(qa, /renderInspectImprove/);
-assert.match(qa, /maxAttempts/);
-
-// Social/output contracts are present before production release.
-assert.match(social, /downloadSocialFilm/);
-assert.match(social, /shareSocialFilm/);
-assert.match(formats, /OutputFormatEnhancer/);
-assert.match(vercel, /rewrites/);
+// Social/output format contract.
+assert.match(presets,/OUTPUT_PRESETS/);
+assert.match(presets,/portrait/);
+assert.match(presets,/landscape/);
+assert.match(presets,/square/);
+assert.match(presets,/story/);
+assert.match(presets,/cinema/);
+assert.match(vercel,/rewrites/);
 
 console.log('release-hardening-pass: PASS');
-console.log(`checked ${requiredFiles.length} required release files and core safety/browser contracts`);
+console.log(`checked ${requiredFiles.length} current release files and no-Gemini/browser-local contracts`);
