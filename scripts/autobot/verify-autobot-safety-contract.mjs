@@ -23,6 +23,10 @@ if (!workflow.includes('segment-2')) failures.push('long-duration continuation s
 if (!workflow.includes('gh pr create')) failures.push('review PR publication missing');
 if (!workflow.includes('--draft')) failures.push('review PR must be draft by default');
 if (!sustained.includes('verifyAuditLog')) failures.push('sustained runner missing audit verification');
+if (!sustained.includes('AUTOBOT_DETERMINISTIC_SLICE_MINUTES')) failures.push('deterministic work is not bounded into resumable slices');
+if (!sustained.includes('AUTOBOT_FEATURE_SLICE_MINUTES')) failures.push('feature work is not bounded into resumable slices');
+if (!sustained.includes('AUTOBOT_MAX_FEATURE_CYCLES')) failures.push('feature cycle ceiling missing');
+if (!sustained.includes('feature-brain-started')) failures.push('feature cycle audit evidence missing');
 if (!feature.includes('maxAttemptsPerFeature')) failures.push('feature engineer lacks bounded attempt ceiling');
 if (!feature.includes('resetFailedPatch')) failures.push('feature engineer lacks failed-patch recovery');
 if (!deterministic.includes('allowedTask')) failures.push('deterministic executor lacks protected-path guard');
@@ -30,4 +34,4 @@ if (!deterministic.includes('dependsOn')) failures.push('deterministic executor 
 if (!gate.includes('verify:generation-capability-contract') || !gate.includes('verify:autobot-audit-tamper')) failures.push('authoritative production gate is incomplete');
 if (!packageJson.includes('verify:autobot-production-gate')) failures.push('production gate is not registered in package scripts');
 if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
-console.log('AutoBot safety contract PASS: local-only AI, no automatic merge/deploy, non-canceling concurrency, bounded recovery, protected paths, dependency handling, audit verification, authoritative production gate, and resumable long-duration execution.');
+console.log('AutoBot safety contract PASS: local-only AI, no automatic merge/deploy, non-canceling concurrency, bounded recovery, protected paths, dependency handling, audit verification, continuous bounded execution, authoritative production gate, and resumable long-duration execution.');
