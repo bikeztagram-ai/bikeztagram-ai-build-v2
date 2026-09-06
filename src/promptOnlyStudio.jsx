@@ -1,22 +1,11 @@
 /* BIKEZTAGRAM AI — prompt-only production studio. Turns an idea into a real generated film without uploaded media. */
-import React, { useMemo, useState } from 'react';
-import { createAIEditPlan } from './aiEditPlanner.js';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPromptOnlyEditPlan } from './promptOnlyDirector.js';
 import { renderUniversalProduction } from './universalRenderRuntime.js';
 import { resolveOutputPreset } from './outputPresets.js';
 
 const DEFAULT_PROMPT = 'Create a cinematic film about a lone rider crossing a neon city in heavy rain, starting mysterious, building tension, then exploding into a fast pursuit before ending on a powerful hero shot.';
 const PRESETS = ['portrait', 'landscape', 'square', 'cinema'];
-
-function buildPromptPlan(prompt, preset) {
-  const duration = 15;
-  return createAIEditPlan({
-    filename: 'prompt-only-creative-brief',
-    durationInSeconds: duration,
-    mediaType: 'generated',
-    bestMoments: [],
-    librarySummary: 'Prompt-only creative production. No uploaded source media.',
-  }, { maxCuts: 6, targetDuration: duration, colorGrade: 'cinematic', creativePrompt: prompt, outputPreset: preset });
-}
 
 export default function PromptOnlyStudio() {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
@@ -29,12 +18,14 @@ export default function PromptOnlyStudio() {
   const [provider, setProvider] = useState('');
   const output = useMemo(() => resolveOutputPreset(preset, prompt), [preset, prompt]);
 
+  useEffect(() => () => { if (resultUrl) URL.revokeObjectURL(resultUrl); }, [resultUrl]);
+
   async function createFilm() {
     if (!prompt.trim() || busy) return;
     setBusy(true); setError(''); setStatus('Understanding the idea and directing the scenes...'); setProgress(3); setProvider('');
     try {
-      const plan = buildPromptPlan(prompt.trim(), preset);
-      setStatus('Generating real AI scenes...');
+      const plan = createPromptOnlyEditPlan(prompt.trim(), { targetDuration: 15, outputPreset: preset });
+      setStatus(`Directed ${plan.cuts.length} original scenes. Generating real AI footage...`);
       const production = await renderUniversalProduction({
         mediaItems: [], plan, prompt: prompt.trim(), duration: plan.targetDuration || 15,
         music: true, outputPreset: preset,
@@ -45,8 +36,7 @@ export default function PromptOnlyStudio() {
         },
       });
       if (!(production?.output instanceof Blob) || !production.output.size) throw new Error('The production runtime returned no usable film.');
-      if (resultUrl) URL.revokeObjectURL(resultUrl);
-      setResultUrl(URL.createObjectURL(production.output));
+      setResultUrl((previous) => { if (previous) URL.revokeObjectURL(previous); return URL.createObjectURL(production.output); });
       setProvider(production.aiVideo?.provider || 'AI video');
       setProgress(100);
       setStatus(production.accepted === false ? 'Film rendered. QA has requested a further improvement pass.' : 'Finished film created and checked.');
