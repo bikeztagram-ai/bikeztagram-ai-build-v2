@@ -62,17 +62,28 @@ jobs:
 
       - name: Start performance proxy
         run: |
+          set -euo pipefail
           nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
-          for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:11435/api/chat >/dev/null 2>&1; then break; fi
+          proxy_ready=false
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:11435/health >/dev/null 2>&1; then
+              proxy_ready=true
+              break
+            fi
             sleep 1
           done
+          if [ "$proxy_ready" != true ]; then
+            echo 'Performance proxy failed to start.'
+            cat /tmp/bikeztagram-ollama-proxy.log || true
+            exit 1
+          fi
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=1' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
+          echo '[autobot] performance proxy ready'
 
       - name: Resolve duration
         run: |
