@@ -1,26 +1,89 @@
 name: 🤖 AutoBot Control Center
 
 on:
+  schedule:
+    - cron: '17 */2 * * *'
   workflow_dispatch:
-
-# The queue is now driven by the manual Autonomous Builder Batch workflow.
-# This retired control-center workflow intentionally has no cron, push, or
-# workflow_run trigger and does not dispatch builders.
 
 permissions:
   contents: read
+  actions: write
+
+concurrency:
+  group: autobot-control-center
+  cancel-in-progress: false
 
 jobs:
-  retired:
+  heartbeat:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Confirm retired scheduler
+      - name: Check for active AutoBot V2 run
+        id: active
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          primary="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
+          continuation="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-continuation.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
+          active=$((primary + continuation))
+          echo "active=$active" >> "$GITHUB_OUTPUT"
+          echo "Active AutoBot runs: $active (primary=$primary continuation=$continuation)"
+
+      - name: Preflight main-branch builder safety contract
+        if: steps.active.outputs.active == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/$GITHUB_REPOSITORY/contents"
+          get() { gh api "$api/$1?ref=main" --jq .content | base64 --decode; }
+          workflow="$(get '.github/workflows/autonomous-builder-v2.yml')"
+          continuation="$(get '.github/workflows/autonomous-builder-continuation.yml')"
+          safety="$(get 'scripts/autobot/verify-autobot-safety-contract.mjs')"
+          dependencies="$(get 'scripts/autobot/verify-autobot-safety-contract-v2.mjs')"
+          continuous="$(get 'scripts/autobot/verify-autobot-continuous-loop.mjs')"
+          package="$(get 'package.json')"
+          printf '%s\n' "$workflow" | grep -q 'cancel-in-progress: false'
+          printf '%s\n' "$workflow" | grep -q 'actions/cache@v4'
+          printf '%s\n' "$workflow" | grep -q 'segment-2'
+          printf '%s\n' "$workflow" | grep -q -- '--draft'
+          printf '%s\n' "$workflow" | grep -q 'verify-autobot-continuous-loop.mjs'
+          printf '%s\n' "$continuation" | grep -q 'workflow_dispatch'
+          printf '%s\n' "$continuation" | grep -q 'continuation_ref'
+          printf '%s\n' "$continuation" | grep -q 'remaining_minutes'
+          printf '%s\n' "$continuation" | grep -q -- '--ref "$CONTINUATION_REF"'
+          printf '%s\n' "$continuation" | grep -q 'timeout-minutes: 370'
+          printf '%s\n' "$package" | grep -q 'verify:autobot-safety'
+          printf '%s\n' "$package" | grep -q 'verify:autobot-dependencies'
+          printf '%s\n' "$package" | grep -q 'verify:autobot-continuous-loop'
+          printf '%s\n' "$safety" | grep -q 'verifyAuditLog'
+          printf '%s\n' "$dependencies" | grep -q 'dependency cycle detected'
+          printf '%s\n' "$continuous" | grep -q 'bounded deterministic slices'
+          echo 'Main-branch AutoBot safety, dependency, continuation, and continuous-loop preflight PASS.'
+
+      - name: Dispatch a fresh sustained builder run
+        if: steps.active.outputs.active == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run autonomous-builder-v2.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f max_units='1000' \
+            -f duration='6h' \
+            -f local_model='qwen2.5-coder:7b'
+          echo 'AutoBot V2 heartbeat dispatched a fresh sustained run.'
+
+      - name: Record heartbeat result
         run: |
           {
-            echo "# 🤖 AutoBot Control Center"
+            echo '# 🤖 AutoBot V2 heartbeat'
             echo
-            echo "## Scheduler retired"
-            echo "The heartbeat/self-dispatch scheduler is no longer used."
-            echo "Use **Autonomous Builder Batch → Run workflow** to process the durable queue sequentially."
-            echo "The builder workflow defaults to 5 batches per manual run and can be set to 10."
+            if [[ '${{ steps.active.outputs.active }}' == '0' ]]; then
+              echo 'A fresh sustained AutoBot V2 run was dispatched after main-branch safety preflight.'
+            else
+              echo 'An AutoBot V2 run was already queued/running; no duplicate was dispatched.'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

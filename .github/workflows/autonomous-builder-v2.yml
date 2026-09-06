@@ -27,6 +27,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 env:
   BUILDER_MAX_UNITS: ${{ inputs.max_units }}
@@ -53,12 +54,11 @@ jobs:
         run: |
           set -euo pipefail
           actual=$(git rev-parse HEAD)
-          echo "Workflow SHA: $GITHUB_SHA"
-          echo "Checked out SHA: $actual"
           test "$actual" = "$GITHUB_SHA"
           grep -q "completedObjectives" builder/runner/long-run-executor.mjs
-          grep -q "totalUnits+=verifiedThisRun.length" builder/runner/long-run-executor.mjs
-          grep -q "verifiedThisRun.length===0" builder/runner/long-run-executor.mjs
+          grep -q "AUTOBOT_DETERMINISTIC_SLICE_MINUTES" builder/runner/long-run-executor.mjs
+          grep -q "AUTOBOT_FEATURE_SLICE_MINUTES" builder/runner/long-run-executor.mjs
+          grep -q "featureCycles" builder/runner/long-run-executor.mjs
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
       - name: Cache local AI model
@@ -74,11 +74,7 @@ jobs:
         id: budget
         run: |
           case "$REQUESTED_DURATION" in
-            15m) requested=15;; 30m) requested=30;;
-            1h) requested=60;; 2h) requested=120;; 3h) requested=180;;
-            4h) requested=240;; 5h) requested=300;; 6h) requested=360;;
-            7h) requested=420;; 8h) requested=480;; 9h) requested=540;;
-            10h) requested=600;; 11h) requested=660;; 12h) requested=720;;
+            15m) requested=15;; 30m) requested=30;; 1h) requested=60;; 2h) requested=120;; 3h) requested=180;; 4h) requested=240;; 5h) requested=300;; 6h) requested=360;; 7h) requested=420;; 8h) requested=480;; 9h) requested=540;; 10h) requested=600;; 11h) requested=660;; 12h) requested=720;;
             *) echo "Unsupported duration: $REQUESTED_DURATION"; exit 1;;
           esac
           segments=$(( (requested + 359) / 360 ))
@@ -98,14 +94,20 @@ jobs:
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/local-brain.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
+          node scripts/autobot/verify-autobot-safety-contract.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node scripts/autobot/verify-autobot-continuous-loop.mjs
+          node scripts/autobot/verify-autobot-segment-chain.mjs
           node builder/quality/autobot-ready.mjs
       - name: Run sustained deterministic builder and local AI brain
         run: node builder/runner/long-run-executor.mjs
       - name: Production verification
         if: success()
         run: |
-          npm run build
+          npm run verify:autobot-production-gate
           npm run verify:project-memory
+          npm run verify:autobot-continuous-loop
+          npm run verify:autobot-dependencies
       - name: Persist continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
@@ -159,18 +161,30 @@ jobs:
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/local-brain.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
+          node scripts/autobot/verify-autobot-safety-contract.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node scripts/autobot/verify-autobot-continuous-loop.mjs
+          node scripts/autobot/verify-autobot-segment-chain.mjs
           node builder/quality/autobot-ready.mjs
       - name: Resume sustained deterministic builder and local AI brain
-        run: node builder/runner/long-run-executor.mjs
+        run: |
+          set -euo pipefail
+          budget="$BUILDER_MAX_MINUTES"
+          if [ "$budget" -gt 360 ]; then budget=360; fi
+          export BUILDER_MAX_MINUTES="$budget"
+          node builder/runner/long-run-executor.mjs
       - name: Production verification
         if: success()
         run: |
-          npm run build
+          npm run verify:autobot-production-gate
           npm run verify:project-memory
+          npm run verify:autobot-continuous-loop
+          npm run verify:autobot-dependencies
       - name: Persist final continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
-      - name: Publish final segment and review PR
+      - name: Publish segment 2 checkpoint
+        id: publish
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
@@ -179,9 +193,29 @@ jobs:
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'feat: autonomous builder local brain final segment' || true
+          git commit -m 'feat: autonomous builder local brain segment 2 checkpoint' || true
           git push
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. No Gemini or OpenAI API is used. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
+          echo "branch=${{ needs.segment-1.outputs.branch }}" >> "$GITHUB_OUTPUT"
+      - name: Dispatch remaining continuation
+        if: success() && needs.segment-1.outputs.remaining_minutes > 360
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          remaining=$(( needs.segment-1.outputs.remaining_minutes - 360 ))
+          gh workflow run autonomous-builder-continuation.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "${{ needs.segment-1.outputs.branch }}" \
+            -f continuation_ref="${{ needs.segment-1.outputs.branch }}" \
+            -f remaining_minutes="$remaining" \
+            -f max_units="$BUILDER_MAX_UNITS" \
+            -f local_model="$LOCAL_AI_MODEL"
+      - name: Create final draft PR when no continuation remains
+        if: success() && needs.segment-1.outputs.remaining_minutes <= 360
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
 
   review-single-segment:
     needs: segment-1
@@ -192,4 +226,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. No Gemini or OpenAI API is used. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true

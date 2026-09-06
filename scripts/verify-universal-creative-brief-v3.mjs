@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { normalizeCreativeBrief, briefToGenerationDirectives } from '../src/creativeBriefModel.js';
+import { compileCreativeIntent, intentToProviderPrompt } from '../src/creativeIntentCompiler.js';
+
+const prompt = 'Create a photorealistic cyberpunk chase through a rainy neon city at night, FPV camera, fast pacing, with a robot transforming and no watermark.';
+const brief = normalizeCreativeBrief(prompt, { aspectRatio: '9:16' });
+assert.equal(brief.subject, 'robot');
+assert.equal(brief.setting, 'city');
+assert.equal(brief.style, 'photorealistic');
+assert.equal(brief.camera, 'fpv');
+assert.equal(brief.lighting, 'neon');
+assert.ok(brief.actions.includes('chase'));
+assert.ok(brief.actions.includes('transform'));
+assert.equal(brief.constraints.noWatermark, true);
+const directives = briefToGenerationDirectives(brief);
+assert.equal(directives.aspectRatio, '9:16');
+const intent = compileCreativeIntent(prompt, { duration: 15, aspectRatio: '9:16' });
+assert.equal(intent.version, 3);
+assert.ok(intent.shots.length >= 3);
+assert.ok(intent.shots.every((shot) => shot.generationPrompt.includes('photorealistic')));
+assert.ok(intent.shots.every((shot) => shot.generationPrompt.includes('No watermark')));
+assert.ok(intentToProviderPrompt(intent, 0).includes('consistent subject identity'));
+console.log('Universal creative brief v3 verification passed.');

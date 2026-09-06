@@ -20,6 +20,7 @@ This file is durable guidance for every future Bikeztagram AI batch. It exists s
 - When a batch changes state, persistence, media, rendering, provider calls, or recovery, verify at least one realistic lifecycle that crosses the relevant boundaries.
 - When a provider or remote dependency fails, prefer bounded, observable recovery with a clear terminal state over indefinite retrying or a misleading green status.
 - A batch that is technically useful but incomplete should remain reviewable and explicitly document the remaining gap; never conceal a limitation to make the batch appear complete.
+- The project is explicitly Gemini-free. Do not add, restore, invoke, document as required, or route work through Gemini or Google generative-AI services.
 
 ## Lessons already learned
 
@@ -55,14 +56,14 @@ This file is durable guidance for every future Bikeztagram AI batch. It exists s
 - Any persistence feature that claims media recovery must include a regression check distinguishing temporary object URLs from durable remote references.
 - A lesson is active only when the builder's deterministic verification rejects the unsafe case and accepts the safe case.
 
-## How Gemini should be used
+## How architecture advisors should be used
 
-- Use Gemini as a bounded architecture/quality advisor, not as an unlimited second builder.
+- Architecture advisors are bounded quality/reasoning inputs, not unlimited second builders.
 - One focused architecture-quality pass per batch is preferred before execution so the builder receives an implementation-ready brief grounded in the current repository and these lessons.
 - The architecture pass should identify the relevant production path, existing contracts to preserve, concrete acceptance evidence, likely failure modes and the smallest coherent implementation boundary before coding.
-- Avoid repeated Gemini calls when deterministic checks already answer the question.
-- Treat Gemini output as guidance that must still be verified by the runner's deterministic checks.
-- If Gemini or another provider reports quota exhaustion, stop further AI calls for that batch rather than repeatedly retrying.
+- Avoid repeated model calls when deterministic checks already answer the question.
+- Treat advisor output as guidance that must still be verified by the runner's deterministic checks.
+- If an AI provider reports quota exhaustion, stop further AI calls for that batch rather than repeatedly retrying.
 - If a model times out or a transient provider error occurs, use bounded fallback/retry behaviour only when the error is classified as transient. Never loop indefinitely or switch models repeatedly without a terminal rule.
 
 ## Batch completion checklist
