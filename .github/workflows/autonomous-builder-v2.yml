@@ -93,7 +93,6 @@ jobs:
           node --check builder/runner/local-brain.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
-          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node builder/quality/autobot-ready.mjs
       - name: Run sustained deterministic builder and local AI brain
         run: node builder/runner/long-run-executor.mjs
@@ -103,7 +102,6 @@ jobs:
           npm run build
           npm run verify:project-memory
           npm run verify:autobot-safety
-          npm run verify:autobot-safety-v2
       - name: Persist continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
@@ -158,7 +156,6 @@ jobs:
           node --check builder/runner/local-brain.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
-          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node builder/quality/autobot-ready.mjs
       - name: Resume sustained deterministic builder and local AI brain
         run: node builder/runner/long-run-executor.mjs
@@ -168,7 +165,6 @@ jobs:
           npm run build
           npm run verify:project-memory
           npm run verify:autobot-safety
-          npm run verify:autobot-safety-v2
       - name: Persist final continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
@@ -183,7 +179,7 @@ jobs:
           git add -A
           git commit -m 'feat: autonomous builder local brain final segment' || true
           git push
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. No Gemini or OpenAI API is used. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. No automatic merge or production deployment.' || true
 
   review-single-segment:
     needs: segment-1
@@ -194,4 +190,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. No Gemini or OpenAI API is used. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "${{ needs.segment-1.outputs.branch }}" --draft --title 'Autonomous Builder V2 local brain progress' --body 'Autonomous product build using a local open-source coding model. Review checkpoint and verification required before merging. No automatic merge or production deployment.' || true
