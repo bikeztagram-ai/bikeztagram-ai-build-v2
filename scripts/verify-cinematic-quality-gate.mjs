@@ -10,6 +10,7 @@ const weak={creativePrompt:'fast cinematic reveal',targetDuration:20,cuts:[
 ]};
 const quality=evaluateCinematicOutput(weak,{audio:{present:false}});
 assert.equal(quality.verdict,'REJECT');
+assert.ok(quality.issues.some(issue=>/narrative progression/i.test(issue)));
 const revision=revisePlanAfterCinematicQuality(weak,quality);
 assert.equal(revision.changed,true);
 assert.ok(revision.reasons.length>0);
@@ -20,7 +21,7 @@ assert.ok(revision.plan.cuts.every(c=>c.duration<=4));
 assert.ok(new Set(revision.plan.cuts.map(c=>c.motionStyle)).size>=3);
 assert.ok(new Set(revision.plan.cuts.map(c=>c.transition)).size>=3);
 assert.ok(new Set(revision.plan.cuts.map(c=>c.directorShotFamily)).size>=3);
-assert.equal(revision.plan.cinematicQualityRevision.version,'cinematic-quality-revision-v3');
+assert.equal(revision.plan.cinematicQualityRevision.version,'cinematic-quality-revision-v4');
 const improved=evaluateCinematicOutput(revision.plan,{audio:{present:false}});
 assert.notEqual(improved.verdict,'REJECT');
 assert.ok(improved.score>quality.score);
