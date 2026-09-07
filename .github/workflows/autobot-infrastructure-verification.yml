@@ -52,5 +52,13 @@ jobs:
           node scripts/autobot/verify-feature-objective-dependencies.mjs
           node builder/quality/autobot-ready.mjs
 
+      - name: Assert agentic feature-engineering wiring
+        run: |
+          set -euo pipefail
+          grep -q "tools = \[" builder/runner/feature-brain.mjs
+          grep -q "agentic: true" builder/runner/feature-brain.mjs
+          grep -q "name: 'edit_file'" builder/runner/feature-brain.mjs
+          grep -q "name: 'run_check'" builder/runner/feature-brain.mjs
+
       - name: Build product
         run: npm run build
