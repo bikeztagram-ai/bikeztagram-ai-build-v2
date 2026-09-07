@@ -126,6 +126,19 @@ jobs:
       - name: Run fast sustained builder
         run: node builder/runner/long-run-executor.mjs
 
+      - name: Require a real product-source change
+        run: |
+          set -euo pipefail
+          product_diff="$(git status --porcelain=v1 --untracked-files=all | awk '{print $2}' | grep -E '^(src|public)/' || true)"
+          if [ -z "$product_diff" ]; then
+            echo '[autobot] FAIL: run completed without a product-source change.'
+            echo '[autobot] Builder infrastructure/state-only output is not a successful feature run.'
+            git status --short
+            exit 1
+          fi
+          echo '[autobot] verified product-source change(s):'
+          printf '%s\n' "$product_diff"
+
       - name: Production verification
         if: success()
         run: |
