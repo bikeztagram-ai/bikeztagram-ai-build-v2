@@ -25,15 +25,12 @@ if (!workflow.includes('qwen3:4b')) failures.push('fast workflow must default to
 if (!workflow.includes('LOCAL_AI_MODEL')) failures.push('fast workflow lacks explicit local model configuration');
 if (!workflow.includes('actions/cache@v4')) failures.push('local model cache missing');
 
-// Read numeric GITHUB_ENV assignments as well as YAML-style KEY: value entries.
 const numericSetting = (key) => {
   const match = workflow.match(new RegExp(`${key}[^\\n]*?(?:=|:)\\s*[\\\"']?(\\d+)`, 'm'));
   return match ? Number(match[1]) : null;
 };
-
 const editBudget = numericSetting('AUTOBOT_FEATURE_MAX_EDITS');
 if (editBudget == null || editBudget < 1 || editBudget > 3) failures.push('canonical fast workflow edit ceiling missing or unsafe');
-
 const featureTimeout = numericSetting('LOCAL_AI_FEATURE_TIMEOUT_SECONDS');
 if (featureTimeout == null || featureTimeout < 120 || featureTimeout > 300) failures.push('canonical fast workflow feature timeout must be between 120 and 300 seconds');
 
@@ -42,13 +39,17 @@ if (!workflow.includes('repository-aware-fast-brain.mjs')) failures.push('fast w
 if (!fastExecutor.includes('repository-aware-fast-brain.mjs')) failures.push('fast executor does not invoke the structured coding brain');
 if (!fastBrain.includes('think: false')) failures.push('structured coding brain must disable thinking');
 if (!fastBrain.includes('num_predict: 420')) failures.push('structured coding brain output ceiling missing');
-if (!/run\(\s*['\"]npm['\"]\s*,\s*\[\s*['\"]run['\"]\s*,\s*['\"]build['\"]/.test(fastBrain) && !/npm\s+run\s+build/.test(fastBrain)) failures.push('structured coding brain build verification missing');
-if (!/run\(\s*['\"]git['\"]\s*,\s*\[\s*['\"]diff['\"]\s*,\s*['\"]--['\"]\s*,\s*['\"]src['\"]\s*,\s*['\"]public['\"]/.test(fastBrain) && !/git\s+diff\s+--\s+src\s+public/.test(fastBrain)) failures.push('structured coding brain product-source diff verification missing');
+const hasNpmBuild = /run\(\s*['\"]npm['\"]\s*,\s*\[\s*['\"]run['\"]\s*,\s*['\"]build['\"]/.test(fastBrain) || /npm\s+run\s+build/.test(fastBrain);
+if (!hasNpmBuild) failures.push('structured coding brain build verification missing');
+const hasProductDiff = /run\(\s*['\"]git['\"]\s*,\s*\[\s*['\"]diff['\"]\s*,\s*['\"]--['\"]\s*,\s*['\"]src['\"]\s*,\s*['\"]public['\"]/.test(fastBrain) || /git\s+diff\s+--\s+src\s+public/.test(fastBrain);
+if (!hasProductDiff) failures.push('structured coding brain product-source diff verification missing');
 if (!fastBrain.includes('maxEdits')) failures.push('structured coding brain bounded edit ceiling missing');
 if (!workflow.includes('verify:autobot-production-gate')) failures.push('fast workflow lacks authoritative production gate');
 if (!workflow.includes('Require a real product-source change')) failures.push('fast workflow lacks product-source success gate');
 if (!workflow.includes("grep -E '^(src|public)/'")) failures.push('product-source gate must include src and public');
 
+const agentHasBuild = /run\(\s*['\"]npm['\"]\s*,\s*\[\s*['\"]run['\"]\s*,\s*['\"]build['\"]/.test(agent) || /npm.*run.*build/.test(agent);
+const agentHasDiffCheck = /run\(\s*['\"]git['\"]\s*,\s*\[\s*['\"]diff['\"]\s*,\s*['\"]--check['\"]/.test(agent) || /git.*diff.*--check/.test(agent);
 for (const [pattern, message] of [
   [/objectiveContext/, 'deterministic objective context router missing'],
   [/read_file/, 'objective-scoped read tool missing'],
@@ -58,12 +59,11 @@ for (const [pattern, message] of [
   [/maxEdits/, 'bounded edit ceiling missing'],
   [/temperature\s*:\s*0/, 'deterministic model temperature missing'],
   [/think\s*:\s*false/, 'thinking must be disabled in fast mode'],
-  [/npm.*run.*build/, 'build verification missing'],
-  [/git.*diff.*--check/, 'diff verification missing'],
-  [/repository-aware-agent-v7/, 'agent protocol marker missing'],
   [/isSensitive/, 'sensitive-path protection missing'],
+  [/repository-aware-agent-v7/, 'agent protocol marker missing'],
 ]) if (!pattern.test(agent)) failures.push(message);
-
+if (!agentHasBuild) failures.push('legacy agent build verification missing');
+if (!agentHasDiffCheck) failures.push('legacy agent diff verification missing');
 for (const [pattern, message] of [
   [/function:\s*\{\s*name:\s*'search_repo'/, 'search_repo tool must not be exposed'],
   [/function:\s*\{\s*name:\s*'list_files'/, 'list_files tool must not be exposed'],
