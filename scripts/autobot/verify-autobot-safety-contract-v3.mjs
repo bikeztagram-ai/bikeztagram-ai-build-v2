@@ -21,13 +21,13 @@ const required = [
   [/edit_file/, 'safe product edit tool missing'],
   [/run_check/, 'verification tool missing'],
   [/maxEdits/, 'bounded edit budget missing'],
-  [/temperature:0/, 'deterministic model setting missing'],
+  [/temperature\s*:\s*0/, 'deterministic model setting missing'],
   [/npm.*run.*build/, 'independent build verification missing'],
   [/git.*diff.*--check/, 'diff verification missing'],
   [/repository-aware-agent-v5/, 'current agent protocol marker missing'],
   [/repository-index.mjs/, 'repository index integration missing'],
-  [/function\s+choose\s*\(/, 'deterministic objective selection missing'],
-  [/progress\[o\.id\]/, 'incremental objective progress missing'],
+  [/(chooseObjective|function\s+choose)/, 'deterministic objective selection missing'],
+  [/progress\[(?:objective|o)\.id\]/, 'incremental objective progress missing'],
 ];
 for (const [pattern, message] of required) if (!pattern.test(agent)) failures.push(message);
 if (/git.*reset.*--hard|git.*clean\s+-f/.test(agent + executor)) failures.push('agent must never wholesale-reset or clean the working tree');
@@ -50,5 +50,8 @@ if (fs.existsSync(mapPath)) {
   } catch { failures.push('repository map is invalid JSON'); }
 }
 
-if (failures.length) { console.error(failures.map((f) => `FAIL: ${f}`).join('\n')); process.exit(1); }
+if (failures.length) {
+  console.error(failures.map((f) => `FAIL: ${f}`).join('\n'));
+  process.exit(1);
+}
 console.log('AutoBot safety contract v3 PASS: repository-aware exploration, scoped writes, deterministic verification, dependency-aware objectives and protected local-agent runtime present.');
