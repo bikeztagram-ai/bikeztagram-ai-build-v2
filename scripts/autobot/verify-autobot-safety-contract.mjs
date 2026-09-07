@@ -19,7 +19,7 @@ if (/gh\s+pr\s+merge|gh\s+pr\s+approve/i.test(workflow + agent + executor)) fail
 if (/vercel\s+(deploy|promote)|vercel\.com\/api/i.test(workflow + agent + executor)) failures.push('automatic production deployment path detected');
 if (!/workflow_dispatch:/.test(workflow)) failures.push('canonical fast workflow must be manually dispatchable');
 if (!/cancel-in-progress:\s*false/.test(workflow)) failures.push('fast workflow must preserve queued runs rather than canceling active work');
-if (!workflow.includes('qwen3:4b')) failures.push('fast workflow must default to Qwen3 4B');
+if (!workflow.includes('qwen3:4b')) failures.push('fast workflow must default to Qwen3 4B-compatible model');
 if (!workflow.includes('LOCAL_AI_MODEL')) failures.push('fast workflow lacks explicit local model configuration');
 if (!workflow.includes('actions/cache@v4')) failures.push('local model cache missing');
 if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS: 3')) failures.push('fast workflow edit budget missing');
@@ -32,20 +32,26 @@ if (!workflow.includes('Require a real product-source change')) failures.push('f
 if (!workflow.includes("grep -E '^(src|public)/'")) failures.push('product-source gate must include src and public');
 
 for (const [pattern, message] of [
-  [/repository_map/, 'repository map tool missing'],
-  [/list_files/, 'repository file-list tool missing'],
-  [/search_repo/, 'repository search tool missing'],
-  [/read_file/, 'broad read tool missing'],
+  [/objectiveContext/, 'deterministic objective context router missing'],
+  [/read_file/, 'objective-scoped read tool missing'],
   [/edit_file/, 'objective-scoped edit tool missing'],
   [/run_check/, 'verification tool missing'],
   [/submit/, 'submission tool missing'],
   [/maxEdits/, 'bounded edit ceiling missing'],
   [/temperature\s*:\s*0/, 'deterministic model temperature missing'],
+  [/think\s*:\s*false/, 'thinking must be disabled in fast mode'],
   [/npm.*run.*build/, 'build verification missing'],
   [/git.*diff.*--check/, 'diff verification missing'],
-  [/repository-aware-agent-v6/, 'agent protocol marker missing'],
-  [/repository-index.mjs/, 'repository index wiring missing'],
+  [/repository-aware-agent-v7/, 'agent protocol marker missing'],
+  [/repository-aware-executor|repository-index/, 'repository infrastructure wiring missing'],
+  [/isSensitive/, 'sensitive-path protection missing'],
 ]) if (!pattern.test(agent)) failures.push(message);
+
+for (const [pattern, message] of [
+  [/function:\s*\{\s*name:\s*'search_repo'/, 'search_repo tool must not be exposed'],
+  [/function:\s*\{\s*name:\s*'list_files'/, 'list_files tool must not be exposed'],
+  [/function:\s*\{\s*name:\s*'repository_map'/, 'repository_map tool must not be exposed'],
+]) if (pattern.test(agent)) failures.push(message);
 
 if (/git.*reset.*--hard|git.*clean\s+-f/.test(agent + executor)) failures.push('repository-aware agent contains unsafe wholesale rollback');
 if (!executor.includes('repository-index.mjs') || !executor.includes('repository-aware-feature-brain.mjs')) failures.push('executor does not wire repository index and feature agent');
@@ -55,4 +61,4 @@ if (!gate.includes('verify:generation-capability-contract') || !gate.includes('v
 if (!packageJson.includes('verify:autobot-production-gate')) failures.push('production gate is not registered in package scripts');
 
 if (failures.length) { console.error(failures.map((f) => `FAIL: ${f}`).join('\n')); process.exit(1); }
-console.log('AutoBot canonical safety contract PASS: repository-aware local agent, objective-scoped writes, bounded verification, dependency-safe deterministic work, no Gemini/paid fallback, and no automatic merge/deploy.');
+console.log('AutoBot canonical safety contract PASS: deterministic context routing, objective-scoped writes, bounded verification, dependency-safe deterministic work, no Gemini/paid fallback, and no automatic merge/deploy.');
