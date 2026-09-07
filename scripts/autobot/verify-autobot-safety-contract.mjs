@@ -35,7 +35,7 @@ if (!workflow.includes('repository-aware-fast-executor.mjs')) failures.push('wor
 if (!workflow.includes('repository-aware-fast-brain.mjs')) failures.push('workflow does not include structured coding brain');
 if (!fastExecutor.includes('repository-aware-fast-brain.mjs')) failures.push('fast executor does not invoke structured coding brain');
 if (!fastBrain.includes('think: false')) failures.push('structured coding brain must disable thinking');
-if (!fastBrain.includes('num_predict: 420')) failures.push('structured coding brain output ceiling missing');
+if (!fastBrain.includes('num_predict: 360')) failures.push('structured coding brain output ceiling missing');
 if (!fastBrain.includes("run('npm', ['run', 'build'])")) failures.push('structured coding brain build verification missing');
 if (!fastBrain.includes("['diff', '--', 'src', 'public']")) failures.push('structured coding brain product-source diff verification missing');
 if (!fastBrain.includes('maxEdits')) failures.push('structured coding brain edit ceiling missing');
@@ -51,5 +51,5 @@ if (!index.includes('git') || !index.includes('dependencyEdges') || !index.inclu
 if (!deterministic.includes('allowedTask')) failures.push('deterministic executor lacks protected-path guard');
 if (!gate.includes('verify:generation-capability-contract') || !gate.includes('verify:autobot-audit-tamper')) failures.push('authoritative production gate is incomplete');
 
-if (failures.length) { console.error(failures.map((f) => `FAIL: ${f}`).join('\n')); process.exit(1); }
+if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
 console.log('AutoBot canonical safety contract PASS: fast structured Qwen brain, bounded edits, scoped exact-match writes, rollback/build/diff verification, dependency-safe deterministic work, no Gemini, and no automatic merge/deploy.');
