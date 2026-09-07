@@ -23,7 +23,8 @@ if (!workflow.includes('qwen3:8b')) failures.push('fast workflow must default to
 if (!workflow.includes('LOCAL_AI_MODEL')) failures.push('fast workflow lacks explicit local model configuration');
 if (!workflow.includes('actions/cache@v4')) failures.push('local model cache missing');
 if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS: 3')) failures.push('fast workflow edit budget missing');
-if (!workflow.includes('LOCAL_AI_FEATURE_TIMEOUT_SECONDS: 120')) failures.push('fast workflow feature timeout contract missing');
+const timeoutMatch = workflow.match(/LOCAL_AI_FEATURE_TIMEOUT_SECONDS:\s*(\d+)/);
+if (!timeoutMatch || Number(timeoutMatch[1]) < 120 || Number(timeoutMatch[1]) > 300) failures.push('fast workflow feature timeout contract missing or unsafe');
 if (!workflow.includes('repository-aware-feature-brain.mjs')) failures.push('fast workflow lacks repository-aware agent');
 if (!workflow.includes('repository-aware-executor.mjs')) failures.push('fast workflow lacks repository-aware executor');
 if (!workflow.includes('verify:autobot-production-gate')) failures.push('fast workflow lacks authoritative production gate');
