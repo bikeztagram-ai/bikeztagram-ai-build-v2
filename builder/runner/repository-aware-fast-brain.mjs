@@ -41,6 +41,9 @@ function build() {
   try { run('npm', ['run', 'build']); return 'PASS'; }
   catch (e) { return `FAIL ${[e.stdout, e.stderr, e.message].filter(Boolean).join('\n').slice(-5000)}`; }
 }
+function restore(snapshots) {
+  for (const [file, snapshot] of snapshots) fs.writeFileSync(abs(file), snapshot);
+}
 
 const map = JSON.parse(read('builder/working/repository-map.json') || '{"files":[]}');
 const objectives = JSON.parse(read('builder/brain/feature-objectives.json') || '{"objectives":[]}').objectives || [];
@@ -63,10 +66,10 @@ function contextFor(o) {
     const entry = (map.files || []).find((x) => x.path === file);
     const content = read(file);
     const lines = content.split(/\r?\n/);
-    const preview = content.length <= 5200 ? content : `${lines.slice(0, 70).join('\n')}\n/* ...middle omitted... */\n${lines.slice(-35).join('\n')}`;
-    files.push({ path: file, lines: entry?.lines || lines.length, purpose: entry?.purpose || '', code: preview.slice(0, 6200) });
+    const preview = content.length <= 4200 ? content : `${lines.slice(0, 52).join('\n')}\n/* ...middle omitted; use supplied file identity only... */\n${lines.slice(-28).join('\n')}`;
+    files.push({ path: file, lines: entry?.lines || lines.length, purpose: entry?.purpose || '', code: preview.slice(0, 4500) });
   }
-  return JSON.stringify({ files }, null, 2).slice(0, 14500);
+  return JSON.stringify({ files }, null, 2).slice(0, 9000);
 }
 function extractJson(text) {
   const clean = String(text || '').replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
@@ -90,7 +93,7 @@ function modelPatch(o, repair = '') {
         `CONSTRAINTS: ${(o.constraints || []).join(' | ')}`,
         `ALLOWED FILES: ${(o.files || []).join(', ')}`,
         '',
-        'REPOSITORY CONTEXT:', contextFor(o),
+        'REPOSITORY CONTEXT (authoritative supplied code; do not invent missing text):', contextFor(o),
         '',
         'Return exactly: {"edits":[{"file":"...","search":"exact existing text","replace":"replacement text"}],"summary":"..."}',
         `Rules: 1-${maxEdits} edits; every search string must be copied exactly from supplied code; edit only allowed files; preserve public contracts; prefer one focused improvement; no markdown; no explanations.${repair}`
@@ -113,34 +116,28 @@ function apply(o, patch) {
     const file = String(item?.file || '');
     const search = String(item?.search || '');
     const replacement = String(item?.replace ?? '');
-    if (!allowed.has(file) || !safe(file)) return { ok: false, reason: `unsafe or out-of-scope file: ${file}` };
+    if (!allowed.has(file) || !safe(file)) { restore(snapshots); return { ok: false, reason: `unsafe or out-of-scope file: ${file}` }; }
     const current = read(file);
-    if (!current || !search) return { ok: false, reason: `missing file/search: ${file}` };
-    if (current.split(search).length - 1 !== 1) return { ok: false, reason: `search must match exactly once: ${file}` };
+    if (!current || !search) { restore(snapshots); return { ok: false, reason: `missing file/search: ${file}` }; }
+    if (current.split(search).length - 1 !== 1) { restore(snapshots); return { ok: false, reason: `search must match exactly once: ${file}` }; }
     const next = current.replace(search, replacement);
-    if (next === current || !next.trim()) return { ok: false, reason: `no-op edit: ${file}` };
+    if (next === current || !next.trim()) { restore(snapshots); return { ok: false, reason: `no-op edit: ${file}` }; }
     fs.writeFileSync(abs(file), next);
     const check = syntax(file);
-    if (check !== 'PASS') {
-      for (const [f, snapshot] of snapshots) fs.writeFileSync(abs(f), snapshot);
-      return { ok: false, reason: `${check}: ${file}` };
-    }
+    if (check !== 'PASS') { restore(snapshots); return { ok: false, reason: `${check}: ${file}` }; }
     edits += 1;
   }
-  if (!edits) return { ok: false, reason: 'no product edit supplied' };
+  if (!edits) { restore(snapshots); return { ok: false, reason: 'no product edit supplied' }; }
   const diff = capture('git', ['diff', '--', 'src', 'public']);
-  if (!diff.trim()) return { ok: false, reason: 'no product diff after edit' };
+  if (!diff.trim()) { restore(snapshots); return { ok: false, reason: 'no product diff after edit' }; }
   const check = build();
-  if (check !== 'PASS') {
-    for (const [f, snapshot] of snapshots) fs.writeFileSync(abs(f), snapshot);
-    return { ok: false, reason: check };
-  }
+  if (check !== 'PASS') { restore(snapshots); return { ok: false, reason: check }; }
   progress[o.id] = 1;
   state.progress = progress;
   state.failed = state.failed || {};
   state.updatedAt = new Date().toISOString();
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  fs.writeFileSync(statePath, JSON.stringify({ version: 14, completed: [], progress, failed: state.failed, updatedAt: state.updatedAt }, null, 2) + '\n');
+  fs.writeFileSync(statePath, JSON.stringify({ version: 15, completed: [], progress, failed: state.failed, updatedAt: state.updatedAt }, null, 2) + '\n');
   appendAudit('repository-aware-fast-feature-complete', { objectiveId: o.id, edits, summary: String(patch.summary || '').slice(0, 800) });
   return { ok: true, edits, summary: patch.summary || '' };
 }
@@ -164,7 +161,7 @@ if (!result.ok) {
   state.failed = state.failed || {};
   state.failed[objective.id] = { attempts: maxAttempts, reason: result.reason, updatedAt: new Date().toISOString() };
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  fs.writeFileSync(statePath, JSON.stringify({ version: 14, completed: [], progress, failed: state.failed, updatedAt: new Date().toISOString() }, null, 2) + '\n');
+  fs.writeFileSync(statePath, JSON.stringify({ version: 15, completed: [], progress, failed: state.failed, updatedAt: new Date().toISOString() }, null, 2) + '\n');
   process.exitCode = 1;
 } else {
   console.log(`[autobot] fast brain complete: ${objective.id} edits=${result.edits}`);
