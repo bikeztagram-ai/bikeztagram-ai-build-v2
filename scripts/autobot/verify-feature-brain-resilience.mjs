@@ -24,7 +24,8 @@ for (const [pattern, message] of [
   [/repository-aware-feature-brain/, 'executor does not invoke repository-aware feature brain']
 ]) if (!pattern.test(runner)) failures.push(message);
 for (const [pattern, message] of [
-  [/git ls-files/, 'index must use Git tracked files'],
+  [/git['\"]?,\s*\[?['\"]ls-files/, 'index must use Git file inventory'],
+  [/ls-files.*exclude-standard/, 'index must exclude ignored files'],
   [/dependencyEdges/, 'index must capture dependency edges'],
   [/sensitive/, 'index must exclude sensitive files']
 ]) if (!pattern.test(index)) failures.push(message);
