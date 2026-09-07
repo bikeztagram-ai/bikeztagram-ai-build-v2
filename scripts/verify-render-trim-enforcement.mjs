@@ -21,4 +21,8 @@ if(!timeline.includes('startTime:trim.trimStart'))throw new Error('Executable ti
 if(!loop.includes("import {buildExecutableTimeline} from './executableTimeline.js';"))throw new Error('Render loop does not import executable director timeline.');
 if(!loop.includes('current=buildExecutableTimeline(current,{targetDuration:target})'))throw new Error('Render loop does not activate executable timeline at render handoff.');
 
-console.log('[render-trim] PASS: director trimStart/trimEnd are handed to the renderer, the render starts at trimStart, trimEnd is actively enforced, and the executable director timeline is used by the live render loop.');
+const beatSyncIndex=loop.indexOf('const bs=applyAudioBeatSyncToPlan(current)');
+const executableIndex=loop.indexOf('current=buildExecutableTimeline(current,{targetDuration:target})');
+if(beatSyncIndex<0||executableIndex<0||beatSyncIndex>executableIndex)throw new Error('Beat-sync must run before executable timeline compilation so renderTiming reflects final editorial durations.');
+
+console.log('[render-trim] PASS: director trimStart/trimEnd are handed to the renderer, trim boundaries are actively enforced, beat-sync is compiled before the executable director timeline, and the live render loop uses that final timeline.');
