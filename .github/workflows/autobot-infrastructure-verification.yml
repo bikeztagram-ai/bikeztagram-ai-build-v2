@@ -73,13 +73,17 @@ jobs:
           node scripts/autobot/verify-autobot-feature-edit-protocol.mjs
           node scripts/autobot/verify-feature-objective-dependencies.mjs
           node builder/quality/autobot-ready.mjs
-      - name: Assert repository-aware agent wiring
+      - name: Assert constrained repository-aware agent wiring
         run: |
           set -euo pipefail
-          grep -q 'repository_map' builder/runner/repository-aware-feature-brain.mjs
-          grep -q 'list_files' builder/runner/repository-aware-feature-brain.mjs
-          grep -q 'search_repo' builder/runner/repository-aware-feature-brain.mjs
-          grep -q 'read_file' builder/runner/repository-aware-feature-brain.mjs
+          grep -q 'objectiveContext' builder/runner/repository-aware-feature-brain.mjs
+          grep -q "name: 'read_file'" builder/runner/repository-aware-feature-brain.mjs
+          grep -q "name: 'edit_file'" builder/runner/repository-aware-feature-brain.mjs
+          grep -q "name: 'run_check'" builder/runner/repository-aware-feature-brain.mjs
+          grep -q 'repository-aware-agent-v7' builder/runner/repository-aware-feature-brain.mjs
+          ! grep -q "name: 'search_repo'" builder/runner/repository-aware-feature-brain.mjs
+          ! grep -q "name: 'list_files'" builder/runner/repository-aware-feature-brain.mjs
+          ! grep -q "name: 'repository_map'" builder/runner/repository-aware-feature-brain.mjs
           grep -q 'repository-index.mjs' builder/runner/repository-aware-executor.mjs
           grep -q 'repository-aware-feature-brain.mjs' builder/runner/repository-aware-executor.mjs
           grep -q 'tool_calls' scripts/autobot/install-local-brain.sh
