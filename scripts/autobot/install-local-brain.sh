@@ -10,7 +10,6 @@ ready=false
 for i in $(seq 1 30); do if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then ready=true; break; fi; sleep 2; done
 if [[ "$ready" != true ]]; then echo '[autobot] Ollama API did not become ready within 60s.'; cat /tmp/bikeztagram-ollama.log || true; exit 1; fi
 MODEL="${LOCAL_AI_MODEL:-qwen3:4b}"
-if [[ "$MODEL" == "qwen2.5-coder:1.5b" || "$MODEL" == "qwen2.5-coder:1.5b-instruct" || "$MODEL" == "qwen3:8b" ]]; then MODEL="qwen3:4b"; fi
 echo "[autobot] pulling local coding model: $MODEL"
 if ! ollama pull "$MODEL"; then
   echo "[autobot] failed to pull requested local model: $MODEL"
