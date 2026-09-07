@@ -32,7 +32,7 @@ const required = [
 for (const [pattern, message] of required) if (!pattern.test(agent)) failures.push(message);
 if (/git.*reset.*--hard|git.*clean\s+-f/.test(agent + executor)) failures.push('agent must never wholesale-reset or clean the working tree');
 if (!/repository-index\.mjs/.test(executor) || !/repository-aware-feature-brain\.mjs/.test(executor)) failures.push('executor must refresh and invoke repository-aware runtime');
-if (!/git ls-files/.test(indexer) || !/dependencyEdges/.test(indexer) || !/sensitive/.test(indexer)) failures.push('repository index must be Git-derived, dependency-aware and secret-safe');
+if (!/ls-files/.test(indexer) || !/dependencyEdges/.test(indexer) || !/sensitive/.test(indexer)) failures.push('repository index must be Git-derived, dependency-aware and secret-safe');
 if (!/workflow_dispatch:/.test(workflow)) failures.push('canonical fast workflow must be dispatchable');
 if (!/AUTOBOT_FEATURE_MAX_EDITS:\s*3/.test(workflow)) failures.push('canonical fast workflow edit ceiling missing');
 if (!/LOCAL_AI_FEATURE_TIMEOUT_SECONDS:\s*120/.test(workflow)) failures.push('canonical fast workflow timeout missing');
