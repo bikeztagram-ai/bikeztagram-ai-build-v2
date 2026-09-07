@@ -20,13 +20,13 @@ const required = [
   ['scoped rollback snapshot', /snapshots\s*=\s*new Map/],
   ['scoped rollback restore', /for\(const\[f,s\]of snapshots\)/],
   ['multi-turn agent loop', /for\s*\(let turn=1;turn<=maxTurns/],
-  ['edit tool', /name:'edit_file'/],
-  ['verification tool', /name:'run_check'/],
-  ['submission tool', /name:'submit'/],
+  ['edit tool', /name\s*:\s*['"]edit_file['"]/],
+  ['verification tool', /name\s*:\s*['"]run_check['"]/],
+  ['submission tool', /name\s*:\s*['"]submit['"]/],
   ['protocol marker', /repository-aware-agent-v7/]
 ];
 for (const [label, pattern] of required) if (!pattern.test(source)) failures.push(`missing ${label}`);
-if (/name:'search_repo'|name:'list_files'|name:'repository_map'/.test(source)) failures.push('broad exploration tools must not be exposed to the coding model');
+if (/name\s*:\s*['"](?:search_repo|list_files|repository_map)['"]/.test(source)) failures.push('broad exploration tools must not be exposed to the coding model');
 if (/git.*reset.*--hard|git.*clean\s+-f/.test(source)) failures.push('unsafe wholesale rollback still active');
 if (/Return ONLY a valid unified git diff/.test(source)) failures.push('fragile unified-diff generation still active');
 if (/startLine\s*:\s*endLine|invalid line range/.test(source)) failures.push('legacy line-range edit protocol still active');
