@@ -121,10 +121,16 @@ jobs:
           node scripts/autobot/verify-autobot-continuous-loop.mjs
           node scripts/autobot/verify-autobot-feature-edit-protocol.mjs
           node scripts/autobot/verify-feature-objective-dependencies.mjs
+          node scripts/autobot/verify-meaningful-feature-change.mjs --help >/dev/null || true
           node builder/quality/autobot-ready.mjs
 
       - name: Run fast sustained builder
         run: node builder/runner/long-run-executor.mjs
+
+      - name: Require a meaningful objective-aligned product change
+        run: |
+          set -euo pipefail
+          node scripts/autobot/verify-meaningful-feature-change.mjs
 
       - name: Require a real product-source change
         run: |
