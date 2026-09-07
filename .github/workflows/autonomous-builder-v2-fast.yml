@@ -142,11 +142,13 @@ jobs:
           git checkout -b "$branch"
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          # GITHUB_TOKEN deliberately has no workflow-write permission.
-          # Never publish workflow changes from an autonomous checkpoint.
-          git restore --source=HEAD -- .github/workflows
+          # The workflow file itself is not publishable with the default GITHUB_TOKEN.
+          # Restore every autonomous workflow edit from the protected base before staging.
+          git fetch --no-tags origin main
+          git restore --source=origin/main -- .github/workflows
+          # Generated repository knowledge is disposable runner state, never checkpoint it.
           git add -A
-          git reset -- .github/workflows || true
+          git reset -- .github/workflows builder/working || true
           if git diff --cached --quiet; then
             echo 'No checkpoint changes to publish.'
             exit 0
