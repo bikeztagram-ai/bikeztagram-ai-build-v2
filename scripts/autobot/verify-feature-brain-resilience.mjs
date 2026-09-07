@@ -22,11 +22,13 @@ for (const [pattern, message] of [
   [/matchAll\(\/.*tool_call/, 'fallback tool-call parsing missing'],
   [/emptyTurns/, 'prose-only response guard missing'],
   [/out-of-scope write/, 'objective-scoped write guard missing'],
-  [/isSensitive/, 'sensitive path guard missing'],
-  [/search the repository|searchRepo|list_files|repository_map/, 'agent must not depend on wandering repository-search tools']
-]) if (pattern.test(feature)) {
-  if (message.startsWith('agent must not')) failures.push(message);
-} else if (!pattern.test(feature)) failures.push(message);
+  [/isSensitive/, 'sensitive path guard missing']
+]) if (!pattern.test(feature)) failures.push(message);
+for (const [pattern, message] of [
+  [/function:\s*\{\s*name:\s*'search_repo'/, 'search_repo tool must be removed from the agent surface'],
+  [/function:\s*\{\s*name:\s*'list_files'/, 'list_files tool must be removed from the agent surface'],
+  [/function:\s*\{\s*name:\s*'repository_map'/, 'repository_map tool must be removed from the agent surface']
+]) if (pattern.test(feature)) failures.push(message);
 for (const [pattern, message] of [
   [/repository-index/, 'executor does not refresh repository index'],
   [/repository-aware-feature-brain/, 'executor does not invoke repository-aware feature brain']
