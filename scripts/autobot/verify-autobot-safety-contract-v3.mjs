@@ -24,14 +24,16 @@ const required = [
   [/maxEdits/, 'bounded edit budget missing'],
   [/temperature\s*:\s*0/, 'deterministic model setting missing'],
   [/think\s*:\s*false/, 'fast mode must disable thinking'],
-  [/npm.*run.*build/, 'independent build verification missing'],
-  [/git.*diff.*--check/, 'diff verification missing'],
   [/repository-aware-agent-v7/, 'current agent protocol marker missing'],
   [/isSensitive/, 'sensitive-path protection missing'],
   [/(chooseObjective|function\s+choose)/, 'deterministic objective selection missing'],
   [/progress\[(?:objective|o)\.id\]/, 'incremental objective progress missing'],
 ];
 for (const [pattern, message] of required) if (!pattern.test(agent)) failures.push(message);
+const agentHasBuild = /run\(\s*['\"]npm['\"]\s*,\s*\[\s*['\"]run['\"]\s*,\s*['\"]build['\"]/.test(agent) || /npm.*run.*build/.test(agent);
+const agentHasDiffCheck = /run\(\s*['\"]git['\"]\s*,\s*\[\s*['\"]diff['\"]\s*,\s*['\"]--check['\"]/.test(agent) || /git.*diff.*--check/.test(agent);
+if (!agentHasBuild) failures.push('independent build verification missing');
+if (!agentHasDiffCheck) failures.push('diff verification missing');
 for (const [pattern, message] of [
   [/function:\s*\{\s*name:\s*'search_repo'/, 'search_repo tool must be removed'],
   [/function:\s*\{\s*name:\s*'list_files'/, 'list_files tool must be removed'],
@@ -42,10 +44,6 @@ if (!/repository-index\.mjs/.test(executor) || !/repository-aware-feature-brain\
 if (!/repository-index\.mjs/.test(fastExecutor) || !/repository-aware-fast-brain\.mjs/.test(fastExecutor)) failures.push('fast executor must refresh repository index and invoke structured brain');
 if (!/ls-files/.test(indexer) || !/dependencyEdges/.test(indexer) || !/sensitive/.test(indexer)) failures.push('repository index must be Git-derived, dependency-aware and secret-safe');
 if (!/workflow_dispatch:/.test(workflow)) failures.push('canonical fast workflow must be dispatchable');
-
-// The fast workflow uses shell GITHUB_ENV assignments rather than YAML env keys.
-// Accept the tightened 2-edit budget (or any safe value from 1 through 3) and
-// require a bounded feature timeout of 120-300 seconds.
 const editMatch = workflow.match(/AUTOBOT_FEATURE_MAX_EDITS[^\n]*?[=:]\s*[\"']?(\d+)/);
 if (!editMatch || Number(editMatch[1]) < 1 || Number(editMatch[1]) > 3) failures.push('canonical fast workflow edit ceiling missing or unsafe');
 const timeoutMatch = workflow.match(/LOCAL_AI_FEATURE_TIMEOUT_SECONDS[^\n]*?[=:]\s*[\"']?(\d+)/);
@@ -53,6 +51,11 @@ if (!timeoutMatch || Number(timeoutMatch[1]) < 120 || Number(timeoutMatch[1]) > 
 if (!/LOCAL_AI_MODEL:\s*\$\{\{ inputs\.local_model \}\}/.test(workflow)) failures.push('canonical workflow model input missing');
 if (!workflow.includes('repository-aware-fast-executor.mjs')) failures.push('canonical workflow must invoke the fast executor');
 if (!workflow.includes('repository-aware-fast-brain.mjs')) failures.push('canonical workflow must include the structured brain');
+
+const fastBrainHasBuild = /run\(\s*['\"]npm['\"]\s*,\s*\[\s*['\"]run['\"]\s*,\s*['\"]build['\"]/.test(fastBrain) || /npm\s+run\s+build/.test(fastBrain);
+const fastBrainHasProductDiff = /run\(\s*['\"]git['\"]\s*,\s*\[\s*['\"]diff['\"]\s*,\s*['\"]--['\"]\s*,\s*['\"]src['\"]\s*,\s*['\"]public['\"]/.test(fastBrain) || /git\s+diff\s+--\s+src\s+public/.test(fastBrain);
+if (!fastBrainHasBuild) failures.push('structured coding brain build verification missing');
+if (!fastBrainHasProductDiff) failures.push('structured coding brain product-source diff verification missing');
 
 try { execFileSync(process.execPath, ['builder/runner/repository-index.mjs'], { cwd: root, stdio: 'inherit' }); }
 catch { failures.push('repository index failed during contract verification'); }
