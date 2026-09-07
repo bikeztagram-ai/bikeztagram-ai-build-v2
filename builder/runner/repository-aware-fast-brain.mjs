@@ -65,7 +65,7 @@ function dependenciesMet(o) {
   return (o.dependsOn || []).every((id) => progress[id] > 0 || (state.completed || []).includes(id));
 }
 function chooseObjective() {
-  const candidates = objectives.filter((o) => dependenciesMet(o) && !progress[o.id]);
+  const candidates = objectives.filter((o) => dependenciesMet(o) && !progress[o.id] && !state.failed?.[o.id]);
   candidates.sort((a, b) => (b.priority || 0) - (a.priority || 0));
   return candidates[0] || null;
 }
@@ -76,10 +76,10 @@ function contextFor(o) {
     const entry = (map.files || []).find((x) => x.path === file);
     const content = read(file);
     const lines = content.split(/\r?\n/);
-    const preview = content.length <= 4200 ? content : `${lines.slice(0, 52).join('\n')}\n/* ...middle omitted; use supplied file identity only... */\n${lines.slice(-28).join('\n')}`;
-    files.push({ path: file, lines: entry?.lines || lines.length, purpose: entry?.purpose || '', code: preview.slice(0, 4500) });
+    const preview = content.length <= 3400 ? content : `${lines.slice(0, 42).join('\n')}\n/* ...middle omitted; use supplied file identity only... */\n${lines.slice(-20).join('\n')}`;
+    files.push({ path: file, lines: entry?.lines || lines.length, purpose: entry?.purpose || '', code: preview.slice(0, 3600) });
   }
-  return JSON.stringify({ files }, null, 2).slice(0, 9000);
+  return JSON.stringify({ files }, null, 2).slice(0, 7600);
 }
 function extractJson(text) {
   const clean = String(text || '').replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
@@ -94,7 +94,7 @@ function extractJson(text) {
 function modelPatch(o, repair = '') {
   const body = JSON.stringify({
     model, stream: false, keep_alive: '15m', think: false,
-    options: { temperature: 0, num_ctx: 4096, num_predict: 420 },
+    options: { temperature: 0, num_ctx: 4096, num_predict: 360 },
     messages: [
       { role: 'system', content: 'You are a senior software engineer. Return ONLY valid JSON. Make a small real product improvement, not a plan. Never touch infrastructure.' },
       { role: 'user', content: [
@@ -110,11 +110,21 @@ function modelPatch(o, repair = '') {
       ].join('\n') }
     ]
   });
-  const seconds = Math.min(55, Math.max(25, Math.floor(left() * 60)));
-  const raw = run('curl', ['-sS', '--fail', '--connect-timeout', '8', '--max-time', String(seconds), `${host}/api/chat`, '-H', 'Content-Type: application/json', '-d', body], { timeout: (seconds + 8) * 1000 });
-  const response = JSON.parse(raw);
-  if (response.error) throw new Error(String(response.error));
-  return extractJson(response?.message?.content);
+  // The feature budget is the outer safety limit. Do not silently replace it with a 55s model ceiling.
+  // Leave a small margin for JSON parsing, validation and the subsequent build.
+  const seconds = Math.min(150, Math.max(25, Math.floor(left() * 60) - 5));
+  const requestStarted = Date.now();
+  console.log(`[autobot] Qwen request start timeout=${seconds}s context=${body.length} chars model=${model}`);
+  try {
+    const raw = run('curl', ['-sS', '--fail', '--connect-timeout', '8', '--max-time', String(seconds), `${host}/api/chat`, '-H', 'Content-Type: application/json', '-d', body], { timeout: (seconds + 8) * 1000 });
+    console.log(`[autobot] Qwen response received in ${((Date.now() - requestStarted) / 1000).toFixed(1)}s`);
+    const response = JSON.parse(raw);
+    if (response.error) throw new Error(String(response.error));
+    return extractJson(response?.message?.content);
+  } catch (error) {
+    console.error(`[autobot] Qwen request ended after ${((Date.now() - requestStarted) / 1000).toFixed(1)}s: ${error.message || error}`);
+    throw error;
+  }
 }
 function persistState() {
   const completed = Object.entries(progress).filter(([, value]) => value > 0).map(([id]) => id);
@@ -123,7 +133,7 @@ function persistState() {
   state.failed = state.failed || {};
   state.updatedAt = new Date().toISOString();
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  fs.writeFileSync(statePath, JSON.stringify({ version: 16, completed, progress, failed: state.failed, updatedAt: state.updatedAt }, null, 2) + '\n');
+  fs.writeFileSync(statePath, JSON.stringify({ version: 17, completed, progress, failed: state.failed, updatedAt: state.updatedAt }, null, 2) + '\n');
 }
 function apply(o, patch) {
   if (!patch || !Array.isArray(patch.edits)) return { ok: false, reason: 'invalid structured patch' };
