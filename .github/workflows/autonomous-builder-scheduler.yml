@@ -18,19 +18,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check for active AutoBot V2 run
+      - name: Check for active AutoBot runs
         id: active
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          primary="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
+          fast="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2-fast.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
+          legacy="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
           continuation="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-continuation.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
-          active=$((primary + continuation))
+          active=$((fast + legacy + continuation))
           echo "active=$active" >> "$GITHUB_OUTPUT"
-          echo "Active AutoBot runs: $active (primary=$primary continuation=$continuation)"
+          echo "Active AutoBot runs: $active (fast=$fast legacy=$legacy continuation=$continuation)"
 
-      - name: Preflight main-branch builder safety contract
+      - name: Preflight hardened AutoBot safety contract on main
         if: steps.active.outputs.active == '0'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,43 +39,38 @@ jobs:
           set -euo pipefail
           api="https://api.github.com/repos/$GITHUB_REPOSITORY/contents"
           get() { gh api "$api/$1?ref=main" --jq .content | base64 --decode; }
-          workflow="$(get '.github/workflows/autonomous-builder-v2.yml')"
-          continuation="$(get '.github/workflows/autonomous-builder-continuation.yml')"
+          workflow="$(get '.github/workflows/autonomous-builder-v2-fast.yml')"
+          sustained="$(get 'builder/runner/long-run-executor.mjs')"
+          feature="$(get 'builder/runner/feature-brain.mjs')"
           safety="$(get 'scripts/autobot/verify-autobot-safety-contract.mjs')"
-          dependencies="$(get 'scripts/autobot/verify-autobot-safety-contract-v2.mjs')"
-          continuous="$(get 'scripts/autobot/verify-autobot-continuous-loop.mjs')"
+          resilience="$(get 'scripts/autobot/verify-feature-brain-resilience.mjs')"
           package="$(get 'package.json')"
           printf '%s\n' "$workflow" | grep -q 'cancel-in-progress: false'
-          printf '%s\n' "$workflow" | grep -q 'actions/cache@v4'
-          printf '%s\n' "$workflow" | grep -q 'segment-2'
-          printf '%s\n' "$workflow" | grep -q -- '--draft'
-          printf '%s\n' "$workflow" | grep -q 'verify-autobot-continuous-loop.mjs'
-          printf '%s\n' "$continuation" | grep -q 'workflow_dispatch'
-          printf '%s\n' "$continuation" | grep -q 'continuation_ref'
-          printf '%s\n' "$continuation" | grep -q 'remaining_minutes'
-          printf '%s\n' "$continuation" | grep -q -- '--ref "$CONTINUATION_REF"'
-          printf '%s\n' "$continuation" | grep -q 'timeout-minutes: 370'
-          printf '%s\n' "$package" | grep -q 'verify:autobot-safety'
-          printf '%s\n' "$package" | grep -q 'verify:autobot-dependencies'
-          printf '%s\n' "$package" | grep -q 'verify:autobot-continuous-loop'
-          printf '%s\n' "$safety" | grep -q 'verifyAuditLog'
-          printf '%s\n' "$dependencies" | grep -q 'dependency cycle detected'
-          printf '%s\n' "$continuous" | grep -q 'bounded deterministic slices'
-          echo 'Main-branch AutoBot safety, dependency, continuation, and continuous-loop preflight PASS.'
+          printf '%s\n' "$workflow" | grep -q 'qwen2.5-coder:7b'
+          printf '%s\n' "$workflow" | grep -q 'AUTOBOT_FEATURE_MAX_EDITS: 2'
+          printf '%s\n' "$workflow" | grep -q 'verify-feature-brain-resilience.mjs'
+          printf '%s\n' "$sustained" | grep -q 'feature-brain-started'
+          printf '%s\n' "$sustained" | grep -q 'deterministic-recoverable-failure'
+          printf '%s\n' "$feature" | grep -q 'restoreAttemptFiles'
+          printf '%s\n' "$feature" | grep -q 'progress\[obj.id\]'
+          printf '%s\n' "$safety" | grep -q 'snapshotFiles'
+          printf '%s\n' "$resilience" | grep -q 'scoped rollback'
+          printf '%s\n' "$package" | grep -q 'verify:autobot-production-gate'
+          echo 'Hardened AutoBot main-branch preflight PASS.'
 
-      - name: Dispatch a fresh sustained builder run
+      - name: Dispatch a fresh hardened builder run
         if: steps.active.outputs.active == '0'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh workflow run autonomous-builder-v2.yml \
+          gh workflow run autonomous-builder-v2-fast.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
             -f max_units='1000' \
             -f duration='6h' \
             -f local_model='qwen2.5-coder:7b'
-          echo 'AutoBot V2 heartbeat dispatched a fresh sustained run.'
+          echo 'Hardened AutoBot fast-brain heartbeat dispatched a fresh 6-hour run.'
 
       - name: Record heartbeat result
         run: |
@@ -82,8 +78,8 @@ jobs:
             echo '# 🤖 AutoBot V2 heartbeat'
             echo
             if [[ '${{ steps.active.outputs.active }}' == '0' ]]; then
-              echo 'A fresh sustained AutoBot V2 run was dispatched after main-branch safety preflight.'
+              echo 'A fresh hardened fast-brain run was dispatched after main-branch preflight.'
             else
-              echo 'An AutoBot V2 run was already queued/running; no duplicate was dispatched.'
+              echo 'An AutoBot run was already queued/running; no duplicate was dispatched.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
