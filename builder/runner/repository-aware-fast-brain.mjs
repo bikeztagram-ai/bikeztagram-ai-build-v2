@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Fast structured local coding brain.
- * Uses one compact Qwen patch request instead of an expensive multi-turn tool loop.
- * The runner remains authoritative: scope, exact-match writes, syntax, build and diff checks.
+ * One compact Qwen patch request replaces the expensive multi-turn tool loop.
+ * The runner remains authoritative for scope, exact-match writes, syntax, diff, build and rollback.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,6 +41,14 @@ function build() {
   try { run('npm', ['run', 'build']); return 'PASS'; }
   catch (e) { return `FAIL ${[e.stdout, e.stderr, e.message].filter(Boolean).join('\n').slice(-5000)}`; }
 }
+function diffCheck() {
+  try { run('git', ['diff', '--check']); return 'PASS'; }
+  catch (e) { return `FAIL ${[e.stdout, e.stderr, e.message].filter(Boolean).join('\n').slice(-3000)}`; }
+}
+function productDiff() {
+  try { return run('git', ['diff', '--', 'src', 'public']); }
+  catch (e) { return [e.stdout, e.stderr, e.message].filter(Boolean).join('\n'); }
+}
 function restore(snapshots) {
   for (const [file, snapshot] of snapshots) fs.writeFileSync(abs(file), snapshot);
 }
@@ -53,7 +61,9 @@ try { state = JSON.parse(read('builder/working/feature-brain-state.json')); } ca
 const progress = { ...(state.progress || {}) };
 for (const id of state.completed || []) progress[id] = Math.max(progress[id] || 0, 1);
 
-function dependenciesMet(o) { return (o.dependsOn || []).every((id) => progress[id] > 0 || (state.completed || []).includes(id)); }
+function dependenciesMet(o) {
+  return (o.dependsOn || []).every((id) => progress[id] > 0 || (state.completed || []).includes(id));
+}
 function chooseObjective() {
   const candidates = objectives.filter((o) => dependenciesMet(o) && !progress[o.id]);
   candidates.sort((a, b) => (b.priority || 0) - (a.priority || 0));
@@ -106,6 +116,15 @@ function modelPatch(o, repair = '') {
   if (response.error) throw new Error(String(response.error));
   return extractJson(response?.message?.content);
 }
+function persistState() {
+  const completed = Object.entries(progress).filter(([, value]) => value > 0).map(([id]) => id);
+  state.progress = progress;
+  state.completed = completed;
+  state.failed = state.failed || {};
+  state.updatedAt = new Date().toISOString();
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  fs.writeFileSync(statePath, JSON.stringify({ version: 16, completed, progress, failed: state.failed, updatedAt: state.updatedAt }, null, 2) + '\n');
+}
 function apply(o, patch) {
   if (!patch || !Array.isArray(patch.edits)) return { ok: false, reason: 'invalid structured patch' };
   const allowed = new Set(o.files || []);
@@ -128,16 +147,14 @@ function apply(o, patch) {
     edits += 1;
   }
   if (!edits) { restore(snapshots); return { ok: false, reason: 'no product edit supplied' }; }
-  const diff = capture('git', ['diff', '--', 'src', 'public']);
+  const whitespace = diffCheck();
+  if (whitespace !== 'PASS') { restore(snapshots); return { ok: false, reason: whitespace }; }
+  const diff = productDiff();
   if (!diff.trim()) { restore(snapshots); return { ok: false, reason: 'no product diff after edit' }; }
   const check = build();
   if (check !== 'PASS') { restore(snapshots); return { ok: false, reason: check }; }
   progress[o.id] = 1;
-  state.progress = progress;
-  state.failed = state.failed || {};
-  state.updatedAt = new Date().toISOString();
-  fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  fs.writeFileSync(statePath, JSON.stringify({ version: 15, completed: [], progress, failed: state.failed, updatedAt: state.updatedAt }, null, 2) + '\n');
+  persistState();
   appendAudit('repository-aware-fast-feature-complete', { objectiveId: o.id, edits, summary: String(patch.summary || '').slice(0, 800) });
   return { ok: true, edits, summary: patch.summary || '' };
 }
@@ -160,8 +177,8 @@ for (let attempt = 1; attempt <= maxAttempts && left() > 0.5; attempt += 1) {
 if (!result.ok) {
   state.failed = state.failed || {};
   state.failed[objective.id] = { attempts: maxAttempts, reason: result.reason, updatedAt: new Date().toISOString() };
-  fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  fs.writeFileSync(statePath, JSON.stringify({ version: 15, completed: [], progress, failed: state.failed, updatedAt: new Date().toISOString() }, null, 2) + '\n');
+  persistState();
+  appendAudit('repository-aware-fast-feature-failed', { objectiveId: objective.id, attempts: maxAttempts, reason: result.reason });
   process.exitCode = 1;
 } else {
   console.log(`[autobot] fast brain complete: ${objective.id} edits=${result.edits}`);
