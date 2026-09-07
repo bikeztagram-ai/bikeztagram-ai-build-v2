@@ -82,8 +82,9 @@ jobs:
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=1' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
-          echo '[autobot] performance proxy ready'
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=650' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_THINK=false' >> "$GITHUB_ENV"
+          echo '[autobot] performance proxy ready; think=false; output<=650'
 
       - name: Resolve duration
         run: |
