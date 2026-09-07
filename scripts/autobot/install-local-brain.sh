@@ -23,50 +23,71 @@ if [[ "$ready" != true ]]; then
   exit 1
 fi
 
-MODEL="${LOCAL_AI_MODEL:-qwen2.5-coder:7b}"
+MODEL="${LOCAL_AI_MODEL:-qwen3:8b}"
 if [[ "$MODEL" == "qwen2.5-coder:1.5b" || "$MODEL" == "qwen2.5-coder:1.5b-instruct" ]]; then
-  echo "[autobot] legacy 1.5B model requested; promoting local coding brain to qwen2.5-coder:7b"
-  MODEL="qwen2.5-coder:7b"
+  echo "[autobot] legacy 1.5B model requested; promoting local agent brain to qwen3:8b"
+  MODEL="qwen3:8b"
 fi
 
 echo "[autobot] pulling local coding model: $MODEL"
 if ! ollama pull "$MODEL"; then
-  if [[ "$MODEL" == "qwen2.5-coder:7b" && -z "${LOCAL_AI_MODEL:-}" ]]; then
-    MODEL="qwen2.5-coder:3b"
-    echo "[autobot] 7B model unavailable; falling back to $MODEL"
+  if [[ -z "${LOCAL_AI_MODEL:-}" ]]; then
+    MODEL="qwen3:8b"
+    echo "[autobot] requested default unavailable; falling back to $MODEL"
     ollama pull "$MODEL"
   else
     exit 1
   fi
 fi
 
-# Smoke-test both ordinary inference and the exact function-calling capability
-# required by the feature brain. HTTP 200 alone is not enough to declare the
-# coding agent ready.
-curl -fsS http://127.0.0.1:11434/api/chat \
-  -H 'Content-Type: application/json' \
-  -d "{\"model\":\"$MODEL\",\"stream\":false,\"messages\":[{\"role\":\"user\",\"content\":\"Reply with READY only.\"}]}" \
-  >/tmp/bikeztagram-ollama-smoke.json
+validate_model() {
+  local think_field=''
+  if [[ "$MODEL" == qwen3:* ]]; then
+    think_field=',"think":true'
+  fi
 
-curl -fsS http://127.0.0.1:11434/api/chat \
-  -H 'Content-Type: application/json' \
-  -d "{\"model\":\"$MODEL\",\"stream\":false,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"probe\",\"description\":\"A readiness probe.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}}}],\"messages\":[{\"role\":\"user\",\"content\":\"Call the probe tool exactly once. Do not answer normally.\"}]}" \
-  >/tmp/bikeztagram-ollama-tool-smoke.json
+  curl -fsS http://127.0.0.1:11434/api/chat \
+    -H 'Content-Type: application/json' \
+    -d "{\"model\":\"$MODEL\",\"stream\":false${think_field},\"messages\":[{\"role\":\"user\",\"content\":\"Reply with READY only.\"}]}" \
+    >/tmp/bikeztagram-ollama-smoke.json
 
-node --input-type=module -e '
+  curl -fsS http://127.0.0.1:11434/api/chat \
+    -H 'Content-Type: application/json' \
+    -d "{\"model\":\"$MODEL\",\"stream\":false${think_field},\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"probe\",\"description\":\"A readiness probe.\",\"parameters\":{\"type\":\"object\",\"properties\":{},\"required\":[]}}}],\"messages\":[{\"role\":\"user\",\"content\":\"You are in an agent tool loop. Call the probe tool exactly once now. Do not answer normally until after the tool call.\"}]}" \
+    >/tmp/bikeztagram-ollama-tool-smoke.json
+
+  node --input-type=module -e '
 import fs from "node:fs";
 const plain=JSON.parse(fs.readFileSync("/tmp/bikeztagram-ollama-smoke.json","utf8"));
 const content=String(plain.message?.content||plain.response||"").trim();
 if(!content) throw new Error("Ollama returned HTTP success but no assistant content");
 const tool=JSON.parse(fs.readFileSync("/tmp/bikeztagram-ollama-tool-smoke.json","utf8"));
 const calls=tool.message?.tool_calls || [];
-if(!calls.length) throw new Error("Ollama model is not producing tool calls required by the agentic feature brain");
-if(calls[0]?.function?.name !== "probe") throw new Error(`Ollama tool smoke called ${calls[0]?.function?.name||"no function"} instead of probe`);
+if(!calls.length) throw new Error("model produced no native tool calls");
+if(calls[0]?.function?.name !== "probe") throw new Error(`model called ${calls[0]?.function?.name||"no function"} instead of probe`);
 console.log(`[autobot] local model smoke response: ${JSON.stringify(content.slice(0,120))}`);
 console.log(`[autobot] local model tool-call smoke: ${calls.length} call(s), first=${calls[0].function.name}`);
 '
+}
+
+# Qwen2.5-Coder is a capable coding model, but the autonomous builder needs
+# reliable native tool calls, not merely good text generation. If the requested
+# model fails the real tool-call contract, switch to Qwen3 8B, whose Ollama
+# template is explicitly designed for tool-calling agent loops.
+if ! validate_model; then
+  if [[ "$MODEL" != "qwen3:8b" ]]; then
+    echo "[autobot] model=$MODEL failed native tool-call readiness; switching to qwen3:8b"
+    MODEL="qwen3:8b"
+    ollama pull "$MODEL"
+    validate_model
+  else
+    echo '[autobot] qwen3:8b failed the native tool-call readiness contract.'
+    cat /tmp/bikeztagram-ollama-tool-smoke.json || true
+    exit 1
+  fi
+fi
 
 echo "LOCAL_AI_READY=1" >> "$GITHUB_ENV"
 echo "OLLAMA_HOST=http://127.0.0.1:11434" >> "$GITHUB_ENV"
 echo "LOCAL_AI_MODEL=$MODEL" >> "$GITHUB_ENV"
-echo "[autobot] local AI brain is ready; model=$MODEL; ordinary inference and tool calling both passed; no paid AI API configured."
+echo "[autobot] local AI brain is ready; model=$MODEL; ordinary inference and native tool calling both passed; no paid AI API configured."
