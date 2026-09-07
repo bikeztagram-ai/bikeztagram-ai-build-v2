@@ -26,7 +26,6 @@ if (!workflow.includes('LOCAL_AI_MODEL')) failures.push('fast workflow lacks exp
 if (!workflow.includes('actions/cache@v4')) failures.push('local model cache missing');
 
 // Read numeric GITHUB_ENV assignments as well as YAML-style KEY: value entries.
-// This deliberately tolerates shell quoting/redirection around the assignment.
 const numericSetting = (key) => {
   const match = workflow.match(new RegExp(`${key}[^\\n]*?(?:=|:)\\s*[\\\"']?(\\d+)`, 'm'));
   return match ? Number(match[1]) : null;
@@ -43,8 +42,8 @@ if (!workflow.includes('repository-aware-fast-brain.mjs')) failures.push('fast w
 if (!fastExecutor.includes('repository-aware-fast-brain.mjs')) failures.push('fast executor does not invoke the structured coding brain');
 if (!fastBrain.includes('think: false')) failures.push('structured coding brain must disable thinking');
 if (!fastBrain.includes('num_predict: 420')) failures.push('structured coding brain output ceiling missing');
-if (!/(npm\\s*\\[?['\"]run['\"]\\]?\\s*,\\s*['\"]build['\"]|npm\\s+run\\s+build)/.test(fastBrain)) failures.push('structured coding brain build verification missing');
-if (!/(git\\s*\\[?['\"]diff['\"]\\]?\\s*,\\s*['\"]--['\"]\\s*,\\s*['\"]src['\"]\\s*,\\s*['\"]public['\"]|git\\s+diff\\s+--\\s+src\\s+public)/.test(fastBrain)) failures.push('structured coding brain product-source diff verification missing');
+if (!/run\(\s*['\"]npm['\"]\s*,\s*\[\s*['\"]run['\"]\s*,\s*['\"]build['\"]/.test(fastBrain) && !/npm\s+run\s+build/.test(fastBrain)) failures.push('structured coding brain build verification missing');
+if (!/run\(\s*['\"]git['\"]\s*,\s*\[\s*['\"]diff['\"]\s*,\s*['\"]--['\"]\s*,\s*['\"]src['\"]\s*,\s*['\"]public['\"]/.test(fastBrain) && !/git\s+diff\s+--\s+src\s+public/.test(fastBrain)) failures.push('structured coding brain product-source diff verification missing');
 if (!fastBrain.includes('maxEdits')) failures.push('structured coding brain bounded edit ceiling missing');
 if (!workflow.includes('verify:autobot-production-gate')) failures.push('fast workflow lacks authoritative production gate');
 if (!workflow.includes('Require a real product-source change')) failures.push('fast workflow lacks product-source success gate');
