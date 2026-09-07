@@ -24,7 +24,7 @@ const required = [
   [/temperature\s*:\s*0/, 'deterministic model setting missing'],
   [/npm.*run.*build/, 'independent build verification missing'],
   [/git.*diff.*--check/, 'diff verification missing'],
-  [/repository-aware-agent-v5/, 'current agent protocol marker missing'],
+  [/repository-aware-agent-v6/, 'current agent protocol marker missing'],
   [/repository-index.mjs/, 'repository index integration missing'],
   [/(chooseObjective|function\s+choose)/, 'deterministic objective selection missing'],
   [/progress\[(?:objective|o)\.id\]/, 'incremental objective progress missing'],
