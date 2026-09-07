@@ -18,7 +18,7 @@ for (const [pattern, message] of [
   [/think:\s*false/, 'structured brain must disable thinking'],
   [/temperature:\s*0/, 'structured brain must use deterministic temperature'],
   [/num_ctx:\s*4096/, 'structured brain context must be bounded'],
-  [/num_predict:\s*420/, 'structured brain output must be bounded'],
+  [/num_predict:\s*360/, 'structured brain output must be bounded'],
   [/function\s+chooseObjective/, 'deterministic objective selection missing'],
   [/function\s+contextFor/, 'objective-scoped context missing'],
   [/maxEdits/, 'bounded edit budget missing'],
@@ -51,5 +51,5 @@ if (fs.existsSync(mapPath)) {
   } catch { failures.push('repository map is invalid JSON'); }
 }
 
-if (failures.length) { console.error(failures.map((f) => `FAIL: ${f}`).join('\n')); process.exit(1); }
+if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
 console.log('AutoBot safety contract v3 PASS: active structured-Qwen brain, bounded one-request edits, scoped context, rollback, verification, dependency-aware index and protected checkpoint runtime present.');
