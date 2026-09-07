@@ -17,7 +17,7 @@ on:
       local_model:
         description: 'Local coding model'
         required: false
-        default: 'qwen2.5-coder:3b'
+        default: 'qwen2.5-coder:7b'
         type: string
 
 concurrency:
@@ -36,13 +36,13 @@ env:
   BUILDER_BASE_BRANCH: main
   AUTOBOT_DETERMINISTIC_SLICE_MINUTES: 4
   AUTOBOT_FEATURE_SLICE_MINUTES: 10
-  AUTOBOT_FEATURE_PASSES_PER_SLICE: 1
-  AUTOBOT_FEATURE_PASSES: 1
+  AUTOBOT_FEATURE_PASSES_PER_SLICE: 2
+  AUTOBOT_FEATURE_PASSES: 2
   AUTOBOT_FEATURE_MAX_ATTEMPTS: 2
-  AUTOBOT_FEATURE_MAX_EDITS: 1
-  LOCAL_AI_FEATURE_TIMEOUT_SECONDS: 90
+  AUTOBOT_FEATURE_MAX_EDITS: 2
+  LOCAL_AI_FEATURE_TIMEOUT_SECONDS: 120
   LOCAL_AI_PROXY_NUM_CTX: 8192
-  LOCAL_AI_PROXY_NUM_PREDICT: 900
+  LOCAL_AI_PROXY_NUM_PREDICT: 1400
 
 jobs:
   fast-brain:
@@ -57,6 +57,14 @@ jobs:
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Inspect hosted runner budget
+        run: |
+          set -euo pipefail
+          echo '[autobot] runner resources:'
+          nproc || true
+          free -h || true
+          df -h / || true
 
       - name: Cache local AI model
         uses: actions/cache@v4
@@ -88,7 +96,7 @@ jobs:
           fi
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
           echo '[autobot] performance proxy ready'
-          echo '[autobot] reserved feature-engineering budget: 10m'
+          echo '[autobot] feature-engineering budget: 10m/cycle; two bounded passes'
 
       - name: Resolve duration
         run: |
@@ -114,6 +122,8 @@ jobs:
           node --check builder/runner/feature-brain.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
           node --check scripts/autobot/verify-meaningful-feature-change.mjs
+          node --check scripts/autobot/verify-feature-brain-resilience.mjs
+          node scripts/autobot/verify-feature-brain-resilience.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
@@ -170,4 +180,4 @@ jobs:
           git add -A
           git commit -m 'feat: autonomous builder fast brain checkpoint' || true
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Reserves time for real feature engineering and uses a fast local coding model on hosted runners.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses a local open-source coding model with bounded structured edits, per-attempt rollback, and incremental feature progress.' || true
