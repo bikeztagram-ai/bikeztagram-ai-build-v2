@@ -4,6 +4,9 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const required = [
+  'builder/runner/repository-index.mjs',
+  'builder/runner/repository-aware-feature-brain.mjs',
+  'builder/runner/repository-aware-executor.mjs',
   'builder/runner/deterministic-executor.mjs',
   'builder/runner/long-run-executor.mjs',
   'builder/runner/run-duration.mjs',
@@ -23,17 +26,27 @@ const required = [
   'builder/monitor/heartbeat-watchdog.mjs',
   'scripts/autobot/verify-autobot-continuous-loop.mjs'
 ];
-const missing = required.filter(f => !fs.existsSync(f));
-let syntax = 'failed';
+const missing = required.filter((f) => !fs.existsSync(f));
+const checks = [];
+const check = (label, file) => { try { execFileSync('node', ['--check', file], { stdio: 'ignore' }); checks.push([label, 'passed']); } catch { checks.push([label, 'failed']); } };
+check('repository-aware executor syntax', 'builder/runner/repository-aware-executor.mjs');
+check('repository-aware feature brain syntax', 'builder/runner/repository-aware-feature-brain.mjs');
+check('deterministic executor syntax', 'builder/runner/deterministic-executor.mjs');
 let continuous = 'failed';
-try { execFileSync('node', ['--check', 'builder/runner/deterministic-executor.mjs'], { stdio: 'ignore' }); syntax = 'passed'; } catch {}
 try { execFileSync('node', ['scripts/autobot/verify-autobot-continuous-loop.mjs'], { stdio: 'ignore' }); continuous = 'passed'; } catch {}
+const source = fs.readFileSync('builder/runner/repository-aware-feature-brain.mjs', 'utf8');
+const runtime = fs.readFileSync('builder/runner/repository-aware-executor.mjs', 'utf8');
+if (!/repository-aware-agent-v7/.test(source)) checks.push(['canonical protocol', 'failed']);
+else checks.push(['canonical protocol', 'passed']);
+if (!/qwen3:4b-instruct-2507-q4_K_M/.test(source + runtime)) checks.push(['Qwen3 4B default', 'failed']);
+else checks.push(['Qwen3 4B default', 'passed']);
+const syntax = checks.every(([, value]) => value === 'passed');
 const result = {
-  version: 2,
-  status: missing.length || syntax !== 'passed' || continuous !== 'passed' ? 'not-ready' : 'ready-for-live-run',
+  version: 3,
+  status: missing.length || !syntax || continuous !== 'passed' ? 'not-ready' : 'ready-for-live-run',
   requiredComponents: required.length,
   missing,
-  executorSyntax: syntax,
+  checks,
   continuousLoopContract: continuous,
   merge: 'human-review-only',
   deployment: 'human-review-only',
