@@ -16,7 +16,7 @@ on:
       local_model:
         description: Local coding model
         required: false
-        default: qwen3:4b
+        default: qwen3:4b-instruct-2507-q4_K_M
         type: string
 concurrency:
   group: autonomous-builder-v2-fast
