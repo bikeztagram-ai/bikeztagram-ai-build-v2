@@ -9,7 +9,7 @@ const required = [
   ['non-streaming response', /stream:\s*false/],
   ['thinking disabled', /think:\s*false/],
   ['deterministic temperature', /temperature:\s*0/],
-  ['bounded output', /num_predict:\s*420/],
+  ['bounded output', /num_predict:\s*360/],
   ['bounded edit count', /maxEdits/],
   ['structured JSON patch', /"edits"/],
   ['exact search replacement', /search.*exact existing text/],
