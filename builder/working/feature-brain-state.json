@@ -1,0 +1,31 @@
+{
+  "version": 6,
+  "completed": [],
+  "failed": {
+    "cinematic-quality": {
+      "message": "curl: (28) Operation timed out after 90002 milliseconds with 0 bytes received",
+      "class": "timeout",
+      "diff": "",
+      "anchors": "",
+      "at": "2026-09-07T06:40:38.607Z",
+      "attempts": 4
+    },
+    "editor-reliability": {
+      "message": "curl: (28) Operation timed out after 90002 milliseconds with 0 bytes received",
+      "class": "timeout",
+      "diff": "diff --git a/builder/monitor/live-state.json b/builder/monitor/live-state.json\nindex 4b644cf..2483f48 100644\n--- a/builder/monitor/live-state.json\n+++ b/builder/monitor/live-state.json\n@@ -1,15 +1,48 @@\n {\n-  \"runId\": \"33114794608\",\n-  \"status\": \"idle\",\n-  \"objectiveId\": null,\n+  \"runId\": \"34090857836\",\n+  \"status\": \"objective-complete\",\n+  \"objectiveId\": \"project-persistence\",\n   \"currentTask\": null,\n-  \"completedUnits\": 0,\n-  \"totalUnits\": 0,\n-  \"startedAt\": \"2026-08-27T20:45:04.910Z\",\n-  \"updatedAt\": \"2026-08-27T20:45:04.912Z\",\n-  \"heartbeatAt\": \"2026-08-27T20:45:04.912Z\",\n-  \"message\": \"No eligible unfinished roadmap units. Idle.\",\n-  \"files\": [],\n+  \"completedUnits\": 4,\n+  \"totalUnits\": 4,\n+  \"startedAt\": \"2026-09-07T06:40:38.773Z\",\n+  \"updatedAt\": \"2026-09-07T06:40:43.925Z\",\n+  \"heartbeatAt\": \"2026-09-07T06:40:43.925Z\",\n+  \"message\": \"All deterministic units verified.\",\n+  \"files\": [\n+    {\n+      \"status\": \"M\",\n+      \"path\": \"uilder/monitor/live-state.json\"\n+    },\n+    {\n+      \"status\": \"M\",\n+      \"path\": \"builder/working/deterministic-autobot-evidence.json\"\n+    },\n+    {\n+      \"status\": \"M\",\n+      \"path\": \"builder/working/deterministic-autobot.json\"\n+    },\n+    {\n+      \"status\": \"M\",\n+      \"path\": \"src/projectPersistence.js\"\n+    },\n+    {\n+      \"status\": \"??\",\n+      \"path\": \"builder/working/autobot-audit.jsonl\"\n+    },\n+    {\n+      \"status\": \"??\",\n+      \"path\": \"builder/working/feature-brain-state.json\"\n+    },\n+    {\n+      \"status\": \"??\",\n+      \"path\": \"builder/working/long-run-state.json\"\n+    },\n+    {\n+      \"status\": \"??\",\n+      \"path\": \"builder/working/repository-map.json\"\n+    }\n+  ],\n   \"verification\": [],\n   \"blockedReason\": null\n }\ndiff --git a/builder/working/deterministic-autobot-evidence.json b/builder/working/deterministic-autobot-evidence.json\nindex 400e70a..374e678 100644\n--- a/builder/working/deterministic-autobot-evidence.json\n+++ b/builder/working/deterministic-autobot-evidence.json\n@@ -1,33 +1,48 @@\n {\n   \"schemaVersion\": 2,\n-  \"runId\": \"33114794608\",\n-  \"objectiveId\": \"cinematic-quality\",\n-  \"startedAt\": \"2026-08-27T20:45:03.610Z\",\n+  \"runId\": \"34090857836\",\n+  \"objectiveId\": \"project-persistence\",\n+  \"startedAt\": \"2026-09-07T06:40:38.773Z\",\n   \"units\": [\n     {\n-      \"id\": \"cinematic-shot-motion-contract\",\n-      \"startedAt\": \"2026-08-27T20:45:03.615Z\",\n+      \"id\": \"persistence-hardening-inspection\",\n+      \"startedAt\": \"2026-09-07T06:40:38.785Z\",\n       \"implementation\": [\n-        \"node scripts/autobot/cinematic-quality-runtime.mjs\"\n+        \"node scripts/autobot/persistence-hardening-runtime.mjs\"\n       ],\n       \"verify\": [\n-        \"npm run build\",\n-        \"node scripts/autobot/cinematic-quality-contract-check.mjs\"\n+        \"npm run build\"\n       ],\n-      \"before\": \"M builder/monitor/live-state.json\\n M builder/quality/autobot-readiness.json\\n M builder/working/deterministic-autobot-evidence.json\\n M builder/working/deterministic-autobot.json\\n M public/sw.js\\n M src/App.jsx\\n M src/apiRequest.js\\n M src/socialExport.js\",\n-      \"after\": \"M builder/monitor/live-state.json\\n M builder/quality/autobot-readiness.json\\n M builder/working/deterministic-autobot-evidence.json\\n M builder/working/deterministic-autobot.json\\n M public/sw.js\\n M src/App.jsx\\n M src/apiRequest.js\\n M src/director.js\\n M src/socialExport.js\",\n+      \"before\": \"M builder/monitor/live-state.json\\n M builder/working/deterministic-autobot.json\\n?? builder/working/autobot-audit.jsonl\\n?? builder/working/feature-brain-state.json\\n?? builder/working/long-run-state.json\\n?? builder/working/repository-map.json\",\n+      \"after\": \"M builder/monitor/live-state.json\\n M builder/working/deterministic-autobot.json\\n M src/projectPersistence.js\\n?? builder/working/autobot-audit.jsonl\\n?? builder/working/feature-brain-state.json\\n?? builder/working/long-run-state.json\\n?? builder/working/repository-map.json\",\n       \"verification\": [\n         {\n           \"command\": \"npm run build\",\n           \"status\": \"passed\"\n-        },\n+        }\n+      ],\n+      \"completedAt\": \"2026-09-07T06:40:41.391Z\",\n+      \"unchangedButVerified\": false\n+    },\n+    {\n+      \"id\": \"persistence-migration-hardening\",\n+      \"startedAt\": \"2026-09-07T06:40:41.397Z\",\n+      \"implementation\": [\n+        \"node scripts/autobot/persistence-migration-hardening-runtime.mjs\"\n+      ],\n+      \"verify\": [\n+        \"npm run build\"\n+      ],\n+      \"before\": \"M builder/monitor/live-state.json\\n M builder/working/deterministic-autobot-evidence.json\\n M builder/working/deterministic-autobot.json\\n M src/projectPersistence.js\\n?? builder/working/autobot-audit.jsonl\\n?? builder/working/feature-brain-state.json\\n?? builder/working/long-run-state.json\\n?? builder/working/repository-map.json\",\n+      \"after\": \"M builder/monitor/live-state.json\\n M builder/working/deterministic-autobot-evidence.json\\n M builder/working/deterministic-autobot.json\\n M src/projectPersistence.js\\n?? builder/working/autobot-audit.jsonl\\n?? builder/working/feature-b",
+      "anchors": "",
+      "at": "2026-09-07T06:42:14.108Z",
+      "attempts": 3
+    },
+    "generation-runtime": {
+      "message": "curl: (28) Operation timed out after 90002 milliseconds with 0 bytes received",
+      "class": "timeout",
+      "diff": "",
+      "anchors": "",
+      "at": "2026-09-07T06:37:31.896Z",
+      "attempts": 2
+    }
+  },
+  "updatedAt": "2026-09-07T06:42:14.227Z"
+}

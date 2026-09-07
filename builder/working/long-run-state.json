@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "status": "finished",
+  "requestedMinutes": 15,
+  "requestedUnits": 1000,
+  "totalUnits": 6,
+  "totalObjectives": 5,
+  "iterations": 6,
+  "replenishments": 0,
+  "featureCycles": 5,
+  "consecutiveNoProgress": 0,
+  "startedAt": "2026-09-07T06:28:16.394Z",
+  "updatedAt": "2026-09-07T06:42:19.701Z",
+  "elapsedMinutes": 14.06,
+  "remainingMinutes": 0.94
+}
