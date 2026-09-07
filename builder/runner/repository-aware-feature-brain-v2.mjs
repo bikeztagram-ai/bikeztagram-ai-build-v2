@@ -22,7 +22,9 @@ const maxFeatures = Math.max(1, Number(process.env.AUTOBOT_FEATURE_PASSES || 2))
 const maxAttempts = Math.max(1, Number(process.env.AUTOBOT_FEATURE_MAX_ATTEMPTS || 2));
 const PROTOCOL = 'repository-aware-agent-v8-stateless';
 
-const run = (command, args = [], options = {}) => execFileSync(command, { cwd: root, encoding: 'utf8', ...options, ...{ shell: false } });
+function run(command, args = [], options = {}) {
+  return execFileSync(command, args, { cwd: root, encoding: 'utf8', ...options });
+}
 function capture(command, args = []) {
   try { return run(command, args); }
   catch (error) { return [error.stdout, error.stderr, error.message].filter(Boolean).join('\n'); }
@@ -46,7 +48,6 @@ function check(kind) {
   } catch (error) { return `FAIL ${[error.stdout, error.stderr, error.message].filter(Boolean).join('\n').slice(-5000)}`; }
 }
 function diff() { return capture('git', ['diff', '--', 'src', 'public']).slice(0, 7000); }
-function status() { return capture('git', ['status', '--short']).slice(0, 2500); }
 function exactEdit(file, search, replace, objective) {
   if (!safeFile(file, objective)) return 'ERROR: edit is outside the objective file scope.';
   const current = read(file);
@@ -79,7 +80,10 @@ function saveState() {
 function depsMet(o) { return (o.dependsOn || []).every((d) => progress[d] > 0 || (state.completed || []).includes(d)); }
 function choose() {
   const available = objectives.filter((o) => depsMet(o) && (attempts.get(o.id) || 0) < maxAttempts);
-  available.sort((a, b) => ((b.priority || 0) - (progress[b.id] || 0) * 12 - (state.failed?.[b.id]?.attempts || 0) * 8) - ((a.priority || 0) - (progress[a.id] || 0) * 12 - (state.failed?.[a.id]?.attempts || 0) * 8));
+  available.sort((a, b) => {
+    const score = (o) => (o.priority || 0) - (progress[o.id] || 0) * 12 - (state.failed?.[o.id]?.attempts || 0) * 8;
+    return score(b) - score(a);
+  });
   return available[0] || null;
 }
 function context(objective) {
@@ -97,7 +101,6 @@ const tools = [
   { type: 'function', function: { name: 'git_diff', description: 'Inspect the compact current product diff.', parameters: { type: 'object', properties: {} } } },
   { type: 'function', function: { name: 'submit', description: 'Finish after a real product edit and verification.', parameters: { type: 'object', required: ['summary'], properties: { summary: { type: 'string' } } } } }
 ];
-
 function parse(response) {
   const native = (response?.message?.tool_calls || []).map((c) => ({ name: c.function?.name, args: typeof c.function?.arguments === 'string' ? JSON.parse(c.function.arguments) : (c.function?.arguments || {}) }));
   if (native.length) return native.slice(0, 1);
@@ -144,11 +147,7 @@ function execute(objective, repair) {
     console.log(`[autobot-v2] step ${step}/${maxSteps}; edits=${edits}/${maxEdits}; ${left().toFixed(1)}m left`);
     let response;
     try { response = callModel(prompt); }
-    catch (error) {
-      previous = `MODEL ERROR: ${error.message}`;
-      console.error(`[autobot-v2] ${previous}`);
-      continue;
-    }
+    catch (error) { previous = `MODEL ERROR: ${error.message}`; console.error(`[autobot-v2] ${previous}`); continue; }
     const calls = parse(response);
     if (!calls.length) { previous = 'ERROR: model returned no usable tool call. Next step must call read_file or edit_file.'; continue; }
     const call = calls[0];
