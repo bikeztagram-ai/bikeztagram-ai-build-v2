@@ -1,0 +1,77 @@
+name: AutoBot Infrastructure Verification
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/autonomous-builder*.yml'
+      - '.github/workflows/autobot-infrastructure-verification.yml'
+      - 'builder/runner/**'
+      - 'builder/quality/**'
+      - 'builder/brain/**'
+      - 'scripts/autobot/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: autobot-infrastructure-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout proposed revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Validate canonical workflow set
+        run: |
+          set -euo pipefail
+          test -f .github/workflows/autonomous-builder-v2-fast.yml
+          test -f .github/workflows/autonomous-builder-scheduler.yml
+          test -f .github/workflows/autonomous-builder-post-merge-smoke.yml
+          test ! -e .github/workflows/autonomous-builder.yml
+          test ! -e .github/workflows/autonomous-builder-v2.yml
+          test ! -e .github/workflows/autonomous-builder-chain.yml
+          test ! -e .github/workflows/autonomous-builder-continuation.yml
+      - name: Validate builder JavaScript and shell
+        run: |
+          set -euo pipefail
+          node --check builder/runner/repository-index.mjs
+          node --check builder/runner/repository-aware-feature-brain.mjs
+          node --check builder/runner/repository-aware-executor.mjs
+          node --check builder/runner/deterministic-executor.mjs
+          node --check builder/runner/long-run-executor.mjs
+          node --check builder/runner/feature-brain.mjs
+          node --check builder/runner/ollama-performance-proxy.mjs
+          node --check scripts/autobot/verify-deterministic-executor.mjs
+          node --check scripts/autobot/verify-feature-brain-resilience.mjs
+          node --check scripts/autobot/verify-autobot-safety-contract.mjs
+          node --check scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node --check scripts/autobot/verify-autobot-safety-contract-v3.mjs
+          bash -n scripts/autobot/install-local-brain.sh
+      - name: Validate AutoBot safety and resilience contracts
+        run: |
+          set -euo pipefail
+          node scripts/autobot/verify-feature-brain-resilience.mjs
+          node scripts/autobot/verify-deterministic-executor.mjs
+          node scripts/autobot/verify-autobot-safety-contract.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v3.mjs
+          node scripts/autobot/verify-autobot-continuous-loop.mjs
+          node scripts/autobot/verify-autobot-feature-edit-protocol.mjs
+          node scripts/autobot/verify-feature-objective-dependencies.mjs
+          node builder/quality/autobot-ready.mjs
+      - name: Assert repository-aware agent wiring
+        run: |
+          set -euo pipefail
+          grep -q 'repository_map' builder/runner/repository-aware-feature-brain.mjs
+          grep -q 'list_files' builder/runner/repository-aware-feature-brain.mjs
+          grep -q 'search_repo' builder/runner/repository-aware-feature-brain.mjs
+          grep -q 'read_file' builder/runner/repository-aware-feature-brain.mjs
+          grep -q 'repository-index.mjs' builder/runner/repository-aware-executor.mjs
+          grep -q 'repository-aware-feature-brain.mjs' builder/runner/repository-aware-executor.mjs
+          grep -q 'tool_calls' scripts/autobot/install-local-brain.sh
+      - name: Build product
+        run: npm run build
