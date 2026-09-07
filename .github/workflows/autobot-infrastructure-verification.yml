@@ -50,6 +50,7 @@ jobs:
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/feature-brain.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
+          node --check scripts/autobot/verify-deterministic-executor.mjs
           node --check scripts/autobot/verify-feature-brain-resilience.mjs
           node --check scripts/autobot/verify-autobot-safety-contract.mjs
           node --check scripts/autobot/verify-autobot-safety-contract-v2.mjs
@@ -59,6 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/autobot/verify-feature-brain-resilience.mjs
+          node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node scripts/autobot/verify-autobot-safety-contract-v3.mjs
