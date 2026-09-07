@@ -170,6 +170,7 @@ jobs:
           git checkout "$source_sha" -- . ':(exclude).github/workflows/**'
           git restore --source=origin/main -- .github/workflows/
           git reset -- .github/workflows builder/working
+          rm -rf builder/working
           git switch -c "$branch"
           if git diff --cached --quiet && git diff --quiet; then
             echo 'No publishable source changes remain after checkpoint sanitisation.'
