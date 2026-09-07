@@ -37,9 +37,9 @@ env:
   AUTOBOT_FEATURE_MAX_ATTEMPTS: 2
   AUTOBOT_FEATURE_MAX_EDITS: 3
   AUTOBOT_AGENT_TURNS: 8
-  LOCAL_AI_FEATURE_TIMEOUT_SECONDS: 180
-  LOCAL_AI_PROXY_NUM_CTX: 4096
-  LOCAL_AI_PROXY_NUM_PREDICT: 900
+  LOCAL_AI_FEATURE_TIMEOUT_SECONDS: 120
+  LOCAL_AI_PROXY_NUM_CTX: 3072
+  LOCAL_AI_PROXY_NUM_PREDICT: 300
 jobs:
   fast-brain:
     runs-on: ubuntu-latest
@@ -165,4 +165,4 @@ jobs:
           fi
           git commit -m 'feat: repository-aware autonomous builder checkpoint'
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 repository-aware checkpoint' --body 'Repository-aware autonomous builder checkpoint. Review required before merge. Local open-source coding model, deterministic repository index, broad read-only exploration and objective-scoped writes.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 repository-aware checkpoint' --body 'Repository-aware autonomous builder checkpoint. Review required before merge. Local open-source coding model, deterministic repository index, objective-scoped writes.' || true
