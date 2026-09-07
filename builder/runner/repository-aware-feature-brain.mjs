@@ -70,17 +70,27 @@ function allowedFile(file, objective) { return new Set(objective.files || []).ha
 function gitStatus() { return capture('git', ['status', '--short']).slice(0, 5000); }
 function gitDiff() { return capture('git', ['diff', '--', 'src', 'public']).slice(0, 12000); }
 
+// Keep the initial prompt comfortably inside the model's 4K context. The model
+// receives file identity, purpose and a tiny code preview, then uses read_file
+// for exact windows. This avoids the old failure mode where a huge architecture
+// payload consumed the context before the first useful tool call.
 function objectiveContext(objective) {
   const files = [];
   for (const file of objective.files || []) {
     if (!isSafeRepoFile(file)) continue;
+    const entry = (repo.files || []).find((item) => item.path === file);
     const content = read(file);
-    files.push({ path: file, lines: content.split(/\r?\n/).length - 1, content: content.slice(0, 12000) });
+    files.push({
+      path: file,
+      lines: entry?.lines || content.split(/\r?\n/).length - 1,
+      purpose: entry?.purpose || '',
+      preview: content.slice(0, 1800)
+    });
   }
   const edges = (repo.dependencyEdges || []).filter((edge) =>
     (objective.files || []).includes(edge.from) || (objective.files || []).includes(edge.to)
-  ).slice(0, 40);
-  return JSON.stringify({ summary: repo.summary, files, dependencyEdges: edges }, null, 2).slice(0, 32000);
+  ).slice(0, 20);
+  return JSON.stringify({ files, dependencyEdges: edges }, null, 2).slice(0, 8500);
 }
 
 function readFileWindow(file, start = 1, end = 120, objective) {
@@ -199,11 +209,11 @@ function executeObjective(objective, repair) {
     '',
     'OPERATING RULES:',
     '1. Do useful engineering, not a plan or explanation.',
-    '2. The objective files above are already provided. Start by reading a supplied file window only if you need more detail, otherwise edit a focused block immediately.',
+    '2. Start with read_file on one of the supplied objective files unless the preview is already enough for a focused edit.',
     '3. Make the smallest meaningful product improvement that advances the acceptance criteria.',
     '4. After editing, run a build or diff check. If it fails, diagnose the failure and repair the edit.',
     '5. Submit only after a real product-source edit is present and verified.',
-    '6. You cannot search the repository. You cannot read .env, secrets, builder state, workflows, dependencies, or other infrastructure.',
+    '6. Repository discovery/search tools are intentionally unavailable. Never attempt to access .env, secrets, builder state, workflows, dependencies, or other infrastructure.',
     '7. Never reset, clean, revert, or discard unrelated working-tree changes.',
     `8. You have at most ${maxEdits} edits. Do not waste turns on discovery.`,
     repair ? 'This is a repair attempt. Inspect the current objective state and fix the previous failure; do not repeat the same failed action.' : ''
@@ -221,7 +231,7 @@ function executeObjective(objective, repair) {
     } catch (error) {
       console.error(`[autobot] model call failed: ${error.message}`);
       if (turn < maxTurns) {
-        messages.push({ role: 'user', content: 'Tool request failed. Do not explain. Make the next response a direct tool call on an objective file, preferably edit_file or run_check.' });
+        messages.push({ role: 'user', content: 'Tool request failed. Do not explain. Make the next response a direct tool call on an objective file, preferably read_file or edit_file.' });
         continue;
       }
       break;
