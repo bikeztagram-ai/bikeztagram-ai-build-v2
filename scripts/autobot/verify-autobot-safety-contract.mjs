@@ -43,13 +43,13 @@ if (!sustained.includes('feature-brain-started')) failures.push('feature cycle a
 if (!feature.includes('maxAttemptsPerFeature')) failures.push('feature engineer lacks bounded attempt ceiling');
 if (!feature.includes('snapshotFiles') || !feature.includes('restoreAttemptFiles')) failures.push('feature engineer lacks scoped failed-edit recovery');
 if (/git.*reset.*--hard|git.*clean.*-f/.test(feature)) failures.push('feature engineer contains unsafe wholesale working-tree rollback');
-if (!/format\s*:\s*editSchema/.test(feature)) failures.push('feature engineer must use structured model output');
+if (!feature.includes('tools') || !feature.includes('edit_file') || !feature.includes('run_check')) failures.push('feature engineer must use bounded repository agent tools');
 if (!feature.includes('out-of-scope file')) failures.push('feature engineer lacks edit scope guard');
-if (!feature.includes('multiple edits in one file')) failures.push('feature engineer lacks edit overlap guard');
+if (!/multiple edits in one file/i.test(feature)) failures.push('feature engineer lacks bounded multi-edit guidance');
 if (!feature.includes('progress[obj.id]')) failures.push('feature engineer lacks incremental progress tracking');
 if (!deterministic.includes('allowedTask')) failures.push('deterministic executor lacks protected-path guard');
 if (!deterministic.includes('dependsOn')) failures.push('deterministic executor lacks task dependency handling');
 if (!gate.includes('verify:generation-capability-contract') || !gate.includes('verify:autobot-audit-tamper')) failures.push('authoritative production gate is incomplete');
 if (!packageJson.includes('verify:autobot-production-gate')) failures.push('production gate is not registered in package scripts');
 if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
-console.log('AutoBot safety contract PASS: local-only AI, no automatic merge/deploy, non-canceling concurrency, scoped feature rollback, structured editing, protected paths, dependency handling, audit verification, continuous bounded execution, continuation budget integrity, authoritative production gate, and resumable long-duration execution.');
+console.log('AutoBot safety contract PASS: local-only AI, no automatic merge/deploy, non-canceling concurrency, scoped feature rollback, bounded agent tools, protected paths, dependency handling, audit verification, continuous bounded execution, continuation budget integrity, authoritative production gate, and resumable long-duration execution.');
