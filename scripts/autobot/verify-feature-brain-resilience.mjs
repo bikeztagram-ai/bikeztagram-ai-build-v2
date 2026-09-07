@@ -33,6 +33,8 @@ if (/git.*reset.*--hard/.test(feature)) failures.push('feature agent must not ha
 if (!/AUTOBOT_FEATURE_MAX_EDITS:\s*3/.test(workflow)) failures.push('fast workflow must allow three bounded edits');
 if (!/repository-aware-feature-brain\.mjs/.test(workflow)) failures.push('workflow must run repository-aware feature brain');
 if (!/repository-aware-executor\.mjs/.test(workflow)) failures.push('workflow must run repository-aware executor');
+if (!/git restore --source=HEAD -- \.github\/workflows/.test(workflow)) failures.push('checkpoint must discard autonomous workflow changes before publishing');
+if (!/git reset -- \.github\/workflows/.test(workflow)) failures.push('checkpoint must never stage workflow changes');
 if (failures.length) {
   console.error('[autobot] repository-aware resilience FAIL');
   for (const failure of failures) console.error(`- ${failure}`);
