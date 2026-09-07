@@ -87,6 +87,7 @@ jobs:
           echo 'LOCAL_AI_PROXY_THINK=false' >> "$GITHUB_ENV"
           echo '[autobot] performance proxy ready; think=false; output<=650'
           # Contract: AUTOBOT_FEATURE_MAX_EDITS: 3
+          # Contract: AUTOBOT_AGENT_TURNS: 8
           # Contract: LOCAL_AI_FEATURE_TIMEOUT_SECONDS: 180
 
       - name: Resolve duration
@@ -159,10 +160,27 @@ jobs:
         run: |
           set -euo pipefail
           branch="autonomous-builder-v2-fast/${GITHUB_RUN_ID}"
-          git checkout -b "$branch"
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'feat: autonomous builder fast brain checkpoint' || true
+          git commit -m 'feat: autonomous builder source checkpoint' || true
+          source_sha="$(git rev-parse HEAD)"
+          git fetch --no-tags origin main
+          git switch --detach origin/main
+          git checkout "$source_sha" -- . ':(exclude).github/workflows/**'
+          git restore --source=origin/main -- .github/workflows/
+          git reset -- .github/workflows builder/working
+          git switch -c "$branch"
+          if git diff --cached --quiet && git diff --quiet; then
+            echo 'No publishable source changes remain after checkpoint sanitisation.'
+            exit 1
+          fi
+          git add -A
+          git commit -m 'feat: autonomous builder source checkpoint'
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy to reduce context/output latency on hosted runners.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 source checkpoint' --body 'Autonomous product-source checkpoint. Workflow/control-plane files and disposable builder working state are excluded; review required before merge.' || true
+          # Contract: git fetch --no-tags origin main
+          # Contract: git switch --detach origin/main
+          # Contract: git checkout "$source_sha" -- . ':(exclude).github/workflows/**'
+          # Contract: git restore --source=origin/main -- .github/workflows/
+          # Contract: git reset -- .github/workflows builder/working
