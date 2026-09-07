@@ -19,7 +19,7 @@ if (/gh\s+pr\s+merge|gh\s+pr\s+approve/i.test(workflow + agent + executor)) fail
 if (/vercel\s+(deploy|promote)|vercel\.com\/api/i.test(workflow + agent + executor)) failures.push('automatic production deployment path detected');
 if (!/workflow_dispatch:/.test(workflow)) failures.push('canonical fast workflow must be manually dispatchable');
 if (!/cancel-in-progress:\s*false/.test(workflow)) failures.push('fast workflow must preserve queued runs rather than canceling active work');
-if (!workflow.includes('qwen3:8b')) failures.push('fast workflow must default to Qwen3 8B');
+if (!workflow.includes('qwen3:4b')) failures.push('fast workflow must default to Qwen3 4B');
 if (!workflow.includes('LOCAL_AI_MODEL')) failures.push('fast workflow lacks explicit local model configuration');
 if (!workflow.includes('actions/cache@v4')) failures.push('local model cache missing');
 if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS: 3')) failures.push('fast workflow edit budget missing');
@@ -43,7 +43,7 @@ for (const [pattern, message] of [
   [/temperature\s*:\s*0/, 'deterministic model temperature missing'],
   [/npm.*run.*build/, 'build verification missing'],
   [/git.*diff.*--check/, 'diff verification missing'],
-  [/repository-aware-agent-v5/, 'agent protocol marker missing'],
+  [/repository-aware-agent-v6/, 'agent protocol marker missing'],
   [/repository-index.mjs/, 'repository index wiring missing'],
 ]) if (!pattern.test(agent)) failures.push(message);
 
