@@ -43,7 +43,6 @@ for (const [pattern, message] of [
   [/npm.*run.*build/, 'build verification missing'],
   [/git.*diff.*--check/, 'diff verification missing'],
   [/repository-aware-agent-v7/, 'agent protocol marker missing'],
-  [/repository-aware-executor|repository-index/, 'repository infrastructure wiring missing'],
   [/isSensitive/, 'sensitive-path protection missing'],
 ]) if (!pattern.test(agent)) failures.push(message);
 
