@@ -35,7 +35,7 @@ function readState() { try { return JSON.parse(fs.readFileSync(checkpoint, 'utf8
 function seedFromCheckpoint() { const state=readState(); if(!state)return; if(Array.isArray(state.history?.objectives))for(const id of state.history.objectives)completedObjectives.add(id); if(state.objectiveId&&state.status==='objective-complete')completedObjectives.add(state.objectiveId); }
 function remainingMinutes(){return Math.max(0,requestedMinutes-(Date.now()-started)/60000);}
 function writeRuntimeState(status='running'){const state={schemaVersion:1,status,requestedMinutes,requestedUnits,totalUnits,totalObjectives,iterations:iteration,replenishments,featureCycles,consecutiveNoProgress,startedAt:new Date(started).toISOString(),updatedAt:new Date().toISOString(),elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),remainingMinutes:Number(remainingMinutes().toFixed(2))};fs.mkdirSync(path.dirname(runtimeStatePath),{recursive:true});fs.writeFileSync(runtimeStatePath,JSON.stringify(state,null,2)+'\n');return state;}
-function assertAuditIntegrity(stage){const result=verifyAuditLog(); if(!result.valid){console.error(`[autobot] audit integrity failure before ${stage}: ${result.error}`);process.exit(3);} return result;}
+function assertAuditIntegrity(stage){const result=verifyAuditLog(); if(!result.valid){console.error(`[autobot] audit integrity failure before ${stage}: ${result.error}`);process.exit(3);} return result; }
 function runOnce(minutes,units){const env={...process.env,BUILDER_MAX_MINUTES:String(Math.max(1,Math.ceil(minutes))),BUILDER_MAX_UNITS:String(Math.max(1,units)),BUILDER_COMPLETED_OBJECTIVES:[...completedObjectives].join(',')};const result=spawnSync(process.execPath,['builder/runner/deterministic-executor.mjs'],{cwd:root,stdio:'inherit',env});return result.error?1:(result.status??1);}
 function replenishBacklog(){if(replenishments>=maxReplenishments)return false;const result=spawnSync(process.execPath,['scripts/autobot/replenish-production-backlog.mjs'],{cwd:root,stdio:'inherit',env:{...process.env,AUTOBOT_MAX_GENERATED_WAVES:String(maxReplenishments)}});if(result.error||result.status!==0)return false;replenishments++;appendAudit('backlog-replenished',{wave:replenishments,maxWaves:maxReplenishments});writeRuntimeState();return true;}
 function runFeatureBrain(){if(remainingMinutes()<=1||featureCycles>=maxFeatureCycles)return 0;featureCycles++;const slice=Math.min(featureSliceMinutes,Math.max(1,Math.floor(remainingMinutes())));const env={...process.env,BUILDER_MAX_MINUTES:String(slice),LOCAL_AI_MODEL:process.env.LOCAL_AI_MODEL||'qwen2.5-coder:3b',AUTOBOT_FEATURE_PASSES:String(featurePassesPerSlice)};appendAudit('feature-brain-started',{cycle:featureCycles,minutes:slice,model:env.LOCAL_AI_MODEL,passes:featurePassesPerSlice,protocol:'structured-line-edits-v1'});console.log(`[autobot] feature-engineering cycle ${featureCycles}/${maxFeatureCycles}: ${slice}m slice; model=${env.LOCAL_AI_MODEL}; passes=${featurePassesPerSlice}`);const result=spawnSync(process.execPath,['builder/runner/feature-brain.mjs'],{cwd:root,stdio:'inherit',env});const status=result.error?1:(result.status??1);appendAudit('feature-brain-finished',{cycle:featureCycles,status,remainingMinutes:Number(remainingMinutes().toFixed(2)),protocol:'structured-line-edits-v1'});writeRuntimeState(status===0?'running':'blocked');return status;}
@@ -67,19 +67,24 @@ while(totalUnits<requestedUnits&&remainingMinutes()>0){
   if(state?.status==='blocked'){appendAudit('run-blocked',{iteration,objectiveId:state.objectiveId||null,taskId:state.blockedTask||null,error:state.error||null});writeRuntimeState('blocked');process.exit(2);}
   if(remainingMinutes()<=1)break;
 
-  if(state?.status==='idle'&&totalUnits<requestedUnits&&replenishBacklog())continue;
+  // Backlog replenishment is housekeeping only. Never let it skip the
+  // feature-engineering opportunity in the same iteration.
+  if(state?.status==='idle'&&totalUnits<requestedUnits)replenishBacklog();
 
-  if(consecutiveNoProgress>=maxNoProgressIterations){
-    appendAudit('no-progress-stop',{iteration,consecutiveNoProgress,maxNoProgressIterations,totalUnits,totalObjectives});
-    break;
-  }
-
+  // Give the feature brain its reserved slice before applying the
+  // no-progress stop condition. An empty deterministic backlog must not
+  // prevent actual product engineering.
   const featureStatus=runFeatureBrain();
   if(featureStatus!==0){
     appendAudit('feature-brain-recoverable-failure',{iteration,status:featureStatus,remainingMinutes:Number(remainingMinutes().toFixed(2))});
     writeRuntimeState('running');
   }
   if(remainingMinutes()<=1)break;
+
+  if(consecutiveNoProgress>=maxNoProgressIterations){
+    appendAudit('no-progress-stop',{iteration,consecutiveNoProgress,maxNoProgressIterations,totalUnits,totalObjectives});
+    break;
+  }
 
   if(state?.status==='idle'&&featureCycles>=maxFeatureCycles)break;
 }
