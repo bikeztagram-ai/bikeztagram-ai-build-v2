@@ -17,7 +17,7 @@ on:
       local_model:
         description: 'Local coding model'
         required: false
-        default: 'qwen2.5-coder:7b'
+        default: 'qwen2.5-coder:3b'
         type: string
 
 concurrency:
@@ -34,6 +34,16 @@ env:
   REQUESTED_DURATION: ${{ inputs.duration }}
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   BUILDER_BASE_BRANCH: main
+  # The default 15m run must reserve time for actual product engineering.
+  AUTOBOT_DETERMINISTIC_SLICE_MINUTES: 4
+  AUTOBOT_FEATURE_SLICE_MINUTES: 10
+  AUTOBOT_FEATURE_PASSES_PER_SLICE: 1
+  AUTOBOT_FEATURE_PASSES: 1
+  AUTOBOT_FEATURE_MAX_ATTEMPTS: 2
+  AUTOBOT_FEATURE_MAX_EDITS: 1
+  LOCAL_AI_FEATURE_TIMEOUT_SECONDS: 90
+  LOCAL_AI_PROXY_NUM_CTX: 8192
+  LOCAL_AI_PROXY_NUM_PREDICT: 900
 
 jobs:
   fast-brain:
@@ -78,12 +88,8 @@ jobs:
             exit 1
           fi
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_MAX_EDITS=1' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
           echo '[autobot] performance proxy ready'
+          echo '[autobot] reserved feature-engineering budget: 10m'
 
       - name: Resolve duration
         run: |
@@ -146,4 +152,4 @@ jobs:
           git add -A
           git commit -m 'feat: autonomous builder fast brain checkpoint' || true
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy to reduce context/output latency on hosted runners.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Reserves time for real feature engineering and uses a fast local coding model on hosted runners.' || true
