@@ -31,6 +31,18 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
 
+      - name: Validate canonical workflow set
+        run: |
+          set -euo pipefail
+          test -f .github/workflows/autonomous-builder-v2-fast.yml
+          test -f .github/workflows/autonomous-builder-scheduler.yml
+          test -f .github/workflows/autonomous-builder-post-merge-smoke.yml
+          test ! -e .github/workflows/autonomous-builder.yml
+          test ! -e .github/workflows/autonomous-builder-v2.yml
+          test ! -e .github/workflows/autonomous-builder-chain.yml
+          test ! -e .github/workflows/autonomous-builder-continuation.yml
+          echo 'Canonical AutoBot workflow set PASS.'
+
       - name: Validate builder JavaScript
         run: |
           set -euo pipefail
@@ -39,6 +51,9 @@ jobs:
           node --check builder/runner/feature-brain.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
           node --check scripts/autobot/verify-feature-brain-resilience.mjs
+          node --check scripts/autobot/verify-autobot-safety-contract.mjs
+          node --check scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node --check scripts/autobot/verify-autobot-safety-contract-v3.mjs
 
       - name: Validate AutoBot safety and resilience contracts
         run: |
@@ -59,6 +74,7 @@ jobs:
           grep -q "agentic: true" builder/runner/feature-brain.mjs
           grep -q "name: 'edit_file'" builder/runner/feature-brain.mjs
           grep -q "name: 'run_check'" builder/runner/feature-brain.mjs
+          grep -qi "multiple edits in one file" builder/runner/feature-brain.mjs
 
       - name: Build product
         run: npm run build
