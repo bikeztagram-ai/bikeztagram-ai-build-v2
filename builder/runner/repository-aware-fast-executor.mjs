@@ -17,16 +17,17 @@ function deterministic(){const r=run('builder/runner/deterministic-executor.mjs'
 function fastBrain(){features++;return run('builder/runner/repository-aware-fast-brain.mjs',{BUILDER_MAX_MINUTES:String(Math.max(1,Math.min(6,Math.floor(left())))),AUTOBOT_FEATURE_MAX_ATTEMPTS:'1',AUTOBOT_FEATURE_MAX_EDITS:'2',LOCAL_AI_MODEL:process.env.LOCAL_AI_MODEL||'qwen3:4b-instruct-2507-q4_K_M'})}
 fs.mkdirSync(path.join(root,'builder/working'),{recursive:true});
 if(index()!==0) process.exit(2);
-appendAudit('repository-aware-fast-run-started',{minutes,units,mode:'structured-qwen-v1'});
+appendAudit('repository-aware-fast-run-started',{minutes,units,mode:'structured-qwen-v2'});
 while(left()>1&&verified<units){
   const d=deterministic(); if(d!==0) failures++;
   if(left()<=1) break;
   const f=fastBrain(); if(f!==0) failures++;
   if(left()<=1) break;
-  index();
+  const refreshed=index();
+  if(refreshed!==0){ failures++; console.error('[autobot] repository index refresh failed after fast-brain slice; stopping safely'); break; }
   if(d!==0&&f!==0) break;
 }
-const summary={verified,features,failures,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),mode:'structured-qwen-v1'};
+const summary={verified,features,failures,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),mode:'structured-qwen-v2'};
 appendAudit('repository-aware-fast-run-finished',summary);
 const audit=verifyAuditLog();
 if(!audit.valid) process.exit(3);
