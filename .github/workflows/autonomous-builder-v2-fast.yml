@@ -1,4 +1,4 @@
-name: Autonomous Builder V2 Fast Brain
+name: Autonomous Builder V2 Fast Brain v2
 
 on:
   workflow_dispatch:
@@ -80,15 +80,12 @@ jobs:
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=180' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_MAX_EDITS=3' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_AGENT_TURNS=8' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_AGENT_TURNS=1' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=650' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=420' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_THINK=false' >> "$GITHUB_ENV"
-          echo '[autobot] performance proxy ready; think=false; output<=650'
-          # Contract: AUTOBOT_FEATURE_MAX_EDITS: 3
-          # Contract: AUTOBOT_AGENT_TURNS: 8
-          # Contract: LOCAL_AI_FEATURE_TIMEOUT_SECONDS: 180
+          echo '[autobot] fast structured brain ready; think=false; output<=420'
 
       - name: Resolve duration
         run: |
@@ -112,6 +109,8 @@ jobs:
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/repository-index.mjs
+          node --check builder/runner/repository-aware-fast-executor.mjs
+          node --check builder/runner/repository-aware-fast-brain.mjs
           node --check builder/runner/repository-aware-executor.mjs
           node --check builder/runner/repository-aware-feature-brain.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
@@ -126,7 +125,7 @@ jobs:
           node builder/quality/autobot-ready.mjs
 
       - name: Run repository-aware sustained builder
-        run: node builder/runner/repository-aware-executor.mjs
+        run: node builder/runner/repository-aware-fast-executor.mjs
 
       - name: Production verification
         if: success()
@@ -180,8 +179,3 @@ jobs:
           git commit -m 'feat: autonomous builder source checkpoint'
           git push --set-upstream origin "$branch"
           gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 source checkpoint' --body 'Autonomous product-source checkpoint. Workflow/control-plane files and disposable builder working state are excluded; review required before merge.' || true
-          # Contract: git fetch --no-tags origin main
-          # Contract: git switch --detach origin/main
-          # Contract: git checkout "$source_sha" -- . ':(exclude).github/workflows/**'
-          # Contract: git restore --source=origin/main -- .github/workflows/
-          # Contract: git reset -- .github/workflows builder/working
