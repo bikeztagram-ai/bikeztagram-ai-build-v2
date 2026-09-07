@@ -79,11 +79,12 @@ jobs:
           fi
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=180' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_AGENT_TURNS=1' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=4096' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=360' >> "$GITHUB_ENV"
-          echo '[autobot] fast structured brain ready; feature=180s; ctx=4096; predict=360; think=false'
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=420' >> "$GITHUB_ENV"
+          echo '[autobot] fast structured brain ready; feature=180s; ctx=4096; predict=420; think=false'
 
       - name: Resolve duration
         run: |
