@@ -11,6 +11,7 @@ const steps = [
   ['generation-contract', 'npm', ['run', 'verify:generation-capability-contract']],
   ['executable-timeline', 'npm', ['run', 'verify:executable-timeline']],
   ['director-handoff', 'npm', ['run', 'verify:director-timeline-handoff']],
+  ['render-trim-enforcement', 'npm', ['run', 'verify:render-trim-enforcement']],
   ['cinematic-quality', 'npm', ['run', 'verify:cinematic-quality-gate']],
   ['render-acceptance', 'npm', ['run', 'verify:render-acceptance-quality-gate']],
   ['music-arrangement-quality', 'npm', ['run', 'verify:music-arrangement-quality']],
