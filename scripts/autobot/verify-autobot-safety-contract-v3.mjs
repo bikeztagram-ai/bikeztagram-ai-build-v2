@@ -35,8 +35,8 @@ if (!indexer.includes('ls-files') || !indexer.includes('dependencyEdges') || !in
 if (!workflow.includes('workflow_dispatch:')) failures.push('canonical workflow must be dispatchable');
 if (!workflow.includes('repository-aware-fast-executor.mjs')) failures.push('canonical workflow must invoke fast executor');
 if (!workflow.includes('repository-aware-fast-brain.mjs')) failures.push('canonical workflow must include fast brain');
-if (!workflow.includes('AUTOBOT_AGENT_TURNS: 1')) failures.push('canonical workflow must enforce one model request per feature attempt');
-if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS: 2')) failures.push('canonical workflow must enforce two-edit maximum');
+if (!workflow.includes('AUTOBOT_AGENT_TURNS=1')) failures.push('canonical workflow must enforce one model request per feature attempt');
+if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS=2')) failures.push('canonical workflow must enforce two-edit maximum');
 if (!workflow.includes('LOCAL_AI_PROXY_THINK=false')) failures.push('proxy must explicitly disable thinking');
 
 try { execFileSync(process.execPath, ['builder/runner/repository-index.mjs'], { cwd: root, stdio: 'ignore' }); }
