@@ -54,7 +54,7 @@ jobs:
           printf '%s\n' "$feature" | grep -q 'restoreAttemptFiles'
           printf '%s\n' "$feature" | grep -q 'progress\[obj.id\]'
           printf '%s\n' "$safety" | grep -q 'snapshotFiles'
-          printf '%s\n' "$resilience" | grep -q 'scoped rollback'
+          printf '%s\n' "$resilience" | grep -q 'per-attempt snapshot'
           printf '%s\n' "$package" | grep -q 'verify:autobot-production-gate'
           echo 'Hardened AutoBot main-branch preflight PASS.'
 
