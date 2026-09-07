@@ -1,35 +1,34 @@
 #!/usr/bin/env node
-/** Contract test for the local feature brain's model-to-code edit protocol. */
+/** Contract test for the active one-request structured-Qwen feature brain. */
 import fs from 'node:fs';
 
-const root = process.cwd();
-const read = (p) => fs.readFileSync(`${root}/${p}`, 'utf8');
-const source = read('builder/runner/feature-brain.mjs');
+const source = fs.readFileSync('builder/runner/repository-aware-fast-brain.mjs', 'utf8');
 const failures = [];
-
 const required = [
-  ['structured Ollama format', /format\s*:\s*editSchema/],
-  ['non-streaming structured response', /stream\s*:\s*false/],
-  ['bounded edit schema', /maxItems\s*:\s*maxEdits/],
-  ['allowed-file validation', /out-of-scope file/],
-  ['search-replace uniqueness validation', /must match exactly once/],
-  ['overlap protection', /overlapping edits|multiple edits in one file/],
-  ['diff verification', /git.*diff.*--check/],
-  ['build verification', /npm.*run.*build/],
-  ['reset after failed edit', /git.*reset.*--hard.*HEAD|resetFailedEdits/],
-  ['protocol audit', /structured-(?:line-edits|search-replace)/]
+  ['Ollama chat request', /\/api\/chat/],
+  ['non-streaming response', /stream:\s*false/],
+  ['thinking disabled', /think:\s*false/],
+  ['deterministic temperature', /temperature:\s*0/],
+  ['bounded output', /num_predict:\s*360/],
+  ['bounded edit count', /maxEdits/],
+  ['structured JSON patch', /"edits"/],
+  ['exact search replacement', /search.*exact existing text/],
+  ['allowed-file validation', /allowed\.has\(file\)/],
+  ['safe path validation', /safe\(file\)/],
+  ['unique search validation', /must match exactly once/],
+  ['syntax verification', /syntax\(file\)/],
+  ['product-source diff verification', /\['diff', '--', 'src', 'public'\]/],
+  ['build verification', /run\('npm', \['run', 'build'\]\)/],
+  ['rollback', /restore\(snapshots\)/],
+  ['objective selection', /chooseObjective/],
+  ['failure persistence', /state\.failed/],
 ];
-
-for (const [label, pattern] of required) {
-  if (!pattern.test(source)) failures.push(`missing ${label}`);
-}
-
-if (/Return ONLY a valid unified git diff/.test(source)) failures.push('fragile unified-diff generation still active');
-if (/startLine\s*:\s*endLine|invalid line range/.test(source)) failures.push('legacy line-range edit protocol still active');
-
+for (const [label, pattern] of required) if (!pattern.test(source)) failures.push(`missing ${label}`);
+if (/git\s+reset\s+--hard|git\s+clean\s+-f/.test(source)) failures.push('unsafe wholesale rollback still active');
+if (/search_repo|list_files|repository_map/.test(source)) failures.push('repository-discovery tools must not be exposed to the fast brain');
+if (!/maxAttempts/.test(source)) failures.push('bounded model-attempt ceiling missing');
 if (failures.length) {
   console.error(failures.map((f) => `FAIL: ${f}`).join('\n'));
   process.exit(1);
 }
-
-console.log('AutoBot feature-edit protocol PASS: structured search/replace, bounded scope, uniqueness/overlap validation, reset, diff check, build check, and audit telemetry.');
+console.log('AutoBot feature-edit protocol PASS: one-request structured patching, scoped exact-match edits, bounded attempts, syntax/diff/build verification, and rollback.');

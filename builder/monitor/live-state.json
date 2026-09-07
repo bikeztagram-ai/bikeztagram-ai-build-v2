@@ -1,15 +1,15 @@
 {
-  "runId": "33114794608",
-  "status": "idle",
-  "objectiveId": null,
-  "currentTask": null,
+  "runId": "34159618586",
+  "status": "blocked",
+  "objectiveId": "social-export",
+  "currentTask": "export-profiles-and-validation",
   "completedUnits": 0,
-  "totalUnits": 0,
-  "startedAt": "2026-08-27T20:45:04.910Z",
-  "updatedAt": "2026-08-27T20:45:04.912Z",
-  "heartbeatAt": "2026-08-27T20:45:04.912Z",
-  "message": "No eligible unfinished roadmap units. Idle.",
+  "totalUnits": 5,
+  "startedAt": "2026-09-07T20:36:15.808Z",
+  "updatedAt": "2026-09-07T20:36:15.881Z",
+  "heartbeatAt": "2026-09-07T20:36:15.881Z",
+  "message": "BLOCKED: export-profiles-and-validation — Command failed: node scripts/autobot/export-runtime.mjs",
   "files": [],
   "verification": [],
-  "blockedReason": null
+  "blockedReason": "Command failed: node scripts/autobot/export-runtime.mjs"
 }
