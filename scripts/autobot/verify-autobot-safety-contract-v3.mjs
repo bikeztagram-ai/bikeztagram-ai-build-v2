@@ -14,22 +14,27 @@ const workflow = read('.github/workflows/autonomous-builder-v2-fast.yml');
 
 const required = [
   [/tools\s*=\s*\[/, 'repository-aware agent must expose structured tools'],
-  [/repository_map/, 'repository map tool missing'],
-  [/list_files/, 'file listing tool missing'],
-  [/search_repo/, 'repository search tool missing'],
-  [/read_file/, 'broad repository read tool missing'],
+  [/objectiveContext/, 'deterministic objective context router missing'],
+  [/read_file/, 'objective-scoped read tool missing'],
   [/edit_file/, 'safe product edit tool missing'],
   [/run_check/, 'verification tool missing'],
+  [/submit/, 'submission tool missing'],
   [/maxEdits/, 'bounded edit budget missing'],
   [/temperature\s*:\s*0/, 'deterministic model setting missing'],
+  [/think\s*:\s*false/, 'fast mode must disable thinking'],
   [/npm.*run.*build/, 'independent build verification missing'],
   [/git.*diff.*--check/, 'diff verification missing'],
-  [/repository-aware-agent-v6/, 'current agent protocol marker missing'],
-  [/repository-index.mjs/, 'repository index integration missing'],
+  [/repository-aware-agent-v7/, 'current agent protocol marker missing'],
+  [/isSensitive/, 'sensitive-path protection missing'],
   [/(chooseObjective|function\s+choose)/, 'deterministic objective selection missing'],
   [/progress\[(?:objective|o)\.id\]/, 'incremental objective progress missing'],
 ];
 for (const [pattern, message] of required) if (!pattern.test(agent)) failures.push(message);
+for (const [pattern, message] of [
+  [/function:\s*\{\s*name:\s*'search_repo'/, 'search_repo tool must be removed'],
+  [/function:\s*\{\s*name:\s*'list_files'/, 'list_files tool must be removed'],
+  [/function:\s*\{\s*name:\s*'repository_map'/, 'repository_map tool must be removed'],
+]) if (pattern.test(agent)) failures.push(message);
 if (/git.*reset.*--hard|git.*clean\s+-f/.test(agent + executor)) failures.push('agent must never wholesale-reset or clean the working tree');
 if (!/repository-index\.mjs/.test(executor) || !/repository-aware-feature-brain\.mjs/.test(executor)) failures.push('executor must refresh and invoke repository-aware runtime');
 if (!/ls-files/.test(indexer) || !/dependencyEdges/.test(indexer) || !/sensitive/.test(indexer)) failures.push('repository index must be Git-derived, dependency-aware and secret-safe');
@@ -54,4 +59,4 @@ if (failures.length) {
   console.error(failures.map((f) => `FAIL: ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('AutoBot safety contract v3 PASS: repository-aware exploration, scoped writes, deterministic verification, dependency-aware objectives and protected local-agent runtime present.');
+console.log('AutoBot safety contract v3 PASS: deterministic objective context, scoped writes, verification, dependency-aware objectives and protected local-agent runtime present.');
