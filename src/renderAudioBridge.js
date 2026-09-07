@@ -20,9 +20,6 @@ export function applyAudioBeatSyncToPlan(plan) {
     const originalDuration = Math.max(.5, number(cut.duration, 1));
     const requestedStart = timelineCursor;
     const startBeat = nearestBeat(requestedStart, sorted);
-    // Snap the editorial start itself to the beat. The previous implementation
-    // only snapped the end, which meant cuts were labelled beat-aligned while
-    // actually beginning between beats.
     const timelineStart = Math.min(maxTime, Math.max(0, startBeat.time));
     const requestedEnd = timelineStart + originalDuration;
     let endBeat = nearestBeat(requestedEnd, sorted);
@@ -64,8 +61,12 @@ async function attachDecodedAudio(context, audioUrl, stream, options) {
   const offset = Math.max(0, number(options?.offset, 0)); source.start(0, Math.min(offset, Math.max(0, audioBuffer.duration - 0.01)));
   return { source, track, duration: audioBuffer.duration, destination, cleanup: () => { try { source.stop(); } catch {} try { source.disconnect(); } catch {} try { gain.disconnect(); } catch {} try { track.stop(); } catch {} } };
 }
+function syncForRender(plan) {
+  if (plan?.music?.beatSyncApplied === true || plan?.musicTimeline?.startsSnappedToBeats === true) return { plan, enabled: true, alreadyApplied: true };
+  return applyAudioBeatSyncToPlan(plan);
+}
 export async function attachPlanAudioToRenderStream(stream, plan, options = {}) {
-  const sync = applyAudioBeatSyncToPlan(plan); const renderPlan = sync.plan;
+  const sync = syncForRender(plan); const renderPlan = sync.plan;
   const audioUrl = renderPlan?.music?.audioDataUrl || renderPlan?.soundtrack?.audioDataUrl || renderPlan?.audio?.url;
   if (!audioUrl || typeof window === 'undefined') return { stream, plan: renderPlan, enabled: false, beatSync: sync.enabled, reason: 'no-audio-or-window' };
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
