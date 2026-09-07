@@ -37,22 +37,20 @@ jobs:
           api="https://api.github.com/repos/$GITHUB_REPOSITORY/contents"
           get() { gh api "$api/$1?ref=main" --jq .content | base64 --decode; }
           workflow="$(get '.github/workflows/autonomous-builder-v2-fast.yml')"
-          sustained="$(get 'builder/runner/long-run-executor.mjs')"
-          feature="$(get 'builder/runner/feature-brain.mjs')"
-          safety="$(get 'scripts/autobot/verify-autobot-safety-contract.mjs')"
+          executor="$(get 'builder/runner/repository-aware-executor.mjs')"
+          feature="$(get 'builder/runner/repository-aware-feature-brain.mjs')"
+          safety="$(get 'scripts/autobot/verify-autobot-safety-contract-v3.mjs')"
           resilience="$(get 'scripts/autobot/verify-feature-brain-resilience.mjs')"
           package="$(get 'package.json')"
           printf '%s\n' "$workflow" | grep -q 'cancel-in-progress: false'
-          printf '%s\n' "$workflow" | grep -q 'qwen2.5-coder:7b'
-          printf '%s\n' "$workflow" | grep -q 'AUTOBOT_FEATURE_MAX_EDITS: 2'
-          printf '%s\n' "$workflow" | grep -q 'verify-feature-brain-resilience.mjs'
+          printf '%s\n' "$workflow" | grep -q 'qwen3:4b-instruct-2507-q4_K_M'
+          printf '%s\n' "$workflow" | grep -q 'AUTOBOT_FEATURE_MAX_EDITS: 3'
+          printf '%s\n' "$workflow" | grep -q 'repository-aware-executor.mjs'
           printf '%s\n' "$workflow" | grep -q 'verify-autobot-safety-contract-v3.mjs'
-          printf '%s\n' "$sustained" | grep -q 'feature-brain-started'
-          printf '%s\n' "$sustained" | grep -q 'deterministic-recoverable-failure'
-          printf '%s\n' "$feature" | grep -q 'restoreAttemptFiles'
-          printf '%s\n' "$feature" | grep -q 'progress\[obj.id\]'
-          printf '%s\n' "$feature" | grep -q 'tools = \['
-          printf '%s\n' "$safety" | grep -q 'autonomous-builder-v2-fast.yml'
+          printf '%s\n' "$executor" | grep -q 'repository-aware-feature-brain.mjs'
+          printf '%s\n' "$feature" | grep -q 'repository-aware-agent-v7'
+          printf '%s\n' "$feature" | grep -q 'objectiveFiles'
+          printf '%s\n' "$safety" | grep -q 'objectiveContext'
           printf '%s\n' "$resilience" | grep -q 'per-attempt snapshot'
           printf '%s\n' "$package" | grep -q 'verify:autobot-production-gate'
           echo 'Canonical AutoBot main-branch preflight PASS.'
@@ -67,9 +65,9 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
             -f max_units='1000' \
-            -f duration='6h' \
-            -f local_model='qwen2.5-coder:7b'
-          echo 'Canonical AutoBot fast-brain heartbeat dispatched a fresh 6-hour run.'
+            -f duration='15m' \
+            -f local_model='qwen3:4b-instruct-2507-q4_K_M'
+          echo 'Canonical AutoBot heartbeat dispatched a fresh 15-minute Qwen3 run.'
 
       - name: Record heartbeat result
         run: |
@@ -77,7 +75,7 @@ jobs:
             echo '# 🤖 AutoBot V2 heartbeat'
             echo
             if [[ '${{ steps.active.outputs.active }}' == '0' ]]; then
-              echo 'A fresh canonical fast-brain run was dispatched after main-branch preflight.'
+              echo 'A fresh canonical 15-minute Qwen3 run was dispatched after main-branch preflight.'
             else
               echo 'A canonical AutoBot run was already queued/running; no duplicate was dispatched.'
             fi
