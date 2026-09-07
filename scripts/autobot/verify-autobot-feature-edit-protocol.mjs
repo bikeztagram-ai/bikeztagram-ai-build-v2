@@ -18,7 +18,7 @@ const required = [
   ['diff verification', /git.*diff.*--check/],
   ['build verification', /npm.*run.*build/],
   ['scoped rollback snapshot', /snapshots\s*=\s*new Map/],
-  ['scoped rollback restore', /snapshots\)/],
+  ['scoped rollback restore', /for\(const\[f,s\]of snapshots\)/],
   ['multi-turn agent loop', /for\s*\(let turn=1;turn<=maxTurns/],
   ['edit tool', /name:'edit_file'/],
   ['verification tool', /name:'run_check'/],
