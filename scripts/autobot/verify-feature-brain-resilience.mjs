@@ -43,7 +43,7 @@ if (/git.*reset.*--hard/.test(feature)) failures.push('feature agent must not ha
 if (!/AUTOBOT_FEATURE_MAX_EDITS:\s*3/.test(workflow)) failures.push('fast workflow must allow three bounded edits');
 if (!/AUTOBOT_AGENT_TURNS:\s*8/.test(workflow)) failures.push('fast workflow must bound agent turns');
 if (!/LOCAL_AI_FEATURE_TIMEOUT_SECONDS:\s*180/.test(workflow)) failures.push('fast workflow must use the shorter feature timeout');
-if (!/default: qwen3:4b/.test(workflow)) failures.push('fast workflow must default to qwen3:4b-compatible model');
+if (!/default:\s*[\"']?qwen3:4b[^\"']*[\"']?/.test(workflow)) failures.push('fast workflow must default to qwen3:4b-compatible model');
 if (!/repository-aware-feature-brain\.mjs/.test(workflow)) failures.push('workflow must run repository-aware feature brain');
 if (!/repository-aware-executor\.mjs/.test(workflow)) failures.push('workflow must run repository-aware executor');
 if (!/git fetch --no-tags origin main/.test(workflow)) failures.push('checkpoint must fetch protected base before publishing');
