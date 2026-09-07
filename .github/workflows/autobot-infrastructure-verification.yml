@@ -35,22 +35,32 @@ jobs:
           test ! -e .github/workflows/autonomous-builder-v2.yml
           test ! -e .github/workflows/autonomous-builder-chain.yml
           test ! -e .github/workflows/autonomous-builder-continuation.yml
-      - name: Validate builder JavaScript and shell
+      - name: Syntax repository index
+        run: node --check builder/runner/repository-index.mjs
+      - name: Syntax repository-aware feature brain
+        run: node --check builder/runner/repository-aware-feature-brain.mjs
+      - name: Syntax repository-aware executor
+        run: node --check builder/runner/repository-aware-executor.mjs
+      - name: Syntax deterministic executor
+        run: node --check builder/runner/deterministic-executor.mjs
+      - name: Syntax long-run executor
+        run: node --check builder/runner/long-run-executor.mjs
+      - name: Syntax performance proxy
+        run: node --check builder/runner/ollama-performance-proxy.mjs
+      - name: Syntax AutoBot verifiers
         run: |
           set -euo pipefail
-          node --check builder/runner/repository-index.mjs
-          node --check builder/runner/repository-aware-feature-brain.mjs
-          node --check builder/runner/repository-aware-executor.mjs
-          node --check builder/runner/deterministic-executor.mjs
-          node --check builder/runner/long-run-executor.mjs
-          node --check builder/runner/feature-brain.mjs
-          node --check builder/runner/ollama-performance-proxy.mjs
-          node --check scripts/autobot/verify-deterministic-executor.mjs
-          node --check scripts/autobot/verify-feature-brain-resilience.mjs
-          node --check scripts/autobot/verify-autobot-safety-contract.mjs
-          node --check scripts/autobot/verify-autobot-safety-contract-v2.mjs
-          node --check scripts/autobot/verify-autobot-safety-contract-v3.mjs
-          bash -n scripts/autobot/install-local-brain.sh
+          for f in \
+            scripts/autobot/verify-deterministic-executor.mjs \
+            scripts/autobot/verify-feature-brain-resilience.mjs \
+            scripts/autobot/verify-autobot-safety-contract.mjs \
+            scripts/autobot/verify-autobot-safety-contract-v2.mjs \
+            scripts/autobot/verify-autobot-safety-contract-v3.mjs; do
+            echo "checking $f"
+            node --check "$f"
+          done
+      - name: Syntax local brain installer
+        run: bash -n scripts/autobot/install-local-brain.sh
       - name: Validate AutoBot safety and resilience contracts
         run: |
           set -euo pipefail
