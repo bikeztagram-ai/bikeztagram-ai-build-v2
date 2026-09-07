@@ -43,7 +43,7 @@ jobs:
           test ! -e .github/workflows/autonomous-builder-continuation.yml
           echo 'Canonical AutoBot workflow set PASS.'
 
-      - name: Validate builder JavaScript
+      - name: Validate builder JavaScript and shell
         run: |
           set -euo pipefail
           node --check builder/runner/deterministic-executor.mjs
@@ -55,6 +55,7 @@ jobs:
           node --check scripts/autobot/verify-autobot-safety-contract.mjs
           node --check scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node --check scripts/autobot/verify-autobot-safety-contract-v3.mjs
+          bash -n scripts/autobot/install-local-brain.sh
 
       - name: Validate AutoBot safety and resilience contracts
         run: |
@@ -77,6 +78,7 @@ jobs:
           grep -q "name: 'edit_file'" builder/runner/feature-brain.mjs
           grep -q "name: 'run_check'" builder/runner/feature-brain.mjs
           grep -qi "multiple edits in one file" builder/runner/feature-brain.mjs
+          grep -q "tool_calls" scripts/autobot/install-local-brain.sh
 
       - name: Build product
         run: npm run build
