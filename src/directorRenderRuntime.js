@@ -27,7 +27,7 @@ export function applyDirectorRenderCues(plan={}){
     const explicitMotion=String(cut.motionStyle||'').trim();
     const explicitTransition=String(cut.transition||cut.transitionIn||'').trim();
     const intensity=clamp(Number(cut.motionIntensity)||defaults.motionIntensity,.35,1.6);
-    return {...cut,role,editorialRole:role,motionStyle:explicitMotion||defaults.motionStyle,motionIntensity:intensity,cameraIntent:cut.cameraIntent||defaults.cameraIntent,transition:explicitTransition||defaults.transition,transitionIn:explicitTransition||defaults.transition,stabilization:cut.stabilization!==false,directorExecution:{version:'director-render-runtime-v1',role,cameraIntent:cut.cameraIntent||defaults.cameraIntent,motionStyle:explicitMotion||defaults.motionStyle,motionIntensity:intensity,transition:explicitTransition||defaults.transition}};
+    return {...cut,role,editorialRole:role,motionStyle:explicitMotion||defaults.motionStyle,motionIntensity:intensity,cameraIntent:cut.cameraIntent||defaults.cameraIntent,transition:explicitTransition||defaults.transition,transitionIn:explicitTransition||defaults.transition,stabilization:cut.stabilization!==false,directorExecution:{...(cut.directorExecution||{}),version:'director-render-runtime-v1',role,cameraIntent:cut.cameraIntent||defaults.cameraIntent,motionStyle:explicitMotion||defaults.motionStyle,motionIntensity:intensity,transition:explicitTransition||defaults.transition}};
   });
   return {...plan,cuts:next,directorRuntime:{version:'director-render-runtime-v1',applied:true,cutCount:next.length,roles:next.map(c=>c.role)}};
 }

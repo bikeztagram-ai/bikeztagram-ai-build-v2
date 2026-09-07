@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import { applyDirectorRenderCues, validateDirectorRenderCues } from '../src/directorRenderRuntime.js';
-const plan={creativePrompt:'cinematic motorcycle trailer',cuts:[{purpose:'opening'},{purpose:'rider acceleration action'},{purpose:'motorcycle reveal'},{purpose:'hero ending'}]};
+const plan={creativePrompt:'cinematic motorcycle trailer',cuts:[{purpose:'opening',directorExecution:{trimStart:1,trimEnd:4,renderTiming:{sourceStart:1,sourceEnd:4}}},{purpose:'rider acceleration action'},{purpose:'motorcycle reveal'},{purpose:'hero ending'}]};
 const result=applyDirectorRenderCues(plan); const check=validateDirectorRenderCues(result);
 assert.equal(check.ok,true,check.errors.join(', '));
 assert.equal(result.directorRuntime?.applied,true);
 assert.deepEqual(result.directorRuntime?.roles,['hook','action','reveal','hero-ending']);
 assert.ok(result.cuts.every(c=>c.directorExecution?.version==='director-render-runtime-v1'));
+assert.equal(result.cuts[0].directorExecution?.trimStart,1);
+assert.equal(result.cuts[0].directorExecution?.trimEnd,4);
+assert.equal(result.cuts[0].directorExecution?.renderTiming?.sourceStart,1);
+assert.equal(result.cuts[0].directorExecution?.renderTiming?.sourceEnd,4);
 console.log('Director runtime contract: PASS');

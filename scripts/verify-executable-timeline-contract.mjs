@@ -1,4 +1,5 @@
 import { buildExecutableTimeline, validateExecutableTimeline } from '../src/executableTimeline.js';
+import { createAIEditPlan } from '../src/aiEditPlanner.js';
 
 const plan={creativePrompt:'dark cinematic motorcycle action trailer',targetDuration:15,cuts:[
  {mediaId:'bike-1',duration:2,purpose:'opening reveal',motionStyle:'static'},
@@ -12,7 +13,25 @@ if(executable.cuts[0].mediaId!=='bike-1'||executable.cuts[1].mediaId!=='bike-2'|
 if(executable.cuts.some(c=>!c.role||!c.motionStyle||!c.transition||c.duration<=0)) throw new Error('Executable timeline is missing render directives.');
 if(executable.cuts[1].motionStyle==='static') throw new Error('Action cut did not receive executable motion.');
 if(executable.cuts[1].trimStart!==1||executable.cuts[1].trimEnd!==4) throw new Error('Timeline trim metadata was not preserved.');
+if(executable.cuts[1].startTime!==1||executable.cuts[1].directorExecution.startTime!==1) throw new Error('Renderer start-time handoff was not preserved.');
+if(executable.cuts[1].renderTiming.sourceStart!==1||executable.cuts[1].renderTiming.sourceEnd!==4||executable.cuts[1].renderTiming.sourceSpan!==3) throw new Error('Explicit render timing window was not preserved.');
+if(executable.cuts[1].directorExecution.renderTiming.averageSpeed!==1.225) throw new Error('Render timing speed contract was not preserved.');
 if(executable.cuts[1].speed!==1.1||executable.cuts[1].speedEnd!==1.35) throw new Error('Variable speed metadata was not preserved.');
 if(executable.cuts[1].transform.scale!==1.2) throw new Error('Transform metadata was not preserved.');
-if(executable.executionVersion!=='director-execution-v2') throw new Error('Missing execution version marker.');
-console.log('PASS executable director timeline contract');
+if(executable.executionVersion!=='director-execution-v4') throw new Error('Missing execution version marker.');
+if(Math.abs(executable.targetDuration-15)>.01) throw new Error(`Timeline duration is not truthful: ${executable.targetDuration}`);
+
+const generated=createAIEditPlan({durationInSeconds:12,subject:{label:'motorcycle'},bestMoments:[
+ {sourceIndex:0,start:1,end:5,description:'wide road approach'},
+ {sourceIndex:1,start:5,end:9,description:'fast motorcycle acceleration action'},
+ {sourceIndex:2,start:8,end:12,description:'hero motorcycle reveal'}
+]},{creativePrompt:'dark cinematic motorcycle action trailer',targetDuration:10,maxCuts:3});
+if(!generated.cuts.length) throw new Error('AI edit planner returned no cuts.');
+if(generated.cuts.some(c=>!Number.isFinite(c.trimStart)||!Number.isFinite(c.trimEnd)||c.trimEnd<=c.trimStart)) throw new Error('AI edit planner lost explicit source trim intent.');
+if(generated.cuts.some(c=>c.startTime!==c.trimStart)) throw new Error('AI edit planner startTime does not match trimStart.');
+if(generated.cuts.some(c=>c.trimEnd>12.001)) throw new Error('AI edit planner trim exceeds source duration.');
+if(generated.cuts.some(c=>c.motionStyle==='static')) throw new Error('AI action plan contains a static cut.');
+if(!generated.cuts.some(c=>c.speed>1)) throw new Error('AI action plan lost accelerated playback intent.');
+
+console.log('PASS executable director timeline render timing contract');
+console.log('PASS AI edit planner preserves source trim intent for renderer handoff');
