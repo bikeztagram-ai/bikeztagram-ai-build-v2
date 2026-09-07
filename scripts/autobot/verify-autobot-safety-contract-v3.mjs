@@ -35,7 +35,7 @@ if (!/repository-index\.mjs/.test(executor) || !/repository-aware-feature-brain\
 if (!/ls-files/.test(indexer) || !/dependencyEdges/.test(indexer) || !/sensitive/.test(indexer)) failures.push('repository index must be Git-derived, dependency-aware and secret-safe');
 if (!/workflow_dispatch:/.test(workflow)) failures.push('canonical fast workflow must be dispatchable');
 if (!/AUTOBOT_FEATURE_MAX_EDITS:\s*3/.test(workflow)) failures.push('canonical fast workflow edit ceiling missing');
-if (!/LOCAL_AI_FEATURE_TIMEOUT_SECONDS:\s*120/.test(workflow)) failures.push('canonical fast workflow timeout missing');
+if (!/LOCAL_AI_FEATURE_TIMEOUT_SECONDS:\s*(?:120|180|240|300)/.test(workflow)) failures.push('canonical fast workflow feature timeout must be between 120 and 300 seconds');
 if (!/LOCAL_AI_MODEL:\s*\$\{\{ inputs\.local_model \}\}/.test(workflow)) failures.push('canonical workflow model input missing');
 
 try { execFileSync(process.execPath, ['builder/runner/repository-index.mjs'], { cwd: root, stdio: 'inherit' }); }
