@@ -83,8 +83,8 @@ jobs:
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=4096' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=420' >> "$GITHUB_ENV"
-          echo '[autobot] fast structured brain ready; feature=180s; ctx=4096; predict=420; think=false'
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=360' >> "$GITHUB_ENV"
+          echo '[autobot] fast structured brain ready; feature=180s; ctx=4096; predict=360; think=false'
 
       - name: Resolve duration
         run: |
@@ -122,6 +122,17 @@ jobs:
 
       - name: Run fast sustained builder
         run: node builder/runner/long-run-executor.mjs
+
+      - name: Require a real product-source change
+        if: success()
+        run: |
+          set -euo pipefail
+          git diff --name-only | grep -E '^(src|public)/' >/tmp/autobot-product-source-change.txt || {
+            echo 'No real product-source change detected under src/ or public/.'
+            exit 1
+          }
+          echo 'Require a real product-source change: PASS'
+          cat /tmp/autobot-product-source-change.txt
 
       - name: Production verification
         if: success()
