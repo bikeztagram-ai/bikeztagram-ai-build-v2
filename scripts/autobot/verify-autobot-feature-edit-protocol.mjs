@@ -14,9 +14,10 @@ const required = [
   ['allowed-file validation', /out-of-scope file/],
   ['search-replace uniqueness validation', /must match exactly once/],
   ['overlap protection', /overlapping edits|multiple edits in one file/],
+  ['scoped rollback snapshot', /snapshotFiles\(/],
+  ['scoped rollback restore', /restoreAttemptFiles\(/],
   ['diff verification', /git.*diff.*--check/],
   ['build verification', /npm.*run.*build/],
-  ['reset after failed edit', /git.*reset.*--hard.*HEAD|resetFailedEdits/],
   ['protocol audit', /structured-(?:line-edits|search-replace)/]
 ];
 
@@ -24,6 +25,9 @@ for (const [label, pattern] of required) {
   if (!pattern.test(source)) failures.push(`missing ${label}`);
 }
 
+// Failed attempts must restore only the files they touched. A wholesale git reset
+// would erase valid deterministic work produced earlier in the same run.
+if (/git.*reset.*--hard|git.*clean.*-f/.test(source)) failures.push('unsafe wholesale rollback still active');
 if (/Return ONLY a valid unified git diff/.test(source)) failures.push('fragile unified-diff generation still active');
 if (/startLine\s*:\s*endLine|invalid line range/.test(source)) failures.push('legacy line-range edit protocol still active');
 
@@ -32,4 +36,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('AutoBot feature-edit protocol PASS: structured search/replace, bounded scope, uniqueness/overlap validation, reset, diff check, build check, and audit telemetry.');
+console.log('AutoBot feature-edit protocol PASS: structured search/replace, bounded scope, uniqueness/overlap validation, scoped per-attempt rollback, diff check, build check, and audit telemetry.');
