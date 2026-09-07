@@ -8,7 +8,7 @@ const installer = fs.readFileSync('scripts/autobot/install-local-brain.sh', 'utf
 const failures = [];
 for (const [pattern, message] of [
   [/objectiveContext/, 'deterministic objective context router missing'],
-  [/objective files above are already provided/, 'agent must be explicitly told that objective context is preloaded'],
+  [/DETERMINISTIC OBJECTIVE CONTEXT/, 'agent must receive deterministic objective context'],
   [/read_file/, 'scoped read tool missing'],
   [/edit_file/, 'edit tool missing'],
   [/run_check/, 'verification tool missing'],
