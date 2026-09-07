@@ -22,8 +22,15 @@ if (!/cancel-in-progress:\s*false/.test(workflow)) failures.push('fast workflow 
 if (!workflow.includes('qwen3:4b')) failures.push('fast workflow must default to Qwen3 4B-compatible model');
 if (!workflow.includes('LOCAL_AI_MODEL')) failures.push('fast workflow lacks explicit local model configuration');
 if (!workflow.includes('actions/cache@v4')) failures.push('local model cache missing');
-if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS: 3')) failures.push('fast workflow edit budget missing');
-const timeoutMatch = workflow.match(/LOCAL_AI_FEATURE_TIMEOUT_SECONDS:\s*(\d+)/);
+
+// The fast structured brain deliberately tightened the old 3-edit ceiling to 2.
+// Accept either YAML-style or GITHUB_ENV-style configuration, but never >3.
+const editBudgetMatch = workflow.match(/AUTOBOT_FEATURE_MAX_EDITS(?:\s*:\s*|=)(\d+)/);
+if (!editBudgetMatch || Number(editBudgetMatch[1]) < 1 || Number(editBudgetMatch[1]) > 3) failures.push('fast workflow edit budget missing or unsafe');
+
+// The active workflow exports the timeout through GITHUB_ENV; support both that
+// form and a YAML env entry so the validator remains format-agnostic.
+const timeoutMatch = workflow.match(/LOCAL_AI_FEATURE_TIMEOUT_SECONDS(?:\s*:\s*|=)(\d+)/);
 if (!timeoutMatch || Number(timeoutMatch[1]) < 120 || Number(timeoutMatch[1]) > 300) failures.push('fast workflow feature timeout contract missing or unsafe');
 if (!workflow.includes('repository-aware-feature-brain.mjs')) failures.push('fast workflow lacks repository-aware agent');
 if (!workflow.includes('repository-aware-executor.mjs')) failures.push('fast workflow lacks repository-aware executor');
