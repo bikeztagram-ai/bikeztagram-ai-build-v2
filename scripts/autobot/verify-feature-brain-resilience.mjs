@@ -15,6 +15,7 @@ for (const [pattern, message] of [
   [/run_check/, 'verification tool missing'],
   [/tools\s*=\s*\[/, 'native tool definitions missing'],
   [/temperature\s*:\s*0/, 'deterministic temperature missing'],
+  [/think\s*:\s*false/, 'Qwen thinking must be disabled for fast tool-use mode'],
   [/npm.*run.*build/, 'build verification missing'],
   [/git.*diff.*--check/, 'diff verification missing'],
   [/maxEdits/, 'bounded edit budget missing'],
@@ -46,6 +47,7 @@ if (!/git restore --source=origin\/main -- \.github\/workflows/.test(workflow)) 
 if (!/git reset -- \.github\/workflows builder\/working/.test(workflow)) failures.push('checkpoint must never stage workflow or disposable builder state');
 if (!/qwen3:4b/.test(installer)) failures.push('local brain installer must target qwen3:4b');
 if (/qwen3:8b/.test(installer)) failures.push('local brain installer must not silently fall back to qwen3:8b');
+if (!/\\"think\\":false/.test(installer)) failures.push('local brain smoke tests must explicitly disable Qwen thinking');
 if (failures.length) {
   console.error('[autobot] repository-aware resilience FAIL');
   for (const failure of failures) console.error(`- ${failure}`);
