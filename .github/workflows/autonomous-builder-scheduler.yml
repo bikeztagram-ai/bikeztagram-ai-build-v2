@@ -18,20 +18,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check for active AutoBot runs
+      - name: Check for active canonical AutoBot runs
         id: active
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           fast="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2-fast.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
-          legacy="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-v2.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
-          continuation="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow autonomous-builder-continuation.yml --limit 20 --json status --jq '[.[] | select(.status == "queued" or .status == "in_progress")] | length')"
-          active=$((fast + legacy + continuation))
-          echo "active=$active" >> "$GITHUB_OUTPUT"
-          echo "Active AutoBot runs: $active (fast=$fast legacy=$legacy continuation=$continuation)"
+          echo "active=$fast" >> "$GITHUB_OUTPUT"
+          echo "Active canonical AutoBot runs: $fast"
 
-      - name: Preflight hardened AutoBot safety contract on main
+      - name: Preflight canonical fast brain on main
         if: steps.active.outputs.active == '0'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,16 +46,18 @@ jobs:
           printf '%s\n' "$workflow" | grep -q 'qwen2.5-coder:7b'
           printf '%s\n' "$workflow" | grep -q 'AUTOBOT_FEATURE_MAX_EDITS: 2'
           printf '%s\n' "$workflow" | grep -q 'verify-feature-brain-resilience.mjs'
+          printf '%s\n' "$workflow" | grep -q 'verify-autobot-safety-contract-v3.mjs'
           printf '%s\n' "$sustained" | grep -q 'feature-brain-started'
           printf '%s\n' "$sustained" | grep -q 'deterministic-recoverable-failure'
           printf '%s\n' "$feature" | grep -q 'restoreAttemptFiles'
           printf '%s\n' "$feature" | grep -q 'progress\[obj.id\]'
-          printf '%s\n' "$safety" | grep -q 'snapshotFiles'
+          printf '%s\n' "$feature" | grep -q 'tools = \['
+          printf '%s\n' "$safety" | grep -q 'autonomous-builder-v2-fast.yml'
           printf '%s\n' "$resilience" | grep -q 'per-attempt snapshot'
           printf '%s\n' "$package" | grep -q 'verify:autobot-production-gate'
-          echo 'Hardened AutoBot main-branch preflight PASS.'
+          echo 'Canonical AutoBot main-branch preflight PASS.'
 
-      - name: Dispatch a fresh hardened builder run
+      - name: Dispatch a fresh canonical builder run
         if: steps.active.outputs.active == '0'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -70,7 +69,7 @@ jobs:
             -f max_units='1000' \
             -f duration='6h' \
             -f local_model='qwen2.5-coder:7b'
-          echo 'Hardened AutoBot fast-brain heartbeat dispatched a fresh 6-hour run.'
+          echo 'Canonical AutoBot fast-brain heartbeat dispatched a fresh 6-hour run.'
 
       - name: Record heartbeat result
         run: |
@@ -78,8 +77,8 @@ jobs:
             echo '# 🤖 AutoBot V2 heartbeat'
             echo
             if [[ '${{ steps.active.outputs.active }}' == '0' ]]; then
-              echo 'A fresh hardened fast-brain run was dispatched after main-branch preflight.'
+              echo 'A fresh canonical fast-brain run was dispatched after main-branch preflight.'
             else
-              echo 'An AutoBot run was already queued/running; no duplicate was dispatched.'
+              echo 'A canonical AutoBot run was already queued/running; no duplicate was dispatched.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
