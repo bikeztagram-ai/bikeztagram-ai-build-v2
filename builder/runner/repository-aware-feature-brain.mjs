@@ -3,12 +3,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { appendAudit } from '../quality/audit-log.mjs';
-const root=process.cwd(),minutes=+(process.env.BUILDER_MAX_MINUTES||10),started=Date.now(),left=()=>Math.max(0,minutes-(Date.now()-started)/60000),abs=f=>path.join(root,f),model=process.env.LOCAL_AI_MODEL||'qwen3:4b-instruct-2507-q4_K_M'),host=process.env.OLLAMA_HOST||'http://127.0.0.1:11434';
-const maxEdits=Math.min(3,Math.max(1,+(process.env.AUTOBOT_FEATURE_MAX_EDITS||3))),maxTurns=Math.min(8,Math.max(3,+(process.env.AUTOBOT_AGENT_TURNS||8))),maxFeatures=Math.max(1,+(process.env.AUTOBOT_FEATURE_PASSES||2)),maxAttempts=Math.max(1,+(process.env.AUTOBOT_FEATURE_MAX_ATTEMPTS||2)),PROTOCOL='repository-aware-agent-v7';
-function run(c,a=[],o={}){return execFileSync(c,a,{cwd:root,encoding:'utf8',shell:false,...o})}function capture(c,a=[]){try{return run(c,a)}catch(e){return[e.stdout,e.stderr,e.message].filter(Boolean).join('\n')}}function read(f){try{return fs.readFileSync(abs(f),'utf8')}catch{return''}}function isSensitive(f){return/(^|\/)(\.env(?:\..*)?|.*(?:secret|credential|token|private).*|.*\.pem)$/i.test(f)}function safe(f,o){return Boolean(f)&&!f.includes('..')&&!f.startsWith('/')&&!isSensitive(f)&&(o.files||[]).includes(f)}
-function syntax(f){if(!/\.(js|mjs|cjs|jsx)$/.test(f))return'PASS';try{run(process.execPath,['--check',f]);return'PASS'}catch(e){return`FAIL ${[e.stdout,e.stderr,e.message].filter(Boolean).join('\n').slice(0,2500)}`}}function check(k){try{if(k==='build')run('npm',['run','build']);else if(k==='diff-check')run('git',['diff','--check']);else return`ERROR: unsupported check ${k}`;return'PASS'}catch(e){return`FAIL ${[e.stdout,e.stderr,e.message].filter(Boolean).join('\n').slice(-5000)}`}}function gitDiff(){return capture('git',['diff','--','src','public']).slice(0,6000)}
-const mapPath=abs('builder/working/repository-map.json');if(!fs.existsSync(mapPath))run(process.execPath,['builder/runner/repository-index.mjs']);const repo=JSON.parse(read('builder/working/repository-map.json')),objectives=JSON.parse(read('builder/brain/feature-objectives.json')).objectives||[],statePath=abs('builder/working/feature-brain-state.json');let state={completed:[],progress:{},failed:{}};try{state=JSON.parse(read(statePath))}catch{}const progress={...(state.progress||{})};for(const id of state.completed||[])progress[id]=Math.max(progress[id]||0,1);const attempts=new Map();
-function saveState(){fs.mkdirSync(path.dirname(statePath),{recursive:true});fs.writeFileSync(statePath,JSON.stringify({version:14,completed:[],progress,failed:state.failed||{},updatedAt:new Date().toISOString()},null,2)+'\n')}function deps(o){return(o.dependsOn||[]).every(d=>progress[d]>0||(state.completed||[]).includes(d))}function choose(){const a=objectives.filter(o=>deps(o)&&(attempts.get(o.id)||0)<maxAttempts);a.sort((x,y)=>((y.priority||0)-(progress[y.id]||0)*12-(state.failed?.[y.id]?.attempts||0)*8)-((x.priority||0)-(progress[x.id]||0)*12-(state.failed?.[x.id]?.attempts||0)*8));return a[0]||null)}
+
+const root=process.cwd();
+const minutes=+(process.env.BUILDER_MAX_MINUTES||10);
+const started=Date.now();
+const left=()=>Math.max(0,minutes-(Date.now()-started)/60000);
+const abs=f=>path.join(root,f);
+const model=process.env.LOCAL_AI_MODEL||'qwen3:4b-instruct-2507-q4_K_M';
+const host=process.env.OLLAMA_HOST||'http://127.0.0.1:11434';
+const maxEdits=Math.min(3,Math.max(1,+(process.env.AUTOBOT_FEATURE_MAX_EDITS||3)));
+const maxTurns=Math.min(8,Math.max(3,+(process.env.AUTOBOT_AGENT_TURNS||8)));
+const maxFeatures=Math.max(1,+(process.env.AUTOBOT_FEATURE_PASSES||2));
+const maxAttempts=Math.max(1,+(process.env.AUTOBOT_FEATURE_MAX_ATTEMPTS||2));
+const PROTOCOL='repository-aware-agent-v7';
+
+function run(c,a=[],o={}){return execFileSync(c,a,{cwd:root,encoding:'utf8',shell:false,...o})}
+function capture(c,a=[]){try{return run(c,a)}catch(e){return[e.stdout,e.stderr,e.message].filter(Boolean).join('\n')}}
+function read(f){try{return fs.readFileSync(abs(f),'utf8')}catch{return''}}
+function isSensitive(f){return /(^|\/)(\.env(?:\..*)?|.*(?:secret|credential|token|private).*|.*\.pem)$/i.test(f)}
+function safe(f,o){return Boolean(f)&&!f.includes('..')&&!f.startsWith('/')&&!isSensitive(f)&&(o.files||[]).includes(f)}
+function syntax(f){if(!/\.(js|mjs|cjs|jsx)$/.test(f))return'PASS';try{run(process.execPath,['--check',f]);return'PASS'}catch(e){return`FAIL ${[e.stdout,e.stderr,e.message].filter(Boolean).join('\n').slice(0,2500)}`}}
+function check(k){try{if(k==='build')run('npm',['run','build']);else if(k==='diff-check')run('git',['diff','--check']);else return`ERROR: unsupported check ${k}`;return'PASS'}catch(e){return`FAIL ${[e.stdout,e.stderr,e.message].filter(Boolean).join('\n').slice(-5000)}`}}
+function gitDiff(){return capture('git',['diff','--','src','public']).slice(0,6000)}
+
+const mapPath=abs('builder/working/repository-map.json');
+if(!fs.existsSync(mapPath))run(process.execPath,['builder/runner/repository-index.mjs']);
+const repo=JSON.parse(read('builder/working/repository-map.json'));
+const objectives=JSON.parse(read('builder/brain/feature-objectives.json')).objectives||[];
+const statePath=abs('builder/working/feature-brain-state.json');
+let state={completed:[],progress:{},failed:{}};
+try{state=JSON.parse(read(statePath))}catch{}
+const progress={...(state.progress||{})};
+for(const id of state.completed||[])progress[id]=Math.max(progress[id]||0,1);
+const attempts=new Map();
+function saveState(){fs.mkdirSync(path.dirname(statePath),{recursive:true});fs.writeFileSync(statePath,JSON.stringify({version:15,completed:[],progress,failed:state.failed||{},updatedAt:new Date().toISOString()},null,2)+'\n')}
+function deps(o){return(o.dependsOn||[]).every(d=>progress[d]>0||(state.completed||[]).includes(d))}
+function choose(){const a=objectives.filter(o=>deps(o)&&(attempts.get(o.id)||0)<maxAttempts);a.sort((x,y)=>((y.priority||0)-(progress[y.id]||0)*12-(state.failed?.[y.id]?.attempts||0)*8)-((x.priority||0)-(progress[x.id]||0)*12-(state.failed?.[x.id]?.attempts||0)*8));return a[0]||null}
 function context(o){return JSON.stringify({files:(o.files||[]).filter(f=>safe(f,o)).slice(0,8).map(f=>{const e=(repo.files||[]).find(x=>x.path===f);return{path:f,lines:e?.lines||0,purpose:e?.purpose||'',preview:read(f).slice(0,850)}}),acceptance:o.acceptance||[],constraints:o.constraints||[]}).slice(0,6000)}
 function readWindow(f,s=1,e=70,o){if(!safe(f,o))return`ERROR: read outside objective scope. Allowed files: ${(o.files||[]).join(', ')}`;const l=read(f).split(/\r?\n/),first=Math.max(1,+s||1),last=Math.min(l.length,first+69,+e||first+69);return l.slice(first-1,last).map((x,i)=>`${first+i}| ${x}`).join('\n').slice(0,4200)}
 function edit(f,search,replace,o){if(!safe(f,o))return`ERROR: out-of-scope write. Allowed files: ${(o.files||[]).join(', ')}`;const cur=read(f);if(!cur)return'ERROR: objective file not found.';if(typeof search!=='string'||typeof replace!=='string'||!search)return'ERROR: search and replace are required.';const n=cur.split(search).length-1;if(n!==1)return`ERROR: exact search must match once; found ${n}. Read a narrower window and retry.`;const next=cur.replace(search,replace);if(next===cur||!next.trim())return'ERROR: no-op or empty edit refused.';fs.writeFileSync(abs(f),next);const q=syntax(f);return q==='PASS'?`EDIT APPLIED: ${f}`:`${q}; repair the syntax before continuing.`}
