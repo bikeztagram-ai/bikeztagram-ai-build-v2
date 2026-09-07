@@ -1,0 +1,157 @@
+name: Autonomous Builder V2 Fast Brain v2
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_units:
+        description: 'Safety ceiling on verified deterministic units'
+        required: false
+        default: '1000'
+        type: string
+      duration:
+        description: 'Shared work time budget'
+        required: false
+        default: '15m'
+        type: choice
+        options: ['15m','30m','1h','2h','3h','4h','5h','6h']
+      local_model:
+        description: 'Local coding model'
+        required: false
+        default: 'qwen3:4b-instruct-2507-q4_K_M'
+        type: string
+
+concurrency:
+  group: autonomous-builder-v2-fast-v2
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+env:
+  BUILDER_MAX_UNITS: ${{ inputs.max_units }}
+  REQUESTED_DURATION: ${{ inputs.duration }}
+  LOCAL_AI_MODEL: ${{ inputs.local_model }}
+  BUILDER_BASE_BRANCH: main
+
+jobs:
+  fast-brain-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 370
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Cache local AI model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: bikeztagram-local-ai-v2-${{ runner.os }}-${{ inputs.local_model }}
+
+      - name: Start local AI brain
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+        run: bash scripts/autobot/install-local-brain.sh
+
+      - name: Start performance proxy
+        run: |
+          set -euo pipefail
+          nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:11435/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:11435/health >/dev/null
+          echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=420' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_THINK=false' >> "$GITHUB_ENV"
+          echo '[autobot] v2 structured brain: one-shot JSON patch; think=false; output<=420'
+
+      - name: Resolve duration
+        run: |
+          case "$REQUESTED_DURATION" in
+            15m) minutes=15;; 30m) minutes=30;; 1h) minutes=60;; 2h) minutes=120;; 3h) minutes=180;; 4h) minutes=240;; 5h) minutes=300;; 6h) minutes=360;;
+            *) echo "Unsupported duration: $REQUESTED_DURATION"; exit 1;;
+          esac
+          echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
+          echo "[autobot] v2 budget: ${minutes}m"
+
+      - name: Validate autonomous builder
+        run: |
+          node --check builder/runner/repository-aware-fast-executor.mjs
+          node --check builder/runner/repository-aware-fast-brain.mjs
+          node --check builder/runner/repository-aware-executor.mjs
+          node --check builder/runner/ollama-performance-proxy.mjs
+          node scripts/autobot/verify-autobot-safety-contract.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v3.mjs
+          node scripts/autobot/verify-autobot-continuous-loop.mjs
+          node scripts/autobot/verify-autobot-feature-edit-protocol.mjs
+          node scripts/autobot/verify-feature-objective-dependencies.mjs
+          node scripts/autobot/verify-feature-brain-resilience.mjs
+          node builder/quality/autobot-ready.mjs
+
+      - name: Run fast structured sustained builder
+        run: node builder/runner/repository-aware-fast-executor.mjs
+
+      - name: Production verification
+        if: success()
+        run: |
+          npm run verify:autobot-production-gate
+          npm run verify:project-memory
+          npm run verify:autobot-continuous-loop
+          npm run verify:autobot-dependencies
+
+      - name: Require a real product-source change
+        if: success()
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only)"
+          printf '%s\n' "$changed"
+          if ! printf '%s\n' "$changed" | grep -E '^(src|public)/'; then
+            echo 'No real product-source change was produced; refusing to publish.'
+            exit 1
+          fi
+          echo 'Real product-source change: PASS'
+
+      - name: Persist continuation state
+        if: always()
+        run: node builder/runner/segment-state.mjs
+
+      - name: Publish checkpoint
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="autonomous-builder-v2-fast/${GITHUB_RUN_ID}"
+          git config user.name 'Bikeztagram Autonomous Builder V2'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: autonomous builder source checkpoint' || true
+          source_sha="$(git rev-parse HEAD)"
+          git fetch --no-tags origin main
+          git switch --detach origin/main
+          git checkout "$source_sha" -- . ':(exclude).github/workflows/**'
+          git restore --source=origin/main -- .github/workflows/
+          git reset -- .github/workflows builder/working
+          rm -rf builder/working
+          git switch -c "$branch"
+          if git diff --cached --quiet && git diff --quiet; then
+            echo 'No publishable source changes remain.'
+            exit 1
+          fi
+          git add -A
+          git commit -m 'feat: autonomous builder source checkpoint'
+          git push --set-upstream origin "$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 source checkpoint' --body 'Structured-Qwen autonomous product checkpoint. Control-plane files and disposable builder state are excluded; review required before merge.' || true
