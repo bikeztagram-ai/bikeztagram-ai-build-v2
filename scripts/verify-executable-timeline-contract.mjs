@@ -13,8 +13,10 @@ if(executable.cuts.some(c=>!c.role||!c.motionStyle||!c.transition||c.duration<=0
 if(executable.cuts[1].motionStyle==='static') throw new Error('Action cut did not receive executable motion.');
 if(executable.cuts[1].trimStart!==1||executable.cuts[1].trimEnd!==4) throw new Error('Timeline trim metadata was not preserved.');
 if(executable.cuts[1].startTime!==1||executable.cuts[1].directorExecution.startTime!==1) throw new Error('Renderer start-time handoff was not preserved.');
+if(executable.cuts[1].renderTiming.sourceStart!==1||executable.cuts[1].renderTiming.sourceEnd!==4||executable.cuts[1].renderTiming.sourceSpan!==3) throw new Error('Explicit render timing window was not preserved.');
+if(executable.cuts[1].directorExecution.renderTiming.averageSpeed!==1.225) throw new Error('Render timing speed contract was not preserved.');
 if(executable.cuts[1].speed!==1.1||executable.cuts[1].speedEnd!==1.35) throw new Error('Variable speed metadata was not preserved.');
 if(executable.cuts[1].transform.scale!==1.2) throw new Error('Transform metadata was not preserved.');
-if(executable.executionVersion!=='director-execution-v3') throw new Error('Missing execution version marker.');
+if(executable.executionVersion!=='director-execution-v4') throw new Error('Missing execution version marker.');
 if(Math.abs(executable.targetDuration-15)>.01) throw new Error(`Timeline duration is not truthful: ${executable.targetDuration}`);
-console.log('PASS executable director timeline contract');
+console.log('PASS executable director timeline render timing contract');
