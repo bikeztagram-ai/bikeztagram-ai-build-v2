@@ -17,7 +17,7 @@ on:
       local_model:
         description: 'Local coding model'
         required: false
-        default: 'qwen2.5-coder:7b'
+        default: 'qwen3:4b-instruct-2507-q4_K_M'
         type: string
 
 concurrency:
@@ -78,12 +78,12 @@ jobs:
             exit 1
           fi
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=180' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_MAX_EDITS=1' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
-          echo '[autobot] performance proxy ready'
+          echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_CTX=4096' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=360' >> "$GITHUB_ENV"
+          echo '[autobot] fast structured brain ready; feature=180s; ctx=4096; predict=360; think=false'
 
       - name: Resolve duration
         run: |
@@ -107,6 +107,8 @@ jobs:
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/feature-brain.mjs
+          node --check builder/runner/repository-aware-fast-brain.mjs
+          node --check builder/runner/repository-aware-fast-executor.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
