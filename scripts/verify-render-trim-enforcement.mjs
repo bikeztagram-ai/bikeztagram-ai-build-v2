@@ -3,6 +3,7 @@ import fs from 'node:fs';
 const renderer=fs.readFileSync('src/cinematicRendererV3.js','utf8');
 const timeline=fs.readFileSync('src/executableTimeline.js','utf8');
 const loop=fs.readFileSync('src/renderQualityLoop.js','utf8');
+const audio=fs.readFileSync('src/renderAudioBridge.js','utf8');
 
 const required=[
   ['trim-window helper','function enforceTrimWindow(el,cut)'],
@@ -25,4 +26,8 @@ const beatSyncIndex=loop.indexOf('const bs=applyAudioBeatSyncToPlan(current)');
 const executableIndex=loop.indexOf('current=buildExecutableTimeline(current,{targetDuration:target})');
 if(beatSyncIndex<0||executableIndex<0||beatSyncIndex>executableIndex)throw new Error('Beat-sync must run before executable timeline compilation so renderTiming reflects final editorial durations.');
 
-console.log('[render-trim] PASS: director trimStart/trimEnd are handed to the renderer, trim boundaries are actively enforced, beat-sync is compiled before the executable director timeline, and the live render loop uses that final timeline.');
+if(!audio.includes('function syncForRender(plan)'))throw new Error('Audio bridge does not guard render-time beat-sync reapplication.');
+if(!audio.includes("plan?.music?.beatSyncApplied === true"))throw new Error('Audio bridge missing already-synced plan guard.');
+if(!audio.includes('const sync = syncForRender(plan)'))throw new Error('Audio bridge does not use guarded render-time sync.');
+
+console.log('[render-trim] PASS: director trimStart/trimEnd are handed to the renderer, trim boundaries are actively enforced, beat-sync is compiled before the executable director timeline, and the audio bridge will not mutate a compiled timeline a second time.');
