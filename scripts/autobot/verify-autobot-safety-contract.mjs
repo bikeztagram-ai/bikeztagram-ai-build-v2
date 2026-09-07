@@ -39,7 +39,7 @@ for (const [pattern, message] of [
   [/run_check/, 'verification tool missing'],
   [/submit/, 'submission tool missing'],
   [/maxEdits/, 'bounded edit ceiling missing'],
-  [/temperature:0/, 'deterministic model temperature missing'],
+  [/temperature\s*:\s*0/, 'deterministic model temperature missing'],
   [/npm.*run.*build/, 'build verification missing'],
   [/git.*diff.*--check/, 'diff verification missing'],
   [/repository-aware-agent-v5/, 'agent protocol marker missing'],
