@@ -1,54 +1,58 @@
 #!/usr/bin/env node
-/** Static safety contract for the autonomous builder. */
+/** Canonical safety contract for the active repository-aware AutoBot runtime. */
 import fs from 'node:fs';
 import path from 'node:path';
+
 const root = process.cwd();
-const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const failures = [];
-const workflow = read('.github/workflows/autonomous-builder-v2.yml');
-const continuation = read('.github/workflows/autonomous-builder-continuation.yml');
-const scheduler = read('.github/workflows/autonomous-builder-scheduler.yml');
-const sustained = read('builder/runner/long-run-executor.mjs');
-const feature = read('builder/runner/feature-brain.mjs');
+const workflow = read('.github/workflows/autonomous-builder-v2-fast.yml');
+const agent = read('builder/runner/repository-aware-feature-brain.mjs');
+const executor = read('builder/runner/repository-aware-executor.mjs');
+const index = read('builder/runner/repository-index.mjs');
 const deterministic = read('builder/runner/deterministic-executor.mjs');
 const gate = read('scripts/autobot/run-production-gate.mjs');
 const packageJson = read('package.json');
-const activeRuntime = workflow + continuation + scheduler + sustained + feature + deterministic + gate;
-if (/GEMINI_API_KEY|gemini-cli|gemini-3/i.test(activeRuntime)) failures.push('forbidden AI provider reference in active AutoBot runtime');
-if (/gh\s+pr\s+merge|gh\s+pr\s+approve/i.test(activeRuntime)) failures.push('automatic merge/approval path detected');
-if (/vercel\s+(deploy|promote)|vercel\.com\/api/i.test(activeRuntime)) failures.push('automatic production deployment path detected');
-if (!/cancel-in-progress:\s*false/.test(workflow)) failures.push('workflow must preserve queued runs rather than canceling active work');
-if (!/cancel-in-progress:\s*false/.test(continuation)) failures.push('continuation must not cancel active work');
-if (!/cancel-in-progress:\s*false/.test(scheduler)) failures.push('scheduler must not cancel active work');
-if (!workflow.includes('LOCAL_AI_MODEL')) failures.push('workflow lacks explicit local model configuration');
+
+if (/GEMINI_API_KEY|gemini-cli|gemini-3/i.test(workflow + agent + executor)) failures.push('forbidden Gemini provider reference in active AutoBot runtime');
+if (/gh\s+pr\s+merge|gh\s+pr\s+approve/i.test(workflow + agent + executor)) failures.push('automatic merge/approval path detected');
+if (/vercel\s+(deploy|promote)|vercel\.com\/api/i.test(workflow + agent + executor)) failures.push('automatic production deployment path detected');
+if (!/workflow_dispatch:/.test(workflow)) failures.push('canonical fast workflow must be manually dispatchable');
+if (!/cancel-in-progress:\s*false/.test(workflow)) failures.push('fast workflow must preserve queued runs rather than canceling active work');
+if (!workflow.includes('qwen3:4b')) failures.push('fast workflow must default to Qwen3 4B');
+if (!workflow.includes('LOCAL_AI_MODEL')) failures.push('fast workflow lacks explicit local model configuration');
 if (!workflow.includes('actions/cache@v4')) failures.push('local model cache missing');
-if (!workflow.includes('segment-2')) failures.push('long-duration continuation segment missing');
-if (!workflow.includes('gh pr create')) failures.push('review PR publication missing');
-if (!workflow.includes('--draft')) failures.push('review PR must be draft by default');
-if (!continuation.includes('continuation_ref') || !continuation.includes('remaining_minutes')) failures.push('continuation lacks explicit checkpoint and remaining-budget inputs');
-if (!/timeout-minutes:\s*370/.test(continuation)) failures.push('continuation hosted-run ceiling is unsafe');
-if (!/--ref \"\$CONTINUATION_REF\"/.test(continuation)) failures.push('continuation must execute against its checkpoint ref');
-if (!/remaining.*360|budget.*360/.test(continuation)) failures.push('continuation must cap each hosted segment at six hours');
-if (!continuation.includes('long-run-state.json')) failures.push('continuation must consume authoritative long-run runtime state');
-if (!/remaining=\$\(\( REMAINING_MINUTES - used \)\)/.test(continuation)) failures.push('continuation must subtract measured elapsed runtime from shared budget');
-if (!continuation.includes("remaining != '0'")) failures.push('continuation must stop recursion at zero shared budget');
-if (!continuation.includes('gh workflow run autonomous-builder-continuation.yml')) failures.push('continuation recursion missing');
-if (!sustained.includes('verifyAuditLog')) failures.push('sustained runner missing audit verification');
-if (!sustained.includes('long-run-state.json')) failures.push('sustained runner lacks durable runtime budget state');
-if (!sustained.includes('writeRuntimeState')) failures.push('sustained runner lacks runtime checkpoint updates');
-if (!sustained.includes('AUTOBOT_DETERMINISTIC_SLICE_MINUTES')) failures.push('deterministic work is not bounded into resumable slices');
-if (!sustained.includes('AUTOBOT_FEATURE_SLICE_MINUTES')) failures.push('feature work is not bounded into resumable slices');
-if (!sustained.includes('AUTOBOT_MAX_FEATURE_CYCLES')) failures.push('feature cycle ceiling missing');
-if (!sustained.includes('feature-brain-started')) failures.push('feature cycle audit evidence missing');
-if (!feature.includes('maxAttemptsPerFeature')) failures.push('feature engineer lacks bounded attempt ceiling');
-if (!feature.includes('resetFailedEdits')) failures.push('feature engineer lacks failed-edit recovery');
-if (!/format\s*:\s*editSchema/.test(feature)) failures.push('feature engineer must use structured model output');
-if (!feature.includes('structured-line-edits-v1')) failures.push('feature engineer protocol version missing');
-if (!feature.includes('out-of-scope file')) failures.push('feature engineer lacks edit scope guard');
-if (!feature.includes('overlapping edits') && !feature.includes('multiple edits in one file')) failures.push('feature engineer lacks edit overlap guard');
+if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS: 3')) failures.push('fast workflow edit budget missing');
+const timeoutMatch = workflow.match(/LOCAL_AI_FEATURE_TIMEOUT_SECONDS:\s*(\d+)/);
+if (!timeoutMatch || Number(timeoutMatch[1]) < 120 || Number(timeoutMatch[1]) > 300) failures.push('fast workflow feature timeout contract missing or unsafe');
+if (!workflow.includes('repository-aware-feature-brain.mjs')) failures.push('fast workflow lacks repository-aware agent');
+if (!workflow.includes('repository-aware-executor.mjs')) failures.push('fast workflow lacks repository-aware executor');
+if (!workflow.includes('verify:autobot-production-gate')) failures.push('fast workflow lacks authoritative production gate');
+if (!workflow.includes('Require a real product-source change')) failures.push('fast workflow lacks product-source success gate');
+if (!workflow.includes("grep -E '^(src|public)/'")) failures.push('product-source gate must include src and public');
+
+for (const [pattern, message] of [
+  [/repository_map/, 'repository map tool missing'],
+  [/list_files/, 'repository file-list tool missing'],
+  [/search_repo/, 'repository search tool missing'],
+  [/read_file/, 'broad read tool missing'],
+  [/edit_file/, 'objective-scoped edit tool missing'],
+  [/run_check/, 'verification tool missing'],
+  [/submit/, 'submission tool missing'],
+  [/maxEdits/, 'bounded edit ceiling missing'],
+  [/temperature\s*:\s*0/, 'deterministic model temperature missing'],
+  [/npm.*run.*build/, 'build verification missing'],
+  [/git.*diff.*--check/, 'diff verification missing'],
+  [/repository-aware-agent-v6/, 'agent protocol marker missing'],
+  [/repository-index.mjs/, 'repository index wiring missing'],
+]) if (!pattern.test(agent)) failures.push(message);
+
+if (/git.*reset.*--hard|git.*clean\s+-f/.test(agent + executor)) failures.push('repository-aware agent contains unsafe wholesale rollback');
+if (!executor.includes('repository-index.mjs') || !executor.includes('repository-aware-feature-brain.mjs')) failures.push('executor does not wire repository index and feature agent');
+if (!index.includes('git') || !index.includes('dependencyEdges') || !index.includes('sensitive')) failures.push('repository index lacks source-of-truth, dependency and sensitive-path protections');
 if (!deterministic.includes('allowedTask')) failures.push('deterministic executor lacks protected-path guard');
-if (!deterministic.includes('dependsOn')) failures.push('deterministic executor lacks task dependency handling');
 if (!gate.includes('verify:generation-capability-contract') || !gate.includes('verify:autobot-audit-tamper')) failures.push('authoritative production gate is incomplete');
 if (!packageJson.includes('verify:autobot-production-gate')) failures.push('production gate is not registered in package scripts');
-if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
-console.log('AutoBot safety contract PASS: local-only AI, no automatic merge/deploy, non-canceling concurrency, bounded recovery, structured feature editing, protected paths, dependency handling, audit verification, continuous bounded execution, continuation budget integrity, authoritative production gate, and resumable long-duration execution.');
+
+if (failures.length) { console.error(failures.map((f) => `FAIL: ${f}`).join('\n')); process.exit(1); }
+console.log('AutoBot canonical safety contract PASS: repository-aware local agent, objective-scoped writes, bounded verification, dependency-safe deterministic work, no Gemini/paid fallback, and no automatic merge/deploy.');
