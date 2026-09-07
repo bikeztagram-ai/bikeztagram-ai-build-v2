@@ -1,51 +1,197 @@
 #!/usr/bin/env node
-/** Local feature engineer: repository-aware, structured search/replace, fast verification, durable retry evidence. */
+/**
+ * Local repository coding agent for Bikeztagram AI.
+ * A bounded ACI-style loop lets the model search, view, edit, inspect diffs,
+ * run checks, diagnose failures and repair. Mutations are objective-scoped.
+ */
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { appendAudit } from '../quality/audit-log.mjs';
-const LEGACY_PROTOCOL_MARKER='structured-line-edits-v1';
-const PROTOCOL='structured-search-replace-v3';
-const root=process.cwd();
-const minutes=Number.parseInt(process.env.BUILDER_MAX_MINUTES||'15',10);
-const model=process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b';
-const host=process.env.OLLAMA_HOST||'http://127.0.0.1:11434';
-const timeoutSeconds=Math.max(90,Number.parseInt(process.env.LOCAL_AI_FEATURE_TIMEOUT_SECONDS||'210',10));
-const maxFeatures=Math.max(1,Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES||'1',10));
-const maxAttemptsPerFeature=Math.max(1,Number.parseInt(process.env.AUTOBOT_FEATURE_MAX_ATTEMPTS||'2',10));
-const maxEdits=Math.max(1,Math.min(3,Number.parseInt(process.env.AUTOBOT_FEATURE_MAX_EDITS||'2',10)));
-const started=Date.now();
-const left=()=>Math.max(0,minutes-(Date.now()-started)/60000);
-const abs=p=>path.join(root,p);
-const run=(cmd,args,opts={})=>execFileSync(cmd,args,{cwd:root,encoding:'utf8',...opts});
-const capture=(cmd,args)=>{try{return run(cmd,args)}catch(e){return[e.stdout,e.stderr,e.message].filter(Boolean).join('\n')}};
-function read(p,max=12000){const f=abs(p);if(!fs.existsSync(f))return'';const s=fs.readFileSync(f,'utf8');return s.length<=max?s:`${s.slice(0,max)}\n...[truncated]...`}
-const objectives=JSON.parse(read('builder/brain/feature-objectives.json',30000)).objectives||[];
-const statePath=abs('builder/working/feature-brain-state.json');const repoMapPath=abs('builder/working/repository-map.json');
-let state={completed:[],failed:{}};try{state=JSON.parse(fs.readFileSync(statePath,'utf8'))}catch{}
-const completed=new Set(state.completed||[]);const attemptsThisRun=new Map();
-function save(){fs.mkdirSync(path.dirname(statePath),{recursive:true});fs.writeFileSync(statePath,JSON.stringify({version:6,completed:[...completed],failed:state.failed||{},updatedAt:new Date().toISOString()},null,2)+'\n')}
-function classifyFailure(message=''){const m=String(message).toLowerCase();if(/timed out|timeout|etimedout/.test(m))return'timeout';if(/rate.?limit|429/.test(m))return'rate-limit';if(/connection refused|econnrefused|network|fetch failed|curl/.test(m))return'network';if(/search block|ambiguous|out-of-scope|schema|edit|match exactly once/.test(m))return'invalid-edit';if(/build|vite|syntax|module|compile|node --check/.test(m))return'verification-build';return'implementation'}
-function dependenciesMet(obj){return(obj.dependsOn||[]).every(dep=>completed.has(dep)||!objectives.some(o=>o.id===dep))}
-function keywords(obj){return[...new Set(`${obj.title} ${(obj.acceptance||[]).join(' ')} ${(obj.constraints||[]).join(' ')}`.toLowerCase().match(/[a-z][a-z0-9]{3,}/g)||[])]}
-function symbolLines(lines){const out=[];const re=/(?:export\s+)?(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)|(?:export\s+)?(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=/;for(let i=0;i<lines.length;i++){const m=lines[i].match(re);if(m)out.push({line:i,name:m[1]||m[2]})}return out}
-function loadRepoMap(){try{return JSON.parse(fs.readFileSync(repoMapPath,'utf8'))}catch{return{files:[],byPath:{}}}}
-function repoContext(obj){const map=loadRepoMap();const terms=keywords(obj);const relevant=[];for(const p of obj.files||[]){const e=map.byPath?.[p];if(!e)continue;relevant.push({path:p,symbols:(e.symbols||[]).slice(0,18),imports:(e.imports||[]).slice(0,14),dependents:(e.dependents||[]).slice(0,14)})}const ranked=Object.values(map.byPath||{}).map(e=>({path:e.path,score:terms.reduce((n,t)=>n+(`${e.path} ${(e.symbols||[]).join(' ')}`.toLowerCase().includes(t)?1:0),0)})).filter(e=>e.score>0&&!obj.files.includes(e.path)).sort((a,b)=>b.score-a.score||a.path.localeCompare(b.path)).slice(0,8);return JSON.stringify({generatedAt:map.generatedAt,trackedSourceFiles:map.files?.length||0,objectiveFiles:relevant,relatedFiles:ranked},null,2)}
-function uniqueAnchorHints(p,obj){const source=fs.existsSync(abs(p))?fs.readFileSync(abs(p),'utf8'):'';const lines=source.split(/\r?\n/);const terms=keywords(obj);const candidates=[];for(const s of symbolLines(lines)){const start=Math.max(0,s.line-1),end=Math.min(lines.length,s.line+2),snippet=lines.slice(start,end).join('\n');if(!snippet||snippet.length>900)continue;if(source.split(snippet).length-1===1)candidates.push({symbol:s.name,line:s.line+1,score:terms.reduce((n,t)=>n+(s.name.toLowerCase().includes(t)?4:0),0),snippet})}return candidates.sort((a,b)=>b.score-a.score||a.line-b.line).slice(0,5)}
-function rankedSource(p,obj){const source=fs.existsSync(abs(p))?fs.readFileSync(abs(p),'utf8'):'';const lines=source.split(/\r?\n/);const terms=keywords(obj);const symbols=symbolLines(lines).map(s=>({...s,score:terms.reduce((n,t)=>n+(s.name.toLowerCase().includes(t)?8:0),0)}));const anchors=symbols.sort((a,b)=>b.score-a.score||a.line-b.line).slice(0,6);const windows=[];const add=(a,b)=>{a=Math.max(0,a);b=Math.min(lines.length,b);if(b<=a)return;const text=lines.slice(a,b).map((x,i)=>`${String(a+i+1).padStart(4,' ')}| ${x}`).join('\n');if(!windows.includes(text))windows.push(text)};add(0,Math.min(24,lines.length));for(const a of anchors)add(a.line-5,a.line+28);if(windows.length===1&&lines.length>60)add(lines.length-24,lines.length);let out=windows.join('\n...\n');if(out.length>5600)out=out.slice(0,5600)+'\n...[context trimmed]...';const hints=uniqueAnchorHints(p,obj);return`===== ${p} =====\n${out}\n\nUNIQUE ANCHOR HINTS:\n${hints.map(h=>`- ${h.symbol} @${h.line}: ${JSON.stringify(h.snippet)}`).join('\n')||'- none'}`}
-function context(obj,repair=false){const chunks=[`OBJECTIVE: ${obj.title}\nPriority: ${obj.priority}\nDependencies: ${(obj.dependsOn||[]).join(', ')||'none'}\nAcceptance:\n- ${(obj.acceptance||[]).join('\n- ')}\nConstraints:\n- ${(obj.constraints||[]).join('\n- ')}\n\nMake ONE small coherent production increment. Prefer one function or one nearby block. Do not redesign the subsystem.`,`===== REPOSITORY INTELLIGENCE MAP =====\n${repoContext(obj)}`];for(const p of obj.files||[])chunks.push(rankedSource(p,obj));chunks.push(`===== PROJECT MEMORY =====\n${read('builder/quality/project-memory.md',1300)}`);chunks.push(`===== LESSONS =====\n${read('builder/quality/lessons.md',1000)}`);if(repair){const f=state.failed?.[obj.id];chunks.push(`===== PREVIOUS FAILURE EVIDENCE =====\n${String(f?.message||'none').slice(0,2600)}\n\n${String(f?.diff||'').slice(0,4500)}\n\n${String(f?.anchors||'').slice(0,3500)}`)}return chunks.join('\n\n').slice(0,19000)}
-function choose(){const available=objectives.filter(o=>!completed.has(o.id)&&dependenciesMet(o)&&(attemptsThisRun.get(o.id)||0)<maxAttemptsPerFeature);if(!available.length)return null;return available.sort((a,b)=>{const af=state.failed?.[a.id]?.attempts||0,bf=state.failed?.[b.id]?.attempts||0;return((b.priority||0)-bf*10)-((a.priority||0)-af*10)})[0]}
-const editSchema={type:'object',additionalProperties:false,properties:{edits:{type:'array',minItems:1,maxItems:maxEdits,items:{type:'object',additionalProperties:false,properties:{file:{type:'string'},search:{type:'string',minLength:1,maxLength:2600},replace:{type:'string',maxLength:4000}},required:['file','search','replace']}}},required:['edits']};
-function parseStructured(stdout){let content='';for(const line of stdout.split(/\r?\n/).map(x=>x.trim()).filter(Boolean)){let part;try{part=JSON.parse(line)}catch{continue}if(part.error)throw new Error(String(part.error));if(part.message?.content)content=part.message.content}if(!content)throw new Error('local model returned no structured edit response');try{return JSON.parse(content)}catch(e){throw new Error(`structured search-replace JSON parse failed: ${e.message}`)}}
-function modelCall(obj,repair=false){const failure=state.failed?.[obj.id];const prompt=`You are the implementation engineer for Bikeztagram AI. Make ONE real production-quality increment of the stated objective.\nModify ONLY the listed product files. Never modify builder infrastructure, workflows, secrets, Vercel configuration, package dependencies, or protected paths.\n\nEDIT PROTOCOL: return ONLY JSON matching the schema. Each edit is {file,search,replace}. SEARCH must be copied literally from the supplied source, including whitespace and punctuation, and must occur exactly once. Prefer a SEARCH block from UNIQUE ANCHOR HINTS. REPLACE is the complete new block. Never use line numbers, unified diff markers, markdown fences, ellipses, placeholders, or commentary. Use at most ${maxEdits} small edits and prefer one edit in one file. Do not rewrite an entire file.\n\nThe runner will validate anchors, run node --check on changed JavaScript, then npm run build. If verification fails the change is discarded. ${repair?`A previous attempt failed (${failure?.class||'unknown'}). Correct that specific failure. Do not repeat the same anchor strategy.`:'Choose the smallest safe change that clearly advances one acceptance criterion.'}\n\n${context(obj,repair)}`;const body=JSON.stringify({model,stream:false,keep_alive:'15m',format:editSchema,options:{temperature:0,num_ctx:16384,num_predict:2600},messages:[{role:'system',content:'You are a careful senior JavaScript/React engineer. Output only the requested JSON search-replace edits.'},{role:'user',content:prompt}]});const sec=Math.min(timeoutSeconds,Math.max(60,Math.floor(left()*60)));return new Promise((resolve,reject)=>{const child=spawn('curl',['-sS','--fail','--connect-timeout','15','--max-time',String(sec),`${host}/api/chat`,'-H','Content-Type: application/json','-d',body],{cwd:root});let stdout='',stderr='',settled=false;const finish=(err,value)=>{if(settled)return;settled=true;clearTimeout(timer);err?reject(err):resolve(value)};const timer=setTimeout(()=>{try{child.kill('SIGTERM')}catch{}finish(new Error(`local model request timed out after ${sec}s`))},sec*1000+2000);child.stdout.on('data',d=>{stdout+=d.toString()});child.stderr.on('data',d=>{stderr+=d.toString()});child.on('error',e=>finish(e));child.on('close',(code,signal)=>{if(code!==0)return finish(new Error(stderr.trim()||`local model request failed (${code||signal||'unknown'})`));try{finish(null,parseStructured(stdout))}catch(e){finish(e)}})})}
-function anchorEvidence(file,search){const source=fs.readFileSync(abs(file),'utf8'),lines=source.split(/\r?\n/),hits=[];let at=0;while((at=source.indexOf(search,at))>=0&&hits.length<8){const line=source.slice(0,at).split(/\r?\n/).length;hits.push(`line ${line}: ${JSON.stringify(lines[line-1]?.slice(0,220)||'')}`);at+=Math.max(1,search.length)}return hits.join('\n')}
-function validateEdits(payload,obj){if(!payload||!Array.isArray(payload.edits)||payload.edits.length<1||payload.edits.length>maxEdits)throw new Error('structured response contains no valid search-replace edit list');const allowed=new Set(obj.files||[]),seen=new Set();let totalSearch=0,totalReplace=0;for(const e of payload.edits){if(!allowed.has(e.file))throw new Error(`edit targets out-of-scope file: ${e.file}`);if(seen.has(e.file))throw new Error(`multiple edits in one file are disabled for safety: ${e.file}`);seen.add(e.file);if(!e.search?.trim())throw new Error(`empty search block for ${e.file}`);const full=fs.readFileSync(abs(e.file),'utf8'),count=full.split(e.search).length-1;if(count!==1){const error=new Error(`search block for ${e.file} must match exactly once (found ${count})`);error.anchorEvidence=anchorEvidence(e.file,e.search)||'no matching anchor found';throw error}if(e.search.length>2600||e.replace.length>4000)throw new Error(`edit block too large for ${e.file}`);if(/[\u0000]/.test(e.search)||/\b(?:<<<<<<<|>>>>>>>|@@\s)/.test(e.search))throw new Error(`diff/binary markers forbidden in ${e.file}`);totalSearch+=e.search.length;totalReplace+=e.replace.length}if(totalSearch>5000||totalReplace>6800)throw new Error('combined edit payload too large; use a smaller increment')}
-function changedJsFiles(){return capture('git',['diff','--name-only','--diff-filter=ACM']).split(/\r?\n/).filter(Boolean).filter(p=>/\.(?:js|mjs|cjs|jsx|ts|tsx)$/.test(p))}
-function applyEdits(payload){const next=new Map();for(const e of payload.edits){const current=next.has(e.file)?next.get(e.file):fs.readFileSync(abs(e.file),'utf8');if(current.split(e.search).length-1!==1)throw new Error(`search block stopped being unique while applying ${e.file}`);next.set(e.file,current.replace(e.search,e.replace))}for(const[p,content]of next)fs.writeFileSync(abs(p),content)}
-function resetFailedEdits(){run('git',['reset','--hard','HEAD'],{stdio:'inherit'});run('git',['clean','-fd','-e','.git'],{stdio:'inherit'})}
-function verifyFastSyntax(){for(const p of changedJsFiles())run(process.execPath,['--check',p],{stdio:'inherit'})}
-function refreshRepoMap(){try{run(process.execPath,['scripts/autobot/repository-intelligence.mjs'],{stdio:'inherit',timeout:30000})}catch(e){console.warn(`[autobot] repository map refresh skipped: ${e.message}`)}}
-if(process.env.LOCAL_AI_READY!=='1'){console.error('[autobot] local AI unavailable; feature brain refuses paid fallback');process.exit(2)}
-refreshRepoMap();appendAudit('feature-brain-run-started',{minutes,model,maxFeatures,maxAttemptsPerFeature,maxEdits,timeoutSeconds,protocol:PROTOCOL,legacyProtocol:LEGACY_PROTOCOL_MARKER,completed:[...completed]});
-for(let n=1;n<=maxFeatures&&left()>1;n++){const obj=choose();if(!obj){console.log('[autobot] no eligible feature objective is available in this run');break}for(let attempt=1;attempt<=maxAttemptsPerFeature&&left()>1;attempt++){attemptsThisRun.set(obj.id,(attemptsThisRun.get(obj.id)||0)+1);console.log(`[autobot] FEATURE ${n}/${maxFeatures}: ${obj.id} — attempt ${attempt}/${maxAttemptsPerFeature} — ${left().toFixed(1)}m remaining — model=${model}`);try{const payload=await modelCall(obj,attempt>1);validateEdits(payload,obj);applyEdits(payload);verifyFastSyntax();run('git',['diff','--check'],{stdio:'inherit'});run('npm',['run','build'],{stdio:'inherit',timeout:Math.min(900000,Math.max(60000,Math.floor(left()*60000)))});completed.add(obj.id);if(state.failed)delete state.failed[obj.id];save();refreshRepoMap();appendAudit('feature-verified',{objectiveId:obj.id,attempt,edits:payload.edits.length,protocol:PROTOCOL});console.log(`[autobot] VERIFIED FEATURE: ${obj.id}`);break}catch(e){const failureClass=classifyFailure(e.message),diff=capture('git',['diff','--no-ext-diff']);state.failed||={};state.failed[obj.id]={...(state.failed[obj.id]||{}),message:e.message,class:failureClass,diff:diff.slice(0,5000),anchors:String(e.anchorEvidence||'').slice(0,3500),at:new Date().toISOString(),attempts:(state.failed[obj.id]?.attempts||0)+1};save();appendAudit('feature-failed',{objectiveId:obj.id,attempt,failureClass,message:e.message,anchorEvidence:e.anchorEvidence||'',protocol:PROTOCOL});try{resetFailedEdits()}catch(r){console.error(`[autobot] reset failed: ${r.message}`);process.exit(2)}refreshRepoMap();console.error(`[autobot] feature ${obj.id} failed and was reset (${failureClass}): ${e.message}`);if(attempt>=maxAttemptsPerFeature||left()<=3)break}}}
-appendAudit('feature-brain-run-finished',{completed:[...completed],attemptedThisRun:[...attemptsThisRun.entries()],elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),protocol:PROTOCOL,legacyProtocol:LEGACY_PROTOCOL_MARKER});save();
+
+const PROTOCOL = 'structured-search-replace-v4';
+const root = process.cwd();
+const minutes = Number.parseInt(process.env.BUILDER_MAX_MINUTES || '15', 10);
+const model = process.env.LOCAL_AI_MODEL || 'qwen2.5-coder:7b';
+const host = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
+const timeoutSeconds = Math.max(90, Number.parseInt(process.env.LOCAL_AI_FEATURE_TIMEOUT_SECONDS || '210', 10));
+const maxFeatures = Math.max(1, Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '1', 10));
+const maxAttemptsPerFeature = Math.max(1, Number.parseInt(process.env.AUTOBOT_FEATURE_MAX_ATTEMPTS || '2', 10));
+const maxEdits = Math.max(1, Math.min(6, Number.parseInt(process.env.AUTOBOT_FEATURE_MAX_EDITS || '2', 10)));
+const maxTurns = Math.max(4, Math.min(12, Number.parseInt(process.env.AUTOBOT_AGENT_TURNS || '8', 10)));
+const started = Date.now();
+const left = () => Math.max(0, minutes - (Date.now() - started) / 60000);
+const abs = (p) => path.join(root, p);
+const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: root, encoding: 'utf8', ...opts });
+const capture = (cmd, args) => { try { return run(cmd, args); } catch (e) { return [e.stdout, e.stderr, e.message].filter(Boolean).join('\n'); } };
+
+function read(p, max = 9000) {
+  const f = abs(p); if (!fs.existsSync(f)) return '';
+  const text = fs.readFileSync(f, 'utf8'); return text.length <= max ? text : `${text.slice(0, max)}\n...[truncated]...`;
+}
+const objectives = JSON.parse(read('builder/brain/feature-objectives.json', 30000)).objectives || [];
+const statePath = abs('builder/working/feature-brain-state.json');
+let state = { completed: [], progress: {}, failed: {} };
+try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch {}
+const progress = { ...(state.progress || {}) };
+for (const id of state.completed || []) progress[id] = Math.max(progress[id] || 0, 1);
+const attemptsThisRun = new Map();
+
+function save() {
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  fs.writeFileSync(statePath, JSON.stringify({ version: 8, completed: [], progress, failed: state.failed || {}, updatedAt: new Date().toISOString() }, null, 2) + '\n');
+}
+function dependenciesMet(obj) { return (obj.dependsOn || []).every((dep) => progress[dep] > 0 || state.completed?.includes(dep)); }
+function choose() {
+  const available = objectives.filter((o) => dependenciesMet(o) && (attemptsThisRun.get(o.id) || 0) < maxAttemptsPerFeature);
+  if (!available.length) return null;
+  return available.sort((a, b) => {
+    const af = state.failed?.[a.id]?.attempts || 0, bf = state.failed?.[b.id]?.attempts || 0;
+    const as = (a.priority || 0) - (progress[a.id] || 0) * 12 - af * 8;
+    const bs = (b.priority || 0) - (progress[b.id] || 0) * 12 - bf * 8;
+    return (bs - as) || ((b.priority || 0) - (a.priority || 0));
+  })[0];
+}
+function allowedFile(file, obj) { return new Set(obj.files || []).has(file); }
+
+function snapshotFiles(obj) {
+  const snapshots = new Map();
+  for (const file of obj.files || []) { const f = abs(file); if (fs.existsSync(f)) snapshots.set(file, fs.readFileSync(f, 'utf8')); }
+  return snapshots;
+}
+function restoreAttemptFiles(snapshots) { for (const [file, content] of snapshots) fs.writeFileSync(abs(file), content); }
+function gitStatus() { return capture('git', ['status', '--short']).slice(0, 5000); }
+function gitDiff() { return capture('git', ['diff', '--', 'src', 'public']).slice(0, 9000); }
+function searchRepo(query) {
+  const q = String(query || '').trim(); if (!q) return 'ERROR: empty search query';
+  const out = capture('git', ['grep', '-n', '-I', '-F', '--', q, 'src', 'public']); return out.trim() ? out.slice(0, 5000) : `No matches for: ${q}`;
+}
+function readFileWindow(file, start = 1, end = 100, obj) {
+  if (!allowedFile(file, obj)) return `ERROR: out-of-scope file: ${file}`;
+  const f = abs(file); if (!fs.existsSync(f)) return `ERROR: file not found: ${file}`;
+  const lines = fs.readFileSync(f, 'utf8').split(/\r?\n/); const first = Math.max(1, Number(start) || 1); const last = Math.min(lines.length, first + 99, Number(end) || first + 99);
+  return lines.slice(first - 1, last).map((x, i) => `${String(first + i).padStart(4, ' ')}| ${x}`).join('\n').slice(0, 7000);
+}
+function syntaxCheck(file) {
+  if (!/\.(?:js|mjs|cjs|jsx)$/.test(file)) return 'syntax check deferred to build';
+  try { run(process.execPath, ['--check', file]); return 'syntax check PASS'; } catch (e) { return `syntax check FAIL\n${[e.stdout, e.stderr, e.message].filter(Boolean).join('\n').slice(0, 5000)}`; }
+}
+function editFile(file, search, replace, obj) {
+  if (!allowedFile(file, obj)) return 'ERROR: out-of-scope file. Only objective product files may be edited.';
+  const f = abs(file); if (!fs.existsSync(f)) return `ERROR: file not found: ${file}`;
+  if (!search || typeof replace !== 'string') return 'ERROR: search and replace are required.';
+  const current = fs.readFileSync(f, 'utf8'); const matches = current.split(search).length - 1;
+  if (matches !== 1) return `ERROR: search must match exactly once; found ${matches}. Re-read the file and choose a smaller unique anchor.`;
+  const next = current.replace(search, replace); if (next === current || !next.trim()) return 'ERROR: refusing empty/no-op edit.';
+  fs.writeFileSync(f, next); const syntax = syntaxCheck(file);
+  if (syntax.includes('FAIL')) return `${syntax}\nEDIT REJECTED: restore this file before continuing.`;
+  return `EDIT APPLIED: ${file}\n${syntax}`;
+}
+function runCheck(check) {
+  try {
+    if (check === 'diff-check') { run('git', ['diff', '--check']); return 'git diff --check PASS'; }
+    if (check === 'build') return `npm run build PASS\n${run('npm', ['run', 'build']).slice(-6000)}`;
+    if (check === 'changed-syntax') {
+      const files = capture('git', ['diff', '--name-only', '--', 'src', 'public']).split(/\r?\n/).filter((p) => /\.(?:js|mjs|cjs|jsx)$/.test(p));
+      const bad = files.map(syntaxCheck).filter((x) => x.includes('FAIL')); return bad.length ? bad.join('\n') : `changed JS syntax PASS (${files.length} files)`;
+    }
+    return `ERROR: unsupported check '${check}'`;
+  } catch (e) { return `${check} FAIL\n${[e.stdout, e.stderr, e.message].filter(Boolean).join('\n').slice(-7000)}`; }
+}
+
+const tools = [
+  { type: 'function', function: { name: 'search_repo', description: 'Search product source for an exact string.', parameters: { type: 'object', required: ['query'], properties: { query: { type: 'string' } } } } },
+  { type: 'function', function: { name: 'read_file', description: 'View up to 100 lines from an objective product file.', parameters: { type: 'object', required: ['file'], properties: { file: { type: 'string' }, start: { type: 'integer' }, end: { type: 'integer' } } } } },
+  { type: 'function', function: { name: 'git_status', description: 'Inspect current working-tree status.', parameters: { type: 'object', properties: {} } } },
+  { type: 'function', function: { name: 'git_diff', description: 'Inspect current product-source diff.', parameters: { type: 'object', properties: {} } } },
+  { type: 'function', function: { name: 'edit_file', description: 'Atomically replace one exact source block. Only objective files are permitted. Multiple edits in one file are allowed only when each search is unique and non-overlapping.', parameters: { type: 'object', required: ['file', 'search', 'replace'], properties: { file: { type: 'string' }, search: { type: 'string' }, replace: { type: 'string' } } } } },
+  { type: 'function', function: { name: 'run_check', description: 'Run a bounded verification check.', parameters: { type: 'object', required: ['check'], properties: { check: { type: 'string', enum: ['build', 'diff-check', 'changed-syntax'] } } } } },
+  { type: 'function', function: { name: 'submit', description: 'Finish only after a meaningful product change has been verified.', parameters: { type: 'object', required: ['summary'], properties: { summary: { type: 'string' } } } } },
+];
+
+function parseToolCalls(response) { return (response?.message?.tool_calls || []).map((c) => ({ name: c.function?.name, arguments: typeof c.function?.arguments === 'string' ? JSON.parse(c.function.arguments) : (c.function?.arguments || {}) })); }
+function modelCall(messages) {
+  const seconds = Math.min(timeoutSeconds, Math.max(45, Math.floor(left() * 60)));
+  const body = JSON.stringify({ model, stream: false, keep_alive: '15m', tools, options: { temperature: 0, num_ctx: 8192, num_predict: 1800 }, messages });
+  try { const raw = run('curl', ['-sS', '--fail', '--connect-timeout', '15', '--max-time', String(seconds), `${host}/api/chat`, '-H', 'Content-Type: application/json', '-d', body], { timeout: (seconds + 5) * 1000 }); const response = JSON.parse(raw); if (response.error) throw new Error(String(response.error)); return response; }
+  catch (e) { throw new Error(`local agent request failed: ${e.message}`); }
+}
+function initialPrompt(obj, repair) {
+  const failure = state.failed?.[obj.id];
+  return `You are the autonomous senior engineer for Bikeztagram AI. Work on the real repository using the supplied tools; do not merely describe a plan.
+
+OBJECTIVE: ${obj.title}\nPriority: ${obj.priority}\nPrevious verified increments: ${progress[obj.id] || 0}\nDependencies: ${(obj.dependsOn || []).join(', ') || 'none'}
+
+ACCEPTANCE:\n- ${(obj.acceptance || []).join('\n- ')}
+CONSTRAINTS:\n- ${(obj.constraints || []).join('\n- ')}
+OBJECTIVE FILES (ONLY these may be edited):\n${(obj.files || []).map((f) => `- ${f}`).join('\n')}
+
+Rules: explore first when needed; make a coherent production change; use at most ${maxEdits} edits; preserve all existing working-tree changes; never reset/clean; never modify builder infrastructure, workflows, secrets, dependencies or Vercel config; never use Gemini or paid providers. After editing, inspect the diff and run changed-syntax, diff-check and build as appropriate. If a check fails, diagnose and repair it, then rerun the check. Submit only after independent verification. This is an agent loop, not a one-shot patch generator.
+${repair ? `\nPREVIOUS FAILURE:\n${String(failure?.message || '').slice(0, 5000)}\nDIFF:\n${String(failure?.diff || '').slice(0, 5000)}` : ''}`;
+}
+
+function executeTool(name, args, obj, snapshots, touched, editCount) {
+  if (name === 'search_repo') return searchRepo(args.query);
+  if (name === 'read_file') return readFileWindow(args.file, args.start, args.end, obj);
+  if (name === 'git_status') return gitStatus();
+  if (name === 'git_diff') return gitDiff();
+  if (name === 'run_check') return runCheck(args.check);
+  if (name === 'edit_file') {
+    if (editCount.value >= maxEdits) return `ERROR: edit budget exhausted (${maxEdits}). Run verification or submit.`;
+    if (!snapshots.has(args.file)) { const f = abs(args.file); if (fs.existsSync(f)) snapshots.set(args.file, fs.readFileSync(f, 'utf8')); }
+    const result = editFile(args.file, args.search, args.replace, obj);
+    if (result.startsWith('EDIT APPLIED')) { editCount.value += 1; touched.add(args.file); }
+    return result;
+  }
+  if (name === 'submit') return `SUBMIT REQUESTED: ${String(args.summary || '').slice(0, 1000)}`;
+  return `ERROR: unknown tool ${name}`;
+}
+function verifySubmission(obj) {
+  const product = gitStatus().split(/\r?\n/).map((line) => line.trim().split(/\s+/).at(-1)).filter((p) => p && /^src\//.test(p) && allowedFile(p, obj));
+  if (!product.length) return { ok: false, reason: 'No objective product-source change was produced.' };
+  try { run('git', ['diff', '--check']); run('npm', ['run', 'build']); } catch (e) { return { ok: false, reason: `independent verification failed: ${[e.stdout, e.stderr, e.message].filter(Boolean).join('\n').slice(-7000)}` }; }
+  return { ok: true, files: [...new Set(product)] };
+}
+
+function runObjective(obj, repair = false) {
+  const snapshots = snapshotFiles(obj); const touched = new Set(); const editCount = { value: 0 };
+  const messages = [{ role: 'system', content: 'You are a tool-using senior software engineer. Search, read, edit, execute checks, diagnose, repair, and submit verified code.' }, { role: 'user', content: initialPrompt(obj, repair) }];
+  let submitted = false; let summary = '';
+  for (let turn = 1; turn <= maxTurns && left() > 0.75; turn += 1) {
+    console.log(`[autobot] agent turn ${turn}/${maxTurns}; edits=${editCount.value}/${maxEdits}; ${left().toFixed(1)}m remaining`);
+    const response = modelCall(messages); const assistant = response.message || { role: 'assistant', content: '' }; messages.push(assistant); const calls = parseToolCalls(response);
+    if (!calls.length) { console.log(`[autobot] agent stopped without tool call: ${String(assistant.content || '').slice(0, 800)}`); break; }
+    for (const call of calls) {
+      if (call.name === 'submit') { submitted = true; summary = String(call.arguments.summary || '').slice(0, 1000); messages.push({ role: 'tool', tool_name: call.name, content: 'Submission received. Runner verification is authoritative.' }); continue; }
+      const result = executeTool(call.name, call.arguments, obj, snapshots, touched, editCount);
+      console.log(`[autobot] ${call.name}: ${result.slice(0, 900).replace(/\n/g, ' ')}`); messages.push({ role: 'tool', tool_name: call.name, content: result.slice(0, 6500) });
+    }
+    if (submitted) break;
+  }
+  if (!submitted) { restoreAttemptFiles(snapshots); return { ok: false, message: 'Agent exhausted tool turns without submitting a verified increment.', touched: [...touched] }; }
+  const verification = verifySubmission(obj);
+  if (!verification.ok) { restoreAttemptFiles(snapshots); return { ok: false, message: verification.reason, touched: [...touched] }; }
+  return { ok: true, message: summary || 'Verified production increment', touched: verification.files };
+}
+function recordFailure(obj, message, touched) {
+  const previous = state.failed?.[obj.id] || {}; state.failed = state.failed || {};
+  state.failed[obj.id] = { attempts: (previous.attempts || 0) + 1, class: /build|syntax|diff/i.test(message) ? 'verification-build' : 'implementation', message: String(message).slice(0, 7000), diff: gitDiff().slice(0, 7000), anchors: touched.join(', '), updatedAt: new Date().toISOString() }; save();
+}
+function markSuccess(obj, result) { progress[obj.id] = (progress[obj.id] || 0) + 1; delete state.failed?.[obj.id]; save(); appendAudit('feature-increment-verified', { objectiveId: obj.id, progress: progress[obj.id], files: result.touched, protocol: PROTOCOL, agentic: true }); }
+
+if (process.env.LOCAL_AI_READY !== '1') { console.error('[autobot] local AI unavailable; feature brain refuses paid fallback'); process.exit(2); }
+appendAudit('feature-brain-run-started', { minutes, model, maxFeatures, maxAttemptsPerFeature, maxEdits, maxTurns, timeoutSeconds, protocol: PROTOCOL, agentic: true });
+console.log(`[autobot] agentic feature brain: model=${model}; turns=${maxTurns}; edits=${maxEdits}`);
+for (let n = 1; n <= maxFeatures && left() > 1; n += 1) {
+  const obj = choose(); if (!obj) { console.log('[autobot] no eligible feature objective is available'); break; }
+  for (let attempt = 1; attempt <= maxAttemptsPerFeature && left() > 1; attempt += 1) {
+    attemptsThisRun.set(obj.id, (attemptsThisRun.get(obj.id) || 0) + 1); appendAudit('feature-attempt-started', { objectiveId: obj.id, attempt, protocol: PROTOCOL, agentic: true });
+    console.log(`[autobot] FEATURE ${n}/${maxFeatures}: ${obj.id} — attempt ${attempt}/${maxAttemptsPerFeature}`);
+    let result;
+    try { result = runObjective(obj, attempt > 1); } catch (error) { result = { ok: false, message: error.message, touched: [] }; }
+    if (result.ok) { markSuccess(obj, result); console.log(`[autobot] VERIFIED increment for ${obj.id}: ${result.message}`); appendAudit('feature-attempt-verified', { objectiveId: obj.id, attempt, files: result.touched, progress: progress[obj.id] }); break; }
+    recordFailure(obj, result.message, result.touched); appendAudit('feature-attempt-failed', { objectiveId: obj.id, attempt, message: result.message.slice(0, 3000), touched: result.touched }); console.error(`[autobot] feature attempt failed; scoped recovery preserved unrelated work: ${result.message.slice(0, 1200)}`);
+  }
+}
+appendAudit('feature-brain-run-finished', { elapsedMinutes: Number(((Date.now() - started) / 60000).toFixed(2)), progress, protocol: PROTOCOL, agentic: true }); save();
+console.log(`[autobot] agentic feature brain finished with progress: ${JSON.stringify(progress)}`);
