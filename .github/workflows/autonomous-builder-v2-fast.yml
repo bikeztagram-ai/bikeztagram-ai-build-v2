@@ -142,7 +142,15 @@ jobs:
           git checkout -b "$branch"
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # GITHUB_TOKEN deliberately has no workflow-write permission.
+          # Never publish workflow changes from an autonomous checkpoint.
+          git restore --source=HEAD -- .github/workflows
           git add -A
-          git commit -m 'feat: repository-aware autonomous builder checkpoint' || true
+          git reset -- .github/workflows || true
+          if git diff --cached --quiet; then
+            echo 'No checkpoint changes to publish.'
+            exit 0
+          fi
+          git commit -m 'feat: repository-aware autonomous builder checkpoint'
           git push --set-upstream origin "$branch"
           gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 repository-aware checkpoint' --body 'Repository-aware autonomous builder checkpoint. Review required before merge. Local open-source coding model, deterministic repository index, broad read-only exploration and objective-scoped writes.' || true
