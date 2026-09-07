@@ -15,7 +15,7 @@ for (const [pattern, message] of [
   [/stream:\s*false/, 'non-streaming structured response missing'],
   [/think:\s*false/, 'Qwen thinking must be disabled'],
   [/temperature:\s*0/, 'deterministic temperature missing'],
-  [/num_predict:\s*420/, 'bounded output missing'],
+  [/num_predict:\s*360/, 'bounded output missing'],
   [/maxEdits/, 'bounded edit budget missing'],
   [/search must match exactly once/, 'exact-match write guard missing'],
   [/restore\(snapshots\)/, 'scoped rollback missing'],
