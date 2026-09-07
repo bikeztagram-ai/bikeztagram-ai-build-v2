@@ -1,29 +1,42 @@
 #!/usr/bin/env node
-/** Regression contract for sustained AutoBot alternation and bounded slices. */
+/** Regression contract for the active repository-aware AutoBot controller. */
 import fs from 'node:fs';
+
 const root = process.cwd();
-const read = p => fs.readFileSync(`${root}/${p}`, 'utf8');
-const runner = read('builder/runner/long-run-executor.mjs');
+const read = (p) => fs.readFileSync(`${root}/${p}`, 'utf8');
+const executor = read('builder/runner/repository-aware-executor.mjs');
+const brain = read('builder/runner/repository-aware-feature-brain.mjs');
 const failures = [];
-const required = [
-  ['deterministic bounded slice', 'AUTOBOT_DETERMINISTIC_SLICE_MINUTES'],
-  ['feature bounded slice', 'AUTOBOT_FEATURE_SLICE_MINUTES'],
-  ['feature cycle ceiling', 'AUTOBOT_MAX_FEATURE_CYCLES'],
-  ['deterministic execution', 'runOnce(deterministicSlice'],
-  ['feature execution', 'runFeatureBrain()'],
-  ['shared remaining-time guard', 'remainingMinutes()'],
-  ['iteration audit', "appendAudit('iteration-started'"],
-  ['feature audit', "appendAudit('feature-brain-started'"],
-  ['final audit', 'verifyAuditLog()']
+
+const requiredExecutor = [
+  ['bounded deterministic slice', /Math\.min\(4/],
+  ['bounded feature slice', /Math\.min\(10/],
+  ['deterministic execution', /deterministic-executor\.mjs/],
+  ['feature execution', /repository-aware-feature-brain\.mjs/],
+  ['shared remaining-time guard', /left\(\)/],
+  ['iteration loop', /while\s*\(left\(\)>1/],
+  ['iteration audit', /repository-aware-run-started/],
+  ['final audit', /verifyAuditLog\(\)/]
 ];
-for (const [label, marker] of required) if (!runner.includes(marker)) failures.push(`missing ${label}: ${marker}`);
-// Whitespace-tolerant contract: formatting must not decide whether the loop is safe.
-// A feature failure must not terminate the sustained controller.
-if (/const\s+featureStatus\s*=\s*runFeatureBrain\(\)\s*;\s*if\s*\(\s*featureStatus\s*!==\s*0\s*\)\s*\{[^}]*process\.exit\s*\(/s.test(runner)) {
-  failures.push('feature brain is terminal instead of resumable');
+for (const [label, pattern] of requiredExecutor) if (!pattern.test(executor)) failures.push(`missing ${label}`);
+
+const requiredBrain = [
+  ['bounded feature passes', /maxFeatures/],
+  ['bounded attempts', /maxAttempts/],
+  ['bounded turns', /maxTurns/],
+  ['bounded edits', /maxEdits/],
+  ['objective selection', /function\s+choose\s*\(/],
+  ['objective progress', /progress\[o\.id\]/],
+  ['feature completion audit', /repository-aware-feature-complete/]
+];
+for (const [label, pattern] of requiredBrain) if (!pattern.test(brain)) failures.push(`missing ${label}`);
+
+if (/git\s+reset\s+--hard|git\s+clean\s+-f/.test(executor + brain)) failures.push('unsafe wholesale recovery remains active');
+if (!/AUTOBOT_FEATURE_PASSES_PER_SLICE/.test(executor)) failures.push('feature pass budget is not propagated');
+if (!/AUTOBOT_FEATURE_MAX_ATTEMPTS/.test(brain) && !/maxAttempts/.test(brain)) failures.push('feature attempt ceiling missing');
+
+if (failures.length) {
+  console.error(failures.map((f) => `FAIL: ${f}`).join('\n'));
+  process.exit(1);
 }
-if (!/while\s*\(\s*totalUnits\s*<\s*requestedUnits\s*&&\s*remainingMinutes\(\)\s*>\s*0\s*\)/.test(runner)) {
-  failures.push('no sustained shared-budget loop');
-}
-if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
-console.log('AutoBot continuous-loop contract PASS: bounded deterministic slices, bounded feature slices, repeated alternation, shared time budget, cycle ceiling, resumable feature failures, and audit evidence.');
+console.log('AutoBot continuous-loop contract PASS: canonical repository-aware executor, bounded deterministic/feature slices, objective progress, bounded recovery, and audit evidence.');
