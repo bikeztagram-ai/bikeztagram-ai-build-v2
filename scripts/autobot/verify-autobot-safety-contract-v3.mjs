@@ -13,7 +13,7 @@ const indexer = read('builder/runner/repository-index.mjs');
 const workflow = read('.github/workflows/autonomous-builder-v2-fast.yml');
 
 const required = [
-  [/tools\s*=\s*\[/, 'repository-aware agent must expose structured tools'],
+  [/tools\s*=\s*\[|toolsFor\s*\(/, 'repository-aware agent must expose structured tools'],
   [/objectiveContext/, 'deterministic objective context router missing'],
   [/read_file/, 'objective-scoped read tool missing'],
   [/edit_file/, 'safe product edit tool missing'],
