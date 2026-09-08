@@ -37,7 +37,7 @@ const hardenedSyntaxFunction = `function syntaxCheck(file) {
   if (fs.existsSync(esbuild)) {
     const out = path.join(os.tmpdir(), 'autobot-syntax-' + process.pid + '-' + Date.now() + '-' + Math.random().toString(16).slice(2) + '.js');
     try {
-      const args = [file, '--log-level=error', '--outfile', out];
+      const args = [file, '--log-level=error', '--outfile=' + out];
       if (ext === '.jsx') args.push('--loader:.jsx=jsx');
       if (ext === '.tsx') args.push('--loader:.tsx=tsx');
       execFileSync(esbuild, args, { cwd: root, encoding: 'utf8', stdio: 'pipe' });
@@ -64,6 +64,7 @@ const finalBrain = fs.readFileSync(brainPath, 'utf8');
 if (!finalBrain.includes("import os from 'node:os';")) throw new Error('syntax validator runtime dependency import is missing');
 if (!finalBrain.includes("const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');")) throw new Error('real syntax validator was not installed');
 if (!finalBrain.includes("if (ext === '.jsx') args.push('--loader:.jsx=jsx');")) throw new Error('JSX syntax loader was not installed');
+if (!finalBrain.includes("'--outfile=' + out")) throw new Error('esbuild output flag was not installed correctly');
 const finalTasks = fs.readFileSync(taskPath, 'utf8');
 if (finalTasks.includes('npm run verify:batch33')) throw new Error('stale export verification command remains after migration');
 if (!finalTasks.includes('export-contract-check.mjs')) throw new Error('live export contract check is missing after migration');
