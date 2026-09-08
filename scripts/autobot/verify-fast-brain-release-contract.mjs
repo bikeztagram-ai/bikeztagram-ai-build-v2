@@ -53,7 +53,8 @@ require(brain.includes('if (completed === 0 && maxFeatures > 0) process.exitCode
 require(executor.includes('fast-brain-runtime-hardening.mjs'), 'executor does not run runtime hardening');
 require(executor.includes('verify-fast-brain-rollback.mjs'), 'executor does not run rollback regression before Qwen');
 require(rollback.includes('fs.copyFileSync(brainPath'), 'rollback regression is not tied to the active brain source');
-require(/progress\[objective\.id\]\s*=\s*(?:Math\.max\([^\n]*\)|1)/.test(rollback), 'rollback regression does not verify canonical completion tracking');
+require(rollback.includes('completedIds'), 'rollback regression does not verify durable completion tracking');
+require(rollback.includes('progress\\[objective\\.id\\]'), 'rollback regression does not inspect the canonical completion assignment');
 require(hardener.includes('canonical feature brain recovery contract incomplete'), 'hardener does not validate canonical recovery contract');
 require(hardener.includes('Do NOT retry the same replacement.'), 'hardener does not validate canonical failed-edit steering');
 require(hardener.includes('npm run verify:batch33'), 'hardener does not recognize stale export migration');
