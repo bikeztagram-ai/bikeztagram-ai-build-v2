@@ -169,7 +169,7 @@ function executeObjective(objective, repair) {
     const calls = parseToolCalls(response);
     if (!calls.length) {
       emptyTurns += 1;
-      console.log(`[autobot] no usable tool call returned (${emptyTurns}/2)`);
+      console.log(`[autobot] no usable tool call returned (${emptyTurns}/2); content=${String(response?.message?.content || '').slice(0, 320).replace(/\n/g, ' ')}`);
       messages.push({ role: 'user', content: inspected ? 'No usable tool call. You have inspected the code. Your NEXT response MUST be exactly one edit_file tool call. Choose the smallest meaningful accepted change.' : 'No usable tool call. Your NEXT response MUST be one read_file tool call on a supplied objective file.' });
       if (emptyTurns >= 2 && !inspected) inspected = true;
       continue;
@@ -187,7 +187,7 @@ function executeObjective(objective, repair) {
         else { result = editFile(call.args.file, call.args.search, call.args.replace, objective); if (result.startsWith('EDIT APPLIED')) editCount += 1; }
       } else result = `ERROR: unknown tool ${call.name}`;
       console.log(`[autobot] ${call.name}: ${result.slice(0, 900).replace(/\n/g, ' ')}`);
-      messages.push({ role: 'tool', content: result.slice(0, 5000) });
+      messages.push({ role: 'tool', tool_name: call.name, content: result.slice(0, 5000) });
       if (call.name === 'edit_file' && result.startsWith('EDIT APPLIED')) {
         messages.push({ role: 'user', content: 'EDIT APPLIED. Now verify it: call run_check with build or diff-check. Do not make another edit until verification is known.' });
       } else if (call.name === 'read_file') {
