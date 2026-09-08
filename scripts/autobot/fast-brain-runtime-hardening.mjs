@@ -19,7 +19,7 @@ const requiredBrainMarkers = [
   'tool_name: call.name', 'num_ctx: 4096', 'num_predict: 900',
   'fs.writeFileSync(abs(file), next);', 'const syntax = syntaxCheck(file);',
   'edit rejected and rolled back', 'fs.writeFileSync(abs(file), current);', 'failedEditFiles',
-  'Do NOT retry the same replacement.', 'completed: completedIds', 'progress[objective.id] = 1',
+  'Do NOT retry the same replacement.', 'completed: completedIds', 'for (const id of state.completed || []) progress[id]',
   '(progress[o.id] || 0) < 1', 'state.failed',
 ];
 const missing = requiredBrainMarkers.filter((marker) => !brain.includes(marker));
