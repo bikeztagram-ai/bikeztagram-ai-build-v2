@@ -2,8 +2,9 @@
 /**
  * Live-model preflight. Unlike the deterministic harness, this invokes the
  * actual installed Qwen3 4B through the configured Ollama proxy and requires
- * the real repository-aware brain to make, verify and persist one throwaway
- * product-source edit. Failure here prevents the expensive production run.
+ * the same hardened repository-aware brain used by production to make, verify
+ * and persist one throwaway product-source edit. Failure here prevents the
+ * expensive production run.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -13,7 +14,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 const root = process.cwd();
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bikeztagram-live-qwen-smoke-'));
 const brain = fs.readFileSync(path.join(root, 'builder/runner/repository-aware-feature-brain.mjs'), 'utf8');
+const hardener = fs.readFileSync(path.join(root, 'scripts/autobot/fast-brain-runtime-hardening.mjs'), 'utf8');
 const audit = fs.readFileSync(path.join(root, 'builder/quality/audit-log.mjs'), 'utf8');
+const taskLibrary = fs.readFileSync(path.join(root, 'builder/brain/task-library.json'), 'utf8');
 const model = 'qwen3:4b-instruct-2507-q4_K_M';
 const host = process.env.OLLAMA_HOST || 'http://127.0.0.1:11435';
 const baseline = 'export const smokeMessage = "READY";\n';
@@ -27,7 +30,9 @@ function git(args) { execFileSync('git', args, { cwd: temp, stdio: 'inherit' });
 
 try {
   write('builder/runner/repository-aware-feature-brain.mjs', brain);
+  write('scripts/autobot/fast-brain-runtime-hardening.mjs', hardener);
   write('builder/quality/audit-log.mjs', audit);
+  write('builder/brain/task-library.json', taskLibrary);
   write('builder/brain/feature-objectives.json', JSON.stringify({ objectives: [{
     id: 'live-qwen-smoke',
     title: 'Live Qwen coding smoke test',
@@ -40,11 +45,22 @@ try {
   write('builder/working/repository-map.json', JSON.stringify({ version: 1, files: [{ path: 'src/Smoke.js', lines: 1, purpose: 'throwaway product source for live agent smoke' }], byPath: { 'src/Smoke.js': 0 }, dependencyEdges: [] }, null, 2));
   write('src/Smoke.js', baseline);
   write('package.json', JSON.stringify({ name: 'live-qwen-smoke', private: true, scripts: { build: 'node -e "process.exit(0)"' } }, null, 2));
+  try { fs.symlinkSync(path.join(root, 'node_modules'), path.join(temp, 'node_modules'), 'dir'); } catch {}
   git(['init', '-q']);
   git(['config', 'user.email', 'smoke@example.invalid']);
   git(['config', 'user.name', 'Live Qwen Smoke']);
   git(['add', '.']);
   git(['commit', '-qm', 'live smoke baseline']);
+
+  execFileSync(process.execPath, ['scripts/autobot/fast-brain-runtime-hardening.mjs'], {
+    cwd: temp,
+    env: { ...process.env, AUTOBOT_HARDENING_ROOT: temp },
+    stdio: 'inherit',
+  });
+  const hardened = fs.readFileSync(path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'), 'utf8');
+  for (const marker of ["toolPhase = 'inspect'", "toolPhase = 'edit'", "toolPhase = 'verify'", "parsedCalls.slice(0, 1)"]) {
+    if (!hardened.includes(marker)) throw new Error(`live smoke hardened brain missing ${marker}`);
+  }
 
   console.log(`[autobot] LIVE QWEN SMOKE: model=${model} host=${host}`);
   const result = spawnSync(process.execPath, ['builder/runner/repository-aware-feature-brain.mjs'], {
@@ -74,7 +90,7 @@ try {
   if (!fs.existsSync(path.join(temp, 'builder/working/feature-brain-state.json'))) throw new Error('live Qwen did not persist feature state');
   const state = JSON.parse(fs.readFileSync(path.join(temp, 'builder/working/feature-brain-state.json'), 'utf8'));
   if (!state.completed?.includes('live-qwen-smoke')) throw new Error('live Qwen did not persist successful completion');
-  console.log('[autobot] LIVE QWEN SMOKE PASS: actual Qwen3 4B made and verified a throwaway source change through the canonical multi-turn agent.');
+  console.log('[autobot] LIVE QWEN SMOKE PASS: actual Qwen3 4B made and verified a throwaway source change through the same hardened multi-turn agent used by production.');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
