@@ -31,6 +31,10 @@ function hardenRuntime() {
   return run('scripts/autobot/fast-brain-runtime-hardening.mjs');
 }
 
+function rollbackRegression() {
+  return run('scripts/autobot/verify-fast-brain-rollback.mjs');
+}
+
 function deterministic() {
   const r = run('builder/runner/deterministic-executor.mjs', {
     BUILDER_MAX_MINUTES: String(Math.max(1, Math.min(4, Math.floor(left())))),
@@ -58,6 +62,10 @@ fs.mkdirSync(path.join(root, 'builder/working'), { recursive: true });
 if (index() !== 0) process.exit(2);
 if (hardenRuntime() !== 0) {
   console.error('[autobot] fast brain runtime hardening failed; stopping safely');
+  process.exit(2);
+}
+if (rollbackRegression() !== 0) {
+  console.error('[autobot] fast brain rollback regression failed; refusing to run Qwen unprotected');
   process.exit(2);
 }
 appendAudit('repository-aware-fast-run-started', {
