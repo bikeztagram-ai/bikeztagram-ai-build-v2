@@ -1,11 +1,12 @@
 {
-  "version": 1,
+  "version": 2,
   "status": "ready-for-live-run",
-  "requiredComponents": 16,
+  "requiredComponents": 18,
   "missing": [],
   "executorSyntax": "passed",
+  "continuousLoopContract": "passed",
   "merge": "human-review-only",
   "deployment": "human-review-only",
   "geminiRequired": false,
-  "generatedAt": "2026-08-27T20:44:55.937Z"
+  "generatedAt": "2026-09-08T13:14:20.075Z"
 }

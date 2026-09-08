@@ -3,16 +3,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const workflow = fs.readFileSync(path.join(root, '.github/workflows/autonomous-builder-v2.yml'), 'utf8');
-const executor = fs.readFileSync(path.join(root, 'builder/runner/deterministic-executor.mjs'), 'utf8');
-const sustained = fs.readFileSync(path.join(root, 'builder/runner/long-run-executor.mjs'), 'utf8');
-const library = JSON.parse(fs.readFileSync(path.join(root, 'builder/brain/task-library.json'), 'utf8'));
-const selfImprovementLibrary = fs.existsSync(path.join(root, 'builder/brain/self-improvement-task-library.json')) ? JSON.parse(fs.readFileSync(path.join(root, 'builder/brain/self-improvement-task-library.json'), 'utf8')) : { tasks: [] };
-const roadmap = JSON.parse(fs.readFileSync(path.join(root, 'builder/brain/roadmap.json'), 'utf8'));
-const queue = JSON.parse(fs.readFileSync(path.join(root, 'config/autonomous-builder-queue.json'), 'utf8'));
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+const workflow = read('.github/workflows/autonomous-builder-v2-fast.yml');
+const executor = read('builder/runner/deterministic-executor.mjs');
+const sustained = read('builder/runner/long-run-executor.mjs');
+const library = JSON.parse(read('builder/brain/task-library.json'));
+const selfImprovementLibrary = fs.existsSync(path.join(root, 'builder/brain/self-improvement-task-library.json')) ? JSON.parse(read('builder/brain/self-improvement-task-library.json')) : { tasks: [] };
+const roadmap = JSON.parse(read('builder/brain/roadmap.json'));
+const queue = JSON.parse(read('config/autonomous-builder-queue.json'));
 
 const failures = [];
-if (/GEMINI_API_KEY|gemini-cli|gemini-3/i.test(workflow)) failures.push('V2 workflow still depends on Gemini');
+if (/GEMINI_API_KEY|gemini-cli|gemini-3/i.test(workflow)) failures.push('canonical fast workflow still depends on Gemini');
+if (!workflow.includes('BUILDER_MAX_UNITS') || !workflow.includes('REQUESTED_DURATION')) failures.push('canonical fast workflow lacks deterministic budget inputs');
 if (!executor.includes('writeCheckpoint') || !executor.includes('history')) failures.push('deterministic executor lacks durable completion history');
 if (!executor.includes('verifiedThisRun')) failures.push('deterministic executor does not expose per-invocation verified units');
 if (!executor.includes('unchangedButVerified')) failures.push('idempotent verified-task evidence is missing');
