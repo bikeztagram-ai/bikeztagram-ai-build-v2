@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Regression test for Qwen edit rollback, context windows and objective routing hardening. */
+/** Regression test for Qwen runtime hardening using the real active brain as fixture. */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,7 +7,9 @@ import { spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const hardenerPath = path.join(root, 'scripts/autobot/fast-brain-runtime-hardening.mjs');
-const active = fs.readFileSync(path.join(root, 'builder/runner/repository-aware-feature-brain.mjs'), 'utf8');
+const activePath = path.join(root, 'builder/runner/repository-aware-feature-brain.mjs');
+const taskPath = path.join(root, 'builder/brain/task-library.json');
+const active = fs.readFileSync(activePath, 'utf8');
 const hardener = fs.readFileSync(hardenerPath, 'utf8');
 const failures = [];
 const requireMarker = (condition, message) => { if (!condition) failures.push(message); };
@@ -17,7 +19,7 @@ requireMarker(active.includes('const syntax = syntaxCheck(file);'), 'active brai
 requireMarker(hardener.includes('edit rejected and rolled back'), 'runtime hardener missing transactional rollback');
 requireMarker(hardener.includes('completed: completedIds'), 'runtime hardener missing durable completed-objective state');
 requireMarker(hardener.includes('progress[objective.id] = 1'), 'runtime hardener missing submit completion tracking');
-requireMarker(hardener.includes('(progress[o.id] || 0) < 1'), 'runtime hardener missing completed-objective exclusion');
+requireMarker(hardener.includes('failed objective retry ceiling'), 'runtime hardener missing failed-objective rotation');
 requireMarker(hardener.includes('failedEditFiles'), 'runtime hardener missing failed-file strategy state');
 requireMarker(hardener.includes('const requestedEnd = Number(end) || 0;'), 'runtime hardener missing minimum inspection window');
 requireMarker(hardener.includes('Do NOT repeat the same replacement.'), 'runtime hardener missing failed-edit feedback steering');
@@ -26,24 +28,25 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bikeztagram-fast-brain-'));
 try {
   fs.mkdirSync(path.join(temp, 'builder/runner'), { recursive: true });
   fs.mkdirSync(path.join(temp, 'builder/brain'), { recursive: true });
-  const fixture = `function editFile(file, search, replacement) {\n  const current = read(file);\n  const next = current.replace(search, replacement);\n  fs.writeFileSync(abs(file), next);\n  const syntax = syntaxCheck(file);\n  if (syntax !== 'PASS') return \`${'${syntax}'}; repair this edit before continuing.\`;\n  return \`EDIT APPLIED: ${'${file}'}\`;\n}\nfunction saveState() {\n  fs.mkdirSync(path.dirname(statePath), { recursive: true });\n  fs.writeFileSync(statePath, JSON.stringify({ version: 14, completed: [], progress, failed: state.failed || {}, updatedAt: new Date().toISOString() }, null, 2) + '\\n');\n}\nfunction chooseObjective() {\n  const available = objectives.filter((o) => dependenciesMet(o) && (attempts.get(o.id) || 0) < maxAttempts);\n  return available[0] || null;\n}\nfunction readFileWindow(file, start = 1, end = 90, objective) {\n  const lines = read(file).split(/\\r?\\n/);\n  const first = Math.max(1, Number(start) || 1);\n  const last = Math.min(lines.length, first + 89, Number(end) || first + 89);\n  return lines.slice(first - 1, last).join('\\n');\n}\nfunction executeObjective(objective) {\n  let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let emptyTurns = 0;\n  const tools = [];\n  for (const call of calls) {\n    let result = '';\n    if (call.name === 'edit_file') {\n      if (editCount >= maxEdits) result = 'ERROR: edit budget exhausted';\n      else { result = editFile(call.args.file, call.args.search, call.args.replace, objective); if (result.startsWith('EDIT APPLIED')) editCount += 1; }\n    }\n    if (call.name === 'read_file') {\n      messages.push({ role: 'user', content: 'Inspection complete. Do not read more files. Your next response MUST be edit_file with the smallest meaningful accepted improvement.' });\n    }\n    if (call.name === 'edit_file' && result.startsWith('EDIT APPLIED')) {\n      messages.push({ role: 'user', content: 'EDIT APPLIED. Now verify it: call run_check with build or diff-check. Do not make another edit until verification is known.' });\n    }\n  }\n  return { submitted, summary };\n}\nif (call.name === 'submit') { submitted = true; summary = String(call.args.summary || '').slice(0, 700); result = 'SUBMIT RECEIVED'; }\n`;
-  fs.writeFileSync(path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'), fixture);
-  fs.writeFileSync(path.join(temp, 'builder/brain/task-library.json'), '{}\n');
+  fs.writeFileSync(path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'), active);
+  fs.copyFileSync(taskPath, path.join(temp, 'builder/brain/task-library.json'));
   const result = spawnSync(process.execPath, [hardenerPath], {
     cwd: temp,
     encoding: 'utf8',
     env: { ...process.env, AUTOBOT_HARDENING_ROOT: temp },
   });
-  requireMarker(result.status === 0, `runtime hardener fixture failed: ${result.stderr || result.stdout}`);
+  requireMarker(result.status === 0, `runtime hardener real-brain fixture failed: ${(result.stderr || result.stdout || '').slice(0, 2500)}`);
   const hardened = fs.readFileSync(path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'), 'utf8');
-  requireMarker(hardened.includes('edit rejected and rolled back'), 'fixture hardening did not install transactional rollback');
-  requireMarker(hardened.includes('completed: completedIds'), 'fixture hardening did not install durable completion state');
-  requireMarker(hardened.includes('progress[objective.id] = 1'), 'fixture hardening did not install submit completion tracking');
-  requireMarker(hardened.includes('(progress[o.id] || 0) < 1'), 'fixture hardening did not install completed-objective exclusion');
-  requireMarker(hardened.includes('const requestedEnd = Number(end) || 0;'), 'fixture hardening did not install minimum inspection window');
-  requireMarker(hardened.includes('failedEditFiles'), 'fixture hardening did not install failed-file strategy state');
-  requireMarker(hardened.includes('same file is blocked for this attempt'), 'fixture hardening did not install failed-file guard');
-  requireMarker(hardened.includes('Do NOT repeat the same replacement.'), 'fixture hardening did not install failed-edit feedback steering');
+  for (const [marker, message] of [
+    ['edit rejected and rolled back', 'transactional rollback'],
+    ['completed: completedIds', 'durable completion state'],
+    ['progress[objective.id] = 1', 'submit completion tracking'],
+    ['failed objective retry ceiling', 'failed-objective rotation'],
+    ['const requestedEnd = Number(end) || 0;', 'minimum inspection window'],
+    ['failedEditFiles', 'failed-file strategy state'],
+    ['same file is blocked for this attempt', 'failed-file guard'],
+    ['Do NOT repeat the same replacement.', 'failed-edit feedback steering'],
+  ]) requireMarker(hardened.includes(marker), `real-brain hardening did not install ${message}`);
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
