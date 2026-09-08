@@ -5,6 +5,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { appendAudit } from '../quality/audit-log.mjs';
 
@@ -49,7 +50,6 @@ function saveState() {
 function dependenciesMet(objective) { return (objective.dependsOn || []).every((dependency) => progress[dependency] > 0 || (state.completed || []).includes(dependency)); }
 function chooseObjective() {
   const available = objectives.filter((o) => dependenciesMet(o) && (progress[o.id] || 0) < 1 && (state.failed?.[o.id]?.attempts || 0) < 2 && (attempts.get(o.id) || 0) < maxAttempts);
-  // failed objective retry ceiling: rotate to a different objective after repeated failures
   available.sort((a, b) => ((b.priority || 0) - (progress[b.id] || 0) * 12 - (state.failed?.[b.id]?.attempts || 0) * 8) - ((a.priority || 0) - (progress[a.id] || 0) * 12 - (state.failed?.[a.id]?.attempts || 0) * 8));
   return available[0] || null;
 }
@@ -57,8 +57,22 @@ function allowedFile(file, objective) { return new Set(objective.files || []).ha
 function gitStatus() { return capture('git', ['status', '--short']).slice(0, 3500); }
 function gitDiff() { return capture('git', ['diff', '--', 'src', 'public']).slice(0, 7000); }
 function syntaxCheck(file) {
-  if (!/\.(js|mjs|cjs|jsx)$/.test(file)) return 'PASS';
-  try { run(process.execPath, ['--check', file]); return 'PASS'; } catch (error) { return `FAIL ${[error.stdout, error.stderr, error.message].filter(Boolean).join('\n').slice(0, 2200)}`; }
+  if (!/\.(js|mjs|cjs|jsx|ts|tsx)$/.test(file)) return 'PASS';
+  const ext = path.extname(file).toLowerCase();
+  const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');
+  if (fs.existsSync(esbuild)) {
+    const out = path.join(os.tmpdir(), 'autobot-syntax-' + process.pid + '-' + Date.now() + '-' + Math.random().toString(16).slice(2) + '.js');
+    try {
+      const args = [file, '--log-level=error', '--outfile', out];
+      if (ext === '.jsx') args.push('--loader:.jsx=jsx');
+      if (ext === '.tsx') args.push('--loader:.tsx=tsx');
+      run(esbuild, args, { stdio: 'pipe' });
+      return 'PASS';
+    } catch (error) { return `FAIL ${[error.stdout, error.stderr, error.message].filter(Boolean).join('\n').slice(0, 2200)}`; }
+    finally { try { fs.rmSync(out, { force: true }); } catch {} }
+  }
+  try { run(process.execPath, ['--check', file]); return 'PASS'; }
+  catch (error) { return `FAIL ${[error.stdout, error.stderr, error.message].filter(Boolean).join('\n').slice(0, 2200)}`; }
 }
 function runCheck(check) {
   try {
