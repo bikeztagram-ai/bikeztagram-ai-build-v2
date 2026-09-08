@@ -23,18 +23,17 @@ for (const [marker, message] of [
   ['failedEditFiles', 'failed-file strategy state'],
   ['same file is blocked for this attempt', 'failed-file guard'],
   ['A previous edit failed. Do not retry that file.', 'inspection strategy steering'],
-  ['Do NOT repeat the same replacement', 'failed-edit feedback steering'],
+  ['Do NOT retry the same replacement.', 'failed-edit feedback steering'],
 ]) requireMarker(active.includes(marker), `active brain missing ${message}`);
 
 requireMarker(hardener.includes('canonical feature brain recovery contract incomplete'), 'runtime hardener does not validate the canonical recovery contract');
+requireMarker(hardener.includes('Do NOT retry the same replacement.'), 'runtime hardener does not validate the canonical failed-edit steering');
 requireMarker(hardener.includes('export-contract-check.mjs'), 'runtime hardener does not contain the export migration');
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bikeztagram-fast-brain-'));
 try {
   fs.mkdirSync(path.join(temp, 'builder/runner'), { recursive: true });
   fs.mkdirSync(path.join(temp, 'builder/brain'), { recursive: true });
-  // Use the actual active brain as the fixture. This prevents the regression test
-  // from drifting away from the exact source that the runtime guard validates.
   fs.copyFileSync(brainPath, path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'));
   fs.copyFileSync(path.join(root, 'builder/brain/task-library.json'), path.join(temp, 'builder/brain/task-library.json'));
   const result = spawnSync(process.execPath, [hardenerPath], {
