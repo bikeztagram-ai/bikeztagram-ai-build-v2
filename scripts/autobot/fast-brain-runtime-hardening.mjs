@@ -25,6 +25,10 @@ const requiredBrainMarkers = [
 const missing = requiredBrainMarkers.filter((marker) => !brain.includes(marker));
 if (missing.length) throw new Error(`canonical feature brain recovery contract incomplete: ${missing.join(', ')}`);
 
+if (!brain.includes("import os from 'node:os';")) {
+  brain = brain.replace("import path from 'node:path';", "import path from 'node:path';\nimport os from 'node:os';");
+}
+
 const syntaxFunctionPattern = /function syntaxCheck\(file\) \{[\s\S]*?\n\}\nfunction runCheck/;
 const hardenedSyntaxFunction = `function syntaxCheck(file) {
   if (!/\\.(js|mjs|cjs|jsx|ts|tsx)$/.test(file)) return 'PASS';
@@ -42,7 +46,7 @@ const hardenedSyntaxFunction = `function syntaxCheck(file) {
       return 'FAIL ' + [error.stdout, error.stderr, error.message].filter(Boolean).join('\\n').slice(0, 2200);
     } finally { try { fs.rmSync(out, { force: true }); } catch {} }
   }
-  try { execFileSync(process.execPath, [file], { cwd: root, encoding: 'utf8', stdio: 'pipe', timeout: 15000 }); return 'PASS'; }
+  try { execFileSync(process.execPath, [file, '--check'], { cwd: root, encoding: 'utf8', stdio: 'pipe', timeout: 15000 }); return 'PASS'; }
   catch (error) { return 'FAIL ' + [error.stdout, error.stderr, error.message].filter(Boolean).join('\\n').slice(0, 2200); }
 }
 function runCheck`;
@@ -57,6 +61,7 @@ if (tasks.includes('npm run verify:batch33')) {
   console.log('[autobot] stale export verification command repaired.');
 }
 const finalBrain = fs.readFileSync(brainPath, 'utf8');
+if (!finalBrain.includes("import os from 'node:os';")) throw new Error('syntax validator runtime dependency import is missing');
 if (!finalBrain.includes("const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');")) throw new Error('real syntax validator was not installed');
 if (!finalBrain.includes("if (ext === '.jsx') args.push('--loader:.jsx=jsx');")) throw new Error('JSX syntax loader was not installed');
 const finalTasks = fs.readFileSync(taskPath, 'utf8');
