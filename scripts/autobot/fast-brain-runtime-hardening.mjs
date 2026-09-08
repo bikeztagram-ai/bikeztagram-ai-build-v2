@@ -49,8 +49,6 @@ const hardenedModelCall = `function modelCall(messages, toolPhase = 'inspect') {
   const allowedByPhase = {
     inspect: new Set(['read_file']),
     edit: new Set(['edit_file']),
-    recoverInspect: new Set(['read_file']),
-    recoverEdit: new Set(['edit_file']),
     verify: new Set(['run_check']),
     submit: new Set(['submit']),
   };
@@ -83,23 +81,23 @@ brain = brain.replace(
 );
 const readHandlerPattern = /else if \(call\.name === 'read_file'\) \{[\s\S]*?readFileWindow\(call\.args\.file, call\.args\.start, call\.args\.end, objective\); \}/;
 if (readHandlerPattern.test(brain)) {
-  brain = brain.replace(readHandlerPattern, "else if (call.name === 'read_file') { inspected = true; toolPhase = toolPhase === 'recoverInspect' ? 'recoverEdit' : 'edit'; result = readFileWindow(call.args.file, call.args.start, call.args.end, objective); }");
-} else if (!brain.includes("toolPhase = toolPhase === 'recoverInspect' ? 'recoverEdit' : 'edit'")) {
-  throw new Error('canonical read_file handler shape is not recognized; refusing recovery-phase migration');
+  brain = brain.replace(readHandlerPattern, "else if (call.name === 'read_file') { inspected = true; toolPhase = 'edit'; result = readFileWindow(call.args.file, call.args.start, call.args.end, objective); }");
+} else if (!brain.includes("toolPhase = 'edit'; result = readFileWindow")) {
+  throw new Error('canonical read_file handler shape is not recognized; refusing inspection migration');
 }
 brain = brain.replace(/else if \(call\.name === 'git_status'\) result = gitStatus\(\);/, "else if (call.name === 'git_status') result = 'ERROR: git_status is not available during a Qwen feature turn.';");
 brain = brain.replace(/else if \(call\.name === 'git_diff'\) result = gitDiff\(\);/, "else if (call.name === 'git_diff') result = 'ERROR: git_diff is not available during a Qwen feature turn.';");
 brain = brain.replace(/else if \(call\.name === 'run_check'\) result = runCheck\(call\.args\.check\);/, "else if (call.name === 'run_check') { result = runCheck(call.args.check); toolPhase = result === 'PASS' ? 'submit' : 'edit'; }");
 const editHandlerPattern = /else \{ result = editFile\(call\.args\.file, call\.args\.search, call\.args\.replace, objective\); if \(result\.startsWith\('EDIT APPLIED'\)\) editCount \+= 1; else \{ failedEditAttempts \+= 1; failedEditFiles\.add\(String\(call\.args\.file \|\| ''\)\); \} \}/;
 if (editHandlerPattern.test(brain)) {
-  brain = brain.replace(editHandlerPattern, "else { result = editFile(call.args.file, call.args.search, call.args.replace, objective); if (result.startsWith('EDIT APPLIED')) { editCount += 1; toolPhase = 'verify'; } else { failedEditAttempts += 1; failedEditFiles.add(String(call.args.file || '')); toolPhase = 'recoverInspect'; } }");
-} else if (!brain.includes("toolPhase = 'recoverInspect'")) {
-  throw new Error('canonical edit handler shape is not recognized; refusing recovery-phase migration');
+  brain = brain.replace(editHandlerPattern, "else { result = editFile(call.args.file, call.args.search, call.args.replace, objective); if (result.startsWith('EDIT APPLIED')) { editCount += 1; toolPhase = 'verify'; } else { failedEditAttempts += 1; failedEditFiles.add(String(call.args.file || '')); toolPhase = 'inspect'; } }");
+} else if (!brain.includes("toolPhase = 'inspect'; }")) {
+  throw new Error('canonical edit handler shape is not recognized; refusing recovery migration');
 }
 
 for (const marker of [
-  'const allowedByPhase =', "toolPhase = 'recoverInspect'", "toolPhase = 'recoverEdit'",
-  "toolPhase = 'verify'", 'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);'
+  'const allowedByPhase =', "toolPhase = 'inspect'", "toolPhase = 'edit'",
+  "toolPhase = 'verify'", "toolPhase = 'submit'", 'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);'
 ]) if (!brain.includes(marker)) throw new Error(`tool-phase hardening marker missing: ${marker}`);
 fs.writeFileSync(brainPath, brain);
 
@@ -113,8 +111,8 @@ const finalBrain = fs.readFileSync(brainPath, 'utf8');
 for (const marker of [
   "const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');",
   "if (ext === '.jsx') args.push('--loader:.jsx=jsx');", "'--outfile=' + out",
-  'const allowedByPhase =', "toolPhase = 'recoverInspect'", "toolPhase = 'recoverEdit'",
-  "toolPhase = 'verify'", 'parsedCalls.slice(0, 1)'
+  'const allowedByPhase =', "toolPhase = 'inspect'", "toolPhase = 'edit'",
+  "toolPhase = 'verify'", "toolPhase = 'submit'", 'parsedCalls.slice(0, 1)'
 ]) if (!finalBrain.includes(marker)) throw new Error(`final hardening verification missing: ${marker}`);
 const finalTasks = fs.readFileSync(taskPath, 'utf8');
 if (finalTasks.includes('npm run verify:batch33')) throw new Error('stale export verification command remains after migration');
