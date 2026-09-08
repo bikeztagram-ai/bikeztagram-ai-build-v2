@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 
 const brain = fs.readFileSync('builder/runner/repository-aware-feature-brain.mjs', 'utf8');
+const executor = fs.readFileSync('builder/runner/repository-aware-fast-executor.mjs', 'utf8');
 const failures = [];
 const required = [
   ['repository-aware-agent-v7', 'canonical agent protocol'],
@@ -29,7 +30,7 @@ const required = [
 ];
 for (const [needle, label] of required) if (!brain.includes(needle)) failures.push(`missing ${label}`);
 if (!/progress\[objective\.id\]\s*=\s*(?:Math\.max\([^\n]*\)|1)/.test(brain)) failures.push('durable completion tracking missing');
-if (!/Math\.max\(1,\s*Math\.min\(10,\s*Math\.floor\(left\(\)\)\)\)/.test(brain)) failures.push('bounded feature time window missing');
+if (!/Math\.max\(1,\s*Math\.min\(10,\s*Math\.floor\(left\(\)\)\)\)/.test(executor)) failures.push('bounded feature time window missing');
 if (!/maxTurns/.test(brain) || !/maxEdits/.test(brain)) failures.push('bounded turn/edit ceilings missing');
 if (!/Math\.min\(180,\s*Math\.max\(45,\s*Math\.floor\(left\(\) \* 60\)\)\)/.test(brain)) failures.push('bounded Ollama request timeout missing');
 if (/git\s+reset\s+--hard|git\s+clean\s+-f/.test(brain)) failures.push('unsafe wholesale rollback still active');
