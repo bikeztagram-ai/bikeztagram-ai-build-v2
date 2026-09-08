@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bikeztagram's autonomous builder uses a local coding model only.
+# Bikeztagram's autonomous builder uses one local coding model only.
 # No OpenAI, Gemini, or other provider API is required for the builder brain.
+REQUIRED_MODEL='qwen3:4b-instruct-2507-q4_K_M'
 if ! command -v ollama >/dev/null 2>&1; then curl -fsSL https://ollama.com/install.sh | sh; fi
 export OLLAMA_HOST="127.0.0.1:11434"
 nohup ollama serve >/tmp/bikeztagram-ollama.log 2>&1 &
 ready=false
 for i in $(seq 1 30); do if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then ready=true; break; fi; sleep 2; done
 if [[ "$ready" != true ]]; then echo '[autobot] Ollama API did not become ready within 60s.'; cat /tmp/bikeztagram-ollama.log || true; exit 1; fi
-MODEL="${LOCAL_AI_MODEL:-qwen3:4b-instruct-2507-q4_K_M}"
+MODEL="${LOCAL_AI_MODEL:-$REQUIRED_MODEL}"
+if [[ "$MODEL" != "$REQUIRED_MODEL" ]]; then
+  echo "[autobot] refusing model drift: requested $MODEL; required $REQUIRED_MODEL"
+  exit 1
+fi
 echo "[autobot] pulling local coding model: $MODEL"
 if ! ollama pull "$MODEL"; then
   echo "[autobot] failed to pull requested local model: $MODEL"
