@@ -5,12 +5,19 @@ import { execFileSync } from 'node:child_process';
 
 const required = [
   'builder/runner/deterministic-executor.mjs',
-  'builder/runner/long-run-executor.mjs',
-  'builder/runner/run-duration.mjs',
-  'builder/runner/recovery-controller.mjs',
-  'builder/runner/segment-plan.mjs',
-  'builder/runner/retry-policy.mjs',
-  'builder/runner/safety-contract.json',
+  'builder/runner/repository-aware-fast-executor.mjs',
+  'builder/runner/repository-aware-feature-brain.mjs',
+  'builder/runner/repository-index.mjs',
+  'builder/runner/ollama-performance-proxy.mjs',
+  'scripts/autobot/fast-brain-runtime-hardening.mjs',
+  'scripts/autobot/verify-fast-brain-rollback.mjs',
+  'scripts/autobot/verify-fast-brain-agent-harness.mjs',
+  'scripts/autobot/verify-fast-brain-live-qwen-smoke.mjs',
+  'scripts/autobot/verify-autobot-continuous-loop.mjs',
+  'scripts/autobot/verify-autobot-feature-edit-protocol.mjs',
+  'scripts/autobot/verify-feature-brain-resilience.mjs',
+  'scripts/autobot/verify-fast-brain-release-contract.mjs',
+  'scripts/autobot/install-local-brain.sh',
   'builder/quality/gate-runner.mjs',
   'builder/quality/merge-readiness.mjs',
   'builder/quality/acceptance-gate.mjs',
@@ -21,20 +28,32 @@ const required = [
   'builder/learning/improvement-proposal.mjs',
   'builder/learning/lesson-validator.mjs',
   'builder/monitor/heartbeat-watchdog.mjs',
-  'scripts/autobot/verify-autobot-continuous-loop.mjs'
 ];
 const missing = required.filter(f => !fs.existsSync(f));
 let syntax = 'failed';
-let continuous = 'failed';
-try { execFileSync('node', ['--check', 'builder/runner/deterministic-executor.mjs'], { stdio: 'ignore' }); syntax = 'passed'; } catch {}
-try { execFileSync('node', ['scripts/autobot/verify-autobot-continuous-loop.mjs'], { stdio: 'ignore' }); continuous = 'passed'; } catch {}
+let contracts = 'failed';
+try {
+  execFileSync('node', ['--check', 'builder/runner/repository-aware-fast-executor.mjs'], { stdio: 'ignore' });
+  execFileSync('node', ['--check', 'builder/runner/repository-aware-feature-brain.mjs'], { stdio: 'ignore' });
+  execFileSync('node', ['--check', 'scripts/autobot/verify-autobot-continuous-loop.mjs'], { stdio: 'ignore' });
+  syntax = 'passed';
+} catch {}
+try {
+  execFileSync('node', ['scripts/autobot/verify-autobot-continuous-loop.mjs'], { stdio: 'ignore' });
+  execFileSync('node', ['scripts/autobot/verify-autobot-feature-edit-protocol.mjs'], { stdio: 'ignore' });
+  execFileSync('node', ['scripts/autobot/verify-feature-brain-resilience.mjs'], { stdio: 'ignore' });
+  execFileSync('node', ['scripts/autobot/verify-fast-brain-release-contract.mjs'], { stdio: 'ignore' });
+  execFileSync('node', ['scripts/autobot/verify-fast-brain-agent-harness.mjs'], { stdio: 'ignore' });
+  contracts = 'passed';
+} catch {}
 const result = {
-  version: 2,
-  status: missing.length || syntax !== 'passed' || continuous !== 'passed' ? 'not-ready' : 'ready-for-live-run',
+  version: 3,
+  status: missing.length || syntax !== 'passed' || contracts !== 'passed' ? 'not-ready' : 'ready-for-live-run',
   requiredComponents: required.length,
   missing,
   executorSyntax: syntax,
-  continuousLoopContract: continuous,
+  canonicalContracts: contracts,
+  architecture: 'repository-aware-agent-v7 / Qwen3 4B / transactional recovery',
   merge: 'human-review-only',
   deployment: 'human-review-only',
   geminiRequired: false,

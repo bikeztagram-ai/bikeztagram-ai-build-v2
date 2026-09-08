@@ -56,6 +56,16 @@ This file is durable guidance for every future Bikeztagram AI batch. It exists s
 - Any persistence feature that claims media recovery must include a regression check distinguishing temporary object URLs from durable remote references.
 - A lesson is active only when the builder's deterministic verification rejects the unsafe case and accepts the safe case.
 
+### Fast Brain recovery and architecture drift
+- A green Fast Brain workflow is not proof that Qwen actually completed a product objective. The runner must require a real product-source diff and a submitted, verified feature; a zero-feature run must be non-zero.
+- Keep exactly one canonical local model path: `qwen3:4b-instruct-2507-q4_K_M` through Ollama `/api/chat` and the repository-aware multi-turn agent. Do not silently revive retired structured brains, old executors, Gemini, or model fallbacks.
+- Cross-file architecture contracts are required when changing the builder. Workflow, executor, brain, proxy settings, validators, recovery code and task library must agree before a live run.
+- The workflow must prove the exact checked-out SHA before starting expensive local-model work. Never infer the revision from a screenshot or a later cleanup step.
+- Qwen edits are transactional: a syntax-invalid edit must restore the exact pre-edit file before the next model turn. A failed file should be blocked for the remainder of that objective attempt so Qwen is forced to recover on another scoped file.
+- Completed objectives must be persisted and excluded from future selection; repeatedly failed objectives need a bounded retry ceiling so a single weak objective cannot monopolise a run.
+- Runtime hardeners are migration aids, not substitutes for fixing the canonical source. The active feature brain should carry its own recovery guarantees, while the hardener remains a compatibility guard for older checkpoints.
+- A production verification workflow should execute the Fast Brain architecture contract so drift is caught on ordinary PR verification, not only when a long autonomous run is started.
+
 ## How architecture advisors should be used
 
 - Architecture advisors are bounded quality/reasoning inputs, not unlimited second builders.
