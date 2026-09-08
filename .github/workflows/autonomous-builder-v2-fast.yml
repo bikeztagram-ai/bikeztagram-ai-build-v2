@@ -122,6 +122,7 @@ jobs:
           node --check scripts/autobot/fast-brain-runtime-hardening.mjs
           node --check scripts/autobot/verify-fast-brain-rollback.mjs
           node --check scripts/autobot/verify-fast-brain-release-contract.mjs
+          node --check scripts/autobot/verify-fast-brain-agent-harness.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
@@ -131,6 +132,7 @@ jobs:
           node scripts/autobot/verify-feature-objective-dependencies.mjs
           node scripts/autobot/verify-feature-brain-resilience.mjs
           node scripts/autobot/verify-fast-brain-rollback.mjs
+          node scripts/autobot/verify-fast-brain-agent-harness.mjs
           node builder/quality/autobot-ready.mjs
 
       - name: Run fast sustained builder — repository-aware Qwen3 4B
