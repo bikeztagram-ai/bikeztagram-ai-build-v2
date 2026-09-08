@@ -17,52 +17,46 @@ const rollback = read('scripts/autobot/verify-fast-brain-rollback.mjs');
 const taskLibrary = read('builder/brain/task-library.json');
 const failures = [];
 const require = (condition, message) => { if (!condition) failures.push(message); };
-
 const MODEL = 'qwen3:4b-instruct-2507-q4_K_M';
 
-// Canonical runtime identity.
 require(workflow.includes(`LOCAL_AI_MODEL: ${MODEL}`), 'workflow is not hardwired to Qwen3 4B');
-require(workflow.includes('node builder/runner/repository-aware-fast-executor.mjs'), 'workflow does not invoke the canonical repository-aware fast executor');
+require(workflow.includes('node builder/runner/repository-aware-fast-executor.mjs'), 'workflow does not invoke canonical fast executor');
 require(!workflow.includes('long-run-executor.mjs'), 'workflow still invokes retired long-run executor');
-require(!workflow.match(/LOCAL_AI_MODEL:\s*qwen2\.5|gemini/i), 'workflow contains a retired/non-local model reference');
+require(!workflow.match(/LOCAL_AI_MODEL:\s*qwen2\.5|gemini/i), 'workflow contains retired/non-local model reference');
 require(workflow.includes('Verify checked-out revision'), 'workflow lacks exact checkout revision verification');
 require(executor.includes(`REQUIRED_LOCAL_MODEL = '${MODEL}'`), 'executor is not hardwired to Qwen3 4B');
 require(executor.includes('verifyRuntimeIdentity()'), 'executor lacks runtime identity verification');
 require(executor.includes('features += 1'), 'executor does not record successful feature slices');
 require(executor.includes('if (features === 0) process.exitCode = 1'), 'executor can silently succeed without a completed feature');
 require(brain.includes(`REQUIRED_LOCAL_MODEL = '${MODEL}'`), 'feature brain is not hardwired to Qwen3 4B');
-require(brain.includes(`if (model !== REQUIRED_LOCAL_MODEL)`), 'feature brain does not reject model drift');
+require(brain.includes('if (model !== REQUIRED_LOCAL_MODEL)'), 'feature brain does not reject model drift');
 
-// Proven multi-turn Qwen contract.
 require(brain.includes("PROTOCOL = 'repository-aware-agent-v7'"), 'feature brain protocol is not repository-aware-agent-v7');
 require(brain.includes('/api/chat'), 'feature brain does not use Ollama /api/chat');
 require(brain.includes('stream: false'), 'Qwen chat is not non-streaming');
-require(brain.includes('think: false'), 'Qwen thinking is not disabled for the fast path');
+require(brain.includes('think: false'), 'Qwen thinking is not disabled');
 require(brain.includes('tools'), 'Qwen tool definitions are missing');
 require(brain.includes('response?.message?.tool_calls'), 'native Qwen tool-call handling is missing');
 require(brain.includes('tool_name: call.name'), 'Ollama tool-result message contract is missing');
-require(brain.includes('num_ctx: 4096'), 'feature brain context budget drifted from the proven agent contract');
-require(brain.includes('num_predict: 900'), 'feature brain prediction budget drifted from the proven agent contract');
+require(brain.includes('num_ctx: 4096'), 'feature brain context budget drifted');
+require(brain.includes('num_predict: 900'), 'feature brain prediction budget drifted');
 require(brain.includes('maxTurns'), 'bounded multi-turn execution is missing');
 require(brain.includes('maxEdits'), 'bounded edit execution is missing');
 
-// Recovery belongs to the canonical brain. The hardener is validation/migration
-// only and must not become a second implementation of the agent.
 require(brain.includes('edit rejected and rolled back'), 'feature brain lacks transactional edit rollback');
 require(brain.includes('fs.writeFileSync(abs(file), current);'), 'feature brain lacks exact pre-edit restoration');
 require(brain.includes('failedEditFiles'), 'feature brain lacks failed-file recovery');
-require(brain.includes('Do NOT repeat the same replacement'), 'feature brain lacks failed-edit steering');
+require(brain.includes('Do NOT retry the same replacement.'), 'feature brain lacks failed-edit steering');
 require(brain.includes('const completedIds = objectives.filter'), 'feature brain lacks durable completion state');
 require(brain.includes('progress[objective.id] = 1'), 'feature brain lacks submit completion tracking');
 require(brain.includes('if (completed === 0 && maxFeatures > 0) process.exitCode = 1;'), 'feature brain can silently succeed without completing an objective');
-require(executor.includes('fast-brain-runtime-hardening.mjs'), 'executor does not run the runtime hardening guard');
+require(executor.includes('fast-brain-runtime-hardening.mjs'), 'executor does not run runtime hardening');
 require(executor.includes('verify-fast-brain-rollback.mjs'), 'executor does not run rollback regression before Qwen');
-require(rollback.includes('actual active brain as the fixture'), 'rollback regression is not tied to the active source');
-require(hardener.includes('canonical feature brain recovery contract incomplete'), 'hardener does not validate the canonical recovery contract');
-require(hardener.includes('npm run verify:batch33'), 'hardener does not recognize the stale export migration');
-require(hardener.includes('export-contract-check.mjs'), 'hardener does not repair/validate the live export contract');
+require(rollback.includes('actual active brain as the fixture'), 'rollback regression is not tied to active source');
+require(hardener.includes('canonical feature brain recovery contract incomplete'), 'hardener does not validate canonical recovery contract');
+require(hardener.includes('npm run verify:batch33'), 'hardener does not recognize stale export migration');
+require(hardener.includes('export-contract-check.mjs'), 'hardener does not repair/validate live export contract');
 
-// Operational bounds.
 require(workflow.includes('LOCAL_AI_FEATURE_TIMEOUT_SECONDS=180'), 'feature timeout is not bounded at 180 seconds');
 require(workflow.includes('AUTOBOT_FEATURE_MAX_EDITS=3'), 'edit ceiling is not 3');
 require(workflow.includes('AUTOBOT_AGENT_TURNS=8'), 'agent turn ceiling is not 8');
@@ -71,13 +65,9 @@ require(workflow.includes('LOCAL_AI_PROXY_NUM_PREDICT=650'), 'proxy prediction b
 require(workflow.includes('LOCAL_AI_PROXY_THINK=false'), 'proxy think flag is not false');
 require(executor.includes('Math.min(10, Math.floor(left()))'), 'Qwen feature slice is not bounded to 10 minutes');
 
-// Stale generated acceptance commands are allowed only because the hardener
-// performs the explicit migration before the agent starts.
 require(!taskLibrary.includes('npm run verify:batch33') || hardener.includes('npm run verify:batch33'), 'task library contains retired verify:batch33 without migration support');
-require(taskLibrary.includes('export-profiles-and-validation'), 'task library is missing the social-export objective');
-require(taskLibrary.includes('export-contract-check.mjs') || hardener.includes('export-contract-check.mjs'), 'task library lacks the live export contract check and migration support');
-
-// Workflow remains review-only and never auto-merges/deploys.
+require(taskLibrary.includes('export-profiles-and-validation'), 'task library is missing social-export objective');
+require(taskLibrary.includes('export-contract-check.mjs') || hardener.includes('export-contract-check.mjs'), 'task library lacks live export contract check');
 require(workflow.includes('git checkout -b "$branch"'), 'checkpoint branch creation is missing');
 require(workflow.includes('gh pr create'), 'checkpoint PR publication is missing');
 require(!workflow.match(/gh pr merge|git push origin main|vercel deploy/i), 'workflow contains automatic merge/deploy behaviour');
