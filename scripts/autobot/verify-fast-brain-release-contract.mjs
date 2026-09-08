@@ -46,12 +46,13 @@ require(brain.includes('fs.writeFileSync(abs(file), current);'), 'feature brain 
 require(brain.includes('failedEditFiles'), 'feature brain lacks failed-file recovery');
 require(brain.includes('Do NOT retry the same replacement.'), 'feature brain lacks failed-edit steering');
 require(brain.includes('const completedIds = objectives.filter'), 'feature brain lacks durable completion state');
-require(brain.includes('progress[objective.id] = 1'), 'feature brain lacks submit completion tracking');
+require(/progress\[objective\.id\]\s*=/.test(brain) && /saveState\(\)/.test(brain), 'feature brain lacks durable objective progress persistence');
 require(brain.includes('if (completed === 0 && maxFeatures > 0) process.exitCode = 1;'), 'feature brain can silently succeed without completing an objective');
 
 require(executor.includes('fast-brain-runtime-hardening.mjs'), 'executor does not run runtime hardening');
 require(executor.includes('verify-fast-brain-rollback.mjs'), 'executor does not run rollback regression before Qwen');
-require(rollback.includes('actual active brain as the fixture'), 'rollback regression is not tied to active source');
+require(rollback.includes('fs.copyFileSync(brainPath'), 'rollback regression is not tied to the active brain source');
+require(rollback.includes('hardened === active'), 'rollback regression does not prove hardener idempotence');
 require(hardener.includes('canonical feature brain recovery contract incomplete'), 'hardener does not validate canonical recovery contract');
 require(hardener.includes('Do NOT retry the same replacement.'), 'hardener does not validate canonical failed-edit steering');
 require(hardener.includes('npm run verify:batch33'), 'hardener does not recognize stale export migration');
@@ -64,10 +65,12 @@ require(harness.includes('run_check'), 'agent harness lacks run_check');
 require(harness.includes('submit'), 'agent harness lacks submit');
 require(harness.includes('failed syntax edit was not rolled back'), 'agent harness does not prove transactional rollback');
 require(harness.includes('recovery edit on a different file was not applied'), 'agent harness does not prove failed-file recovery');
-require(harness.includes('durable completion'), 'agent harness does not prove completion persistence');
+require(harness.includes('secondary.includes'), 'agent harness does not prove a real source edit');
+require(harness.includes('state.completed'), 'agent harness does not prove completion persistence');
 
 require(installer.includes(`REQUIRED_MODEL='${MODEL}'`), 'installer is not hardwired to Qwen3 4B');
-require(installer.includes('refusing model drift'), 'installer does not reject model drift');
+require(installer.includes('MODEL="${LOCAL_AI_MODEL:-$REQUIRED_MODEL}"'), 'installer default model expression drifted');
+require(installer.includes('if [[ "$MODEL" != "$REQUIRED_MODEL" ]]'), 'installer does not reject model drift');
 require(!installer.includes('qwen3:8b'), 'installer contains an unsafe Qwen3 8B fallback');
 require(installer.includes('/api/chat'), 'installer smoke test does not use Ollama chat');
 require(installer.includes('tool-call smoke failed'), 'installer lacks tool-call smoke test');
