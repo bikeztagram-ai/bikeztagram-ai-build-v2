@@ -124,7 +124,7 @@ function trimMessages(messages) {
 }
 function modelCall(messages) {
   const seconds = Math.min(180, Math.max(45, Math.floor(left() * 60)));
-  const body = JSON.stringify({ model, stream: false, keep_alive: '15m', think: false, tools, options: { temperature: 0, num_ctx: 4096, num_predict: 650 }, messages: trimMessages(messages) });
+  const body = JSON.stringify({ model, stream: false, keep_alive: '15m', think: false, tools, options: { temperature: 0, num_ctx: 4096, num_predict: 900 }, messages: trimMessages(messages) });
   const raw = run('curl', ['-sS', '--fail', '--connect-timeout', '10', '--max-time', String(seconds), `${host}/api/chat`, '-H', 'Content-Type: application/json', '-d', body], { timeout: (seconds + 10) * 1000 });
   const response = JSON.parse(raw);
   if (response.error) throw new Error(String(response.error));
