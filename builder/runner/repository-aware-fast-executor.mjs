@@ -42,7 +42,7 @@ function deterministic() {
 function qwenAgent() {
   features += 1;
   return run('builder/runner/repository-aware-feature-brain.mjs', {
-    BUILDER_MAX_MINUTES: String(Math.max(1, Math.min(6, Math.floor(left())))),
+    BUILDER_MAX_MINUTES: String(Math.max(1, Math.min(10, Math.floor(left())))),
     AUTOBOT_FEATURE_MAX_ATTEMPTS: '1',
     AUTOBOT_FEATURE_MAX_EDITS: '3',
     AUTOBOT_AGENT_TURNS: '8',
