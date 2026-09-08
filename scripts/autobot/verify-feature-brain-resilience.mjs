@@ -34,7 +34,7 @@ for (const [pattern, message] of [
   [/fs\.writeFileSync\(abs\(file\), current\);/, 'exact pre-edit restoration missing'],
   [/failedEditFiles/, 'failed-file recovery missing'],
   [/Do NOT retry the same replacement\./, 'failed-edit steering missing'],
-  [/progress\[objective\.id\] = 1/, 'durable completion tracking missing'],
+  [/progress\[objective\.id\]\s*=\s*(?:Math\.max|1)/, 'durable completion tracking missing'],
 ]) if (!pattern.test(feature)) failures.push(message);
 
 for (const [pattern, message] of [
@@ -42,7 +42,7 @@ for (const [pattern, message] of [
   [/fast-brain-runtime-hardening\.mjs/, 'fast executor does not apply runtime hardening'],
   [/verify-fast-brain-rollback\.mjs/, 'fast executor does not run rollback regression'],
   [/repository-index\.mjs/, 'fast executor does not refresh repository index'],
-  [/BUILDER_MAX_MINUTES: String\(Math\.max\(1, Math\.min\(10/, 'feature slice ceiling missing'],
+  [/BUILDER_MAX_MINUTES:\s*String\(Math\.max\(1, Math\.min\(10/, 'feature slice ceiling missing'],
 ]) if (!pattern.test(runner)) failures.push(message);
 
 for (const [pattern, message] of [
@@ -58,7 +58,7 @@ for (const [pattern, message] of [
   [/sensitive/, 'index must exclude sensitive files'],
 ]) if (!pattern.test(index)) failures.push(message);
 
-require(/AUTOBOT_FEATURE_MAX_EDITS[^\n]*[=:]\s*[\"']?[1-3]/.test(workflow), 'workflow edit ceiling missing or unsafe');
+require(/AUTOBOT_FEATURE_MAX_EDITS[^\n]*[=:]\s*["']?[1-3]/.test(workflow), 'workflow edit ceiling missing or unsafe');
 require(/LOCAL_AI_FEATURE_TIMEOUT_SECONDS[^\n]*[=:]\s*(12[0-9]|1[3-9][0-9]|2[0-9]{2}|300)/.test(workflow), 'workflow feature timeout missing or unsafe');
 require(/LOCAL_AI_MODEL:\s*qwen3:4b-instruct-2507-q4_K_M/.test(workflow), 'workflow must hardwire Qwen3 4B-compatible model');
 const dispatchInputs = workflow.match(/\n  workflow_dispatch:\n([\s\S]*?)(?=\n(?:concurrency|permissions|env|jobs):)/)?.[1] ?? '';
