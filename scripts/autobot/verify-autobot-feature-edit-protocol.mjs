@@ -25,11 +25,11 @@ const required = [
   ['snapshots', 'objective snapshots'],
   ['dependenciesMet', 'dependency-aware objective selection'],
   ['state.failed', 'durable failure state'],
-  ['progress[objective.id] = 1', 'durable completion tracking'],
   ['failedEditFiles', 'failed-file recovery'],
 ];
 for (const [needle, label] of required) if (!brain.includes(needle)) failures.push(`missing ${label}`);
-if (!/Math\.min\(10,\s*Math\.floor\(left\(\)\)/.test(brain)) failures.push('bounded feature time window missing');
+if (!/progress\[objective\.id\]\s*=\s*(?:Math\.max\([^\n]*\)|1)/.test(brain)) failures.push('durable completion tracking missing');
+if (!/Math\.max\(1,\s*Math\.min\(10,\s*Math\.floor\(left\(\)\)\)\)/.test(brain)) failures.push('bounded feature time window missing');
 if (!/maxTurns/.test(brain) || !/maxEdits/.test(brain)) failures.push('bounded turn/edit ceilings missing');
 if (!/Math\.min\(180,\s*Math\.max\(45,\s*Math\.floor\(left\(\) \* 60\)\)\)/.test(brain)) failures.push('bounded Ollama request timeout missing');
 if (/git\s+reset\s+--hard|git\s+clean\s+-f/.test(brain)) failures.push('unsafe wholesale rollback still active');
