@@ -1,10 +1,5 @@
 #!/usr/bin/env node
-/**
- * Regression test for the failure mode where a syntax-invalid Qwen edit leaked
- * into the next agent turn. Exercises the runtime hardener against a fixture so
- * the repository may keep its source brain immutable until the runtime patch is
- * deliberately applied at the start of an agent slice.
- */
+/** Regression test for Qwen edit rollback and durable objective routing hardening. */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,10 +10,7 @@ const hardenerPath = path.join(root, 'scripts/autobot/fast-brain-runtime-hardeni
 const active = fs.readFileSync(path.join(root, 'builder/runner/repository-aware-feature-brain.mjs'), 'utf8');
 const hardener = fs.readFileSync(hardenerPath, 'utf8');
 const failures = [];
-
-function requireMarker(condition, message) {
-  if (!condition) failures.push(message);
-}
+const requireMarker = (condition, message) => { if (!condition) failures.push(message); };
 
 requireMarker(active.includes('fs.writeFileSync(abs(file), next);'), 'active brain edit path missing');
 requireMarker(active.includes('const syntax = syntaxCheck(file);'), 'active brain syntax check missing');
@@ -31,7 +23,7 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bikeztagram-fast-brain-'));
 try {
   fs.mkdirSync(path.join(temp, 'builder/runner'), { recursive: true });
   fs.mkdirSync(path.join(temp, 'builder/brain'), { recursive: true });
-  const fixture = `function editFile(file, search, replacement) {\n  const current = read(file);\n  const next = current.replace(search, replacement);\n  fs.writeFileSync(abs(file), next);\n  const syntax = syntaxCheck(file);\n  if (syntax !== 'PASS') return \`${'${syntax}'}; repair this edit before continuing.\`;\n  return \`EDIT APPLIED: ${'${file}'}\`;\n}\nfunction saveState() {\n  fs.mkdirSync(path.dirname(statePath), { recursive: true });\n  fs.writeFileSync(statePath, JSON.stringify({ version: 14, completed: [], progress, failed: state.failed || {}, updatedAt: new Date().toISOString() }, null, 2) + '\\n');\n}\nconst available = objectives.filter((o) => dependenciesMet(o) && ((attempts.get(o.id) || 0) < maxAttempts));\nif (call.name === 'submit') { submitted = true; summary = String(call.args.summary || '').slice(0, 700); result = 'SUBMIT RECEIVED'; }\n`;
+  const fixture = `function editFile(file, search, replacement) {\n  const current = read(file);\n  const next = current.replace(search, replacement);\n  fs.writeFileSync(abs(file), next);\n  const syntax = syntaxCheck(file);\n  if (syntax !== 'PASS') return \`${'${syntax}'}; repair this edit before continuing.\`;\n  return \`EDIT APPLIED: ${'${file}'}\`;\n}\nfunction saveState() {\n  fs.mkdirSync(path.dirname(statePath), { recursive: true });\n  fs.writeFileSync(statePath, JSON.stringify({ version: 14, completed: [], progress, failed: state.failed || {}, updatedAt: new Date().toISOString() }, null, 2) + '\\n');\n}\nfunction chooseObjective() {\n  const available = objectives.filter((o) => dependenciesMet(o) && (attempts.get(o.id) || 0) < maxAttempts);\n  return available[0] || null;\n}\nif (call.name === 'submit') { submitted = true; summary = String(call.args.summary || '').slice(0, 700); result = 'SUBMIT RECEIVED'; }\n`;
   fs.writeFileSync(path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'), fixture);
   fs.writeFileSync(path.join(temp, 'builder/brain/task-library.json'), '{}\n');
   const result = spawnSync(process.execPath, [hardenerPath], {
