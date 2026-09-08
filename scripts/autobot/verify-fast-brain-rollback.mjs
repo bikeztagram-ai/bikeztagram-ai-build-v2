@@ -54,6 +54,10 @@ try {
   requireMarker(/progress\[objective\.id\]\s*=\s*(?:Math\.max\([^\n]*\)|1)/.test(hardened), 'fixture lost durable completion tracking');
   requireMarker(hardened.includes("const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');"), 'fixture lost real syntax validator');
   requireMarker(hardened.includes('const allowedByPhase ='), 'fixture lost strict tool-phase controller');
+  requireMarker(hardened.includes("toolPhase = 'inspect'"), 'fixture lost inspection phase');
+  requireMarker(hardened.includes("toolPhase = 'edit'"), 'fixture lost edit phase');
+  requireMarker(hardened.includes("toolPhase = 'verify'"), 'fixture lost verification phase');
+  requireMarker(hardened.includes("toolPhase = 'submit'"), 'fixture lost submit phase');
   requireMarker(hardened.includes('parsedCalls.slice(0, 1)'), 'fixture lost one-tool-per-turn guard');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
