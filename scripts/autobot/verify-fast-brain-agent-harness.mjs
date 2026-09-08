@@ -53,7 +53,17 @@ try {
 
   server = http.createServer(async (req, res) => {
     if (req.method !== 'POST' || req.url !== '/api/chat') { res.writeHead(404); res.end(); return; }
-    for await (const _chunk of req) { /* drain request */ }
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const request = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (request.model !== 'qwen3:4b-instruct-2507-q4_K_M') throw new Error('brain sent the wrong model to Ollama');
+    if (request.stream !== false || request.think !== false) throw new Error('brain did not disable streaming/thinking');
+    if (request.options?.temperature !== 0 || request.options?.num_ctx !== 4096 || request.options?.num_predict !== 900) throw new Error('brain sent the wrong inference contract');
+    if (!Array.isArray(request.tools) || !request.tools.some((tool) => tool.function?.name === 'read_file') || !request.tools.some((tool) => tool.function?.name === 'edit_file')) throw new Error('brain did not send canonical tool definitions');
+    if (calls > 0) {
+      const toolMessages = request.messages.filter((message) => message.role === 'tool');
+      if (!toolMessages.length || !toolMessages.at(-1).tool_name) throw new Error('brain did not return a named tool result to the model');
+    }
     const step = steps[calls++];
     if (!step) { res.writeHead(500, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'unexpected extra model call' })); return; }
     const body = { model: 'qwen3:4b-instruct-2507-q4_K_M', message: { role: 'assistant', tool_calls: [step] } };
@@ -86,7 +96,7 @@ try {
   if (!secondary.includes('harnessValue = "verified"')) throw new Error('recovery edit on a different file was not applied');
   const state = JSON.parse(fs.readFileSync(path.join(temp, 'builder/working/feature-brain-state.json'), 'utf8'));
   if (!state.completed?.includes('harness-objective')) throw new Error('objective completion was not persisted');
-  console.log('[autobot] Fast Brain agent harness PASS: active brain proved transactional rollback, failed-file steering, real source editing, verification, submit and durable completion.');
+  console.log('[autobot] Fast Brain agent harness PASS: active brain proved native request contract, named tool results, transactional rollback, failed-file steering, real source editing, verification, submit and durable completion.');
 } finally {
   if (server) await new Promise((resolve) => server.close(resolve));
   fs.rmSync(temp, { recursive: true, force: true });
