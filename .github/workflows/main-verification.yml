@@ -25,5 +25,7 @@ jobs:
         run: npm install
       - name: Build production bundle
         run: npm run build
+      - name: Verify Fast Brain architecture contract
+        run: node scripts/autobot/verify-fast-brain-release-contract.mjs
       - name: Audit all active verification batches
         run: node scripts/verify-main-suite.mjs
