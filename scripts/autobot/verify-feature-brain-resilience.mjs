@@ -28,7 +28,6 @@ for (const [pattern, message] of [
   [/git', \['diff', '--', 'src', 'public'\]/, 'product-source diff verification missing'],
   [/state\.failed/, 'durable failure state missing'],
   [/snapshots/, 'objective rollback snapshot missing'],
-  [/edit rejected and rolled back/, 'edit-level syntax rollback missing'],
   [/SUBMIT RECEIVED/, 'submit protocol missing'],
 ]) if (!pattern.test(feature)) failures.push(message);
 
@@ -40,12 +39,12 @@ for (const [pattern, message] of [
 ]) if (!pattern.test(runner)) failures.push(message);
 
 for (const [pattern, message] of [
-  [/edit-level syntax rollback/, 'runtime hardening must describe edit rollback'],
-  [/verify:batch33|export-contract-check\.mjs/, 'export verification repair missing'],
+  [/edit rejected and rolled back/, 'runtime hardening must describe edit rollback'],
   [/completed: completedIds/, 'runtime hardening must preserve completed objectives'],
   [/progress\[objective\.id\] = 1/, 'runtime hardening must record submitted objective completion'],
   [/progress\[o\.id\] \|\| 0\) < 1/, 'runtime hardening must exclude completed objectives'],
   [/AUTOBOT_HARDENING_ROOT/, 'runtime hardening must be fixture-testable'],
+  [/export-contract-check\.mjs/, 'export verification repair missing'],
 ]) if (!pattern.test(hardening)) failures.push(message);
 
 for (const [pattern, message] of [
@@ -56,7 +55,8 @@ for (const [pattern, message] of [
 
 if (!/AUTOBOT_FEATURE_MAX_EDITS[^\n]*[=:]\s*[\"']?[1-3]/.test(workflow)) failures.push('workflow edit ceiling missing or unsafe');
 if (!/LOCAL_AI_FEATURE_TIMEOUT_SECONDS[^\n]*[=:]\s*(12[0-9]|1[3-9][0-9]|2[0-9]{2}|300)/.test(workflow)) failures.push('workflow feature timeout missing or unsafe');
-if (!/default:\s*[\"']?qwen3:4b[^\"']*[\"']?/.test(workflow)) failures.push('workflow must default to Qwen3 4B-compatible model');
+if (!/LOCAL_AI_MODEL:\s*qwen3:4b-instruct-2507-q4_K_M/.test(workflow)) failures.push('workflow must hardwire Qwen3 4B-compatible model');
+if (/inputs:[\s\S]*LOCAL_AI_MODEL/.test(workflow)) failures.push('workflow must not expose a selectable model input');
 if (!/repository-aware-fast-executor\.mjs/.test(workflow)) failures.push('workflow must invoke repository-aware fast executor');
 if (!/git fetch --no-tags origin main/.test(workflow)) failures.push('checkpoint must fetch protected main');
 if (!/git switch --detach origin\/main/.test(workflow)) failures.push('checkpoint must start from protected main');
