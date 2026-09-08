@@ -62,6 +62,7 @@ try {
   const hardenedBrain = fs.readFileSync(path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'), 'utf8');
   if (!hardenedBrain.includes("if (ext === '.jsx') args.push('--loader:.jsx=jsx');")) throw new Error('runtime hardener did not install JSX-aware syntax validation');
   if (!hardenedBrain.includes("execFileSync(esbuild")) throw new Error('runtime hardener did not install real syntax validation');
+  if (!hardenedBrain.includes('availableTools = readToolEnabled ? tools')) throw new Error('runtime hardener did not install the read-tool controller');
 
   server = http.createServer(async (req, res) => {
     if (req.method !== 'POST' || req.url !== '/api/chat') { res.writeHead(404); res.end(); return; }
@@ -72,7 +73,11 @@ try {
       if (request.model !== 'qwen3:4b-instruct-2507-q4_K_M') throw new Error('brain sent the wrong model to Ollama');
       if (request.stream !== false || request.think !== false) throw new Error('brain did not disable streaming/thinking');
       if (request.options?.temperature !== 0 || request.options?.num_ctx !== 4096 || request.options?.num_predict !== 900) throw new Error('brain sent the wrong inference contract');
-      if (!Array.isArray(request.tools) || !request.tools.some((tool) => tool.function?.name === 'read_file') || !request.tools.some((tool) => tool.function?.name === 'edit_file')) throw new Error('brain did not send canonical tool definitions');
+      const readAvailable = Array.isArray(request.tools) && request.tools.some((tool) => tool.function?.name === 'read_file');
+      const editAvailable = Array.isArray(request.tools) && request.tools.some((tool) => tool.function?.name === 'edit_file');
+      const shouldHaveRead = calls === 0 || calls === 2;
+      if (!editAvailable) throw new Error('brain did not expose the canonical edit_file tool');
+      if (readAvailable !== shouldHaveRead) throw new Error(`read_file controller mismatch on call ${calls + 1}: expected ${shouldHaveRead ? 'enabled' : 'disabled'}, got ${readAvailable ? 'enabled' : 'disabled'}`);
       if (calls > 0) {
         const toolMessages = request.messages.filter((message) => message.role === 'tool');
         if (!toolMessages.length || !toolMessages.at(-1).tool_name) throw new Error('brain did not return a named tool result to the model');
@@ -115,7 +120,7 @@ try {
   if (!secondary.includes('harnessValue = "verified"')) throw new Error('recovery edit on a different file was not applied');
   const state = JSON.parse(fs.readFileSync(path.join(temp, 'builder/working/feature-brain-state.json'), 'utf8'));
   if (!state.completed?.includes('harness-objective')) throw new Error('objective completion was not persisted');
-  console.log('[autobot] Fast Brain agent harness PASS: runtime hardening, real JS/JSX syntax validation, native Ollama request contract, named tool results, transactional rollback, failed-file steering, source editing, verification, submit and durable completion all passed.');
+  console.log('[autobot] Fast Brain agent harness PASS: runtime hardening, real JS/JSX syntax validation, native Ollama request contract, named tool results, transactional rollback, failed-file steering, read-tool gating, source editing, verification, submit and durable completion all passed.');
 } finally {
   if (server) await new Promise((resolve) => server.close(resolve));
   fs.rmSync(temp, { recursive: true, force: true });
