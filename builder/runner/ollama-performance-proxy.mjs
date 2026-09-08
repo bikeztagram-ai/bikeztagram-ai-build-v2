@@ -9,11 +9,12 @@ import http from 'node:http';
 const listenPort = Number(process.env.OLLAMA_PROXY_PORT || 11435);
 const upstream = process.env.OLLAMA_UPSTREAM || 'http://127.0.0.1:11434';
 const maxContext = Number(process.env.LOCAL_AI_PROXY_NUM_CTX || 8192);
-const maxPredict = Number(process.env.LOCAL_AI_PROXY_NUM_PREDICT || 1500);
+const maxPredict = Number(process.env.LOCAL_AI_PROXY_NUM_PREDICT || 650);
 
 function clampBody(body) {
   const request = JSON.parse(body);
   request.stream = false;
+  request.think = false;
   request.keep_alive = request.keep_alive ?? '15m';
   request.options = {
     ...(request.options || {}),
@@ -62,5 +63,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(listenPort, '127.0.0.1', () => {
-  console.log(`[autobot] Ollama performance proxy listening on 127.0.0.1:${listenPort}; num_ctx<=${maxContext}; num_predict<=${maxPredict}`);
+  console.log(`[autobot] Ollama performance proxy listening on 127.0.0.1:${listenPort}; num_ctx<=${maxContext}; num_predict<=${maxPredict}; think=false`);
 });
