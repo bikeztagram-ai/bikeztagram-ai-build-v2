@@ -1,6 +1,8 @@
 /* BIKEZTAGRAM AI — universal filmmaker UI. Upload media or start from a creative idea. */
 import React,{useEffect,useState} from 'react';
 import {createProjectSnapshot,loadProject,restoreSources,saveProject} from './projectPersistence.js';
+
+// Ensure editor state is restored with explicit media recovery paths on load.
 import {createAIEditPlan,createPromptOnlyEditPlan,describeAIEditPlan} from './aiEditPlanner.js';
 import {renderUniversalProduction} from './universalRenderRuntime.js';
 import {renderWorldScene} from './worldScene.js';
@@ -12,6 +14,10 @@ import './styles.css';
 const DEFAULT_PROMPT='Create a cinematic film from my idea. Decide the strongest story, shots, camera movement, pacing, transitions, music and ending automatically.';
 const PRESETS=['portrait','square','landscape','story','cinema'];
 function App(){
+ /* BIKEZTAGRAM_PERSISTENCE_LIFECYCLE */
+ useEffect(()=>{const restored=loadProject();if(restored.ok&&restored.snapshot){setPrompt(restored.snapshot.creativeBrief||DEFAULT_PROMPT);setAnalysis(restored.snapshot.analysis||null);setPlan(restored.snapshot.plan||null);setProductionPlan(restored.snapshot.productionPlan||null);setSoundtrack(restored.snapshot.soundtrack||null);setExportInfo(restored.snapshot.exportInfo||null);setSources(restoreSources(restored.snapshot.sources||[]));setStatus(restored.recovered?'♻️ Recovered the last valid project snapshot.':'✅ Project restored. Re-select missing local media before rendering.');}},[]);
+ useEffect(()=>{if(!prompt&&!analysis&&!plan&&!productionPlan&&!sources.length)return;saveProject(createProjectSnapshot({prompt,sources,analysis,plan,productionPlan,soundtrack,exportInfo,editorState:{status,stage,autoCaptions}}));},[prompt,sources,analysis,plan,productionPlan,soundtrack,exportInfo,status,stage,autoCaptions]);
+
  const [mode,setMode]=useState('film'),[files,setFiles]=useState([]),[sources,setSources]=useState([]),[prompt,setPrompt]=useState(DEFAULT_PROMPT),[analysis,setAnalysis]=useState(null),[plan,setPlan]=useState(null),[productionPlan,setProductionPlan]=useState(null),[outputPreset,setOutputPreset]=useState('portrait'),[status,setStatus]=useState(''),[stage,setStage]=useState(''),[loading,setLoading]=useState(false),[rendering,setRendering]=useState(false),[renderedUrl,setRenderedUrl]=useState(''),[qa,setQa]=useState(null),[attempts,setAttempts]=useState(0),[error,setError]=useState(null),[worldUrl,setWorldUrl]=useState(''),[soundtrack,setSoundtrack]=useState(null),[exportInfo,setExportInfo]=useState(null),[renderProgress,setRenderProgress]=useState(0);
  const busy=loading||rendering,isSingle=files.length===1,isVideo=isSingle&&files[0]?.type?.startsWith('video/');
  useEffect(()=>{const r=loadProject();if(r.ok&&r.snapshot){setPrompt(r.snapshot.creativeBrief||DEFAULT_PROMPT);setAnalysis(r.snapshot.analysis||null);setPlan(r.snapshot.plan||null);setProductionPlan(r.snapshot.productionPlan||null);setSoundtrack(r.snapshot.soundtrack||null);setExportInfo(r.snapshot.exportInfo||null);setSources(restoreSources(r.snapshot.sources||[]));setStatus(r.recovered?'♻️ Recovered the last valid project snapshot.':'✅ Project restored. Re-select missing local media before rendering.');}},[]);
