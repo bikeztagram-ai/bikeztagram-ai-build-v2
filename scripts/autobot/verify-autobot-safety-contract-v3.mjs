@@ -59,7 +59,7 @@ if (!executor.includes('AUTOBOT_AGENT_TURNS') || !executor.includes('AUTOBOT_FEA
 if (!executor.includes('repository-aware-feature-brain.mjs')) failures.push('fast executor must invoke the proven repository-aware Qwen agent');
 if (executor.includes('repository-aware-fast-brain.mjs')) failures.push('fast executor must not use the retired single-shot structured brain');
 if (!executor.includes('repository-index.mjs')) failures.push('fast executor must refresh the repository index');
-if (!/Math\.min\(10,\s*Math\.floor\(left\(\)\)/.test(executor)) failures.push('Qwen feature slice must allow the fuller bounded time window');
+if (!/Math\.max\(1,\s*Math\.min\(10,\s*Math\.floor\(left\(\)\)\)\)/.test(executor)) failures.push('Qwen feature slice must allow the fuller bounded time window');
 if (/git\s+reset\s+--hard|git\s+clean\s+-f/.test(brain + executor)) failures.push('Qwen runtime must never wholesale reset or clean the working tree');
 
 if (!indexer.includes('ls-files') || !indexer.includes('dependencyEdges') || !indexer.includes('sensitive')) {
