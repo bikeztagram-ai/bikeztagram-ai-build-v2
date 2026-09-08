@@ -52,7 +52,7 @@ const hardenedModelCall = `function modelCall(messages, readToolEnabled = true) 
   const seconds = Math.min(180, Math.max(45, Math.floor(left() * 60)));
   const availableTools = readToolEnabled ? tools : tools.filter((tool) => tool.function?.name !== 'read_file');
   const body = JSON.stringify({ model, stream: false, keep_alive: '15m', think: false, tools: availableTools, options: { temperature: 0, num_ctx: 4096, num_predict: 900 }, messages: trimMessages(messages) });
-  const raw = run('curl', ['-sS', '--fail', '--connect-timeout', '10', '--max-time', String(seconds), \`${host}/api/chat\`, '-H', 'Content-Type: application/json', '-d', body], { timeout: (seconds + 10) * 1000 });
+  const raw = run('curl', ['-sS', '--fail', '--connect-timeout', '10', '--max-time', String(seconds), \`\${host}/api/chat\`, '-H', 'Content-Type: application/json', '-d', body], { timeout: (seconds + 10) * 1000 });
   const response = JSON.parse(raw);
   if (response.error) throw new Error(String(response.error));
   return response;
