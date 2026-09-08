@@ -1,28 +1,32 @@
 #!/usr/bin/env node
-/** Contract test for the active one-request structured-Qwen feature brain. */
+/**
+ * Contract test for the active one-request structured-Qwen feature brain.
+ * This validator intentionally checks behaviour markers, not incidental source formatting.
+ */
 import fs from 'node:fs';
 
 const source = fs.readFileSync('builder/runner/repository-aware-fast-brain.mjs', 'utf8');
 const failures = [];
 const required = [
   ['Ollama chat request', /\/api\/chat/],
-  ['non-streaming response', /stream:\s*false/],
-  ['thinking disabled', /think:\s*false/],
-  ['deterministic temperature', /temperature:\s*0/],
+  ['non-streaming response', /stream\s*:\s*false/],
+  ['thinking disabled', /think\s*:\s*false/],
+  ['deterministic temperature', /temperature\s*:\s*0/],
   ['bounded context', /NUM_CTX\s*=\s*3072/],
   ['bounded output', /NUM_PREDICT\s*=\s*240/],
-  ['single edit budget', /const maxEdits = 1/],
-  ['single model attempt', /const maxAttempts = 1/],
-  ['JSON schema output', /format:\s*schema/],
-  ['structured JSON patch', /"edits"/],
-  ['exact search replacement', /search.*EXACT.*supplied code/],
+  ['single edit budget', /const\s+maxEdits\s*=\s*1/],
+  ['single model attempt', /const\s+maxAttempts\s*=\s*1/],
+  ['JSON schema output', /format\s*:\s*schema/],
+  ['structured edits schema', /edits\s*:\s*\{[\s\S]*?maxItems\s*:\s*1/],
+  ['required edit fields', /required\s*:\s*\[['\"]file['\"],\s*['\"]search['\"],\s*['\"]replace['\"]\]/],
+  ['exact search replacement', /search[\s\S]*EXACT[\s\S]*supplied code/],
   ['allowed-file validation', /allowed\.has\(file\)/],
   ['safe path validation', /safe\(file\)/],
   ['unique search validation', /must match exactly once/],
   ['placeholder rejection', /placeholder edit rejected/],
   ['syntax verification', /syntax\(file\)/],
-  ['product-source diff verification', /\['diff', '--', 'src', 'public'\]/],
-  ['build verification', /run\('npm', \['run', 'build'\]\)/],
+  ['product-source diff verification', /\[['\"]diff['\"],\s*['\"]--['\"],\s*['\"]src['\"],\s*['\"]public['\"]\]/],
+  ['build verification', /run\(\s*['\"]npm['\"],\s*\[['\"]run['\"],\s*['\"]build['\"]\]\)/],
   ['rollback', /restore\(snapshots\)/],
   ['objective selection', /chooseObjective/],
   ['failure persistence', /state\.failed/],
