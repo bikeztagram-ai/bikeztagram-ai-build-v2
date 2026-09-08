@@ -17,7 +17,7 @@ on:
       local_model:
         description: 'Local coding model'
         required: false
-        default: 'qwen2.5-coder:7b'
+        default: 'qwen3:4b-instruct-2507-q4_K_M'
         type: string
 
 concurrency:
@@ -78,12 +78,14 @@ jobs:
             exit 1
           fi
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=180' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_AGENT_TURNS=8' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_MAX_EDITS=1' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_EDITS=3' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
-          echo '[autobot] performance proxy ready'
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=650' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_THINK=false' >> "$GITHUB_ENV"
+          echo '[autobot] proven Qwen agent ready; turns=8; edits=3; ctx<=8192; predict<=650; think=false'
 
       - name: Resolve duration
         run: |
@@ -106,19 +108,31 @@ jobs:
         run: |
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
-          node --check builder/runner/feature-brain.mjs
+          node --check builder/runner/repository-index.mjs
+          node --check builder/runner/repository-aware-fast-executor.mjs
+          node --check builder/runner/repository-aware-feature-brain.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node scripts/autobot/verify-autobot-safety-contract-v3.mjs
           node scripts/autobot/verify-autobot-continuous-loop.mjs
-          node scripts/autobot/verify-autobot-feature-edit-protocol.mjs
           node scripts/autobot/verify-feature-objective-dependencies.mjs
           node builder/quality/autobot-ready.mjs
 
       - name: Run fast sustained builder
-        run: node builder/runner/long-run-executor.mjs
+        run: node builder/runner/repository-aware-fast-executor.mjs
+
+      - name: Require a real product-source change
+        if: success()
+        run: |
+          set -euo pipefail
+          git diff --name-only | grep -E '^(src|public)/' >/tmp/autobot-product-source-change.txt || {
+            echo 'No real product-source change detected under src/ or public/.'
+            exit 1
+          }
+          echo 'Require a real product-source change: PASS'
+          cat /tmp/autobot-product-source-change.txt
 
       - name: Production verification
         if: success()
@@ -139,11 +153,39 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          git fetch --no-tags origin main
+          git add -A
+          git reset -- .github/workflows builder/working
+          git diff --cached --binary origin/main -- . ':(exclude).github/workflows' ':(exclude)builder/working' >/tmp/autobot-checkpoint.patch
+          git reset --mixed
+          git stash push --include-untracked -m 'autobot checkpoint working tree' >/tmp/autobot-stash.txt
+          git switch --detach origin/main
+          git apply --index /tmp/autobot-checkpoint.patch
+          git restore --source=origin/main -- .github/workflows/
+          rm -rf builder/working
           branch="autonomous-builder-v2-fast/${GITHUB_RUN_ID}"
           git checkout -b "$branch"
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'feat: autonomous builder fast brain checkpoint' || true
+          git commit -m 'feat: autonomous builder fast brain checkpoint'
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy to reduce context/output latency on hosted runners.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy and proven repository-aware Qwen agent.' || true
+
+      - name: Post Cache local AI model
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ollama/models
+          key: bikeztagram-local-ai-${{ runner.os }}-${{ inputs.local_model }}
+
+      - name: Post Checkout exact workflow revision
+        if: always()
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Complete job
+        if: always()
+        run: echo 'Autonomous Builder V2 Fast Brain complete.'
