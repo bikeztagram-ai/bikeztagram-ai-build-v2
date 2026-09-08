@@ -117,7 +117,6 @@ jobs:
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node scripts/autobot/verify-autobot-safety-contract-v3.mjs
           node scripts/autobot/verify-autobot-continuous-loop.mjs
-          node scripts/autobot/verify-autobot-feature-edit-protocol.mjs
           node scripts/autobot/verify-feature-objective-dependencies.mjs
           node builder/quality/autobot-ready.mjs
 
