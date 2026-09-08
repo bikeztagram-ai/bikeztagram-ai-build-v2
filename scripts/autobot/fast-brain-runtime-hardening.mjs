@@ -45,6 +45,14 @@ if (!source.includes('failed objective retry ceiling')) {
   if (!replaceExact('feature-brain failed objective retry ceiling', before, after)) throw new Error('feature-brain objective selector marker not found; refusing incomplete rotation patch');
 }
 
+// Give Qwen enough surrounding syntax to understand function boundaries. Small
+// requested windows are expanded to at least 70 lines while remaining bounded.
+if (!source.includes('const requestedEnd = Number(end) || 0;')) {
+  const before = "  const last = Math.min(lines.length, first + 89, Number(end) || first + 89);";
+  const after = "  const requestedEnd = Number(end) || 0;\n  const boundedEnd = requestedEnd > first ? Math.max(requestedEnd, first + 69) : first + 89;\n  const last = Math.min(lines.length, first + 89, boundedEnd);";
+  if (!replaceExact('feature-brain minimum inspection window', before, after)) throw new Error('feature-brain read window marker not found; refusing incomplete context patch');
+}
+
 if (!source.includes('failedEditFiles')) {
   const before = "  let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let emptyTurns = 0;";
   const after = "  let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let emptyTurns = 0; let failedEditAttempts = 0; const failedEditFiles = new Set();";
@@ -84,6 +92,7 @@ for (const [marker, message] of [
   ['completed: completedIds', 'durable completion marker'],
   ['progress[objective.id] = 1', 'submit completion marker'],
   ['failed objective retry ceiling', 'failed-objective rotation marker'],
+  ['const requestedEnd = Number(end) || 0;', 'minimum inspection window marker'],
   ['failedEditFiles', 'failed-file strategy state'],
   ['same file is blocked for this attempt', 'failed-file guard'],
   ['A previous edit failed. Do not retry that file.', 'inspection strategy steering'],
@@ -91,4 +100,4 @@ for (const [marker, message] of [
 ]) {
   if (!finalBrain.includes(marker)) throw new Error(`required ${message} missing after hardening`);
 }
-console.log('[autobot] Qwen runtime hardening PASS: transactional edits + durable completion + objective rotation + failed-edit strategy shift.');
+console.log('[autobot] Qwen runtime hardening PASS: transactional edits + durable completion + objective rotation + larger inspection windows + failed-edit strategy shift.');
