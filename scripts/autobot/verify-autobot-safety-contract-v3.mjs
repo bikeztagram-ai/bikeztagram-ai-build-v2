@@ -16,6 +16,7 @@ const executor = read('builder/runner/repository-aware-fast-executor.mjs');
 const indexer = read('builder/runner/repository-index.mjs');
 const proxy = read('builder/runner/ollama-performance-proxy.mjs');
 const workflow = read('.github/workflows/autonomous-builder-v2-fast.yml');
+const hardener = read('scripts/autobot/fast-brain-runtime-hardening.mjs');
 
 const required = [
   ['repository-aware-agent-v7', 'canonical Qwen agent protocol marker missing'],
@@ -45,21 +46,32 @@ const required = [
   ['tool_name: call.name', 'Ollama tool results must identify their originating tool'],
   ['Inspection complete', 'agent must explicitly transition from inspection to editing'],
   ['no usable tool call returned', 'agent must log and recover from non-tool responses'],
-  ['const allowedByPhase =', 'Qwen tool surface must be phase-gated'],
-  ["toolPhase = 'inspect'", 'inspection phase must be explicit'],
-  ["toolPhase = 'edit'", 'edit phase must be explicit'],
-  ["toolPhase = 'verify'", 'verification phase must be explicit'],
-  ['parsedCalls.slice(0, 1)', 'Qwen must be limited to one tool call per turn'],
 ];
 
 for (const [needle, message] of required) if (!brain.includes(needle)) failures.push(message);
 
-// The hardened controller may transition to submit either directly or through
-// the PASS/FAIL expression used by the active runtime. Validate the behaviour,
-// not a brittle source-code spelling.
-if (!/toolPhase\s*=\s*['\"]submit['\"]|result\s*===\s*['\"]PASS['\"]\s*\?\s*['\"]submit['\"]\s*:\s*['\"]edit['\"]/.test(brain)) {
-  failures.push('submit phase must be explicit');
-}
+// The committed brain is intentionally the canonical pre-hardening source.
+// fast-brain-runtime-hardening.mjs installs the strict controller immediately
+// before execution, so validate the migration source rather than requiring
+// generated literals to already exist in the committed brain.
+const phaseMarkers = [
+  ['const allowedByPhase =', 'Qwen tool surface must be phase-gated'],
+  ["inspect: new Set(['read_file'])", 'inspection phase must allow only read_file'],
+  ["edit: new Set(['edit_file'])", 'edit phase must allow only edit_file'],
+  ["verify: new Set(['run_check'])", 'verification phase must allow only run_check'],
+  ["submit: new Set(['submit'])", 'submit phase must allow only submit'],
+  ["toolPhase = 'inspect'", 'inspection phase must be explicit'],
+  ["toolPhase = 'edit'", 'edit phase must be explicit'],
+  ["toolPhase = 'verify'", 'verification phase must be explicit'],
+  ["toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'submit transition must be explicit'],
+  ['parsedCalls.slice(0, 1)', 'Qwen must be limited to one tool call per turn'],
+  ['response = modelCall(messages, toolPhase);', 'model calls must use the active tool phase'],
+];
+for (const [needle, message] of phaseMarkers) if (!hardener.includes(needle)) failures.push(message);
+
+if (!hardener.includes('fs.writeFileSync(brainPath, brain);')) failures.push('runtime hardener must install the guarded brain transformation before execution');
+if (!hardener.includes('const modelCallPattern')) failures.push('runtime hardener must replace the canonical modelCall safely');
+if (!hardener.includes('const statePattern')) failures.push('runtime hardener must preserve idempotent controller state migration');
 
 if (!/Math\.min\(180,\s*Math\.max\(45,\s*Math\.floor\(left\(\) \* 60\)\)\)/.test(brain)) {
   failures.push('Qwen request timeout must be bounded at 180 seconds while respecting remaining feature time');
@@ -77,6 +89,7 @@ if (!proxy.includes('request.stream = false') || !proxy.includes('request.think 
 if (!workflow.includes('workflow_dispatch:')) failures.push('canonical workflow must be dispatchable');
 if (!workflow.includes('repository-aware-fast-executor.mjs')) failures.push('canonical workflow must invoke fast executor');
 if (!workflow.includes('repository-aware-feature-brain.mjs')) failures.push('canonical workflow must validate the active Qwen agent');
+if (!workflow.includes('fast-brain-runtime-hardening.mjs')) failures.push('canonical workflow must validate the runtime hardener');
 if (!workflow.includes('AUTOBOT_AGENT_TURNS=8')) failures.push('canonical workflow must restore the proven eight-turn agent budget');
 if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS=3')) failures.push('canonical workflow must restore the proven three-edit feature budget');
 if (!workflow.includes('LOCAL_AI_PROXY_NUM_CTX=8192')) failures.push('canonical workflow must restore the proven proxy context ceiling');
@@ -101,4 +114,4 @@ if (failures.length) {
   console.error(failures.map((f) => `FAIL: ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('AutoBot safety contract v3 PASS: canonical repository-aware Qwen agent, compact edit progression, strict phase-gated tool turns, scoped writes, rollback, verification, dependency-aware index and protected checkpoint runtime present.');
+console.log('AutoBot safety contract v3 PASS: canonical repository-aware Qwen agent, compact edit progression, source-validated phase-gated hardening, scoped writes, rollback, verification, dependency-aware index and protected checkpoint runtime present.');
