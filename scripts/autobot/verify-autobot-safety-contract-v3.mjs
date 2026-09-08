@@ -17,8 +17,8 @@ for (const [pattern, message] of [
   [/stream:\s*false/, 'structured brain must use non-streaming responses'],
   [/think:\s*false/, 'structured brain must disable thinking'],
   [/temperature:\s*0/, 'structured brain must use deterministic temperature'],
-  [/num_ctx:\s*4096/, 'structured brain context must be bounded'],
-  [/num_predict:\s*360/, 'structured brain output must be bounded'],
+  [/NUM_CTX\s*=\s*3072/, 'structured brain context must be bounded'],
+  [/NUM_PREDICT\s*=\s*240/, 'structured brain output must be bounded'],
   [/function\s+chooseObjective/, 'deterministic objective selection missing'],
   [/function\s+contextFor/, 'objective-scoped context missing'],
   [/maxEdits/, 'bounded edit budget missing'],
@@ -36,7 +36,7 @@ if (!workflow.includes('workflow_dispatch:')) failures.push('canonical workflow 
 if (!workflow.includes('repository-aware-fast-executor.mjs')) failures.push('canonical workflow must invoke fast executor');
 if (!workflow.includes('repository-aware-fast-brain.mjs')) failures.push('canonical workflow must include fast brain');
 if (!workflow.includes('AUTOBOT_AGENT_TURNS=1')) failures.push('canonical workflow must enforce one model request per feature attempt');
-if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS=2')) failures.push('canonical workflow must enforce two-edit maximum');
+if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS=1')) failures.push('canonical workflow must enforce one-edit maximum');
 if (!workflow.includes('LOCAL_AI_PROXY_THINK=false')) failures.push('proxy must explicitly disable thinking');
 
 try { execFileSync(process.execPath, ['builder/runner/repository-index.mjs'], { cwd: root, stdio: 'ignore' }); }
