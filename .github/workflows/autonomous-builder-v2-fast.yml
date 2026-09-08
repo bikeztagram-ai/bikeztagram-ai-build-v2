@@ -123,6 +123,7 @@ jobs:
           node --check scripts/autobot/verify-fast-brain-rollback.mjs
           node --check scripts/autobot/verify-fast-brain-release-contract.mjs
           node --check scripts/autobot/verify-fast-brain-agent-harness.mjs
+          node --check scripts/autobot/verify-fast-brain-live-qwen-smoke.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
@@ -134,6 +135,9 @@ jobs:
           node scripts/autobot/verify-fast-brain-rollback.mjs
           node scripts/autobot/verify-fast-brain-agent-harness.mjs
           node builder/quality/autobot-ready.mjs
+
+      - name: Prove real Qwen code-building path
+        run: node scripts/autobot/verify-fast-brain-live-qwen-smoke.mjs
 
       - name: Run fast sustained builder — repository-aware Qwen3 4B
         run: node builder/runner/repository-aware-fast-executor.mjs
