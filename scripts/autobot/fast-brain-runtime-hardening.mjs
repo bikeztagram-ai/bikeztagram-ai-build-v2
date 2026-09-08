@@ -1,9 +1,5 @@
 #!/usr/bin/env node
-/**
- * Preflight guard for the canonical local-Qwen feature brain.
- * Repairs only deterministic runtime-compatibility defects before the agent
- * starts. The canonical brain remains the source of truth after hardening.
- */
+/** Preflight guard for the canonical local-Qwen feature brain. */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -13,22 +9,16 @@ const root = process.env.AUTOBOT_HARDENING_ROOT || process.cwd();
 const brainPath = path.join(root, 'builder/runner/repository-aware-feature-brain.mjs');
 const taskPath = path.join(root, 'builder/brain/task-library.json');
 let brain = fs.readFileSync(brainPath, 'utf8');
-
 const requiredBrainMarkers = [
   "PROTOCOL = 'repository-aware-agent-v7'", '/api/chat', 'stream: false', 'think: false',
-  'tool_name: call.name', 'num_ctx: 4096', 'num_predict: 900',
-  'fs.writeFileSync(abs(file), next);', 'const syntax = syntaxCheck(file);',
-  'edit rejected and rolled back', 'fs.writeFileSync(abs(file), current);', 'failedEditFiles',
-  'Do NOT retry the same replacement.', 'completed: completedIds', 'for (const id of state.completed || []) progress[id]',
+  'tool_name: call.name', 'num_ctx: 4096', 'num_predict: 900', 'fs.writeFileSync(abs(file), next);',
+  'const syntax = syntaxCheck(file);', 'edit rejected and rolled back', 'fs.writeFileSync(abs(file), current);',
+  'failedEditFiles', 'Do NOT retry the same replacement.', 'completed: completedIds',
   '(progress[o.id] || 0) < 1', 'state.failed',
 ];
 const missing = requiredBrainMarkers.filter((marker) => !brain.includes(marker));
 if (missing.length) throw new Error(`canonical feature brain recovery contract incomplete: ${missing.join(', ')}`);
-
-if (!brain.includes("import os from 'node:os';")) {
-  brain = brain.replace("import path from 'node:path';", "import path from 'node:path';\nimport os from 'node:os';");
-}
-
+if (!brain.includes("import os from 'node:os';")) brain = brain.replace("import path from 'node:path';", "import path from 'node:path';\nimport os from 'node:os';");
 const syntaxFunctionPattern = /function syntaxCheck\(file\) \{[\s\S]*?\n\}\nfunction runCheck/;
 const hardenedSyntaxFunction = `function syntaxCheck(file) {
   if (!/\\.(js|mjs|cjs|jsx|ts|tsx)$/.test(file)) return 'PASS';
@@ -42,23 +32,20 @@ const hardenedSyntaxFunction = `function syntaxCheck(file) {
       if (ext === '.tsx') args.push('--loader:.tsx=tsx');
       execFileSync(esbuild, args, { cwd: root, encoding: 'utf8', stdio: 'pipe' });
       return 'PASS';
-    } catch (error) {
-      return 'FAIL ' + [error.stdout, error.stderr, error.message].filter(Boolean).join('\\n').slice(0, 2200);
-    } finally { try { fs.rmSync(out, { force: true }); } catch {} }
+    } catch (error) { return 'FAIL ' + [error.stdout, error.stderr, error.message].filter(Boolean).join('\\n').slice(0, 2200); }
+    finally { try { fs.rmSync(out, { force: true }); } catch {} }
   }
-  try { execFileSync(process.execPath, [file, '--check'], { cwd: root, encoding: 'utf8', stdio: 'pipe', timeout: 15000 }); return 'PASS'; }
+  try { execFileSync(process.execPath, ['--check', file], { cwd: root, encoding: 'utf8', stdio: 'pipe', timeout: 15000 }); return 'PASS'; }
   catch (error) { return 'FAIL ' + [error.stdout, error.stderr, error.message].filter(Boolean).join('\\n').slice(0, 2200); }
 }
 function runCheck`;
 if (!syntaxFunctionPattern.test(brain)) throw new Error('canonical syntaxCheck function shape is not recognized; refusing unsafe migration');
 brain = brain.replace(syntaxFunctionPattern, hardenedSyntaxFunction);
 fs.writeFileSync(brainPath, brain);
-
 let tasks = fs.readFileSync(taskPath, 'utf8');
 if (tasks.includes('npm run verify:batch33')) {
   tasks = tasks.replaceAll('npm run verify:batch33', 'node scripts/autobot/export-contract-check.mjs');
   fs.writeFileSync(taskPath, tasks);
-  console.log('[autobot] stale export verification command repaired.');
 }
 const finalBrain = fs.readFileSync(brainPath, 'utf8');
 if (!finalBrain.includes("import os from 'node:os';")) throw new Error('syntax validator runtime dependency import is missing');
