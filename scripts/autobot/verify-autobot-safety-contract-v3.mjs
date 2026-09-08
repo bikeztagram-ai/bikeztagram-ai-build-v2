@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-/** Final formatting-tolerant contract for the active fast structured-Qwen runtime. */
+/**
+ * Canonical formatting-tolerant contract for the active fast structured-Qwen runtime.
+ * This is the single authoritative source-level contract for the Fast Brain; other
+ * validators should cover orthogonal concerns rather than duplicate fragile regexes.
+ */
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -14,21 +18,25 @@ const workflow = read('.github/workflows/autonomous-builder-v2-fast.yml');
 
 for (const [pattern, message] of [
   [/\/api\/chat/, 'structured brain must use Ollama chat'],
-  [/stream:\s*false/, 'structured brain must use non-streaming responses'],
-  [/think:\s*false/, 'structured brain must disable thinking'],
-  [/temperature:\s*0/, 'structured brain must use deterministic temperature'],
+  [/stream\s*:\s*false/, 'structured brain must use non-streaming responses'],
+  [/think\s*:\s*false/, 'structured brain must disable thinking'],
+  [/temperature\s*:\s*0/, 'structured brain must use deterministic temperature'],
   [/NUM_CTX\s*=\s*3072/, 'structured brain context must be bounded'],
   [/NUM_PREDICT\s*=\s*240/, 'structured brain output must be bounded'],
+  [/format\s*:\s*schema/, 'structured brain must request schema-constrained JSON'],
+  [/edits\s*:\s*\{[\s\S]*?maxItems\s*:\s*1/, 'structured brain must define a single-edit schema'],
+  [/required\s*:\s*\[['\"]file['\"],\s*['\"]search['\"],\s*['\"]replace['\"]\]/, 'edit schema must require file/search/replace'],
   [/function\s+chooseObjective/, 'deterministic objective selection missing'],
   [/function\s+contextFor/, 'objective-scoped context missing'],
   [/maxEdits/, 'bounded edit budget missing'],
   [/safe\(file\)/, 'sensitive/path safety missing'],
   [/must match exactly once/, 'exact-match write protection missing'],
   [/restore\(snapshots\)/, 'rollback protection missing'],
-  [/run\('npm', \['run', 'build'\]\)/, 'build verification missing'],
-  [/\['diff', '--', 'src', 'public'\]/, 'product-source diff verification missing'],
+  [/run\(\s*['\"]npm['\"],\s*\[['\"]run['\"],\s*['\"]build['\"]\]\)/, 'build verification missing'],
+  [/\[['\"]diff['\"],\s*['\"]--['\"],\s*['\"]src['\"],\s*['\"]public['\"]\]/, 'product-source diff verification missing'],
   [/state\.failed/, 'durable failure state missing'],
 ]) if (!pattern.test(brain)) failures.push(message);
+
 if (/git\s+reset\s+--hard|git\s+clean\s+-f/.test(brain + executor)) failures.push('fast runtime must never wholesale reset or clean the working tree');
 if (!executor.includes('repository-index.mjs') || !executor.includes('repository-aware-fast-brain.mjs')) failures.push('fast executor must refresh index and invoke structured brain');
 if (!indexer.includes('ls-files') || !indexer.includes('dependencyEdges') || !indexer.includes('sensitive')) failures.push('repository index must be Git-derived, dependency-aware and secret-safe');
@@ -52,4 +60,4 @@ if (fs.existsSync(mapPath)) {
 }
 
 if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
-console.log('AutoBot safety contract v3 PASS: active structured-Qwen brain, bounded one-request edits, scoped context, rollback, verification, dependency-aware index and protected checkpoint runtime present.');
+console.log('AutoBot safety contract v3 PASS: canonical structured-Qwen brain, schema-constrained single edits, scoped context, rollback, verification, dependency-aware index and protected checkpoint runtime present.');
