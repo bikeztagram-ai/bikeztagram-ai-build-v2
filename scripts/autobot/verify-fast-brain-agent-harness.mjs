@@ -15,13 +15,13 @@ const root = process.cwd();
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bikeztagram-fast-brain-harness-'));
 const brainSource = fs.readFileSync(path.join(root, 'builder/runner/repository-aware-feature-brain.mjs'), 'utf8');
 const auditSource = fs.readFileSync(path.join(root, 'builder/quality/audit-log.mjs'), 'utf8');
-const baselineApp = 'export default function App(){return <div>Harness</div>}\n';
+const baselineApp = 'export const harnessValue = "before";\n';
 const baselineSecondary = 'export const harnessValue = "before";\n';
 const steps = [
-  { function: { name: 'read_file', arguments: { file: 'src/App.jsx', start: 1, end: 20 } } },
-  { function: { name: 'edit_file', arguments: { file: 'src/App.jsx', search: 'export default function App(){return <div>Harness</div>}', replace: 'export default function App(){\nreturn <div>Harness broken' } } },
-  { function: { name: 'read_file', arguments: { file: 'src/Secondary.jsx', start: 1, end: 20 } } },
-  { function: { name: 'edit_file', arguments: { file: 'src/Secondary.jsx', search: 'export const harnessValue = "before";', replace: 'export const harnessValue = "verified";' } } },
+  { function: { name: 'read_file', arguments: { file: 'src/App.js', start: 1, end: 20 } } },
+  { function: { name: 'edit_file', arguments: { file: 'src/App.js', search: 'export const harnessValue = "before";', replace: 'export const harnessValue = ' } } },
+  { function: { name: 'read_file', arguments: { file: 'src/Secondary.js', start: 1, end: 20 } } },
+  { function: { name: 'edit_file', arguments: { file: 'src/Secondary.js', search: 'export const harnessValue = "before";', replace: 'export const harnessValue = "verified";' } } },
   { function: { name: 'run_check', arguments: { check: 'diff-check' } } },
   { function: { name: 'submit', arguments: { summary: 'Deterministic harness proved rollback, failed-file steering, verification and completion persistence.' } } },
 ];
@@ -37,14 +37,14 @@ try {
   write('builder/quality/audit-log.mjs', auditSource);
   write('builder/brain/feature-objectives.json', JSON.stringify({ objectives: [{
     id: 'harness-objective', title: 'Harness objective', priority: 100,
-    files: ['src/App.jsx', 'src/Secondary.jsx'], acceptance: ['make one real product-source improvement'], constraints: ['edit only supplied files'], dependsOn: []
+    files: ['src/App.js', 'src/Secondary.js'], acceptance: ['make one real product-source improvement'], constraints: ['edit only supplied files'], dependsOn: []
   }] }, null, 2));
   write('builder/working/repository-map.json', JSON.stringify({ version: 1, files: [
-    { path: 'src/App.jsx', lines: 1, purpose: 'Harness product file' },
-    { path: 'src/Secondary.jsx', lines: 1, purpose: 'Harness recovery file' },
-  ], byPath: { 'src/App.jsx': 0, 'src/Secondary.jsx': 1 }, dependencyEdges: [] }, null, 2));
-  write('src/App.jsx', baselineApp);
-  write('src/Secondary.jsx', baselineSecondary);
+    { path: 'src/App.js', lines: 1, purpose: 'Harness product file' },
+    { path: 'src/Secondary.js', lines: 1, purpose: 'Harness recovery file' },
+  ], byPath: { 'src/App.js': 0, 'src/Secondary.js': 1 }, dependencyEdges: [] }, null, 2));
+  write('src/App.js', baselineApp);
+  write('src/Secondary.js', baselineSecondary);
   write('package.json', JSON.stringify({ name: 'fast-brain-harness', private: true, scripts: { build: 'node -e "process.exit(0)"' } }, null, 2));
   sh('git', ['init', '-q']);
   sh('git', ['config', 'user.email', 'harness@example.invalid']);
@@ -98,8 +98,8 @@ try {
   if (protocolError) throw new Error(`mock Ollama protocol assertion failed: ${protocolError}`);
   if (exitCode !== 0) throw new Error(`active feature brain exited ${exitCode}`);
   if (calls !== 6) throw new Error(`expected exactly 6 scripted model calls, got ${calls}`);
-  const app = fs.readFileSync(path.join(temp, 'src/App.jsx'), 'utf8');
-  const secondary = fs.readFileSync(path.join(temp, 'src/Secondary.jsx'), 'utf8');
+  const app = fs.readFileSync(path.join(temp, 'src/App.js'), 'utf8');
+  const secondary = fs.readFileSync(path.join(temp, 'src/Secondary.js'), 'utf8');
   if (app !== baselineApp) throw new Error('failed syntax edit was not rolled back to the exact baseline');
   if (!secondary.includes('harnessValue = "verified"')) throw new Error('recovery edit on a different file was not applied');
   const state = JSON.parse(fs.readFileSync(path.join(temp, 'builder/working/feature-brain-state.json'), 'utf8'));
