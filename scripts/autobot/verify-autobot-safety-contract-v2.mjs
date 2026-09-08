@@ -27,9 +27,9 @@ for (const obj of objectives) visit(obj.id);
 const fastBrain = read('builder/runner/repository-aware-fast-brain.mjs');
 if (!fastBrain.includes('function dependenciesMet')) failures.push('fast brain does not enforce objective dependencies');
 if (!fastBrain.includes('function chooseObjective')) failures.push('fast brain does not expose deterministic objective selection');
-if (!/objectives\.filter\(\(o\) => dependenciesMet\(o\)/.test(fastBrain)) failures.push('fast brain does not filter unavailable objectives before selection');
+if (!/objectives\.filter\(\s*\(?o\)?\s*=>\s*dependenciesMet\(o\)/.test(fastBrain)) failures.push('fast brain does not filter unavailable objectives before selection');
 if (!fastBrain.includes('state.failed')) failures.push('fast brain does not persist failure state');
 if (!fastBrain.includes('state.progress')) failures.push('fast brain does not persist objective progress');
 
-if (failures.length) { console.error(failures.map((f) => `FAIL: ${f}`).join('\n')); process.exit(1); }
+if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
 console.log(`AutoBot dependency contract PASS: ${objectives.length} objectives, ${objectives.reduce((n, o) => n + (o.dependsOn || []).length, 0)} dependency edges, no cycles, dependency-aware structured-Qwen selection.`);
