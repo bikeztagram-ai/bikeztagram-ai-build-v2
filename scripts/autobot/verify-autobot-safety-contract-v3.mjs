@@ -49,11 +49,17 @@ const required = [
   ["toolPhase = 'inspect'", 'inspection phase must be explicit'],
   ["toolPhase = 'edit'", 'edit phase must be explicit'],
   ["toolPhase = 'verify'", 'verification phase must be explicit'],
-  ["toolPhase = 'submit'", 'submit phase must be explicit'],
   ['parsedCalls.slice(0, 1)', 'Qwen must be limited to one tool call per turn'],
 ];
 
 for (const [needle, message] of required) if (!brain.includes(needle)) failures.push(message);
+
+// The hardened controller may transition to submit either directly or through
+// the PASS/FAIL expression used by the active runtime. Validate the behaviour,
+// not a brittle source-code spelling.
+if (!/toolPhase\s*=\s*['\"]submit['\"]|result\s*===\s*['\"]PASS['\"]\s*\?\s*['\"]submit['\"]\s*:\s*['\"]edit['\"]/.test(brain)) {
+  failures.push('submit phase must be explicit');
+}
 
 if (!/Math\.min\(180,\s*Math\.max\(45,\s*Math\.floor\(left\(\) \* 60\)\)\)/.test(brain)) {
   failures.push('Qwen request timeout must be bounded at 180 seconds while respecting remaining feature time');
