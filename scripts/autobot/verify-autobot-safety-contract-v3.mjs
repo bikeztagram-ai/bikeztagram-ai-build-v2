@@ -40,6 +40,11 @@ const required = [
   ['changed-syntax', 'changed-source syntax verification missing'],
   ['dependenciesMet', 'dependency-aware objective selection missing'],
   ['appendAudit', 'agent audit logging missing'],
+  ['preview: content.slice(0, 650)', 'objective context must remain compact'],
+  ['slice(0, 4800)', 'tool read results must remain compact'],
+  ['tool_name: call.name', 'Ollama tool results must identify their originating tool'],
+  ['Inspection complete', 'agent must explicitly transition from inspection to editing'],
+  ['no usable tool call returned', 'agent must log and recover from non-tool responses'],
 ];
 
 for (const [needle, message] of required) if (!brain.includes(needle)) failures.push(message);
@@ -48,12 +53,13 @@ if (!/Math\.min\(180,\s*Math\.max\(45,\s*Math\.floor\(left\(\) \* 60\)\)\)/.test
   failures.push('Qwen request timeout must be bounded at 180 seconds while respecting remaining feature time');
 }
 if (!/tools\s*=\s*\[/.test(brain)) failures.push('Qwen tool surface is missing');
-if (!/AUTOBOT_AGENT_TURNS/.test(executor) || !/AUTOBOT_FEATURE_MAX_EDITS/.test(executor)) {
+if (!executor.includes('AUTOBOT_AGENT_TURNS') || !executor.includes('AUTOBOT_FEATURE_MAX_EDITS')) {
   failures.push('fast executor must pass bounded Qwen agent budgets');
 }
 if (!executor.includes('repository-aware-feature-brain.mjs')) failures.push('fast executor must invoke the proven repository-aware Qwen agent');
 if (executor.includes('repository-aware-fast-brain.mjs')) failures.push('fast executor must not use the retired single-shot structured brain');
 if (!executor.includes('repository-index.mjs')) failures.push('fast executor must refresh the repository index');
+if (!/Math\.min\(10,\s*Math\.floor\(left\(\)\)/.test(executor)) failures.push('Qwen feature slice must allow the fuller bounded time window');
 if (/git\s+reset\s+--hard|git\s+clean\s+-f/.test(brain + executor)) failures.push('Qwen runtime must never wholesale reset or clean the working tree');
 
 if (!indexer.includes('ls-files') || !indexer.includes('dependencyEdges') || !indexer.includes('sensitive')) {
@@ -96,4 +102,4 @@ if (failures.length) {
   console.error(failures.map((f) => `FAIL: ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('AutoBot safety contract v3 PASS: canonical repository-aware Qwen agent, bounded tool turns, scoped writes, rollback, verification, dependency-aware index and protected checkpoint runtime present.');
+console.log('AutoBot safety contract v3 PASS: canonical repository-aware Qwen agent, compact edit progression, bounded tool turns, scoped writes, rollback, verification, dependency-aware index and protected checkpoint runtime present.');
