@@ -33,6 +33,7 @@ requireMarker(/maxTurns/.test(active) && /maxEdits/.test(active), 'bounded agent
 requireMarker(hardener.includes('canonical feature brain recovery contract incomplete'), 'runtime hardener does not validate the canonical recovery contract');
 requireMarker(hardener.includes('Do NOT retry the same replacement.'), 'runtime hardener does not validate the canonical failed-edit steering');
 requireMarker(hardener.includes('export-contract-check.mjs'), 'runtime hardener does not contain the export migration');
+requireMarker(hardener.includes('hardenedModelCallPattern'), 'runtime hardener is not idempotent for the hardened modelCall');
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bikeztagram-fast-brain-'));
 try {
@@ -40,17 +41,25 @@ try {
   fs.mkdirSync(path.join(temp, 'builder/brain'), { recursive: true });
   fs.copyFileSync(brainPath, path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'));
   fs.copyFileSync(path.join(root, 'builder/brain/task-library.json'), path.join(temp, 'builder/brain/task-library.json'));
-  const result = spawnSync(process.execPath, [hardenerPath], {
+  const hardenEnv = { ...process.env, AUTOBOT_HARDENING_ROOT: temp };
+  const first = spawnSync(process.execPath, [hardenerPath], {
     cwd: temp,
     encoding: 'utf8',
-    env: { ...process.env, AUTOBOT_HARDENING_ROOT: temp },
+    env: hardenEnv,
   });
-  requireMarker(result.status === 0, `runtime hardener actual-source fixture failed: ${result.stderr || result.stdout}`);
+  requireMarker(first.status === 0, `runtime hardener actual-source fixture failed: ${first.stderr || first.stdout}`);
+  const second = spawnSync(process.execPath, [hardenerPath], {
+    cwd: temp,
+    encoding: 'utf8',
+    env: hardenEnv,
+  });
+  requireMarker(second.status === 0, `runtime hardener second-pass idempotency failed: ${second.stderr || second.stdout}`);
   const hardened = fs.readFileSync(path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'), 'utf8');
   requireMarker(hardened.includes('edit rejected and rolled back'), 'fixture lost transactional rollback');
   requireMarker(hardened.includes('failedEditFiles'), 'fixture lost failed-file recovery');
   requireMarker(/progress\[objective\.id\]\s*=\s*(?:Math\.max\([^\n]*\)|1)/.test(hardened), 'fixture lost durable completion tracking');
   requireMarker(hardened.includes("const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');"), 'fixture lost real syntax validator');
+  requireMarker(hardened.includes('availableTools = readToolEnabled ? tools'), 'fixture lost read-loop controller');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
