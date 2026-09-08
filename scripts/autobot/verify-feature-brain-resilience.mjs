@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Resilience contract for the active repository-aware Qwen runtime. */
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 const feature = fs.readFileSync('builder/runner/repository-aware-feature-brain.mjs', 'utf8');
 const runner = fs.readFileSync('builder/runner/repository-aware-fast-executor.mjs', 'utf8');
@@ -41,6 +42,10 @@ for (const [pattern, message] of [
 for (const [pattern, message] of [
   [/edit-level syntax rollback/, 'runtime hardening must describe edit rollback'],
   [/verify:batch33|export-contract-check\.mjs/, 'export verification repair missing'],
+  [/completed: completedIds/, 'runtime hardening must preserve completed objectives'],
+  [/progress\[objective\.id\] = 1/, 'runtime hardening must record submitted objective completion'],
+  [/progress\[o\.id\] \|\| 0\) < 1/, 'runtime hardening must exclude completed objectives'],
+  [/AUTOBOT_HARDENING_ROOT/, 'runtime hardening must be fixture-testable'],
 ]) if (!pattern.test(hardening)) failures.push(message);
 
 for (const [pattern, message] of [
@@ -60,6 +65,9 @@ if (!/git reset -- \.github\/workflows builder\/working/.test(workflow)) failure
 if (!/qwen3:4b/.test(installer)) failures.push('local brain installer must target Qwen3 4B-compatible model');
 if (/qwen3:8b/.test(installer)) failures.push('local brain installer must not silently fall back to Qwen3 8B');
 if (!/\\"think\\":false/.test(installer)) failures.push('local brain smoke test must explicitly disable thinking');
+
+const regression = spawnSync(process.execPath, ['scripts/autobot/verify-fast-brain-rollback.mjs'], { encoding: 'utf8' });
+if (regression.status !== 0) failures.push(`rollback regression test failed: ${(regression.stderr || regression.stdout || '').trim().slice(0, 1200)}`);
 
 if (failures.length) {
   console.error('[autobot] fast-brain resilience FAIL');
