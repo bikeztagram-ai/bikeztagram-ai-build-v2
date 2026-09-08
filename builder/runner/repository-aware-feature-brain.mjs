@@ -63,7 +63,7 @@ function syntaxCheck(file) {
   if (fs.existsSync(esbuild)) {
     const out = path.join(os.tmpdir(), 'autobot-syntax-' + process.pid + '-' + Date.now() + '-' + Math.random().toString(16).slice(2) + '.js');
     try {
-      const args = [file, '--log-level=error', '--outfile', out];
+      const args = [file, '--log-level=error', '--outfile=' + out];
       if (ext === '.jsx') args.push('--loader:.jsx=jsx');
       if (ext === '.tsx') args.push('--loader:.tsx=tsx');
       run(esbuild, args, { stdio: 'pipe' });
@@ -213,22 +213,13 @@ function executeObjective(objective, repair) {
       } else result = `ERROR: unknown tool ${call.name}`;
       console.log(`[autobot] ${call.name}: ${result.slice(0, 900).replace(/\n/g, ' ')}`);
       messages.push({ role: 'tool', tool_name: call.name, content: result.slice(0, 5000) });
-      if (call.name === 'edit_file' && result.startsWith('EDIT APPLIED')) {
-        messages.push({ role: 'user', content: 'EDIT APPLIED. Now verify it: call run_check with build or diff-check. Do not make another edit until verification is known.' });
-      } else if (call.name === 'edit_file' && result.startsWith('ERROR')) {
-        if (failedEditAttempts >= 2) {
-          const previous = state.failed?.[objective.id]?.attempts || 0;
-          state.failed = { ...(state.failed || {}), [objective.id]: { attempts: previous + 1, lastError: result.slice(0, 1200), updatedAt: new Date().toISOString() } };
-          saveState();
-        }
+      if (call.name === 'edit_file' && result.startsWith('EDIT APPLIED')) messages.push({ role: 'user', content: 'EDIT APPLIED. Now verify it: call run_check with build or diff-check. Do not make another edit until verification is known.' });
+      else if (call.name === 'edit_file' && result.startsWith('ERROR')) {
+        if (failedEditAttempts >= 2) { const previous = state.failed?.[objective.id]?.attempts || 0; state.failed = { ...(state.failed || {}), [objective.id]: { attempts: previous + 1, lastError: result.slice(0, 1200), updatedAt: new Date().toISOString() } }; saveState(); }
         messages.push({ role: 'user', content: failedEditAttempts > 1 ? 'Two edit attempts have failed. STOP working on the current file. Your NEXT tool call MUST be read_file on a DIFFERENT objective file, then make one small syntactically complete edit there.' : 'Edit failed. Do NOT repeat the same replacement or edit the failed file again. Your NEXT tool call MUST be read_file on a DIFFERENT objective file, then make one small syntactically complete edit there.' });
-      } else if (call.name === 'read_file') {
-        messages.push({ role: 'user', content: failedEditAttempts > 0 ? 'Inspection complete. A previous edit failed. Do not retry that file. Your next response MUST be edit_file on a DIFFERENT objective file with the smallest meaningful syntactically complete change.' : 'Inspection complete. Do not read more files. Your next response MUST be edit_file with the smallest meaningful accepted improvement.' });
-      } else if (call.name === 'run_check' && result === 'PASS') {
-        messages.push({ role: 'user', content: 'Verification passed. Now call submit with a concise summary. No prose.' });
-      } else if (call.name === 'run_check' && result.startsWith('FAIL')) {
-        messages.push({ role: 'user', content: 'Verification failed. Diagnose the failure and call edit_file to repair it. No prose.' });
-      }
+      } else if (call.name === 'read_file') messages.push({ role: 'user', content: failedEditAttempts > 0 ? 'Inspection complete. A previous edit failed. Do not retry that file. Your next response MUST be edit_file on a DIFFERENT objective file with the smallest meaningful syntactically complete change.' : 'Inspection complete. Do not read more files. Your next response MUST be edit_file with the smallest meaningful accepted improvement.' });
+      else if (call.name === 'run_check' && result === 'PASS') messages.push({ role: 'user', content: 'Verification passed. Now call submit with a concise summary. No prose.' });
+      else if (call.name === 'run_check' && result.startsWith('FAIL')) messages.push({ role: 'user', content: 'Verification failed. Diagnose the failure and call edit_file to repair it. No prose.' });
     }
     messages = trimMessages(messages);
     if (submitted) break;
