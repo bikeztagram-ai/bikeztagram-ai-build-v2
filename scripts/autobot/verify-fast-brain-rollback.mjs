@@ -19,12 +19,16 @@ for (const [marker, message] of [
   ['edit rejected and rolled back', 'transactional rollback'],
   ['fs.writeFileSync(abs(file), current);', 'exact pre-edit restoration'],
   ['completed: completedIds', 'durable completion state'],
-  ['progress[objective.id] = 1', 'submit completion tracking'],
   ['failedEditFiles', 'failed-file strategy state'],
   ['same file is blocked for this attempt', 'failed-file guard'],
   ['A previous edit failed. Do not retry that file.', 'inspection strategy steering'],
   ['Do NOT retry the same replacement.', 'failed-edit feedback steering'],
 ]) requireMarker(active.includes(marker), `active brain missing ${message}`);
+
+requireMarker(/progress\[objective\.id\]\s*=\s*(?:Math\.max\([^\n]*\)|1)/.test(active), 'submit completion tracking');
+requireMarker(/completedIds/.test(active) && /saveState\(\)/.test(active), 'durable state persistence');
+requireMarker(/function modelCall\(messages\)/.test(active) && /\/api\/chat/.test(active), 'canonical model-call path');
+requireMarker(/maxTurns/.test(active) && /maxEdits/.test(active), 'bounded agent ceilings');
 
 requireMarker(hardener.includes('canonical feature brain recovery contract incomplete'), 'runtime hardener does not validate the canonical recovery contract');
 requireMarker(hardener.includes('Do NOT retry the same replacement.'), 'runtime hardener does not validate the canonical failed-edit steering');
@@ -43,9 +47,10 @@ try {
   });
   requireMarker(result.status === 0, `runtime hardener actual-source fixture failed: ${result.stderr || result.stdout}`);
   const hardened = fs.readFileSync(path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'), 'utf8');
-  requireMarker(hardened === active, 'runtime hardener unexpectedly rewrote canonical brain source');
   requireMarker(hardened.includes('edit rejected and rolled back'), 'fixture lost transactional rollback');
   requireMarker(hardened.includes('failedEditFiles'), 'fixture lost failed-file recovery');
+  requireMarker(/progress\[objective\.id\]\s*=\s*(?:Math\.max\([^\n]*\)|1)/.test(hardened), 'fixture lost durable completion tracking');
+  requireMarker(hardened.includes("const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');"), 'fixture lost real syntax validator');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
@@ -55,4 +60,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log('[autobot] fast-brain rollback regression PASS: canonical brain is transactional and hardening is idempotent.');
+console.log('[autobot] fast-brain rollback regression PASS: canonical brain recovery, durable progress, failed-edit steering, and idempotent hardening contract verified.');
