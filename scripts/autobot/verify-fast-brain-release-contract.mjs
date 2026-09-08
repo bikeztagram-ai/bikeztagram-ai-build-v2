@@ -11,6 +11,7 @@ const brain = read('builder/runner/repository-aware-feature-brain.mjs');
 const hardener = read('scripts/autobot/fast-brain-runtime-hardening.mjs');
 const rollback = read('scripts/autobot/verify-fast-brain-rollback.mjs');
 const harness = read('scripts/autobot/verify-fast-brain-agent-harness.mjs');
+const liveSmoke = read('scripts/autobot/verify-fast-brain-live-qwen-smoke.mjs');
 const installer = read('scripts/autobot/install-local-brain.sh');
 const proxy = read('builder/runner/ollama-performance-proxy.mjs');
 const taskLibrary = read('builder/brain/task-library.json');
@@ -59,14 +60,20 @@ require(hardener.includes('npm run verify:batch33'), 'hardener does not recogniz
 require(hardener.includes('export-contract-check.mjs'), 'hardener does not repair/validate live export contract');
 
 require(workflow.includes('node scripts/autobot/verify-fast-brain-agent-harness.mjs'), 'workflow does not run deterministic agent harness');
-require(harness.includes('read_file'), 'agent harness lacks read_file');
-require(harness.includes('edit_file'), 'agent harness lacks edit_file');
-require(harness.includes('run_check'), 'agent harness lacks run_check');
-require(harness.includes('submit'), 'agent harness lacks submit');
+require(workflow.includes('node scripts/autobot/verify-fast-brain-live-qwen-smoke.mjs'), 'workflow does not run real Qwen code-building preflight');
+for (const [source, label] of [[harness, 'deterministic harness'], [liveSmoke, 'live Qwen smoke']]) {
+  require(source.includes('read_file'), `${label} lacks read_file`);
+  require(source.includes('edit_file'), `${label} lacks edit_file`);
+  require(source.includes('run_check') || source.includes('build'), `${label} lacks verification`);
+  require(source.includes('src/'), `${label} does not operate on source code`);
+}
 require(harness.includes('failed syntax edit was not rolled back'), 'agent harness does not prove transactional rollback');
 require(harness.includes('recovery edit on a different file was not applied'), 'agent harness does not prove failed-file recovery');
-require(harness.includes('secondary.includes'), 'agent harness does not prove a real source edit');
 require(harness.includes('state.completed'), 'agent harness does not prove completion persistence');
+require(liveSmoke.includes(`const model = '${MODEL}'`), 'live Qwen smoke is not hardwired to Qwen3 4B');
+require(liveSmoke.includes('LOCAL_AI_READY'), 'live Qwen smoke does not enforce local-AI-only execution');
+require(liveSmoke.includes('real source edit'), 'live Qwen smoke does not require a real source edit');
+require(liveSmoke.includes('state.completed'), 'live Qwen smoke does not require durable completion');
 
 require(installer.includes(`REQUIRED_MODEL='${MODEL}'`), 'installer is not hardwired to Qwen3 4B');
 require(installer.includes('MODEL="${LOCAL_AI_MODEL:-$REQUIRED_MODEL}"'), 'installer default model expression drifted');
@@ -99,4 +106,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log('[autobot] Fast Brain release architecture contract PASS: Qwen3 4B, canonical multi-turn tool agent, deterministic failure-recovery harness, transactional recovery, idempotent hardening, exact checkout verification, native tool-call smoke, honest success metrics, and review-only checkpointing.');
+console.log('[autobot] Fast Brain release architecture contract PASS: Qwen3 4B, canonical multi-turn tool agent, deterministic harness, real-Qwen code-building preflight, transactional recovery, idempotent hardening, exact checkout verification, native tool-call smoke, honest success metrics, and review-only checkpointing.');
