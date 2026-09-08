@@ -27,5 +27,7 @@ jobs:
         run: npm run build
       - name: Verify Fast Brain architecture contract
         run: node scripts/autobot/verify-fast-brain-release-contract.mjs
+      - name: Verify Fast Brain deterministic agent harness
+        run: node scripts/autobot/verify-fast-brain-agent-harness.mjs
       - name: Audit all active verification batches
         run: node scripts/verify-main-suite.mjs
