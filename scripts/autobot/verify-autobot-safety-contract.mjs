@@ -35,7 +35,8 @@ if (!workflow.includes('repository-aware-fast-executor.mjs')) failures.push('wor
 if (!workflow.includes('repository-aware-fast-brain.mjs')) failures.push('workflow does not include structured coding brain');
 if (!fastExecutor.includes('repository-aware-fast-brain.mjs')) failures.push('fast executor does not invoke structured coding brain');
 if (!fastBrain.includes('think: false')) failures.push('structured coding brain must disable thinking');
-if (!fastBrain.includes('num_predict: 360')) failures.push('structured coding brain output ceiling missing');
+if (!fastBrain.includes('NUM_PREDICT = 240')) failures.push('structured coding brain output ceiling missing');
+if (!fastBrain.includes('NUM_CTX = 3072')) failures.push('structured coding brain context ceiling missing');
 if (!fastBrain.includes("run('npm', ['run', 'build'])")) failures.push('structured coding brain build verification missing');
 if (!fastBrain.includes("['diff', '--', 'src', 'public']")) failures.push('structured coding brain product-source diff verification missing');
 if (!fastBrain.includes('maxEdits')) failures.push('structured coding brain edit ceiling missing');
