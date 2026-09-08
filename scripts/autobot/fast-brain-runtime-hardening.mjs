@@ -43,7 +43,10 @@ function runCheck`;
 if (!syntaxFunctionPattern.test(brain)) throw new Error('canonical syntaxCheck function shape is not recognized; refusing unsafe migration');
 brain = brain.replace(syntaxFunctionPattern, hardenedSyntaxFunction);
 
-const modelCallPattern = /function modelCall\(messages(?:, (?:readToolEnabled = true|toolPhase = 'inspect'))?\) \{[\s\S]*?\n\}/;
+// Match the complete modelCall function through its unique return statement.
+// A generic non-greedy brace match is unsafe because allowedByPhase contains
+// nested object/set braces and can truncate the generated function.
+const modelCallPattern = /function modelCall\(messages(?:, (?:readToolEnabled = true|toolPhase = 'inspect'))?\) \{[\s\S]*?\n\s*return response;\n\}/;
 const hardenedModelCall = `function modelCall(messages, toolPhase = 'inspect') {
   const seconds = Math.min(180, Math.max(45, Math.floor(left() * 60)));
   const allowedByPhase = {
