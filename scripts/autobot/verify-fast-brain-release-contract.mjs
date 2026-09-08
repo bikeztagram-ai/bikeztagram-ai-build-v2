@@ -1,9 +1,5 @@
 #!/usr/bin/env node
-/**
- * Release contract for the canonical local-Qwen Fast Brain path.
- * Cross-file audit: changing one component of the builder must not silently
- * leave another component on a retired architecture.
- */
+/** Release contract for the canonical local-Qwen Fast Brain path. */
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -14,6 +10,9 @@ const executor = read('builder/runner/repository-aware-fast-executor.mjs');
 const brain = read('builder/runner/repository-aware-feature-brain.mjs');
 const hardener = read('scripts/autobot/fast-brain-runtime-hardening.mjs');
 const rollback = read('scripts/autobot/verify-fast-brain-rollback.mjs');
+const harness = read('scripts/autobot/verify-fast-brain-agent-harness.mjs');
+const installer = read('scripts/autobot/install-local-brain.sh');
+const proxy = read('builder/runner/ollama-performance-proxy.mjs');
 const taskLibrary = read('builder/brain/task-library.json');
 const failures = [];
 const require = (condition, message) => { if (!condition) failures.push(message); };
@@ -42,7 +41,6 @@ require(brain.includes('num_ctx: 4096'), 'feature brain context budget drifted')
 require(brain.includes('num_predict: 900'), 'feature brain prediction budget drifted');
 require(brain.includes('maxTurns'), 'bounded multi-turn execution is missing');
 require(brain.includes('maxEdits'), 'bounded edit execution is missing');
-
 require(brain.includes('edit rejected and rolled back'), 'feature brain lacks transactional edit rollback');
 require(brain.includes('fs.writeFileSync(abs(file), current);'), 'feature brain lacks exact pre-edit restoration');
 require(brain.includes('failedEditFiles'), 'feature brain lacks failed-file recovery');
@@ -50,12 +48,33 @@ require(brain.includes('Do NOT retry the same replacement.'), 'feature brain lac
 require(brain.includes('const completedIds = objectives.filter'), 'feature brain lacks durable completion state');
 require(brain.includes('progress[objective.id] = 1'), 'feature brain lacks submit completion tracking');
 require(brain.includes('if (completed === 0 && maxFeatures > 0) process.exitCode = 1;'), 'feature brain can silently succeed without completing an objective');
+
 require(executor.includes('fast-brain-runtime-hardening.mjs'), 'executor does not run runtime hardening');
 require(executor.includes('verify-fast-brain-rollback.mjs'), 'executor does not run rollback regression before Qwen');
 require(rollback.includes('actual active brain as the fixture'), 'rollback regression is not tied to active source');
 require(hardener.includes('canonical feature brain recovery contract incomplete'), 'hardener does not validate canonical recovery contract');
+require(hardener.includes('Do NOT retry the same replacement.'), 'hardener does not validate canonical failed-edit steering');
 require(hardener.includes('npm run verify:batch33'), 'hardener does not recognize stale export migration');
 require(hardener.includes('export-contract-check.mjs'), 'hardener does not repair/validate live export contract');
+
+// Deterministic end-to-end harness must exercise the actual brain's tool protocol
+// before any live Qwen work is allowed.
+require(workflow.includes('node scripts/autobot/verify-fast-brain-agent-harness.mjs'), 'workflow does not run deterministic agent harness');
+require(harness.includes('read_file'), 'agent harness lacks read_file');
+require(harness.includes('edit_file'), 'agent harness lacks edit_file');
+require(harness.includes('run_check'), 'agent harness lacks run_check');
+require(harness.includes('submit'), 'agent harness lacks submit');
+require(harness.includes('real product-source edit was not applied'), 'agent harness does not prove a real source edit');
+require(harness.includes('durable completion'), 'agent harness does not prove completion persistence');
+
+// Model installation, proxy and live brain must agree on the same native Ollama contract.
+require(installer.includes(`MODEL="${'${LOCAL_AI_MODEL:-'}${MODEL}${'}'}"`), 'installer model default drifted from Qwen3 4B');
+require(installer.includes('/api/chat'), 'installer smoke test does not use Ollama chat');
+require(installer.includes('tool-call smoke failed'), 'installer lacks native tool-call smoke test');
+require(proxy.includes('request.stream = false'), 'proxy does not force non-streaming');
+require(proxy.includes('request.think = false'), 'proxy does not force thinking off');
+require(proxy.includes('temperature: 0'), 'proxy does not force deterministic temperature');
+require(proxy.includes("req.url !== '/api/chat'"), 'proxy is not constrained to Ollama chat');
 
 require(workflow.includes('LOCAL_AI_FEATURE_TIMEOUT_SECONDS=180'), 'feature timeout is not bounded at 180 seconds');
 require(workflow.includes('AUTOBOT_FEATURE_MAX_EDITS=3'), 'edit ceiling is not 3');
@@ -77,4 +96,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log('[autobot] Fast Brain release architecture contract PASS: canonical Qwen3 4B, multi-turn tool agent, transactional recovery, idempotent hardening, exact checkout verification, honest success metrics, and review-only checkpointing.');
+console.log('[autobot] Fast Brain release architecture contract PASS: Qwen3 4B, canonical multi-turn tool agent, deterministic end-to-end harness, transactional recovery, idempotent hardening, exact checkout verification, native tool-call smoke, honest success metrics, and review-only checkpointing.');
