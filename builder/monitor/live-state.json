@@ -1,15 +1,40 @@
 {
-  "runId": "33114794608",
-  "status": "idle",
-  "objectiveId": null,
-  "currentTask": null,
-  "completedUnits": 0,
-  "totalUnits": 0,
-  "startedAt": "2026-08-27T20:45:04.910Z",
-  "updatedAt": "2026-08-27T20:45:04.912Z",
-  "heartbeatAt": "2026-08-27T20:45:04.912Z",
-  "message": "No eligible unfinished roadmap units. Idle.",
-  "files": [],
+  "runId": "34249439826",
+  "status": "blocked",
+  "objectiveId": "social-export",
+  "currentTask": "export-profile-metadata",
+  "completedUnits": 2,
+  "totalUnits": 5,
+  "startedAt": "2026-09-08T16:27:18.063Z",
+  "updatedAt": "2026-09-08T16:27:23.775Z",
+  "heartbeatAt": "2026-09-08T16:27:23.775Z",
+  "message": "BLOCKED: export-profile-metadata — Command failed: node scripts/autobot/export-profile-contract-check.mjs",
+  "files": [
+    {
+      "status": "M",
+      "path": "uilder/brain/task-library.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/monitor/live-state.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/quality/autobot-readiness.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/runner/repository-aware-feature-brain.mjs"
+    },
+    {
+      "status": "M",
+      "path": "src/director.js"
+    },
+    {
+      "status": "??",
+      "path": "builder/working/"
+    }
+  ],
   "verification": [],
-  "blockedReason": null
+  "blockedReason": "Command failed: node scripts/autobot/export-profile-contract-check.mjs"
 }
