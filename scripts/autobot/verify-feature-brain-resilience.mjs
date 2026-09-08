@@ -43,6 +43,7 @@ for (const [pattern, message] of [
   [/completed: completedIds/, 'runtime hardening must preserve completed objectives'],
   [/progress\[objective\.id\] = 1/, 'runtime hardening must record submitted objective completion'],
   [/failed objective retry ceiling/, 'runtime hardening must rotate repeatedly failed objectives'],
+  [/const requestedEnd = Number\(end\) \|\| 0;/, 'runtime hardening must expand small inspection windows'],
   [/failedEditFiles/, 'runtime hardening must block repeatedly failed files'],
   [/Do NOT repeat the same replacement\./, 'runtime hardening must force a strategy change after edit failure'],
   [/AUTOBOT_HARDENING_ROOT/, 'runtime hardening must be fixture-testable'],
@@ -58,10 +59,8 @@ for (const [pattern, message] of [
 if (!/AUTOBOT_FEATURE_MAX_EDITS[^\n]*[=:]\s*[\"']?[1-3]/.test(workflow)) failures.push('workflow edit ceiling missing or unsafe');
 if (!/LOCAL_AI_FEATURE_TIMEOUT_SECONDS[^\n]*[=:]\s*(12[0-9]|1[3-9][0-9]|2[0-9]{2}|300)/.test(workflow)) failures.push('workflow feature timeout missing or unsafe');
 if (!/LOCAL_AI_MODEL:\s*qwen3:4b-instruct-2507-q4_K_M/.test(workflow)) failures.push('workflow must hardwire Qwen3 4B-compatible model');
-
 const dispatchInputs = workflow.match(/\n  workflow_dispatch:\n([\s\S]*?)(?=\n(?:concurrency|permissions|env|jobs):)/)?.[1] ?? '';
 if (/^\s{6}LOCAL_AI_MODEL\s*:/m.test(dispatchInputs)) failures.push('workflow must not expose a selectable model input');
-
 if (!/repository-aware-fast-executor\.mjs/.test(workflow)) failures.push('workflow must invoke repository-aware fast executor');
 if (!/git fetch --no-tags origin main/.test(workflow)) failures.push('checkpoint must fetch protected main');
 if (!/git switch --detach origin\/main/.test(workflow)) failures.push('checkpoint must start from protected main');
