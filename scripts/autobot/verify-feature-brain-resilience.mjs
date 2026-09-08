@@ -42,7 +42,9 @@ for (const [pattern, message] of [
   [/edit rejected and rolled back/, 'runtime hardening must describe edit rollback'],
   [/completed: completedIds/, 'runtime hardening must preserve completed objectives'],
   [/progress\[objective\.id\] = 1/, 'runtime hardening must record submitted objective completion'],
-  [/progress\[o\.id\] \|\| 0\) < 1/, 'runtime hardening must exclude completed objectives'],
+  [/failed objective retry ceiling/, 'runtime hardening must rotate repeatedly failed objectives'],
+  [/failedEditFiles/, 'runtime hardening must block repeatedly failed files'],
+  [/Do NOT repeat the same replacement\./, 'runtime hardening must force a strategy change after edit failure'],
   [/AUTOBOT_HARDENING_ROOT/, 'runtime hardening must be fixture-testable'],
   [/export-contract-check\.mjs/, 'export verification repair missing'],
 ]) if (!pattern.test(hardening)) failures.push(message);
@@ -57,8 +59,6 @@ if (!/AUTOBOT_FEATURE_MAX_EDITS[^\n]*[=:]\s*[\"']?[1-3]/.test(workflow)) failure
 if (!/LOCAL_AI_FEATURE_TIMEOUT_SECONDS[^\n]*[=:]\s*(12[0-9]|1[3-9][0-9]|2[0-9]{2}|300)/.test(workflow)) failures.push('workflow feature timeout missing or unsafe');
 if (!/LOCAL_AI_MODEL:\s*qwen3:4b-instruct-2507-q4_K_M/.test(workflow)) failures.push('workflow must hardwire Qwen3 4B-compatible model');
 
-// Only inspect the workflow_dispatch inputs block for selectable-model regressions.
-// The hardwired LOCAL_AI_MODEL environment setting is intentionally allowed.
 const dispatchInputs = workflow.match(/\n  workflow_dispatch:\n([\s\S]*?)(?=\n(?:concurrency|permissions|env|jobs):)/)?.[1] ?? '';
 if (/^\s{6}LOCAL_AI_MODEL\s*:/m.test(dispatchInputs)) failures.push('workflow must not expose a selectable model input');
 
