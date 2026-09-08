@@ -92,7 +92,7 @@ require(workflow.includes('AUTOBOT_AGENT_TURNS=8'), 'agent turn ceiling is not 8
 require(workflow.includes('LOCAL_AI_PROXY_NUM_CTX=8192'), 'proxy context budget is not 8192');
 require(workflow.includes('LOCAL_AI_PROXY_NUM_PREDICT=650'), 'proxy prediction budget is not 650');
 require(workflow.includes('LOCAL_AI_PROXY_THINK=false'), 'proxy think flag is not false');
-require(/Math\.min\(10,\s*Math\.floor\(left\(\)\)\)/.test(executor), 'Qwen feature slice is not bounded to 10 minutes');
+require(/Math\.max\(1,\s*Math\.min\(10,\s*Math\.floor\(left\(\)\)\)\)/.test(executor), 'Qwen feature slice is not bounded to 10 minutes');
 
 require(!taskLibrary.includes('npm run verify:batch33') || hardener.includes('npm run verify:batch33'), 'task library contains retired verify:batch33 without migration support');
 require(taskLibrary.includes('export-profiles-and-validation'), 'task library is missing social-export objective');
