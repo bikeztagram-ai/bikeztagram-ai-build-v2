@@ -32,13 +32,13 @@ try {
     id: 'live-qwen-smoke',
     title: 'Live Qwen coding smoke test',
     priority: 100,
-    files: ['src/Smoke.jsx'],
+    files: ['src/Smoke.js'],
     acceptance: ['make one small real production-source improvement'],
     constraints: ['edit only the supplied source file', 'preserve valid JavaScript'],
     dependsOn: []
   }] }, null, 2));
-  write('builder/working/repository-map.json', JSON.stringify({ version: 1, files: [{ path: 'src/Smoke.jsx', lines: 1, purpose: 'throwaway product source for live agent smoke' }], byPath: { 'src/Smoke.jsx': 0 }, dependencyEdges: [] }, null, 2));
-  write('src/Smoke.jsx', baseline);
+  write('builder/working/repository-map.json', JSON.stringify({ version: 1, files: [{ path: 'src/Smoke.js', lines: 1, purpose: 'throwaway product source for live agent smoke' }], byPath: { 'src/Smoke.js': 0 }, dependencyEdges: [] }, null, 2));
+  write('src/Smoke.js', baseline);
   write('package.json', JSON.stringify({ name: 'live-qwen-smoke', private: true, scripts: { build: 'node -e "process.exit(0)"' } }, null, 2));
   git(['init', '-q']);
   git(['config', 'user.email', 'smoke@example.invalid']);
@@ -69,7 +69,7 @@ try {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`live Qwen feature brain exited ${result.status}`);
 
-  const changed = fs.readFileSync(path.join(temp, 'src/Smoke.jsx'), 'utf8');
+  const changed = fs.readFileSync(path.join(temp, 'src/Smoke.js'), 'utf8');
   if (changed === baseline) throw new Error('live Qwen did not make a real source edit');
   if (!fs.existsSync(path.join(temp, 'builder/working/feature-brain-state.json'))) throw new Error('live Qwen did not persist feature state');
   const state = JSON.parse(fs.readFileSync(path.join(temp, 'builder/working/feature-brain-state.json'), 'utf8'));
