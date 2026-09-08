@@ -47,7 +47,8 @@ brain = brain.replace(syntaxFunctionPattern, hardenedSyntaxFunction);
 // Hard controller gate: Qwen gets exactly one inspection between edits.
 // After a read, read_file is removed from the next tool schema. A failed edit
 // re-enables exactly one inspection so Qwen can recover on a different file.
-const modelCallPattern = /function modelCall\(messages\) \{[\s\S]*?\n\}/;
+const hardenedModelCallPattern = /function modelCall\(messages, readToolEnabled = true\) \{[\s\S]*?\n\}/;
+const originalModelCallPattern = /function modelCall\(messages\) \{[\s\S]*?\n\}/;
 const hardenedModelCall = `function modelCall(messages, readToolEnabled = true) {
   const seconds = Math.min(180, Math.max(45, Math.floor(left() * 60)));
   const availableTools = readToolEnabled ? tools : tools.filter((tool) => tool.function?.name !== 'read_file');
@@ -57,8 +58,14 @@ const hardenedModelCall = `function modelCall(messages, readToolEnabled = true) 
   if (response.error) throw new Error(String(response.error));
   return response;
 }`;
-if (!modelCallPattern.test(brain)) throw new Error('canonical modelCall function shape is not recognized; refusing read-loop migration');
-brain = brain.replace(modelCallPattern, hardenedModelCall);
+if (hardenedModelCallPattern.test(brain)) {
+  // Idempotent: the controller is already installed, so leave the canonical
+  // implementation intact rather than trying to migrate it a second time.
+} else if (originalModelCallPattern.test(brain)) {
+  brain = brain.replace(originalModelCallPattern, hardenedModelCall);
+} else {
+  throw new Error('canonical modelCall function shape is not recognized; refusing read-loop migration');
+}
 brain = brain.replace(/let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let emptyTurns = 0; let failedEditAttempts = 0; const failedEditFiles = new Set\(\);/, "let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let readToolEnabled = true; let emptyTurns = 0; let failedEditAttempts = 0; const failedEditFiles = new Set();");
 brain = brain.replace('response = modelCall(messages);', 'response = modelCall(messages, readToolEnabled);');
 brain = brain.replace("else if (call.name === 'read_file') { inspected = true; result = readFileWindow(call.args.file, call.args.start, call.args.end, objective); }", "else if (call.name === 'read_file') { inspected = true; readToolEnabled = false; result = readFileWindow(call.args.file, call.args.start, call.args.end, objective); }");
