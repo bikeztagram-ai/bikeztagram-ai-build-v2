@@ -39,15 +39,12 @@ if (!source.includes('progress[objective.id] = 1')) {
   if (!replaceExact('feature-brain submit completion tracking', before, after)) throw new Error('feature-brain submit marker not found; refusing incomplete progress patch');
 }
 
-if (!source.includes('(progress[o.id] || 0) < 1')) {
+if (!source.includes('failed objective retry ceiling')) {
   const before = "  const available = objectives.filter((o) => dependenciesMet(o) && (attempts.get(o.id) || 0) < maxAttempts);";
-  const after = "  const available = objectives.filter((o) => dependenciesMet(o) && (progress[o.id] || 0) < 1 && (attempts.get(o.id) || 0) < maxAttempts);";
-  if (!replaceExact('feature-brain completed-objective exclusion', before, after)) throw new Error('feature-brain objective selection marker not found; refusing incomplete routing patch');
+  const after = "  const available = objectives.filter((o) => dependenciesMet(o) && (progress[o.id] || 0) < 1 && (state.failed?.[o.id]?.attempts || 0) < 2 && (attempts.get(o.id) || 0) < maxAttempts);\n  // failed objective retry ceiling: rotate to a different objective after repeated failures\n";
+  if (!replaceExact('feature-brain failed objective retry ceiling', before, after)) throw new Error('feature-brain objective selector marker not found; refusing incomplete rotation patch');
 }
 
-// After a failed edit, force a strategy change. A file that has failed once is
-// blocked from another edit in the same objective attempt; the model must move
-// to another objective file instead of recycling the same malformed patch.
 if (!source.includes('failedEditFiles')) {
   const before = "  let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let emptyTurns = 0;";
   const after = "  let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let emptyTurns = 0; let failedEditAttempts = 0; const failedEditFiles = new Set();";
@@ -68,7 +65,7 @@ if (!source.includes('A previous edit failed. Do not retry that file.')) {
 
 if (!source.includes('Do NOT repeat the same replacement.')) {
   const before = "      if (call.name === 'edit_file' && result.startsWith('EDIT APPLIED')) {\n        messages.push({ role: 'user', content: 'EDIT APPLIED. Now verify it: call run_check with build or diff-check. Do not make another edit until verification is known.' });\n      } else if (call.name === 'read_file') {";
-  const after = "      if (call.name === 'edit_file' && result.startsWith('EDIT APPLIED')) {\n        messages.push({ role: 'user', content: 'EDIT APPLIED. Now verify it: call run_check with build or diff-check. Do not make another edit until verification is known.' });\n      } else if (call.name === 'edit_file' && result.startsWith('ERROR')) {\n        messages.push({ role: 'user', content: failedEditAttempts > 0 ? 'Edit failed. Do NOT repeat the same replacement or edit the failed file again. Your NEXT tool call MUST be read_file on a DIFFERENT objective file, then make one small syntactically complete edit there.' : 'Edit failed. Read a smaller relevant window and choose a smaller syntactically complete replacement.' });\n      } else if (call.name === 'read_file') {";
+  const after = "      if (call.name === 'edit_file' && result.startsWith('EDIT APPLIED')) {\n        messages.push({ role: 'user', content: 'EDIT APPLIED. Now verify it: call run_check with build or diff-check. Do not make another edit until verification is known.' });\n      } else if (call.name === 'edit_file' && result.startsWith('ERROR')) {\n        if (failedEditAttempts >= 2) {\n          const previous = state.failed?.[objective.id]?.attempts || 0;\n          state.failed = { ...(state.failed || {}), [objective.id]: { attempts: previous + 1, lastError: result.slice(0, 1200), updatedAt: new Date().toISOString() } };\n          saveState();\n        }\n        messages.push({ role: 'user', content: failedEditAttempts > 1 ? 'Two edit attempts have failed. STOP working on the current file. Your NEXT tool call MUST be read_file on a DIFFERENT objective file, then make one small syntactically complete edit there.' : 'Edit failed. Do NOT repeat the same replacement or edit the failed file again. Your NEXT tool call MUST be read_file on a DIFFERENT objective file, then make one small syntactically complete edit there.' });\n      } else if (call.name === 'read_file') {";
   if (!replaceExact('feature-brain failed-edit feedback steering', before, after)) throw new Error('feature-brain edit feedback marker not found; refusing incomplete strategy patch');
 }
 
@@ -86,7 +83,7 @@ for (const [marker, message] of [
   ['edit rejected and rolled back', 'edit rollback marker'],
   ['completed: completedIds', 'durable completion marker'],
   ['progress[objective.id] = 1', 'submit completion marker'],
-  ['(progress[o.id] || 0) < 1', 'completed-objective exclusion marker'],
+  ['failed objective retry ceiling', 'failed-objective rotation marker'],
   ['failedEditFiles', 'failed-file strategy state'],
   ['same file is blocked for this attempt', 'failed-file guard'],
   ['A previous edit failed. Do not retry that file.', 'inspection strategy steering'],
@@ -94,4 +91,4 @@ for (const [marker, message] of [
 ]) {
   if (!finalBrain.includes(marker)) throw new Error(`required ${message} missing after hardening`);
 }
-console.log('[autobot] Qwen runtime hardening PASS: transactional edits + durable objective completion + failed-edit strategy shift.');
+console.log('[autobot] Qwen runtime hardening PASS: transactional edits + durable completion + objective rotation + failed-edit strategy shift.');
