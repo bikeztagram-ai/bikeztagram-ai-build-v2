@@ -27,7 +27,7 @@ for (const [marker, message] of [
 
 requireMarker(/progress\[objective\.id\]\s*=\s*(?:Math\.max\([^\n]*\)|1)/.test(active), 'submit completion tracking');
 requireMarker(/completedIds/.test(active) && /saveState\(\)/.test(active), 'durable state persistence');
-requireMarker(/function modelCall\(messages\)/.test(active) && /\/api\/chat/.test(active), 'canonical model-call path');
+requireMarker(/function modelCall\(messages(?:,\s*readToolEnabled\s*=\s*true)?\)/.test(active) && /\/api\/chat/.test(active), 'canonical model-call path');
 requireMarker(/maxTurns/.test(active) && /maxEdits/.test(active), 'bounded agent ceilings');
 
 requireMarker(hardener.includes('canonical feature brain recovery contract incomplete'), 'runtime hardener does not validate the canonical recovery contract');
