@@ -19,7 +19,7 @@ const baselineApp = 'export const harnessValue = "before";\n';
 const baselineSecondary = 'export const harnessValue = "before";\n';
 const steps = [
   { function: { name: 'read_file', arguments: { file: 'src/App.js', start: 1, end: 20 } } },
-  { function: { name: 'edit_file', arguments: { file: 'src/App.js', search: 'export const harnessValue = "before";', replace: 'export const harnessValue = ' } } },
+  { function: { name: 'edit_file', arguments: { file: 'src/App.js', search: 'export const harnessValue = "before";', replace: 'export const harnessValue = ;' } } },
   { function: { name: 'read_file', arguments: { file: 'src/Secondary.js', start: 1, end: 20 } } },
   { function: { name: 'edit_file', arguments: { file: 'src/Secondary.js', search: 'export const harnessValue = "before";', replace: 'export const harnessValue = "verified";' } } },
   { function: { name: 'run_check', arguments: { check: 'diff-check' } } },
