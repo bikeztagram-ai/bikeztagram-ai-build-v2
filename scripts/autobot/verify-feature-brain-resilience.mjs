@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Resilience contract for the active repository-aware Qwen runtime. */
+/** Resilience contract for the active canonical repository-aware Qwen runtime. */
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
@@ -10,6 +10,7 @@ const index = fs.readFileSync('builder/runner/repository-index.mjs', 'utf8');
 const workflow = fs.readFileSync('.github/workflows/autonomous-builder-v2-fast.yml', 'utf8');
 const installer = fs.readFileSync('scripts/autobot/install-local-brain.sh', 'utf8');
 const failures = [];
+const require = (condition, message) => { if (!condition) failures.push(message); };
 
 for (const [pattern, message] of [
   [/function\s+dependenciesMet/, 'dependency-aware objective routing missing'],
@@ -29,25 +30,26 @@ for (const [pattern, message] of [
   [/state\.failed/, 'durable failure state missing'],
   [/snapshots/, 'objective rollback snapshot missing'],
   [/SUBMIT RECEIVED/, 'submit protocol missing'],
+  [/edit rejected and rolled back/, 'transactional edit rollback missing'],
+  [/fs\.writeFileSync\(abs\(file\), current\);/, 'exact pre-edit restoration missing'],
+  [/failedEditFiles/, 'failed-file recovery missing'],
+  [/Do NOT retry the same replacement\./, 'failed-edit steering missing'],
+  [/progress\[objective\.id\] = 1/, 'durable completion tracking missing'],
 ]) if (!pattern.test(feature)) failures.push(message);
 
 for (const [pattern, message] of [
   [/repository-aware-feature-brain\.mjs/, 'fast executor does not invoke repository-aware Qwen agent'],
   [/fast-brain-runtime-hardening\.mjs/, 'fast executor does not apply runtime hardening'],
+  [/verify-fast-brain-rollback\.mjs/, 'fast executor does not run rollback regression'],
   [/repository-index\.mjs/, 'fast executor does not refresh repository index'],
   [/BUILDER_MAX_MINUTES: String\(Math\.max\(1, Math\.min\(10/, 'feature slice ceiling missing'],
 ]) if (!pattern.test(runner)) failures.push(message);
 
 for (const [pattern, message] of [
-  [/edit rejected and rolled back/, 'runtime hardening must describe edit rollback'],
-  [/completed: completedIds/, 'runtime hardening must preserve completed objectives'],
-  [/progress\[objective\.id\] = 1/, 'runtime hardening must record submitted objective completion'],
-  [/failed objective retry ceiling/, 'runtime hardening must rotate repeatedly failed objectives'],
-  [/const requestedEnd = Number\(end\) \|\| 0;/, 'runtime hardening must expand small inspection windows'],
-  [/failedEditFiles/, 'runtime hardening must block repeatedly failed files'],
-  [/Do NOT repeat the same replacement\./, 'runtime hardening must force a strategy change after edit failure'],
-  [/AUTOBOT_HARDENING_ROOT/, 'runtime hardening must be fixture-testable'],
-  [/export-contract-check\.mjs/, 'export verification repair missing'],
+  [/canonical feature brain recovery contract incomplete/, 'runtime hardening must validate the canonical brain'],
+  [/Do NOT retry the same replacement\./, 'runtime hardening must validate canonical failed-edit steering'],
+  [/npm run verify:batch33/, 'runtime hardening must recognize the stale export migration'],
+  [/export-contract-check\.mjs/, 'export verification migration missing'],
 ]) if (!pattern.test(hardening)) failures.push(message);
 
 for (const [pattern, message] of [
@@ -56,19 +58,20 @@ for (const [pattern, message] of [
   [/sensitive/, 'index must exclude sensitive files'],
 ]) if (!pattern.test(index)) failures.push(message);
 
-if (!/AUTOBOT_FEATURE_MAX_EDITS[^\n]*[=:]\s*[\"']?[1-3]/.test(workflow)) failures.push('workflow edit ceiling missing or unsafe');
-if (!/LOCAL_AI_FEATURE_TIMEOUT_SECONDS[^\n]*[=:]\s*(12[0-9]|1[3-9][0-9]|2[0-9]{2}|300)/.test(workflow)) failures.push('workflow feature timeout missing or unsafe');
-if (!/LOCAL_AI_MODEL:\s*qwen3:4b-instruct-2507-q4_K_M/.test(workflow)) failures.push('workflow must hardwire Qwen3 4B-compatible model');
+require(/AUTOBOT_FEATURE_MAX_EDITS[^\n]*[=:]\s*[\"']?[1-3]/.test(workflow), 'workflow edit ceiling missing or unsafe');
+require(/LOCAL_AI_FEATURE_TIMEOUT_SECONDS[^\n]*[=:]\s*(12[0-9]|1[3-9][0-9]|2[0-9]{2}|300)/.test(workflow), 'workflow feature timeout missing or unsafe');
+require(/LOCAL_AI_MODEL:\s*qwen3:4b-instruct-2507-q4_K_M/.test(workflow), 'workflow must hardwire Qwen3 4B-compatible model');
 const dispatchInputs = workflow.match(/\n  workflow_dispatch:\n([\s\S]*?)(?=\n(?:concurrency|permissions|env|jobs):)/)?.[1] ?? '';
-if (/^\s{6}LOCAL_AI_MODEL\s*:/m.test(dispatchInputs)) failures.push('workflow must not expose a selectable model input');
-if (!/repository-aware-fast-executor\.mjs/.test(workflow)) failures.push('workflow must invoke repository-aware fast executor');
-if (!/git fetch --no-tags origin main/.test(workflow)) failures.push('checkpoint must fetch protected main');
-if (!/git switch --detach origin\/main/.test(workflow)) failures.push('checkpoint must start from protected main');
-if (!/git restore --source=origin\/main -- \.github\/workflows\//.test(workflow)) failures.push('checkpoint must restore workflow files from main');
-if (!/git reset -- \.github\/workflows builder\/working/.test(workflow)) failures.push('checkpoint must exclude workflow and disposable state');
-if (!/qwen3:4b/.test(installer)) failures.push('local brain installer must target Qwen3 4B-compatible model');
-if (/qwen3:8b/.test(installer)) failures.push('local brain installer must not silently fall back to Qwen3 8B');
-if (!/\\"think\\":false/.test(installer)) failures.push('local brain smoke test must explicitly disable thinking');
+require(!/^\s{6}LOCAL_AI_MODEL\s*:/m.test(dispatchInputs), 'workflow must not expose a selectable model input');
+require(/repository-aware-fast-executor\.mjs/.test(workflow), 'workflow must invoke repository-aware fast executor');
+require(/node scripts\/autobot\/verify-fast-brain-agent-harness\.mjs/.test(workflow), 'workflow must run deterministic agent harness before Qwen');
+require(/git fetch --no-tags origin main/.test(workflow), 'checkpoint must fetch protected main');
+require(/git switch --detach origin\/main/.test(workflow), 'checkpoint must start from protected main');
+require(/git restore --source=origin\/main -- \.github\/workflows\//.test(workflow), 'checkpoint must restore workflow files from main');
+require(/git reset -- \.github\/workflows builder\/working/.test(workflow), 'checkpoint must exclude workflow and disposable state');
+require(/qwen3:4b/.test(installer), 'local brain installer must target Qwen3 4B-compatible model');
+require(!/qwen3:8b/.test(installer), 'local brain installer must not silently fall back to Qwen3 8B');
+require(/\\"think\\":false/.test(installer), 'local brain smoke test must explicitly disable thinking');
 
 const regression = spawnSync(process.execPath, ['scripts/autobot/verify-fast-brain-rollback.mjs'], { encoding: 'utf8' });
 if (regression.status !== 0) failures.push(`rollback regression test failed: ${(regression.stderr || regression.stdout || '').trim().slice(0, 1200)}`);
@@ -78,4 +81,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log('[autobot] fast-brain resilience PASS');
+console.log('[autobot] fast-brain resilience PASS: canonical Qwen brain, transactional recovery, idempotent hardening, deterministic harness, exact checkout and bounded runtime all verified.');
