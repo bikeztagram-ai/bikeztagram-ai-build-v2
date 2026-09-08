@@ -57,7 +57,7 @@ try {
   requireMarker(hardened.includes("toolPhase = 'inspect'"), 'fixture lost inspection phase');
   requireMarker(hardened.includes("toolPhase = 'edit'"), 'fixture lost edit phase');
   requireMarker(hardened.includes("toolPhase = 'verify'"), 'fixture lost verification phase');
-  requireMarker(hardened.includes("toolPhase = 'submit'"), 'fixture lost submit phase');
+  requireMarker(/allowedByPhase\.submit|toolPhase\s*=\s*result === 'PASS' \? 'submit' : 'edit'/.test(hardened), 'fixture lost submit phase');
   requireMarker(hardened.includes('parsedCalls.slice(0, 1)'), 'fixture lost one-tool-per-turn guard');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
