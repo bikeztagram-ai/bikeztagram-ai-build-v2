@@ -18,12 +18,20 @@ const rollback = read('scripts/autobot/verify-fast-brain-rollback.mjs');
 const failures = [];
 const require = (condition, message) => { if (!condition) failures.push(message); };
 
+const MODEL = 'qwen3:4b-instruct-2507-q4_K_M';
+
 // Canonical runtime identity.
-require(workflow.includes('LOCAL_AI_MODEL: qwen3:4b-instruct-2507-q4_K_M'), 'workflow is not hardwired to Qwen3 4B');
+require(workflow.includes(`LOCAL_AI_MODEL: ${MODEL}`), 'workflow is not hardwired to Qwen3 4B');
 require(workflow.includes('node builder/runner/repository-aware-fast-executor.mjs'), 'workflow does not invoke the canonical repository-aware fast executor');
 require(!workflow.includes('long-run-executor.mjs'), 'workflow still invokes retired long-run executor');
 require(!workflow.match(/LOCAL_AI_MODEL:\s*qwen2\.5|gemini/i), 'workflow contains a retired/non-local model reference');
 require(workflow.includes('Verify checked-out revision'), 'workflow lacks exact checkout revision verification');
+require(executor.includes(`REQUIRED_LOCAL_MODEL = '${MODEL}'`), 'executor is not hardwired to Qwen3 4B');
+require(executor.includes('verifyRuntimeIdentity()'), 'executor lacks runtime identity verification');
+require(executor.includes('features += 1'), 'executor does not record successful feature slices');
+require(executor.includes('if (features === 0) process.exitCode = 1'), 'executor can silently succeed without a completed feature');
+require(brain.includes(`REQUIRED_LOCAL_MODEL = '${MODEL}'`), 'feature brain is not hardwired to Qwen3 4B');
+require(brain.includes(`if (model !== REQUIRED_LOCAL_MODEL)`), 'feature brain does not reject model drift');
 
 // Proven multi-turn Qwen contract.
 require(brain.includes("PROTOCOL = 'repository-aware-agent-v7'"), 'feature brain protocol is not repository-aware-agent-v7');
@@ -38,11 +46,13 @@ require(brain.includes('num_predict: 900'), 'feature brain prediction budget dri
 require(brain.includes('maxTurns'), 'bounded multi-turn execution is missing');
 require(brain.includes('maxEdits'), 'bounded edit execution is missing');
 
-// Safety/recovery contract must exist in source or be installed and tested before Qwen runs.
-require(hardener.includes('edit rejected and rolled back'), 'runtime hardener lacks transactional edit rollback');
-require(hardener.includes('completed: completedIds'), 'runtime hardener lacks durable completion state');
-require(hardener.includes('failedEditFiles'), 'runtime hardener lacks failed-file recovery');
-require(hardener.includes('Do NOT repeat the same replacement.'), 'runtime hardener lacks failed-edit steering');
+// Safety/recovery contract must exist in source and remain migration-safe.
+for (const [source, label] of [[brain, 'feature brain'], [hardener, 'runtime hardener']]) {
+  require(source.includes('edit rejected and rolled back'), `${label} lacks transactional edit rollback`);
+  require(source.includes('completed: completedIds'), `${label} lacks durable completion state`);
+  require(source.includes('failedEditFiles'), `${label} lacks failed-file recovery`);
+  require(source.includes('Do NOT repeat the same replacement.'), `${label} lacks failed-edit steering`);
+}
 require(executor.includes('fast-brain-runtime-hardening.mjs'), 'executor does not install runtime hardening before Qwen');
 require(executor.includes('verify-fast-brain-rollback.mjs'), 'executor does not run rollback regression before Qwen');
 require(rollback.includes('actual active brain as the fixture'), 'rollback regression is not tied to the active source');
@@ -71,4 +81,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log('[autobot] Fast Brain release architecture contract PASS: one canonical Qwen3 4B path, multi-turn tool agent, transactional recovery, bounded execution, exact checkout verification, and review-only checkpointing.');
+console.log('[autobot] Fast Brain release architecture contract PASS: one canonical Qwen3 4B path, multi-turn tool agent, transactional recovery, exact checkout verification, honest success metrics, and review-only checkpointing.');
