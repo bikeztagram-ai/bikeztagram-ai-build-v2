@@ -79,13 +79,13 @@ jobs:
           fi
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=180' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_AGENT_TURNS=1' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_AGENT_TURNS=8' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_MAX_EDITS=1' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_CTX=3072' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=240' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_EDITS=3' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=650' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_THINK=false' >> "$GITHUB_ENV"
-          echo '[autobot] fast structured brain ready; feature=180s; ctx=3072; predict=240; think=false'
+          echo '[autobot] proven Qwen agent ready; turns=8; edits=3; ctx<=8192; predict<=650; think=false'
 
       - name: Resolve duration
         run: |
@@ -108,9 +108,9 @@ jobs:
         run: |
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
-          node --check builder/runner/feature-brain.mjs
-          node --check builder/runner/repository-aware-fast-brain.mjs
+          node --check builder/runner/repository-index.mjs
           node --check builder/runner/repository-aware-fast-executor.mjs
+          node --check builder/runner/repository-aware-feature-brain.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
@@ -170,4 +170,22 @@ jobs:
           git add -A
           git commit -m 'feat: autonomous builder fast brain checkpoint'
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy to reduce context/output latency on hosted runners.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy and proven repository-aware Qwen agent.' || true
+
+      - name: Post Cache local AI model
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ollama/models
+          key: bikeztagram-local-ai-${{ runner.os }}-${{ inputs.local_model }}
+
+      - name: Post Checkout exact workflow revision
+        if: always()
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Complete job
+        if: always()
+        run: echo 'Autonomous Builder V2 Fast Brain complete.'
