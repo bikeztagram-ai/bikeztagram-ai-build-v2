@@ -45,6 +45,12 @@ const required = [
   ['tool_name: call.name', 'Ollama tool results must identify their originating tool'],
   ['Inspection complete', 'agent must explicitly transition from inspection to editing'],
   ['no usable tool call returned', 'agent must log and recover from non-tool responses'],
+  ['const allowedByPhase =', 'Qwen tool surface must be phase-gated'],
+  ["toolPhase = 'inspect'", 'inspection phase must be explicit'],
+  ["toolPhase = 'edit'", 'edit phase must be explicit'],
+  ["toolPhase = 'verify'", 'verification phase must be explicit'],
+  ["toolPhase = 'submit'", 'submit phase must be explicit'],
+  ['parsedCalls.slice(0, 1)', 'Qwen must be limited to one tool call per turn'],
 ];
 
 for (const [needle, message] of required) if (!brain.includes(needle)) failures.push(message);
@@ -53,21 +59,15 @@ if (!/Math\.min\(180,\s*Math\.max\(45,\s*Math\.floor\(left\(\) \* 60\)\)\)/.test
   failures.push('Qwen request timeout must be bounded at 180 seconds while respecting remaining feature time');
 }
 if (!/tools\s*=\s*\[/.test(brain)) failures.push('Qwen tool surface is missing');
-if (!executor.includes('AUTOBOT_AGENT_TURNS') || !executor.includes('AUTOBOT_FEATURE_MAX_EDITS')) {
-  failures.push('fast executor must pass bounded Qwen agent budgets');
-}
+if (!executor.includes('AUTOBOT_AGENT_TURNS') || !executor.includes('AUTOBOT_FEATURE_MAX_EDITS')) failures.push('fast executor must pass bounded Qwen agent budgets');
 if (!executor.includes('repository-aware-feature-brain.mjs')) failures.push('fast executor must invoke the proven repository-aware Qwen agent');
 if (executor.includes('repository-aware-fast-brain.mjs')) failures.push('fast executor must not use the retired single-shot structured brain');
 if (!executor.includes('repository-index.mjs')) failures.push('fast executor must refresh the repository index');
 if (!/Math\.max\(1,\s*Math\.min\(10,\s*Math\.floor\(left\(\)\)\)\)/.test(executor)) failures.push('Qwen feature slice must allow the fuller bounded time window');
 if (/git\s+reset\s+--hard|git\s+clean\s+-f/.test(brain + executor)) failures.push('Qwen runtime must never wholesale reset or clean the working tree');
 
-if (!indexer.includes('ls-files') || !indexer.includes('dependencyEdges') || !indexer.includes('sensitive')) {
-  failures.push('repository index must be Git-derived, dependency-aware and secret-safe');
-}
-if (!proxy.includes('request.stream = false') || !proxy.includes('request.think = false') || !proxy.includes('temperature: 0')) {
-  failures.push('performance proxy must enforce non-streaming, no-thinking and deterministic temperature');
-}
+if (!indexer.includes('ls-files') || !indexer.includes('dependencyEdges') || !indexer.includes('sensitive')) failures.push('repository index must be Git-derived, dependency-aware and secret-safe');
+if (!proxy.includes('request.stream = false') || !proxy.includes('request.think = false') || !proxy.includes('temperature: 0')) failures.push('performance proxy must enforce non-streaming, no-thinking and deterministic temperature');
 if (!workflow.includes('workflow_dispatch:')) failures.push('canonical workflow must be dispatchable');
 if (!workflow.includes('repository-aware-fast-executor.mjs')) failures.push('canonical workflow must invoke fast executor');
 if (!workflow.includes('repository-aware-feature-brain.mjs')) failures.push('canonical workflow must validate the active Qwen agent');
@@ -78,28 +78,21 @@ if (!workflow.includes('LOCAL_AI_PROXY_NUM_PREDICT=650')) failures.push('canonic
 if (!workflow.includes('LOCAL_AI_PROXY_THINK=false')) failures.push('proxy must explicitly disable thinking');
 if (workflow.includes('repository-aware-fast-brain.mjs')) failures.push('workflow must not treat the retired single-shot structured brain as canonical');
 
-try {
-  execFileSync(process.execPath, ['builder/runner/repository-index.mjs'], { cwd: root, stdio: 'ignore' });
-} catch {
-  failures.push('repository index failed during contract verification');
-}
+try { execFileSync(process.execPath, ['builder/runner/repository-index.mjs'], { cwd: root, stdio: 'ignore' }); }
+catch { failures.push('repository index failed during contract verification'); }
 
 const mapPath = path.join(root, 'builder/working/repository-map.json');
 if (!fs.existsSync(mapPath)) failures.push('repository map missing after refresh');
 if (fs.existsSync(mapPath)) {
   try {
     const map = JSON.parse(fs.readFileSync(mapPath, 'utf8'));
-    if (map.version !== 1 || !Array.isArray(map.files) || !map.byPath || !Array.isArray(map.dependencyEdges)) {
-      failures.push('repository map schema invalid');
-    }
+    if (map.version !== 1 || !Array.isArray(map.files) || !map.byPath || !Array.isArray(map.dependencyEdges)) failures.push('repository map schema invalid');
     if (!map.files.length) failures.push('repository map contains no files');
-  } catch {
-    failures.push('repository map is invalid JSON');
-  }
+  } catch { failures.push('repository map is invalid JSON'); }
 }
 
 if (failures.length) {
   console.error(failures.map((f) => `FAIL: ${f}`).join('\n'));
   process.exit(1);
 }
-console.log('AutoBot safety contract v3 PASS: canonical repository-aware Qwen agent, compact edit progression, bounded tool turns, scoped writes, rollback, verification, dependency-aware index and protected checkpoint runtime present.');
+console.log('AutoBot safety contract v3 PASS: canonical repository-aware Qwen agent, compact edit progression, strict phase-gated tool turns, scoped writes, rollback, verification, dependency-aware index and protected checkpoint runtime present.');
