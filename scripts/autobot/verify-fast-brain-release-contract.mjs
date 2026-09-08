@@ -49,10 +49,12 @@ require(brain.includes('maxEdits'), 'bounded edit execution is missing');
 // Safety/recovery contract must exist in source and remain migration-safe.
 for (const [source, label] of [[brain, 'feature brain'], [hardener, 'runtime hardener']]) {
   require(source.includes('edit rejected and rolled back'), `${label} lacks transactional edit rollback`);
+  require(source.includes('fs.writeFileSync(abs(file), current);'), `${label} lacks exact pre-edit restoration`);
   require(source.includes('completed: completedIds'), `${label} lacks durable completion state`);
   require(source.includes('failedEditFiles'), `${label} lacks failed-file recovery`);
   require(source.includes('Do NOT repeat the same replacement.'), `${label} lacks failed-edit steering`);
 }
+require(brain.includes('if (completed === 0 && maxFeatures > 0) process.exitCode = 1;'), 'feature brain can silently succeed without completing an objective');
 require(executor.includes('fast-brain-runtime-hardening.mjs'), 'executor does not install runtime hardening before Qwen');
 require(executor.includes('verify-fast-brain-rollback.mjs'), 'executor does not run rollback regression before Qwen');
 require(rollback.includes('actual active brain as the fixture'), 'rollback regression is not tied to the active source');
