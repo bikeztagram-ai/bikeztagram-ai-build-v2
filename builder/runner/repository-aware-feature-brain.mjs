@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Repository-aware local Qwen coding agent for Bikeztagram AI.
- * Compact context, explicit edit progression, bounded verification and rollback.
+ * Compact context, explicit edit progression, bounded verification and transactional recovery.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,13 +13,16 @@ const minutes = Number(process.env.BUILDER_MAX_MINUTES || 15);
 const started = Date.now();
 const left = () => Math.max(0, minutes - (Date.now() - started) / 60000);
 const abs = (file) => path.join(root, file);
-const model = process.env.LOCAL_AI_MODEL || 'qwen3:4b-instruct-2507-q4_K_M';
+const REQUIRED_LOCAL_MODEL = 'qwen3:4b-instruct-2507-q4_K_M';
+const model = process.env.LOCAL_AI_MODEL || REQUIRED_LOCAL_MODEL;
 const host = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
 const maxEdits = Math.min(6, Math.max(1, Number(process.env.AUTOBOT_FEATURE_MAX_EDITS || 3)));
 const maxTurns = Math.min(10, Math.max(4, Number(process.env.AUTOBOT_AGENT_TURNS || 8)));
 const maxFeatures = Math.max(1, Number(process.env.AUTOBOT_FEATURE_PASSES || 1));
 const maxAttempts = Math.max(1, Number(process.env.AUTOBOT_FEATURE_MAX_ATTEMPTS || 1));
 const PROTOCOL = 'repository-aware-agent-v7';
+
+if (model !== REQUIRED_LOCAL_MODEL) throw new Error(`Unsupported local model: ${model}. Fast Brain is hardwired to ${REQUIRED_LOCAL_MODEL}.`);
 
 const run = (command, args = [], options = {}) => execFileSync(command, args, { cwd: root, encoding: 'utf8', ...options });
 const capture = (command, args) => { try { return run(command, args); } catch (error) { return [error.stdout, error.stderr, error.message].filter(Boolean).join('\n'); } };
@@ -40,11 +43,13 @@ const attempts = new Map();
 
 function saveState() {
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
-  fs.writeFileSync(statePath, JSON.stringify({ version: 14, completed: [], progress, failed: state.failed || {}, updatedAt: new Date().toISOString() }, null, 2) + '\n');
+  const completedIds = objectives.filter((objective) => (progress[objective.id] || 0) >= 1).map((objective) => objective.id);
+  fs.writeFileSync(statePath, JSON.stringify({ version: 15, completed: completedIds, progress, failed: state.failed || {}, updatedAt: new Date().toISOString() }, null, 2) + '\n');
 }
 function dependenciesMet(objective) { return (objective.dependsOn || []).every((dependency) => progress[dependency] > 0 || (state.completed || []).includes(dependency)); }
 function chooseObjective() {
-  const available = objectives.filter((o) => dependenciesMet(o) && (attempts.get(o.id) || 0) < maxAttempts);
+  const available = objectives.filter((o) => dependenciesMet(o) && (progress[o.id] || 0) < 1 && (state.failed?.[o.id]?.attempts || 0) < 2 && (attempts.get(o.id) || 0) < maxAttempts);
+  // failed objective retry ceiling: rotate to a different objective after repeated failures
   available.sort((a, b) => ((b.priority || 0) - (progress[b.id] || 0) * 12 - (state.failed?.[b.id]?.attempts || 0) * 8) - ((a.priority || 0) - (progress[a.id] || 0) * 12 - (state.failed?.[a.id]?.attempts || 0) * 8));
   return available[0] || null;
 }
@@ -70,7 +75,9 @@ function readFileWindow(file, start = 1, end = 90, objective) {
   if (!allowedFile(file, objective)) return 'ERROR: file is outside the objective write/read scope.';
   const lines = read(file).split(/\r?\n/);
   const first = Math.max(1, Number(start) || 1);
-  const last = Math.min(lines.length, first + 89, Number(end) || first + 89);
+  const requestedEnd = Number(end) || 0;
+  const boundedEnd = requestedEnd > first ? Math.max(requestedEnd, first + 69) : first + 89;
+  const last = Math.min(lines.length, first + 89, boundedEnd);
   return lines.slice(first - 1, last).map((line, i) => `${String(first + i).padStart(4, ' ')}| ${line}`).join('\n').slice(0, 4800);
 }
 function editFile(file, search, replacement, objective) {
@@ -85,7 +92,10 @@ function editFile(file, search, replacement, objective) {
   if (next === current || !next.trim()) return 'ERROR: no-op or empty edit refused.';
   fs.writeFileSync(abs(file), next);
   const syntax = syntaxCheck(file);
-  if (syntax !== 'PASS') return `${syntax}; repair this edit before continuing.`;
+  if (syntax !== 'PASS') {
+    fs.writeFileSync(abs(file), current);
+    return `ERROR: edit rejected and rolled back; ${syntax}. The file is restored to its pre-edit state. Do NOT retry the same replacement. Choose a different objective file or a much smaller syntactically complete replacement.`;
+  }
   return `EDIT APPLIED: ${file}`;
 }
 
@@ -134,7 +144,7 @@ function modelCall(messages) {
 function executeObjective(objective, repair) {
   const snapshots = new Map();
   for (const file of objective.files || []) if (fs.existsSync(abs(file))) snapshots.set(file, read(file));
-  let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let emptyTurns = 0;
+  let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let emptyTurns = 0; let failedEditAttempts = 0; const failedEditFiles = new Set();
   const context = objectiveContext(objective);
   const basePrompt = [
     'You are the senior autonomous engineer for Bikeztagram AI. You must make a real product-source improvement.',
@@ -184,14 +194,22 @@ function executeObjective(objective, repair) {
       else if (call.name === 'run_check') result = runCheck(call.args.check);
       else if (call.name === 'edit_file') {
         if (editCount >= maxEdits) result = `ERROR: edit budget exhausted (${maxEdits}). Run verification and submit.`;
-        else { result = editFile(call.args.file, call.args.search, call.args.replace, objective); if (result.startsWith('EDIT APPLIED')) editCount += 1; }
+        else if (failedEditFiles.has(String(call.args.file || ''))) result = 'ERROR: same file is blocked for this attempt after a failed edit. Choose another objective file.';
+        else { result = editFile(call.args.file, call.args.search, call.args.replace, objective); if (result.startsWith('EDIT APPLIED')) editCount += 1; else { failedEditAttempts += 1; failedEditFiles.add(String(call.args.file || '')); } }
       } else result = `ERROR: unknown tool ${call.name}`;
       console.log(`[autobot] ${call.name}: ${result.slice(0, 900).replace(/\n/g, ' ')}`);
       messages.push({ role: 'tool', tool_name: call.name, content: result.slice(0, 5000) });
       if (call.name === 'edit_file' && result.startsWith('EDIT APPLIED')) {
         messages.push({ role: 'user', content: 'EDIT APPLIED. Now verify it: call run_check with build or diff-check. Do not make another edit until verification is known.' });
+      } else if (call.name === 'edit_file' && result.startsWith('ERROR')) {
+        if (failedEditAttempts >= 2) {
+          const previous = state.failed?.[objective.id]?.attempts || 0;
+          state.failed = { ...(state.failed || {}), [objective.id]: { attempts: previous + 1, lastError: result.slice(0, 1200), updatedAt: new Date().toISOString() } };
+          saveState();
+        }
+        messages.push({ role: 'user', content: failedEditAttempts > 1 ? 'Two edit attempts have failed. STOP working on the current file. Your NEXT tool call MUST be read_file on a DIFFERENT objective file, then make one small syntactically complete edit there.' : 'Edit failed. Do NOT repeat the same replacement or edit the failed file again. Your NEXT tool call MUST be read_file on a DIFFERENT objective file, then make one small syntactically complete edit there.' });
       } else if (call.name === 'read_file') {
-        messages.push({ role: 'user', content: 'Inspection complete. Do not read more files. Your next response MUST be edit_file with the smallest meaningful accepted improvement.' });
+        messages.push({ role: 'user', content: failedEditAttempts > 0 ? 'Inspection complete. A previous edit failed. Do not retry that file. Your next response MUST be edit_file on a DIFFERENT objective file with the smallest meaningful syntactically complete change.' : 'Inspection complete. Do not read more files. Your next response MUST be edit_file with the smallest meaningful accepted improvement.' });
       } else if (call.name === 'run_check' && result === 'PASS') {
         messages.push({ role: 'user', content: 'Verification passed. Now call submit with a concise summary. No prose.' });
       } else if (call.name === 'run_check' && result.startsWith('FAIL')) {
