@@ -57,20 +57,20 @@ require(hardener.includes('Do NOT retry the same replacement.'), 'hardener does 
 require(hardener.includes('npm run verify:batch33'), 'hardener does not recognize stale export migration');
 require(hardener.includes('export-contract-check.mjs'), 'hardener does not repair/validate live export contract');
 
-// Deterministic end-to-end harness must exercise the actual brain's tool protocol
-// before any live Qwen work is allowed.
 require(workflow.includes('node scripts/autobot/verify-fast-brain-agent-harness.mjs'), 'workflow does not run deterministic agent harness');
 require(harness.includes('read_file'), 'agent harness lacks read_file');
 require(harness.includes('edit_file'), 'agent harness lacks edit_file');
 require(harness.includes('run_check'), 'agent harness lacks run_check');
 require(harness.includes('submit'), 'agent harness lacks submit');
-require(harness.includes('real product-source edit was not applied'), 'agent harness does not prove a real source edit');
+require(harness.includes('failed syntax edit was not rolled back'), 'agent harness does not prove transactional rollback');
+require(harness.includes('recovery edit on a different file was not applied'), 'agent harness does not prove failed-file recovery');
 require(harness.includes('durable completion'), 'agent harness does not prove completion persistence');
 
-// Model installation, proxy and live brain must agree on the same native Ollama contract.
-require(installer.includes(`MODEL="${'${LOCAL_AI_MODEL:-'}${MODEL}${'}'}"`), 'installer model default drifted from Qwen3 4B');
+require(installer.includes(`REQUIRED_MODEL='${MODEL}'`), 'installer is not hardwired to Qwen3 4B');
+require(installer.includes('refusing model drift'), 'installer does not reject model drift');
+require(!installer.includes('qwen3:8b'), 'installer contains an unsafe Qwen3 8B fallback');
 require(installer.includes('/api/chat'), 'installer smoke test does not use Ollama chat');
-require(installer.includes('tool-call smoke failed'), 'installer lacks native tool-call smoke test');
+require(installer.includes('tool-call smoke failed'), 'installer lacks tool-call smoke test');
 require(proxy.includes('request.stream = false'), 'proxy does not force non-streaming');
 require(proxy.includes('request.think = false'), 'proxy does not force thinking off');
 require(proxy.includes('temperature: 0'), 'proxy does not force deterministic temperature');
@@ -96,4 +96,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log('[autobot] Fast Brain release architecture contract PASS: Qwen3 4B, canonical multi-turn tool agent, deterministic end-to-end harness, transactional recovery, idempotent hardening, exact checkout verification, native tool-call smoke, honest success metrics, and review-only checkpointing.');
+console.log('[autobot] Fast Brain release architecture contract PASS: Qwen3 4B, canonical multi-turn tool agent, deterministic failure-recovery harness, transactional recovery, idempotent hardening, exact checkout verification, native tool-call smoke, honest success metrics, and review-only checkpointing.');
