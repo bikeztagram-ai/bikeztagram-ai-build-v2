@@ -61,18 +61,18 @@ require(hardener.includes('export-contract-check.mjs'), 'hardener does not repai
 
 require(workflow.includes('node scripts/autobot/verify-fast-brain-agent-harness.mjs'), 'workflow does not run deterministic agent harness');
 require(workflow.includes('node scripts/autobot/verify-fast-brain-live-qwen-smoke.mjs'), 'workflow does not run real Qwen code-building preflight');
-for (const [source, label] of [[harness, 'deterministic harness'], [liveSmoke, 'live Qwen smoke']]) {
-  require(source.includes('read_file'), `${label} lacks read_file`);
-  require(source.includes('edit_file'), `${label} lacks edit_file`);
-  require(source.includes('run_check') || source.includes('build'), `${label} lacks verification`);
-  require(source.includes('src/'), `${label} does not operate on source code`);
-}
+require(harness.includes('read_file'), 'deterministic harness lacks read_file');
+require(harness.includes('edit_file'), 'deterministic harness lacks edit_file');
+require(harness.includes('run_check'), 'deterministic harness lacks run_check');
+require(harness.includes('submit'), 'deterministic harness lacks submit');
 require(harness.includes('failed syntax edit was not rolled back'), 'agent harness does not prove transactional rollback');
 require(harness.includes('recovery edit on a different file was not applied'), 'agent harness does not prove failed-file recovery');
 require(harness.includes('state.completed'), 'agent harness does not prove completion persistence');
+require(liveSmoke.includes("repository-aware-feature-brain.mjs"), 'live Qwen smoke does not execute the active feature brain');
 require(liveSmoke.includes(`const model = '${MODEL}'`), 'live Qwen smoke is not hardwired to Qwen3 4B');
 require(liveSmoke.includes('LOCAL_AI_READY'), 'live Qwen smoke does not enforce local-AI-only execution');
-require(liveSmoke.includes('real source edit'), 'live Qwen smoke does not require a real source edit');
+require(liveSmoke.includes('changed === baseline'), 'live Qwen smoke does not inspect the resulting source');
+require(liveSmoke.includes('live Qwen did not make a real source edit'), 'live Qwen smoke does not require a real source edit');
 require(liveSmoke.includes('state.completed'), 'live Qwen smoke does not require durable completion');
 
 require(installer.includes(`REQUIRED_MODEL='${MODEL}'`), 'installer is not hardwired to Qwen3 4B');
