@@ -1,4 +1,4 @@
-name: Autonomous Builder V2 Fast Brain
+name: Autonomous Builder V2 Fast Brain — Qwen3 4B
 
 on:
   workflow_dispatch:
@@ -50,7 +50,7 @@ jobs:
           path: ~/.ollama/models
           key: bikeztagram-local-ai-${{ runner.os }}-qwen3-4b-instruct-2507-q4_K_M
 
-      - name: Start local AI brain
+      - name: Start local AI brain — Qwen3 4B
         env:
           LOCAL_AI_MODEL: qwen3:4b-instruct-2507-q4_K_M
         run: bash scripts/autobot/install-local-brain.sh
@@ -80,7 +80,7 @@ jobs:
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_PREDICT=650' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_THINK=false' >> "$GITHUB_ENV"
-          echo '[autobot] performance proxy ready'
+          echo '[autobot] Qwen3 4B performance proxy ready'
 
       - name: Resolve duration
         run: |
@@ -97,7 +97,7 @@ jobs:
           esac
           echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
           echo "BUILDER_SEGMENT=1" >> "$GITHUB_ENV"
-          echo "[autobot] fast-brain budget: ${minutes}m"
+          echo "[autobot] Qwen3 4B fast-brain budget: ${minutes}m"
 
       - name: Validate autonomous builder
         run: |
@@ -118,8 +118,19 @@ jobs:
           node scripts/autobot/verify-fast-brain-rollback.mjs
           node builder/quality/autobot-ready.mjs
 
-      - name: Run fast sustained builder
+      - name: Run fast sustained builder — repository-aware Qwen3 4B
         run: node builder/runner/repository-aware-fast-executor.mjs
+
+      - name: Require a real product-source change
+        if: success()
+        run: |
+          set -euo pipefail
+          git diff --name-only | grep -E '^(src|public)/' >/tmp/autobot-product-source-change.txt || {
+            echo 'No real product-source change detected under src/ or public/.'
+            exit 1
+          }
+          echo 'Require a real product-source change: PASS'
+          cat /tmp/autobot-product-source-change.txt
 
       - name: Production verification
         if: success()
@@ -140,11 +151,39 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          git fetch --no-tags origin main
+          git add -A
+          git reset -- .github/workflows builder/working
+          git diff --cached --binary origin/main -- . ':(exclude).github/workflows' ':(exclude)builder/working' >/tmp/autobot-checkpoint.patch
+          git reset --mixed
+          git stash push --include-untracked -m 'autobot checkpoint working tree' >/tmp/autobot-stash.txt
+          git switch --detach origin/main
+          git apply --index /tmp/autobot-checkpoint.patch
+          git restore --source=origin/main -- .github/workflows/
+          rm -rf builder/working
           branch="autonomous-builder-v2-fast/${GITHUB_RUN_ID}"
           git checkout -b "$branch"
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git commit -m 'feat: autonomous builder fast brain checkpoint' || true
+          git commit -m 'feat: autonomous builder fast brain checkpoint'
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy and repository-aware Qwen agent.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy and repository-aware Qwen3 4B agent.' || true
+
+      - name: Post Cache local AI model
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ollama/models
+          key: bikeztagram-local-ai-${{ runner.os }}-qwen3-4b-instruct-2507-q4_K_M
+
+      - name: Post Checkout exact workflow revision
+        if: always()
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Complete job
+        if: always()
+        run: echo 'Autonomous Builder V2 Fast Brain — Qwen3 4B complete.'
