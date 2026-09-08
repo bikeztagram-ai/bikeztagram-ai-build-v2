@@ -100,7 +100,7 @@ if (editHandlerPattern.test(brain)) {
 
 for (const marker of [
   'const allowedByPhase =', "toolPhase = 'inspect'", "toolPhase = 'edit'",
-  "toolPhase = 'verify'", "toolPhase = 'submit'", 'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);'
+  "toolPhase = 'verify'", "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);'
 ]) if (!brain.includes(marker)) throw new Error(`tool-phase hardening marker missing: ${marker}`);
 fs.writeFileSync(brainPath, brain);
 
@@ -115,7 +115,7 @@ for (const marker of [
   "const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');",
   "if (ext === '.jsx') args.push('--loader:.jsx=jsx');", "'--outfile=' + out",
   'const allowedByPhase =', "toolPhase = 'inspect'", "toolPhase = 'edit'",
-  "toolPhase = 'verify'", "toolPhase = 'submit'", 'parsedCalls.slice(0, 1)'
+  "toolPhase = 'verify'", "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)'
 ]) if (!finalBrain.includes(marker)) throw new Error(`final hardening verification missing: ${marker}`);
 const finalTasks = fs.readFileSync(taskPath, 'utf8');
 if (finalTasks.includes('npm run verify:batch33')) throw new Error('stale export verification command remains after migration');
