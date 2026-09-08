@@ -17,7 +17,7 @@ on:
       local_model:
         description: 'Local coding model'
         required: false
-        default: 'qwen2.5-coder:7b'
+        default: 'qwen3:4b-instruct-2507-q4_K_M'
         type: string
 
 concurrency:
@@ -78,11 +78,13 @@ jobs:
             exit 1
           fi
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=180' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_MAX_EDITS=1' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_EDITS=3' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_AGENT_TURNS=8' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=650' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_THINK=false' >> "$GITHUB_ENV"
           echo '[autobot] performance proxy ready'
 
       - name: Resolve duration
@@ -105,8 +107,8 @@ jobs:
       - name: Validate autonomous builder
         run: |
           node --check builder/runner/deterministic-executor.mjs
-          node --check builder/runner/long-run-executor.mjs
-          node --check builder/runner/feature-brain.mjs
+          node --check builder/runner/repository-aware-fast-executor.mjs
+          node --check builder/runner/repository-aware-feature-brain.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
@@ -118,7 +120,7 @@ jobs:
           node builder/quality/autobot-ready.mjs
 
       - name: Run fast sustained builder
-        run: node builder/runner/long-run-executor.mjs
+        run: node builder/runner/repository-aware-fast-executor.mjs
 
       - name: Production verification
         if: success()
@@ -146,4 +148,4 @@ jobs:
           git add -A
           git commit -m 'feat: autonomous builder fast brain checkpoint' || true
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy to reduce context/output latency on hosted runners.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy and the repository-aware Qwen agent.' || true
