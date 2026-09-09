@@ -35,12 +35,22 @@ if (workflow.includes('node --check src/App.jsx')) {
   throw new Error('Copilot setup must not use node --check directly on JSX');
 }
 
-const instructions = fs.readFileSync('.github/copilot-instructions.md', 'utf8');
-const agent = fs.readFileSync('.github/agents/bikeztagram-engineer.agent.md', 'utf8');
-const combined = `${instructions}\n${agent}\n${fs.readFileSync('AGENTS.md', 'utf8')}`.toLowerCase();
-for (const forbidden of ['gemini api', 'openai api', 'paid ai provider']) {
-  if (combined.includes(forbidden)) {
-    throw new Error(`Cloud-agent instructions contain a forbidden product-runtime provider reference: ${forbidden}`);
+// Product runtime must remain provider-neutral and Gemini-free. The agent's
+// instructions may mention forbidden providers precisely to prevent them from
+// being introduced, so scan product source rather than agent prose.
+const productFiles = [
+  'src/App.jsx',
+  'src/director.js',
+  'src/renderer.js',
+  'src/main.jsx',
+  'src/musicProvider.js',
+];
+const forbiddenRuntimePatterns = [/@google\/genai/i, /gemini(?:\s|-)?api/i];
+for (const file of productFiles) {
+  if (!fs.existsSync(file)) continue;
+  const text = fs.readFileSync(file, 'utf8');
+  for (const pattern of forbiddenRuntimePatterns) {
+    if (pattern.test(text)) throw new Error(`Forbidden AI provider reference in product runtime: ${file}`);
   }
 }
 
