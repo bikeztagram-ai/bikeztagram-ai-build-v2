@@ -47,7 +47,7 @@ appendAudit('run-started',{requestedMinutes,requestedUnits,completedObjectives:[
 
 while(totalUnits<requestedUnits&&remainingMinutes()>0){
   iteration++;
-  const deterministicSlice=Math.min(deterministicSliceMinutes,Math.max(1,Math.floor(remainingMinutes()));
+  const deterministicSlice=Math.min(deterministicSliceMinutes,Math.max(1,Math.floor(remainingMinutes())));
   appendAudit('iteration-started',{iteration,remainingMinutes:Math.floor(remainingMinutes()),remainingUnits:requestedUnits-totalUnits,featureCycles,deterministicSlice,consecutiveNoProgress});
   const status=runOnce(deterministicSlice,requestedUnits-totalUnits);
   const state=readState();
