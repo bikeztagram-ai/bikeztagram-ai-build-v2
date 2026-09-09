@@ -2,6 +2,13 @@ import { buildCoveragePlan } from './director.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const sourceIdentity=(moment,index)=>{
+  const mediaIndex=Number(moment?.mediaIndex);
+  if(Number.isInteger(mediaIndex)&&mediaIndex>=0)return mediaIndex;
+  const sourceIndex=Number(moment?.sourceIndex);
+  if(Number.isInteger(sourceIndex)&&sourceIndex>=0)return sourceIndex;
+  return index;
+};
 
 function momentsFromAnalysis(analysis){
   if(Array.isArray(analysis?.bestMoments))return analysis.bestMoments;
@@ -13,15 +20,15 @@ function sourceItems(analysis){
   if(Array.isArray(analysis?.sources)&&analysis.sources.length)return analysis.sources;
   const moments=momentsFromAnalysis(analysis);
   const bySource=new Map();
-  moments.forEach(moment=>{
-    const index=finite(moment?.mediaIndex,finite(moment?.sourceIndex,0));
-    if(!bySource.has(index))bySource.set(index,{index,mediaIndex:index,type:moment?.type||moment?.mediaType||'video',name:moment?.filename||moment?.name||`source-${index}`,duration:finite(moment?.durationInSeconds,finite(moment?.duration,1)),score:finite(moment?.score,50),cinematicScore:finite(moment?.cinematicScore,finite(moment?.score,50)),subject:moment?.subject});
+  moments.forEach((moment,index)=>{
+    const sourceIndex=sourceIdentity(moment,index);
+    if(!bySource.has(sourceIndex))bySource.set(sourceIndex,{index:sourceIndex,mediaIndex:sourceIndex,type:moment?.type||moment?.mediaType||'video',name:moment?.filename||moment?.name||`source-${sourceIndex}`,duration:finite(moment?.durationInSeconds,finite(moment?.duration,1)),score:finite(moment?.score,50),cinematicScore:finite(moment?.cinematicScore,finite(moment?.score,50)),subject:moment?.subject});
   });
   return [...bySource.values()];
 }
 
 function bestMomentForSource(moments,sourceIndex){
-  const candidates=moments.map((moment,index)=>({moment,index})).filter(item=>finite(item.moment?.mediaIndex,finite(item.moment?.sourceIndex,0))===sourceIndex);
+  const candidates=moments.map((moment,index)=>({moment,index})).filter(item=>sourceIdentity(item.moment,item.index)===sourceIndex);
   return candidates.sort((a,b)=>finite(b.moment?.score,0)-finite(a.moment?.score,0)||a.index-b.index)[0]||null;
 }
 
@@ -45,7 +52,8 @@ export function buildDirectorRuntimeSelection(analysis={},options={}){
     moments.map((moment,index)=>({moment,index})).sort((a,b)=>finite(b.moment?.score,0)-finite(a.moment?.score,0)||a.index-b.index).forEach(({moment,index})=>{
       if(selected.length>=maxCuts||usedMomentIndices.has(index))return;
       usedMomentIndices.add(index);
-      selected.push({...moment,__momentIndex:index,directorSelectionScore:finite(moment?.score,50),directorSelectionReason:'Director V3 fallback: strongest remaining evidence'});
+      const sourceIndex=sourceIdentity(moment,index);
+      selected.push({...moment,__momentIndex:index,mediaIndex:sourceIndex,sourceIndex,directorSelectionScore:finite(moment?.score,50),directorSelectionReason:'Director V3 fallback: strongest remaining evidence'});
     });
   }
   const cuts=selected.map(moment=>({momentIndex:moment.__momentIndex,mediaIndex:finite(moment?.mediaIndex,0),sourceIndex:finite(moment?.sourceIndex,finite(moment?.mediaIndex,0)),editorialRole:moment?.editorialRole||'cinematic-build',directorSelectionScore:finite(moment?.directorSelectionScore,0),directorFamily:moment?.directorFamily,reason:moment?.directorSelectionReason}));
