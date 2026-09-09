@@ -2,7 +2,7 @@ name: Bikeztagram V1 Candidate Verification
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, checkpoint/aider-e2e-working-2026-09-09]
     types: [opened, synchronize, reopened]
   push:
     branches: [director-v3-runtime-integration-v1]
