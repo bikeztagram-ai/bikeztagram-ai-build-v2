@@ -1,35 +1,41 @@
 #!/usr/bin/env node
-/** Contract test for the local feature brain's model-to-code edit protocol. */
+/** Contract test for the active repository-aware multi-turn Qwen feature brain. */
 import fs from 'node:fs';
 
-const root = process.cwd();
-const read = (p) => fs.readFileSync(`${root}/${p}`, 'utf8');
-const source = read('builder/runner/feature-brain.mjs');
+const brain = fs.readFileSync('builder/runner/repository-aware-feature-brain.mjs', 'utf8');
+const executor = fs.readFileSync('builder/runner/repository-aware-fast-executor.mjs', 'utf8');
 const failures = [];
-
 const required = [
-  ['structured Ollama format', /format\s*:\s*editSchema/],
-  ['non-streaming structured response', /stream\s*:\s*false/],
-  ['bounded edit schema', /maxItems\s*:\s*maxEdits/],
-  ['allowed-file validation', /out-of-scope file/],
-  ['search-replace uniqueness validation', /must match exactly once/],
-  ['overlap protection', /overlapping edits|multiple edits in one file/],
-  ['diff verification', /git.*diff.*--check/],
-  ['build verification', /npm.*run.*build/],
-  ['reset after failed edit', /git.*reset.*--hard.*HEAD|resetFailedEdits/],
-  ['protocol audit', /structured-(?:line-edits|search-replace)/]
+  ['repository-aware-agent-v7', 'canonical agent protocol'],
+  ['/api/chat', 'Ollama chat endpoint'],
+  ['stream: false', 'non-streaming response'],
+  ['think: false', 'thinking disabled'],
+  ['temperature: 0', 'deterministic temperature'],
+  ['num_ctx: 4096', 'proven 4K context'],
+  ['num_predict: 900', 'proven output budget'],
+  ['tools', 'tool definitions'],
+  ['response?.message?.tool_calls', 'native tool-call parsing'],
+  ['<tool_call>', 'fallback tool-call parsing'],
+  ['tool_name: call.name', 'tool-result message contract'],
+  ['read_file', 'repository-scoped inspection'],
+  ['edit_file', 'repository-scoped editing'],
+  ['run_check', 'bounded verification'],
+  ['submit', 'verified submission'],
+  ['must match once', 'exact-match write protection'],
+  ['fs.writeFileSync(abs(file), current);', 'transactional rollback'],
+  ['snapshots', 'objective snapshots'],
+  ['dependenciesMet', 'dependency-aware objective selection'],
+  ['state.failed', 'durable failure state'],
+  ['failedEditFiles', 'failed-file recovery'],
 ];
-
-for (const [label, pattern] of required) {
-  if (!pattern.test(source)) failures.push(`missing ${label}`);
-}
-
-if (/Return ONLY a valid unified git diff/.test(source)) failures.push('fragile unified-diff generation still active');
-if (/startLine\s*:\s*endLine|invalid line range/.test(source)) failures.push('legacy line-range edit protocol still active');
-
+for (const [needle, label] of required) if (!brain.includes(needle)) failures.push(`missing ${label}`);
+if (!/progress\[objective\.id\]\s*=\s*(?:Math\.max\([^\n]*\)|1)/.test(brain)) failures.push('durable completion tracking missing');
+if (!/Math\.max\(1,\s*Math\.min\(10,\s*Math\.floor\(left\(\)\)\)\)/.test(executor)) failures.push('bounded feature time window missing');
+if (!/maxTurns/.test(brain) || !/maxEdits/.test(brain)) failures.push('bounded turn/edit ceilings missing');
+if (!/Math\.min\(180,\s*Math\.max\(45,\s*Math\.floor\(left\(\) \* 60\)\)\)/.test(brain)) failures.push('bounded Ollama request timeout missing');
+if (/git\s+reset\s+--hard|git\s+clean\s+-f/.test(brain)) failures.push('unsafe wholesale rollback still active');
 if (failures.length) {
   console.error(failures.map((f) => `FAIL: ${f}`).join('\n'));
   process.exit(1);
 }
-
-console.log('AutoBot feature-edit protocol PASS: structured search/replace, bounded scope, uniqueness/overlap validation, reset, diff check, build check, and audit telemetry.');
+console.log('AutoBot feature-edit protocol PASS: canonical repository-aware multi-turn Qwen agent, scoped exact-match edits, transactional rollback, bounded verification, and durable objective progress.');

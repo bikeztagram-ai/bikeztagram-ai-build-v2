@@ -5,3 +5,5 @@ dist
 .env
 .env.*
 !.env.example
+# Disposable autonomous-builder knowledge/state; checkpoints must never include it.
+builder/working/repository-map.json

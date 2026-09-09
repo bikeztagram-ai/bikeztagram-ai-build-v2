@@ -1,54 +1,65 @@
 #!/usr/bin/env node
-/** Static safety contract for the autonomous builder. */
+/** Canonical safety contract for the active repository-aware Qwen AutoBot runtime. */
 import fs from 'node:fs';
 import path from 'node:path';
+
 const root = process.cwd();
-const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const failures = [];
-const workflow = read('.github/workflows/autonomous-builder-v2.yml');
-const continuation = read('.github/workflows/autonomous-builder-continuation.yml');
-const scheduler = read('.github/workflows/autonomous-builder-scheduler.yml');
-const sustained = read('builder/runner/long-run-executor.mjs');
-const feature = read('builder/runner/feature-brain.mjs');
+const workflow = read('.github/workflows/autonomous-builder-v2-fast.yml');
+const brain = read('builder/runner/repository-aware-feature-brain.mjs');
+const executor = read('builder/runner/repository-aware-fast-executor.mjs');
+const index = read('builder/runner/repository-index.mjs');
 const deterministic = read('builder/runner/deterministic-executor.mjs');
 const gate = read('scripts/autobot/run-production-gate.mjs');
-const packageJson = read('package.json');
-const activeRuntime = workflow + continuation + scheduler + sustained + feature + deterministic + gate;
-if (/GEMINI_API_KEY|gemini-cli|gemini-3/i.test(activeRuntime)) failures.push('forbidden AI provider reference in active AutoBot runtime');
-if (/gh\s+pr\s+merge|gh\s+pr\s+approve/i.test(activeRuntime)) failures.push('automatic merge/approval path detected');
-if (/vercel\s+(deploy|promote)|vercel\.com\/api/i.test(activeRuntime)) failures.push('automatic production deployment path detected');
-if (!/cancel-in-progress:\s*false/.test(workflow)) failures.push('workflow must preserve queued runs rather than canceling active work');
-if (!/cancel-in-progress:\s*false/.test(continuation)) failures.push('continuation must not cancel active work');
-if (!/cancel-in-progress:\s*false/.test(scheduler)) failures.push('scheduler must not cancel active work');
-if (!workflow.includes('LOCAL_AI_MODEL')) failures.push('workflow lacks explicit local model configuration');
+
+if (/GEMINI_API_KEY|gemini-cli|gemini-3/i.test(workflow + brain + executor)) failures.push('forbidden Gemini provider reference in active AutoBot runtime');
+if (/gh\s+pr\s+merge|gh\s+pr\s+approve/i.test(workflow + brain + executor)) failures.push('automatic merge/approval path detected');
+if (/vercel\s+(deploy|promote)|vercel\.com\/api/i.test(workflow + brain + executor)) failures.push('automatic production deployment path detected');
+if (!workflow.includes('workflow_dispatch:')) failures.push('canonical fast workflow must be manually dispatchable');
+if (!workflow.includes('cancel-in-progress: false')) failures.push('fast workflow must preserve queued runs');
+if (!workflow.includes('qwen3:4b')) failures.push('fast workflow must use Qwen3 4B-compatible model');
+if (!workflow.includes('LOCAL_AI_MODEL')) failures.push('fast workflow lacks explicit local model input');
 if (!workflow.includes('actions/cache@v4')) failures.push('local model cache missing');
-if (!workflow.includes('segment-2')) failures.push('long-duration continuation segment missing');
-if (!workflow.includes('gh pr create')) failures.push('review PR publication missing');
-if (!workflow.includes('--draft')) failures.push('review PR must be draft by default');
-if (!continuation.includes('continuation_ref') || !continuation.includes('remaining_minutes')) failures.push('continuation lacks explicit checkpoint and remaining-budget inputs');
-if (!/timeout-minutes:\s*370/.test(continuation)) failures.push('continuation hosted-run ceiling is unsafe');
-if (!/--ref \"\$CONTINUATION_REF\"/.test(continuation)) failures.push('continuation must execute against its checkpoint ref');
-if (!/remaining.*360|budget.*360/.test(continuation)) failures.push('continuation must cap each hosted segment at six hours');
-if (!continuation.includes('long-run-state.json')) failures.push('continuation must consume authoritative long-run runtime state');
-if (!/remaining=\$\(\( REMAINING_MINUTES - used \)\)/.test(continuation)) failures.push('continuation must subtract measured elapsed runtime from shared budget');
-if (!continuation.includes("remaining != '0'")) failures.push('continuation must stop recursion at zero shared budget');
-if (!continuation.includes('gh workflow run autonomous-builder-continuation.yml')) failures.push('continuation recursion missing');
-if (!sustained.includes('verifyAuditLog')) failures.push('sustained runner missing audit verification');
-if (!sustained.includes('long-run-state.json')) failures.push('sustained runner lacks durable runtime budget state');
-if (!sustained.includes('writeRuntimeState')) failures.push('sustained runner lacks runtime checkpoint updates');
-if (!sustained.includes('AUTOBOT_DETERMINISTIC_SLICE_MINUTES')) failures.push('deterministic work is not bounded into resumable slices');
-if (!sustained.includes('AUTOBOT_FEATURE_SLICE_MINUTES')) failures.push('feature work is not bounded into resumable slices');
-if (!sustained.includes('AUTOBOT_MAX_FEATURE_CYCLES')) failures.push('feature cycle ceiling missing');
-if (!sustained.includes('feature-brain-started')) failures.push('feature cycle audit evidence missing');
-if (!feature.includes('maxAttemptsPerFeature')) failures.push('feature engineer lacks bounded attempt ceiling');
-if (!feature.includes('resetFailedEdits')) failures.push('feature engineer lacks failed-edit recovery');
-if (!/format\s*:\s*editSchema/.test(feature)) failures.push('feature engineer must use structured model output');
-if (!feature.includes('structured-line-edits-v1')) failures.push('feature engineer protocol version missing');
-if (!feature.includes('out-of-scope file')) failures.push('feature engineer lacks edit scope guard');
-if (!feature.includes('overlapping edits') && !feature.includes('multiple edits in one file')) failures.push('feature engineer lacks edit overlap guard');
+
+const numericSetting = (key) => {
+  const match = workflow.match(new RegExp(`${key}[^\\n]*?(?:=|:)\\s*[\\\"']?(\\d+)`, 'm'));
+  return match ? Number(match[1]) : null;
+};
+const edits = numericSetting('AUTOBOT_FEATURE_MAX_EDITS');
+const timeout = numericSetting('LOCAL_AI_FEATURE_TIMEOUT_SECONDS');
+if (edits == null || edits < 1 || edits > 3) failures.push('fast workflow edit ceiling missing or unsafe');
+if (timeout == null || timeout < 120 || timeout > 300) failures.push('fast workflow feature timeout must be 120-300 seconds');
+
+if (!workflow.includes('repository-aware-fast-executor.mjs')) failures.push('workflow does not invoke fast sustained executor');
+if (!workflow.includes('repository-aware-feature-brain.mjs')) failures.push('workflow does not validate the active Qwen agent');
+if (!executor.includes('repository-aware-feature-brain.mjs')) failures.push('fast executor does not invoke the active repository-aware Qwen agent');
+if (executor.includes('repository-aware-fast-brain.mjs')) failures.push('fast executor still invokes the retired single-shot structured brain');
+if (!brain.includes('repository-aware-agent-v7')) failures.push('repository-aware Qwen agent protocol missing');
+if (!brain.includes('/api/chat')) failures.push('Qwen agent must use Ollama chat');
+if (!brain.includes('think: false')) failures.push('Qwen agent must disable thinking');
+if (!brain.includes('num_ctx: 4096')) failures.push('Qwen agent context contract missing');
+if (!brain.includes('num_predict: 900')) failures.push('Qwen agent output contract missing');
+if (!brain.includes('function parseToolCalls')) failures.push('Qwen tool-call parser missing');
+for (const tool of ['read_file','edit_file','run_check','submit']) if (!brain.includes(tool)) failures.push(`Qwen ${tool} tool missing`);
+if (!brain.includes('maxTurns') || !brain.includes('maxEdits')) failures.push('bounded Qwen turn/edit budgets missing');
+if (!brain.includes('isSafeRepoFile')) failures.push('repository/path safety missing');
+if (!brain.includes('must match once')) failures.push('exact-match write protection missing');
+if (!brain.includes('snapshots')) failures.push('rollback snapshots missing');
+if (!brain.includes('diff-check') || !brain.includes('changed-syntax')) failures.push('post-edit verification missing');
+if (!brain.includes('appendAudit')) failures.push('agent audit logging missing');
+
+if (!workflow.includes('AUTOBOT_AGENT_TURNS=8')) failures.push('workflow must restore eight Qwen agent turns');
+if (!workflow.includes('AUTOBOT_FEATURE_MAX_EDITS=3')) failures.push('workflow must restore three Qwen edits');
+if (!workflow.includes('LOCAL_AI_PROXY_NUM_CTX=8192')) failures.push('workflow must restore 8192 proxy context');
+if (!workflow.includes('LOCAL_AI_PROXY_NUM_PREDICT=650')) failures.push('workflow must restore 650 proxy output ceiling');
+if (!workflow.includes('LOCAL_AI_PROXY_THINK=false')) failures.push('workflow must explicitly disable thinking');
+if (!index.includes('ls-files') || !index.includes('dependencyEdges') || !index.includes('sensitive')) failures.push('repository index must be Git-derived, dependency-aware and secret-safe');
 if (!deterministic.includes('allowedTask')) failures.push('deterministic executor lacks protected-path guard');
-if (!deterministic.includes('dependsOn')) failures.push('deterministic executor lacks task dependency handling');
 if (!gate.includes('verify:generation-capability-contract') || !gate.includes('verify:autobot-audit-tamper')) failures.push('authoritative production gate is incomplete');
-if (!packageJson.includes('verify:autobot-production-gate')) failures.push('production gate is not registered in package scripts');
+if (!workflow.includes('verify:autobot-production-gate')) failures.push('workflow lacks authoritative production gate');
+if (!workflow.includes('Require a real product-source change')) failures.push('workflow lacks product-source success gate');
+if (!workflow.includes("grep -E '^(src|public)/'")) failures.push('product-source gate must include src and public');
+
 if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
-console.log('AutoBot safety contract PASS: local-only AI, no automatic merge/deploy, non-canceling concurrency, bounded recovery, structured feature editing, protected paths, dependency handling, audit verification, continuous bounded execution, continuation budget integrity, authoritative production gate, and resumable long-duration execution.');
+console.log('AutoBot safety contract PASS: active repository-aware Qwen agent, bounded tool turns, scoped writes, rollback/verification, dependency-safe index, no Gemini, and no automatic merge/deploy.');
