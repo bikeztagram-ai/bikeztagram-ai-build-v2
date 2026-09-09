@@ -37,4 +37,19 @@ const single=buildDirectorRuntimeSelection({bestMoments:[{score:70,description:'
 assert.equal(single.analysis.aiEditPlan.cuts.length,1);
 assert.equal(single.analysis.aiEditPlan.cuts[0].momentIndex,0);
 
+const aggregated=buildDirectorRuntimeSelection({
+  sources:[
+    {mediaIndex:0,type:'video/mp4',name:'mixed source',score:25,cinematicScore:25},
+    {mediaIndex:1,type:'video/mp4',name:'ordinary source',score:65,cinematicScore:65}
+  ],
+  bestMoments:[
+    {mediaIndex:0,sourceIndex:0,score:20,cinematicScore:20,description:'weak opening'},
+    {mediaIndex:0,sourceIndex:0,score:98,cinematicScore:98,motionScore:.98,description:'motorcycle accelerating high quality action'},
+    {mediaIndex:1,sourceIndex:1,score:65,cinematicScore:65,description:'ordinary shot'}
+  ]
+},{creativePrompt:'fast motorcycle action',maxCuts:1});
+assert.equal(aggregated.analysis.aiEditPlan.cuts.length,1);
+assert.equal(aggregated.analysis.aiEditPlan.cuts[0].mediaIndex,0);
+assert.equal(aggregated.analysis.aiEditPlan.cuts[0].momentIndex,1);
+
 console.log('director-v3-runtime-integration: PASS');
