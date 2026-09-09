@@ -20,7 +20,7 @@ assert.equal(profile.version,'universal-director-v2');
 assert.equal(profile.mediaCount,6);
 assert.ok(profile.items.some(item=>item.evidenceScore>80));
 
-const normalizedMotion=buildUniversalMediaProfile([{type:'video/mp4',name:'normalized motion',cinematicScore:.8,motionScore:.95}]);
+const normalizedMotion=buildUniversalMediaProfile([{type:'video/mp4',name:'normalized motion',cinematicScore:.8,motionScore:.95,visualQuality:{detail:.9,contrast:.9,sharpness:.9,composition:.9}}]);
 assert.ok(normalizedMotion.items[0].evidenceScore>70);
 
 const plan=buildCoveragePlan(media,{creativePrompt:'fast cinematic motorcycle reveal',maxShots:5});
