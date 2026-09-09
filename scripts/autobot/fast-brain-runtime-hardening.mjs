@@ -12,13 +12,19 @@ let brain = fs.readFileSync(brainPath, 'utf8');
 
 const requiredBrainMarkers = [
   "PROTOCOL = 'repository-aware-agent-v7'", '/api/chat', 'stream: false', 'think: false',
-  'tool_name: call.name', 'num_ctx: 4096', 'num_predict: 900', 'fs.writeFileSync(abs(file), next);',
+  'tool_name: call.name', 'num_ctx:', 'num_predict:', 'fs.writeFileSync(abs(file), next);',
   'const syntax = syntaxCheck(file);', 'edit rejected and rolled back', 'fs.writeFileSync(abs(file), current);',
   'failedEditFiles', 'Do NOT retry the same replacement.', 'completed: completedIds',
   '(progress[o.id] || 0) < 1', 'state.failed',
 ];
 const missing = requiredBrainMarkers.filter((marker) => !brain.includes(marker));
 if (missing.length) throw new Error(`canonical feature brain recovery contract incomplete: ${missing.join(', ')}`);
+
+const numCtx = brain.match(/num_ctx:\s*(\d+)/)?.[1];
+const numPredict = brain.match(/num_predict:\s*(\d+)/)?.[1];
+if (!['4096', '3072'].includes(numCtx) || !['900', '420'].includes(numPredict)) {
+  throw new Error(`unsupported canonical model settings: num_ctx=${numCtx}, num_predict=${numPredict}`);
+}
 
 const syntaxFunctionPattern = /function syntaxCheck\(file\) \{[\s\S]*?\n\}\nfunction runCheck/;
 const hardenedSyntaxFunction = `function syntaxCheck(file) {
@@ -74,7 +80,7 @@ const hardenedModelCall = `function modelCall(messages, toolPhase = 'inspect') {
   const effectivePhase = blockedRecovery ? 'inspect' : toolPhase;
   const allowed = allowedByPhase[effectivePhase] || allowedByPhase.inspect;
   const availableTools = tools.filter((tool) => allowed.has(tool.function?.name));
-  const body = JSON.stringify({ model, stream: false, keep_alive: '15m', think: false, tools: availableTools, options: { temperature: 0, num_ctx: 4096, num_predict: 900 }, messages: trimMessages(messages) });
+  const body = JSON.stringify({ model, stream: false, keep_alive: '15m', think: false, tools: availableTools, options: { temperature: 0, num_ctx: ${numCtx}, num_predict: ${numPredict} }, messages: trimMessages(messages) });
   const raw = run('curl', ['-sS', '--fail', '--connect-timeout', '10', '--max-time', String(seconds), \`\${host}/api/chat\`, '-H', 'Content-Type: application/json', '-d', body], { timeout: (seconds + 10) * 1000 });
   const response = JSON.parse(raw);
   if (response.error) throw new Error(String(response.error));
@@ -86,7 +92,6 @@ brain = brain.replace(modelCallPattern, hardenedModelCall);
 const statePattern = /let editCount = 0; let submitted = false; let summary = ''; let inspected = false;(?: let readToolEnabled = true;)? let toolPhase = 'inspect'; let emptyTurns = 0; let failedEditAttempts = 0; const failedEditFiles = new Set\(\);/;
 const legacyStatePattern = /let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let emptyTurns = 0; let failedEditAttempts = 0; const failedEditFiles = new Set\(\);/;
 if (statePattern.test(brain)) {
-  // Already current; keep hardening idempotent.
 } else if (legacyStatePattern.test(brain)) {
   brain = brain.replace(legacyStatePattern, "let editCount = 0; let submitted = false; let summary = ''; let inspected = false; let toolPhase = 'inspect'; let emptyTurns = 0; let failedEditAttempts = 0; const failedEditFiles = new Set();");
 } else {
@@ -117,9 +122,7 @@ if (editHandlerPattern.test(brain)) {
 
 const hasSubmitEditTransition = brain.includes("toolPhase = result === 'PASS' ? 'submit' : 'edit'");
 const hasSubmitInspectTransition = brain.includes("toolPhase = result === 'PASS' ? 'submit' : 'inspect'");
-if (!hasSubmitEditTransition && !hasSubmitInspectTransition) {
-  throw new Error('tool-phase hardening marker missing: submit transition');
-}
+if (!hasSubmitEditTransition && !hasSubmitInspectTransition) throw new Error('tool-phase hardening marker missing: submit transition');
 for (const marker of [
   'const allowedByPhase =', 'const blockedRecovery =', 'const effectivePhase = blockedRecovery ? \'inspect\' : toolPhase;',
   "toolPhase = 'inspect'", "toolPhase = 'edit'", "toolPhase = 'verify'",
@@ -144,4 +147,4 @@ for (const marker of [
 const finalTasks = fs.readFileSync(taskPath, 'utf8');
 if (finalTasks.includes('npm run verify:batch33')) throw new Error('stale export verification command remains after migration');
 if (!finalTasks.includes('export-contract-check.mjs')) throw new Error('live export contract check is missing after migration');
-console.log('[autobot] Qwen runtime hardening PASS: canonical agent verified, real JS/JSX syntax validation installed, transactional edits verified, durable progress verified, strict phase-gated tool controller installed, one-tool-per-turn enforcement installed, blocked-file recovery steering installed, changed-syntax verification preserved, export migration guarded.');
+console.log('[autobot] Qwen runtime hardening PASS: canonical agent verified, real JS/JSX syntax validation installed, transactional edits verified, durable progress verified, strict phase-gated tool controller installed, one-tool-per-turn enforcement installed, blocked-file recovery steering installed, changed-syntax verification preserved, export migration guarded, approved performance settings preserved.');
