@@ -15,34 +15,34 @@ if (!brain.includes('function insertBefore(file, anchor, addition, objective)') 
 
 if (!brain.includes('function validateStandaloneBlock(file, addition)')) {
   const point = '\nfunction insertBefore(file, anchor, addition, objective) {';
-  const helper = `
-function validateStandaloneBlock(file, addition) {
-  const ext = path.extname(String(file || '')).toLowerCase();
-  const tempExt = ['.jsx', '.tsx', '.ts', '.mjs', '.cjs', '.js'].includes(ext) ? ext : '.js';
-  const temp = path.join(os.tmpdir(), 'autobot-added-block-' + process.pid + '-' + Date.now() + '-' + Math.random().toString(16).slice(2) + tempExt);
-  try {
-    fs.writeFileSync(temp, String(addition || ''));
-    const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');
-    if (fs.existsSync(esbuild)) {
-      const args = [temp, '--log-level=error', '--outfile=' + temp + '.out'];
-      if (tempExt === '.jsx') args.push('--loader:.jsx=jsx');
-      if (tempExt === '.tsx') args.push('--loader:.tsx=tsx');
-      execFileSync(esbuild, args, { cwd: root, encoding: 'utf8', stdio: 'pipe' });
-      return 'PASS';
-    }
-    if (tempExt === '.ts' || tempExt === '.tsx') return 'FAIL TypeScript additive blocks require esbuild validation.';
-    execFileSync(process.execPath, ['--check', temp], { cwd: root, encoding: 'utf8', stdio: 'pipe', timeout: 15000 });
-    return 'PASS';
-  } catch (error) {
-    return 'FAIL standalone additive block is not a complete top-level program: ' + [error.stdout, error.stderr, error.message].filter(Boolean).join('\n').slice(0, 2200);
-  } finally {
-    try { fs.rmSync(temp, { force: true }); } catch {}
-    try { fs.rmSync(temp + '.out', { force: true }); } catch {}
-  }
-}
-`;
+  const helper = [
+    'function validateStandaloneBlock(file, addition) {',
+    "  const ext = path.extname(String(file || '')).toLowerCase();",
+    "  const tempExt = ['.jsx', '.tsx', '.ts', '.mjs', '.cjs', '.js'].includes(ext) ? ext : '.js';",
+    "  const temp = path.join(os.tmpdir(), 'autobot-added-block-' + process.pid + '-' + Date.now() + '-' + Math.random().toString(16).slice(2) + tempExt);",
+    '  try {',
+    "    fs.writeFileSync(temp, String(addition || ''));",
+    "    const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');",
+    '    if (fs.existsSync(esbuild)) {',
+    "      const args = [temp, '--log-level=error', '--outfile=' + temp + '.out'];",
+    "      if (tempExt === '.jsx') args.push('--loader:.jsx=jsx');",
+    "      if (tempExt === '.tsx') args.push('--loader:.tsx=tsx');",
+    "      execFileSync(esbuild, args, { cwd: root, encoding: 'utf8', stdio: 'pipe' });",
+    "      return 'PASS';",
+    '    }',
+    "    if (tempExt === '.ts' || tempExt === '.tsx') return 'FAIL TypeScript additive blocks require esbuild validation.';",
+    "    execFileSync(process.execPath, ['--check', temp], { cwd: root, encoding: 'utf8', stdio: 'pipe', timeout: 15000 });",
+    "    return 'PASS';",
+    '  } catch (error) {',
+    "    return 'FAIL standalone additive block is not a complete top-level program: ' + [error.stdout, error.stderr, error.message].filter(Boolean).join('\\n').slice(0, 2200);",
+    '  } finally {',
+    '    try { fs.rmSync(temp, { force: true }); } catch {}',
+    "    try { fs.rmSync(temp + '.out', { force: true }); } catch {}",
+    '  }',
+    '}',
+  ].join('\n') + '\n';
   if (!brain.includes(point)) throw new Error('insertBefore anchor not found; refusing scope-guard migration');
-  brain = brain.replace(point, helper + point);
+  brain = brain.replace(point, '\n' + helper + 'function insertBefore(file, anchor, addition, objective) {');
 }
 
 const beforeNeedle = "if (!anchor || typeof addition !== 'string' || !addition.trim()) return 'ERROR: insert_before requires a non-empty anchor and code to insert.';";
