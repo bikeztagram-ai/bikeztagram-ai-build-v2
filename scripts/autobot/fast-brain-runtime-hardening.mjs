@@ -115,10 +115,15 @@ if (editHandlerPattern.test(brain)) {
   throw new Error('canonical edit handler shape is not recognized; refusing recovery migration');
 }
 
+const hasSubmitEditTransition = brain.includes("toolPhase = result === 'PASS' ? 'submit' : 'edit'");
+const hasSubmitInspectTransition = brain.includes("toolPhase = result === 'PASS' ? 'submit' : 'inspect'");
+if (!hasSubmitEditTransition && !hasSubmitInspectTransition) {
+  throw new Error('tool-phase hardening marker missing: submit transition');
+}
 for (const marker of [
   'const allowedByPhase =', 'const blockedRecovery =', 'const effectivePhase = blockedRecovery ? \'inspect\' : toolPhase;',
   "toolPhase = 'inspect'", "toolPhase = 'edit'", "toolPhase = 'verify'",
-  "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);', "check === 'changed-syntax'"
+  'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);', "check === 'changed-syntax'"
 ]) if (!brain.includes(marker)) throw new Error(`tool-phase hardening marker missing: ${marker}`);
 fs.writeFileSync(brainPath, brain);
 
@@ -134,7 +139,7 @@ for (const marker of [
   "if (ext === '.jsx') args.push('--loader:.jsx=jsx');", "'--outfile=' + out",
   'const allowedByPhase =', 'const blockedRecovery =', 'const effectivePhase = blockedRecovery ? \'inspect\' : toolPhase;',
   "toolPhase = 'inspect'", "toolPhase = 'edit'", "toolPhase = 'verify'",
-  "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)', "check === 'changed-syntax'"
+  'parsedCalls.slice(0, 1)', "check === 'changed-syntax'"
 ]) if (!finalBrain.includes(marker)) throw new Error(`final hardening verification missing: ${marker}`);
 const finalTasks = fs.readFileSync(taskPath, 'utf8');
 if (finalTasks.includes('npm run verify:batch33')) throw new Error('stale export verification command remains after migration');
