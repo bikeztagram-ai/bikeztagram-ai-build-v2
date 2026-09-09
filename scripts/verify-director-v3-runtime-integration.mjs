@@ -28,8 +28,13 @@ assert.equal(new Set(result.analysis.aiEditPlan.cuts.map(cut=>cut.mediaIndex)).s
 assert.ok(result.analysis.aiEditPlan.cuts.every(cut=>Number.isInteger(cut.momentIndex)&&cut.momentIndex>=0));
 assert.equal(result.analysis.directorDecision.version,'universal-director-runtime-v1');
 
-const sparse=buildDirectorRuntimeSelection({bestMoments:[{mediaIndex:0,sourceIndex:0,score:70,description:'unknown clip'}]}, {creativePrompt:'anything',maxCuts:5});
-assert.equal(sparse.analysis.aiEditPlan.cuts.length,1);
-assert.equal(sparse.analysis.aiEditPlan.cuts[0].momentIndex,0);
+const sparse=buildDirectorRuntimeSelection({bestMoments:[{score:70,description:'first unindexed clip'},{score:65,description:'second unindexed clip'}]}, {creativePrompt:'anything',maxCuts:2});
+assert.deepEqual(sparse.analysis.aiEditPlan.cuts.map(cut=>cut.mediaIndex),[0,1]);
+assert.deepEqual(sparse.analysis.aiEditPlan.cuts.map(cut=>cut.sourceIndex),[0,1]);
+assert.deepEqual(sparse.analysis.aiEditPlan.cuts.map(cut=>cut.momentIndex),[0,1]);
+
+const single=buildDirectorRuntimeSelection({bestMoments:[{score:70,description:'unknown clip'}]}, {creativePrompt:'anything',maxCuts:5});
+assert.equal(single.analysis.aiEditPlan.cuts.length,1);
+assert.equal(single.analysis.aiEditPlan.cuts[0].momentIndex,0);
 
 console.log('director-v3-runtime-integration: PASS');
