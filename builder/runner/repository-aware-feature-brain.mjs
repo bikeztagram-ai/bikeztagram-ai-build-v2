@@ -234,7 +234,7 @@ function executeObjective(objective, repair) {
   const diff = gitDiff();
   if (!diff.trim()) { for (const [file, snapshot] of snapshots) if (read(file) !== snapshot) fs.writeFileSync(abs(file), snapshot); return { ok: false, reason: 'submission had no verified product diff', edits: editCount }; }
   const build = runCheck('build'); const diffCheck = runCheck('diff-check'); const changedSyntax = runCheck('changed-syntax');
-  if (build !== 'PASS' || diffCheck !== 'PASS' || changedSyntax !== 'PASS') { for (const [file, snapshot] of snapshots) if (read(file) !== snapshot) fs.writeFileSync(abs(file, snapshot); return { ok: false, reason: `verification failed: ${build} / ${diffCheck} / ${changedSyntax}`, edits: editCount }; }
+  if (build !== 'PASS' || diffCheck !== 'PASS' || changedSyntax !== 'PASS') { for (const [file, snapshot] of snapshots) if (read(file) !== snapshot) fs.writeFileSync(abs(file), snapshot); return { ok: false, reason: `verification failed: ${build} / ${diffCheck} / ${changedSyntax}`, edits: editCount }; }
   progress[objective.id] = Math.max(progress[objective.id] || 0, 1); saveState();
   appendAudit('repository-aware-feature-complete', { protocol: PROTOCOL, objectiveId: objective.id, summary, edits: editCount });
   return { ok: true, objective: objective.id, summary, edits: editCount };
