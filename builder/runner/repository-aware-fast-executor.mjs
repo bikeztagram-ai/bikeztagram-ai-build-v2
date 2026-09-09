@@ -55,6 +55,10 @@ function hardenEditProtocol() {
   return run('scripts/autobot/fast-brain-edit-protocol.mjs');
 }
 
+function hardenEditScope() {
+  return run('scripts/autobot/fast-brain-scope-guard.mjs');
+}
+
 function rollbackRegression() {
   return run('scripts/autobot/verify-fast-brain-rollback.mjs');
 }
@@ -90,6 +94,10 @@ if (hardenRuntime() !== 0) {
 }
 if (hardenEditProtocol() !== 0) {
   console.error('[autobot] fast brain edit-protocol hardening failed; refusing to run Qwen unprotected');
+  process.exit(2);
+}
+if (hardenEditScope() !== 0) {
+  console.error('[autobot] fast brain edit-scope hardening failed; refusing to run Qwen unprotected');
   process.exit(2);
 }
 if (rollbackRegression() !== 0) {

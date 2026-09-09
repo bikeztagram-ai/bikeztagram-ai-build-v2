@@ -8,7 +8,9 @@ import { spawnSync } from 'node:child_process';
 const root = process.cwd();
 const brainPath = path.join(root, 'builder/runner/repository-aware-feature-brain.mjs');
 const hardenerPath = path.join(root, 'scripts/autobot/fast-brain-runtime-hardening.mjs');
+const scopeGuardPath = path.join(root, 'scripts/autobot/fast-brain-scope-guard.mjs');
 const hardener = fs.readFileSync(hardenerPath, 'utf8');
+const scopeGuard = fs.readFileSync(scopeGuardPath, 'utf8');
 const active = fs.readFileSync(brainPath, 'utf8');
 const failures = [];
 const requireMarker = (condition, message) => { if (!condition) failures.push(message); };
@@ -36,16 +38,24 @@ requireMarker(hardener.includes('export-contract-check.mjs'), 'runtime hardener 
 requireMarker(hardener.includes('modelCallPattern'), 'runtime hardener is not idempotent for the modelCall migration');
 requireMarker(hardener.includes('const allowedByPhase ='), 'runtime hardener does not enforce strict tool phases');
 requireMarker(hardener.includes('parsedCalls.slice(0, 1)'), 'runtime hardener does not enforce one tool call per turn');
+requireMarker(scopeGuard.includes('function validateStandaloneBlock'), 'scope guard does not validate standalone additive blocks');
+requireMarker(scopeGuard.includes('every return must be inside a function'), 'scope guard does not contain return-scope guidance');
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bikeztagram-fast-brain-'));
 try {
   fs.mkdirSync(path.join(temp, 'builder/runner'), { recursive: true });
   fs.mkdirSync(path.join(temp, 'builder/brain'), { recursive: true });
+  fs.mkdirSync(path.join(temp, 'scripts/autobot'), { recursive: true });
   fs.copyFileSync(brainPath, path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'));
   fs.copyFileSync(path.join(root, 'builder/brain/task-library.json'), path.join(temp, 'builder/brain/task-library.json'));
+  fs.copyFileSync(scopeGuardPath, path.join(temp, 'scripts/autobot/fast-brain-scope-guard.mjs'));
   const hardenEnv = { ...process.env, AUTOBOT_HARDENING_ROOT: temp };
   const first = spawnSync(process.execPath, [hardenerPath], { cwd: temp, encoding: 'utf8', env: hardenEnv });
   requireMarker(first.status === 0, `runtime hardener actual-source fixture failed: ${first.stderr || first.stdout}`);
+  const scopeFirst = spawnSync(process.execPath, [path.join(temp, 'scripts/autobot/fast-brain-scope-guard.mjs')], { cwd: temp, encoding: 'utf8', env: hardenEnv });
+  requireMarker(scopeFirst.status === 0, `scope guard actual-source fixture failed: ${scopeFirst.stderr || scopeFirst.stdout}`);
+  const scopeSecond = spawnSync(process.execPath, [path.join(temp, 'scripts/autobot/fast-brain-scope-guard.mjs')], { cwd: temp, encoding: 'utf8', env: hardenEnv });
+  requireMarker(scopeSecond.status === 0, `scope guard second-pass idempotency failed: ${scopeSecond.stderr || scopeSecond.stdout}`);
   const second = spawnSync(process.execPath, [hardenerPath], { cwd: temp, encoding: 'utf8', env: hardenEnv });
   requireMarker(second.status === 0, `runtime hardener second-pass idempotency failed: ${second.stderr || second.stdout}`);
   const hardened = fs.readFileSync(path.join(temp, 'builder/runner/repository-aware-feature-brain.mjs'), 'utf8');
@@ -59,6 +69,8 @@ try {
   requireMarker(hardened.includes("toolPhase = 'verify'"), 'fixture lost verification phase');
   requireMarker(/allowedByPhase\.submit|\bsubmit:\s*new Set\(\['submit'\]\)|toolPhase\s*=\s*result === 'PASS' \? 'submit' : (?:edit|inspect)/.test(hardened), 'fixture lost submit phase');
   requireMarker(hardened.includes('parsedCalls.slice(0, 1)'), 'fixture lost one-tool-per-turn guard');
+  requireMarker(hardened.includes('function validateStandaloneBlock(file, addition)'), 'fixture lost standalone additive-block validation');
+  requireMarker(hardened.includes('const blockCheck = validateStandaloneBlock(file, addition);'), 'fixture lost additive-block pre-write guard');
 } finally {
   fs.rmSync(temp, { recursive: true, force: true });
 }
@@ -68,4 +80,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
-console.log('[autobot] fast-brain rollback regression PASS: canonical brain recovery, durable progress, failed-edit steering, strict tool phases, one-tool-per-turn enforcement, and idempotent hardening contract verified.');
+console.log('[autobot] fast-brain rollback regression PASS: canonical brain recovery, durable progress, failed-edit steering, strict tool phases, one-tool-per-turn enforcement, standalone additive-block validation, scope-guard idempotency, and hardening contract verified.');
