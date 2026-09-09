@@ -5,3 +5,10 @@ dist
 .env
 .env.*
 !.env.example
+
+# Local AutoBot/Aider runtime state — never publish as product changes
+.aider.*
+.aider*
+builder/monitor/live-state.json
+builder/quality/autobot-readiness.json
+builder/working/

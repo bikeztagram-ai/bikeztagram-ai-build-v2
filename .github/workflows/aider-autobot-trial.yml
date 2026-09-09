@@ -144,7 +144,14 @@ jobs:
           git checkout -b "$branch"
           git config user.name 'Bikeztagram Aider AutoBot'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          # Publish product/source changes, while excluding local AI caches and runtime state.
+          git add -A -- . \
+            ':(exclude).aider*' \
+            ':(exclude)builder/monitor/live-state.json' \
+            ':(exclude)builder/quality/autobot-readiness.json' \
+            ':(exclude)builder/working/**'
+          git diff --cached --check
+          git diff --cached --stat
           git commit -m 'feat: Aider AutoBot trial checkpoint' || true
           git push --set-upstream origin "$branch"
           gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Aider AutoBot trial checkpoint' --body 'Review-only checkpoint from the Aider-backed local AutoBot trial. Never auto-merge.' || true
