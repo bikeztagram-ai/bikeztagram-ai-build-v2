@@ -20,7 +20,7 @@ const checks=[
  ['diff verification',runner.includes("['diff','--check']")],
  ['build verification',runner.includes("['run','build']")],
  ['scope enforcement',runner.includes('unauthorized modified paths')&&runner.includes("['restore','--',file]")],
- ['protected objective recovery',runner.includes('protected feature-objectives.json')&&runner.includes("feature-objectives.json')},\n        execFileSync('git',['restore','--','builder/brain/feature-objectives.json']")],
+ ['protected objective recovery',runner.includes('protected feature-objectives.json')&&runner.includes("git status','--short")&&runner.includes("git',['restore','--','builder/brain/feature-objectives.json']")],
  ['no automatic commits',runner.includes('--no-auto-commits')&&runner.includes('--no-dirty-commits')],
  ['controller can select Aider',controller.includes("AUTOBOT_FEATURE_ENGINE === 'aider'")&&controller.includes('aider-feature-brain.mjs')],
  ['controller owns shared deadline',controller.includes('runDeadline')&&controller.includes('AUTOBOT_FEATURE_DEADLINE_EPOCH_MS')],
