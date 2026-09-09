@@ -29,14 +29,17 @@ export function buildDirectorDecision(mediaItems=[],options={}){const media=Arra
 
 export function rankDirectorCandidates(candidates=[]){
  if(!Array.isArray(candidates))return [];
- const seen=new Set();
- return [...candidates].sort((a,b)=>{
-  const as=Number(a?.score??a?.directorSelectionScore??0),bs=Number(b?.score??b?.directorSelectionScore??0);
-  const ak=String(a?.subjectRole||a?.subject||a?.mediaIndex||'');
-  const bk=String(b?.subjectRole||b?.subject||b?.mediaIndex||'');
-  const ap=seen.has(ak)?-8:0,bp=seen.has(bk)?-8:0;
-  return (bs+bp)-(as+ap);
- }).map(item=>{const key=String(item?.subjectRole||item?.subject||item?.mediaIndex||'');seen.add(key);return item;});
+ const counts=new Map();
+ const ranked=candidates.map((item,index)=>{
+  const key=String(item?.subjectRole ?? item?.subject ?? item?.mediaIndex ?? '');
+  const occurrence=counts.get(key)||0;
+  counts.set(key,occurrence+1);
+  const score=Number(item?.score ?? item?.directorSelectionScore ?? 0);
+  return {item,index,score,adjustedScore:score-(occurrence>0?8:0)};
+ });
+ return ranked
+  .sort((a,b)=>b.adjustedScore-a.adjustedScore||b.score-a.score||a.index-b.index)
+  .map(entry=>entry.item);
 }
 
 export function buildSubjectAwareMotion(shot={}, subjectType='unknown'){
