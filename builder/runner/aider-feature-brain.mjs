@@ -17,6 +17,7 @@ const model=process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama
 const requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'15',10));
 const deadline=Date.now()+requestedMinutes*60_000;
 const perCallMaxMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_AIDER_CALL_TIMEOUT_MS||'180000',10));
+const aiderApiTimeoutSeconds=Math.max(30,Math.min(120,Number.parseInt(process.env.AUTOBOT_AIDER_API_TIMEOUT_SECONDS||'120',10)));
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
 const objectives=JSON.parse(read('builder/brain/feature-objectives.json')).objectives||[];
 const state=fs.existsSync(statePath)?JSON.parse(read('builder/working/aider-feature-brain-state.json')):{protocol,completed:[],failed:[],runs:0};
@@ -82,7 +83,7 @@ for(let pass=1;pass<=maxPasses;pass++){
   state.runs=(state.runs||0)+1;
   const before=new Set(trackedPaths());
   const timeout=Math.min(perCallMaxMs,remaining-5_000);
-  const args=[`--model=${model}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=512','--subtree-only','--message',promptFor(obj,pass),...aiderFiles];
+  const args=[`--model=${model}`,`--timeout=${aiderApiTimeoutSeconds}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=512','--subtree-only','--message',promptFor(obj,pass),...aiderFiles];
   const result=spawnSync('aider',args,{cwd:aiderCwd,encoding:'utf8',stdio:'inherit',timeout});
   if(result.error){
     console.error(`[aider] pass ${pass} stopped: ${result.error.code||result.error.message}`);
