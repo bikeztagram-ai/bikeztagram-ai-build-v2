@@ -1,0 +1,4 @@
+/* Model-neutral music orchestration. Generation adapters remain replaceable. */
+export function buildMusicRequest({brief='',duration=30,mood=[],genre=[],energy='dynamic',bpm=null,structure=['intro','build','drop','outro'],references=[]}={}){return {version:'music-generation-request-v1',brief,duration:Math.max(5,Math.min(360,Number(duration)||30)),mood,genre,energy,bpm,structure,references,requirements:{original:true,structured:true,eventMetadata:true,editable:true}};}
+export async function generateMusicCandidates(request,{runtime,candidates=3}={}){if(!runtime)return {status:'fallback-required',candidates:[]};const outputs=[];for(let i=0;i<candidates;i++){const result=await runtime.generateMusic({...request,candidate:i+1});outputs.push(result);}return {status:'generated',candidates:outputs};}
+export function rankMusicCandidates(candidates=[]){return [...candidates].sort((a,b)=>Number(b.score||0)-Number(a.score||0)).map((c,i)=>({...c,rank:i+1}));}
