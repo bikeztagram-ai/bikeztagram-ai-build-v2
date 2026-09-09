@@ -1,0 +1,3 @@
+import assert from 'node:assert/strict';
+import {buildVideoGenerationRequest,generateVideoCandidates,rankVideoCandidates} from '../src/videoGenerationOrchestratorV1.js';
+const req=buildVideoGenerationRequest({type:'subject-scene',prompt:'Two explorers enter an original floating city',subjects:[{id:'a'},{id:'b'}]});assert.equal(req.requirements.preserveSubjects,true);const runtime={async generateScene(r){return {status:'generated',candidate:r.candidate,score:r.candidate===1?88:72};}};const batch=await generateVideoCandidates(req,{runtime,candidates:2});assert.equal(batch.candidates.length,2);assert.equal(rankVideoCandidates(batch.candidates)[0].candidate,1);console.log('Video generation orchestrator V1 verification passed');
