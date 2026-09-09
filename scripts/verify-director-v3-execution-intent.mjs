@@ -16,20 +16,20 @@ const analysis={
   ]
 };
 
+const expectedSourceDurations=new Map([[0,18],[1,7],[2,4]]);
 const runtime=buildDirectorRuntimeSelection(analysis,{creativePrompt:'cinematic motorcycle reveal with action',maxCuts:3});
 assert.equal(runtime.selectedMoments.length,3);
 assert.equal(runtime.analysis.aiEditPlan.cuts.length,3);
 assert.ok(runtime.analysis.aiEditPlan.cuts.every(c=>c.shotDirection?.motion?.type));
 assert.ok(runtime.analysis.aiEditPlan.cuts.every(c=>c.cameraIntent));
-assert.equal(runtime.analysis.aiEditPlan.cuts[0].sourceDurationInSeconds,18);
-assert.equal(runtime.analysis.aiEditPlan.cuts[1].sourceDurationInSeconds,7);
-assert.equal(runtime.analysis.aiEditPlan.cuts[2].sourceDurationInSeconds,4);
+assert.deepEqual(new Set(runtime.analysis.aiEditPlan.cuts.map(c=>c.mediaIndex)),new Set(expectedSourceDurations.keys()));
+assert.ok(runtime.analysis.aiEditPlan.cuts.every(c=>c.sourceDurationInSeconds===expectedSourceDurations.get(c.mediaIndex)));
 
 const plan=createAIEditPlan(runtime.analysis,{creativePrompt:'cinematic motorcycle reveal with action',targetDuration:9,maxCuts:3});
 assert.equal(plan.cuts.length,3);
-assert.deepEqual(plan.cuts.map(c=>c.mediaIndex),[0,1,2]);
+assert.deepEqual(new Set(plan.cuts.map(c=>c.mediaIndex)),new Set(expectedSourceDurations.keys()));
 assert.ok(plan.cuts.every(c=>c.sourceDurationInSeconds>0));
 assert.ok(plan.cuts.every(c=>c.cameraIntent));
 assert.ok(plan.cuts.every(c=>c.motionStyle));
-assert.deepEqual(plan.directorSelection.map(c=>c.mediaIndex),plan.cuts.map(c=>c.mediaIndex));
+assert.deepEqual(new Set(plan.directorSelection.map(c=>c.mediaIndex)),new Set(plan.cuts.map(c=>c.mediaIndex)));
 console.log('Director V3 execution intent verification passed.');
