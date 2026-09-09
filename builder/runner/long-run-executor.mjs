@@ -27,22 +27,23 @@ const deterministicSliceMinutes = Math.max(3, Number.parseInt(process.env.AUTOBO
 const featureSliceMinutes = Math.max(3, Number.parseInt(process.env.AUTOBOT_FEATURE_SLICE_MINUTES || '15', 10));
 const maxFeatureCycles = Math.max(1, Number.parseInt(process.env.AUTOBOT_MAX_FEATURE_CYCLES || '24', 10));
 const featurePassesPerSlice = Math.max(1, Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES_PER_SLICE || '1', 10));
-const featureProtocol = 'structured-search-replace-v3';
+const featureProtocol = process.env.AUTOBOT_FEATURE_ENGINE === 'aider' ? 'aider-repo-map-v1' : 'structured-search-replace-v3';
+const featureEngine = process.env.AUTOBOT_FEATURE_ENGINE === 'aider' ? 'builder/runner/aider-feature-brain.mjs' : 'builder/runner/feature-brain.mjs';
 const completedObjectives = new Set();
 
 function readState() { try { return JSON.parse(fs.readFileSync(checkpoint, 'utf8')); } catch { return null; } }
 function seedFromCheckpoint() { const state=readState(); if(!state)return; if(Array.isArray(state.history?.objectives))for(const id of state.history.objectives)completedObjectives.add(id); if(state.objectiveId&&state.status==='objective-complete')completedObjectives.add(state.objectiveId); }
 function remainingMinutes(){return Math.max(0,requestedMinutes-(Date.now()-started)/60000);}
-function writeRuntimeState(status='running'){const state={schemaVersion:2,status,requestedMinutes,requestedUnits,totalUnits,totalObjectives,iterations:iteration,replenishments,featureCycles,featurePassesPerSlice,consecutiveNoProgress,startedAt:new Date(started).toISOString(),updatedAt:new Date().toISOString(),elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),remainingMinutes:Number(remainingMinutes().toFixed(2))};fs.mkdirSync(path.dirname(runtimeStatePath),{recursive:true});fs.writeFileSync(runtimeStatePath,JSON.stringify(state,null,2)+'\n');return state;}
+function writeRuntimeState(status='running'){const state={schemaVersion:2,status,requestedMinutes,requestedUnits,totalUnits,totalObjectives,iterations:iteration,replenishments,featureCycles,featurePassesPerSlice,consecutiveNoProgress,featureEngine,startedAt:new Date(started).toISOString(),updatedAt:new Date().toISOString(),elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),remainingMinutes:Number(remainingMinutes().toFixed(2))};fs.mkdirSync(path.dirname(runtimeStatePath),{recursive:true});fs.writeFileSync(runtimeStatePath,JSON.stringify(state,null,2)+'\n');return state;}
 function assertAuditIntegrity(stage){const result=verifyAuditLog(); if(!result.valid){console.error(`[autobot] audit integrity failure before ${stage}: ${result.error}`);process.exit(3);} return result;}
 function runOnce(minutes,units){const env={...process.env,BUILDER_MAX_MINUTES:String(Math.max(1,Math.ceil(minutes))),BUILDER_MAX_UNITS:String(Math.max(1,units)),BUILDER_COMPLETED_OBJECTIVES:[...completedObjectives].join(',')};const result=spawnSync(process.execPath,['builder/runner/deterministic-executor.mjs'],{cwd:root,stdio:'inherit',env});return result.error?1:(result.status??1);}
 function replenishBacklog(){if(replenishments>=maxReplenishments)return false;const result=spawnSync(process.execPath,['scripts/autobot/replenish-production-backlog.mjs'],{cwd:root,stdio:'inherit',env:{...process.env,AUTOBOT_MAX_GENERATED_WAVES:String(maxReplenishments)}});if(result.error||result.status!==0)return false;replenishments++;appendAudit('backlog-replenished',{wave:replenishments,maxWaves:maxReplenishments});writeRuntimeState();return true;}
-function runFeatureBrain(){if(remainingMinutes()<=1||featureCycles>=maxFeatureCycles)return 0;featureCycles++;const slice=Math.min(featureSliceMinutes,Math.max(1,Math.floor(remainingMinutes())));const env={...process.env,BUILDER_MAX_MINUTES:String(slice),LOCAL_AI_MODEL:process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b',AUTOBOT_FEATURE_PASSES:String(featurePassesPerSlice),AUTOBOT_FEATURE_PROTOCOL:featureProtocol};appendAudit('feature-brain-started',{cycle:featureCycles,minutes:slice,model:env.LOCAL_AI_MODEL,passes:featurePassesPerSlice,protocol:featureProtocol});console.log(`[autobot] feature-engineering cycle ${featureCycles}/${maxFeatureCycles}: ${slice}m slice; model=${env.LOCAL_AI_MODEL}; passes=${featurePassesPerSlice}; protocol=${featureProtocol}`);const result=spawnSync(process.execPath,['builder/runner/feature-brain.mjs'],{cwd:root,stdio:'inherit',env});const status=result.error?1:(result.status??1);appendAudit('feature-brain-finished',{cycle:featureCycles,status,remainingMinutes:Number(remainingMinutes().toFixed(2)),protocol:featureProtocol});writeRuntimeState(status===0?'running':'blocked');return status;}
+function runFeatureBrain(){if(remainingMinutes()<=1||featureCycles>=maxFeatureCycles)return 0;featureCycles++;const slice=Math.min(featureSliceMinutes,Math.max(1,Math.floor(remainingMinutes())));const env={...process.env,BUILDER_MAX_MINUTES:String(slice),LOCAL_AI_MODEL:process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b',AUTOBOT_FEATURE_PASSES:String(featurePassesPerSlice),AUTOBOT_FEATURE_PROTOCOL:featureProtocol,AUTOBOT_AIDER_MODEL:process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b'};appendAudit('feature-brain-started',{cycle:featureCycles,minutes:slice,model:env.AUTOBOT_AIDER_MODEL,engine:featureEngine,passes:featurePassesPerSlice,protocol:featureProtocol});console.log(`[autobot] feature-engineering cycle ${featureCycles}/${maxFeatureCycles}: ${slice}m slice; engine=${featureEngine}; model=${env.AUTOBOT_AIDER_MODEL}; passes=${featurePassesPerSlice}; protocol=${featureProtocol}`);const result=spawnSync(process.execPath,[featureEngine],{cwd:root,stdio:'inherit',env});const status=result.error?1:(result.status??1);appendAudit('feature-brain-finished',{cycle:featureCycles,status,remainingMinutes:Number(remainingMinutes().toFixed(2)),engine:featureEngine,protocol:featureProtocol});writeRuntimeState(status===0?'running':'blocked');return status;}
 
 seedFromCheckpoint();
 assertAuditIntegrity('run-start');
 writeRuntimeState('running');
-appendAudit('run-started',{requestedMinutes,requestedUnits,completedObjectives:[...completedObjectives].sort(),maxReplenishments,deterministicSliceMinutes,featureSliceMinutes,maxFeatureCycles,featurePassesPerSlice,maxNoProgressIterations,featureProtocol});
+appendAudit('run-started',{requestedMinutes,requestedUnits,completedObjectives:[...completedObjectives].sort(),maxReplenishments,deterministicSliceMinutes,featureSliceMinutes,maxFeatureCycles,featurePassesPerSlice,maxNoProgressIterations,featureProtocol,featureEngine});
 
 while(totalUnits<requestedUnits&&remainingMinutes()>0){
   iteration++;
@@ -63,14 +64,14 @@ while(totalUnits<requestedUnits&&remainingMinutes()>0){
   if(state?.status==='idle'&&totalUnits<requestedUnits&&replenishBacklog())continue;
   if(consecutiveNoProgress>=maxNoProgressIterations){appendAudit('no-progress-stop',{iteration,consecutiveNoProgress,maxNoProgressIterations,totalUnits,totalObjectives});break;}
   const featureStatus=runFeatureBrain();
-  if(featureStatus!==0){appendAudit('feature-brain-recoverable-failure',{iteration,status:featureStatus,remainingMinutes:Number(remainingMinutes().toFixed(2))});writeRuntimeState('running');}
+  if(featureStatus!==0){appendAudit('feature-brain-recoverable-failure',{iteration,status:featureStatus,remainingMinutes:Number(remainingMinutes().toFixed(2)),engine:featureEngine});writeRuntimeState('running');}
   if(remainingMinutes()<=1)break;
   if(state?.status==='idle'&&featureCycles>=maxFeatureCycles)break;
 }
 
-const summary={totalUnits,totalObjectives,iterations:iteration,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),replenishments,featureBrain:featureCycles>0,featureCycles,featurePassesPerSlice,consecutiveNoProgress,remainingMinutes:Number(remainingMinutes().toFixed(2)),featureProtocol};
+const summary={totalUnits,totalObjectives,iterations:iteration,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),replenishments,featureBrain:featureCycles>0,featureCycles,featurePassesPerSlice,consecutiveNoProgress,remainingMinutes:Number(remainingMinutes().toFixed(2)),featureProtocol,featureEngine};
 appendAudit('run-finished',summary);
 writeRuntimeState('finished');
 const audit=verifyAuditLog();
 if(!audit.valid){console.error(`[autobot] final audit verification failed: ${audit.error}`);process.exit(3);}
-console.log(`[autobot] sustained run finished: ${totalUnits}/${requestedUnits} newly verified deterministic units; ${totalObjectives} completed objectives; ${iteration} iterations; ${summary.elapsedMinutes} minutes elapsed; replenishments=${replenishments}; featureCycles=${featureCycles}; featurePassesPerSlice=${featurePassesPerSlice}; auditRecords=${audit.checked}.`);
+console.log(`[autobot] sustained run finished: ${totalUnits}/${requestedUnits} newly verified deterministic units; ${totalObjectives} completed objectives; ${iteration} iterations; ${summary.elapsedMinutes} minutes elapsed; replenishments=${replenishments}; featureCycles=${featureCycles}; featurePassesPerSlice=${featurePassesPerSlice}; engine=${featureEngine}; auditRecords=${audit.checked}.`);
