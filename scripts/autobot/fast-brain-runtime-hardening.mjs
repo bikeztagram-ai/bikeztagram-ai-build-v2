@@ -43,6 +43,24 @@ function runCheck`;
 if (!syntaxFunctionPattern.test(brain)) throw new Error('canonical syntaxCheck function shape is not recognized; refusing unsafe migration');
 brain = brain.replace(syntaxFunctionPattern, hardenedSyntaxFunction);
 
+// Keep the canonical verification contract intact, including changed-syntax.
+const runCheckPattern = /function runCheck\(check\) \{[\s\S]*?\n\}\nfunction readFileWindow/;
+const hardenedRunCheck = `function runCheck(check) {
+  try {
+    if (check === 'build') run('npm', ['run', 'build']);
+    else if (check === 'diff-check') run('git', ['diff', '--check']);
+    else if (check === 'changed-syntax') {
+      for (const file of capture('git', ['diff', '--name-only', '--', 'src', 'public']).split(/\\r?\\n/).filter(Boolean)) {
+        if (syntaxCheck(file) !== 'PASS') throw new Error(\`syntax failed: \${file}\`);
+      }
+    } else return \`ERROR: unsupported check \${check}\`;
+    return 'PASS';
+  } catch (error) { return \`FAIL \${[error.stdout, error.stderr, error.message].filter(Boolean).join('\\n').slice(-5000)}\`; }
+}
+function readFileWindow`;
+if (!runCheckPattern.test(brain)) throw new Error('canonical runCheck function shape is not recognized; refusing verification migration');
+brain = brain.replace(runCheckPattern, hardenedRunCheck);
+
 const modelCallPattern = /function modelCall\(messages(?:, (?:readToolEnabled = true|toolPhase = 'inspect'))?\) \{[\s\S]*?\n\s*return response;\n\}/;
 const hardenedModelCall = `function modelCall(messages, toolPhase = 'inspect') {
   const seconds = Math.min(180, Math.max(45, Math.floor(left() * 60)));
@@ -52,9 +70,6 @@ const hardenedModelCall = `function modelCall(messages, toolPhase = 'inspect') {
     verify: new Set(['run_check']),
     submit: new Set(['submit']),
   };
-  // If the previous tool result says the chosen file is blocked, force the
-  // next model request back to inspection. This prevents repeated edit calls
-  // on the same rejected file from consuming the remaining turn budget.
   const blockedRecovery = messages.some((message) => String(message?.content || '').includes('same file is blocked for this attempt after a failed edit'));
   const effectivePhase = blockedRecovery ? 'inspect' : toolPhase;
   const allowed = allowedByPhase[effectivePhase] || allowedByPhase.inspect;
@@ -103,7 +118,7 @@ if (editHandlerPattern.test(brain)) {
 for (const marker of [
   'const allowedByPhase =', 'const blockedRecovery =', 'const effectivePhase = blockedRecovery ? \'inspect\' : toolPhase;',
   "toolPhase = 'inspect'", "toolPhase = 'edit'", "toolPhase = 'verify'",
-  "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);'
+  "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);', "check === 'changed-syntax'"
 ]) if (!brain.includes(marker)) throw new Error(`tool-phase hardening marker missing: ${marker}`);
 fs.writeFileSync(brainPath, brain);
 
@@ -119,9 +134,9 @@ for (const marker of [
   "if (ext === '.jsx') args.push('--loader:.jsx=jsx');", "'--outfile=' + out",
   'const allowedByPhase =', 'const blockedRecovery =', 'const effectivePhase = blockedRecovery ? \'inspect\' : toolPhase;',
   "toolPhase = 'inspect'", "toolPhase = 'edit'", "toolPhase = 'verify'",
-  "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)'
+  "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)', "check === 'changed-syntax'"
 ]) if (!finalBrain.includes(marker)) throw new Error(`final hardening verification missing: ${marker}`);
 const finalTasks = fs.readFileSync(taskPath, 'utf8');
 if (finalTasks.includes('npm run verify:batch33')) throw new Error('stale export verification command remains after migration');
 if (!finalTasks.includes('export-contract-check.mjs')) throw new Error('live export contract check is missing after migration');
-console.log('[autobot] Qwen runtime hardening PASS: canonical agent verified, real JS/JSX syntax validation installed, transactional edits verified, durable progress verified, failed-edit recovery verified, strict phase-gated tool controller installed, one-tool-per-turn enforcement installed, blocked-file recovery steering installed, export migration guarded.');
+console.log('[autobot] Qwen runtime hardening PASS: canonical agent verified, real JS/JSX syntax validation installed, transactional edits verified, durable progress verified, strict phase-gated tool controller installed, one-tool-per-turn enforcement installed, blocked-file recovery steering installed, changed-syntax verification preserved, export migration guarded.');
