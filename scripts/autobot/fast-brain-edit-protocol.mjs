@@ -6,10 +6,12 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const root = process.env.AUTOBOT_HARDENING_ROOT || process.cwd();
 const brainPath = path.join(root, 'builder/runner/repository-aware-feature-brain.mjs');
-let brain = fs.readFileSync(brainPath, 'utf8');
+const originalBrain = fs.readFileSync(brainPath, 'utf8');
+let brain = originalBrain;
 
 const editToolPattern = /\{ type: 'function', function: \{ name: 'edit_file',[\s\S]*?\} \} \},\n  \{ type: 'function', function: \{ name: 'run_check'/;
 const hardenedEditTool = `{ type: 'function', function: { name: 'edit_file', description: 'Apply one safe product-source edit. Prefer mode=insert_after for additive changes: use a short unique existing anchor and add a small complete syntactic block. Use mode=replace only when replacing a small complete syntactic unit. Never replace an enclosing function unless you have read the complete function.', parameters: { type: 'object', required: ['file', 'search', 'replace'], properties: { file: { type: 'string' }, mode: { type: 'string', enum: ['replace', 'insert_after'], description: 'Use insert_after for the safest additive edit; use replace only for a small complete syntactic unit.' }, search: { type: 'string', description: 'For insert_after, a short unique existing anchor such as a function declaration or return statement; for replace, the exact unique old text.' }, replace: { type: 'string', description: 'For insert_after, only the new code to insert after the anchor; for replace, the complete replacement text.' } } } } },\n  { type: 'function', function: { name: 'run_check'`;
@@ -54,4 +56,10 @@ const contractMarkers = [
 ];
 for (const marker of contractMarkers) if (!brain.includes(marker)) throw new Error(`edit protocol marker missing: ${marker}`);
 fs.writeFileSync(brainPath, brain);
-console.log('[autobot] Qwen edit protocol PASS: additive insert_after mode, bounded edit size, syntax rollback, same-file reinspection recovery, and verification-failure reinspection installed.');
+try {
+  execFileSync(process.execPath, ['--check', brainPath], { cwd: root, encoding: 'utf8', stdio: 'pipe' });
+} catch (error) {
+  fs.writeFileSync(brainPath, originalBrain);
+  throw new Error(`hardened feature brain syntax validation failed; restored original: ${[error.stdout, error.stderr, error.message].filter(Boolean).join('\n').slice(0, 3000)}`);
+}
+console.log('[autobot] Qwen edit protocol PASS: additive insert_after mode, bounded edit size, syntax rollback, same-file reinspection recovery, verification-failure reinspection, and post-hardening syntax validation installed.');
