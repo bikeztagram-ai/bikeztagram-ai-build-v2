@@ -28,6 +28,11 @@ const turnNew = "const maxTurns = Math.min(10, Math.max(4, Number(process.env.AU
 if (brain.includes(turnOld)) brain = brain.replace(turnOld, turnNew);
 else if (!brain.includes(turnNew)) throw new Error('agent turn contract not found; refusing performance migration');
 
+const modeRequiredOld = "required: ['file', 'search', 'replace'], properties: { file: { type: 'string' }, mode:";
+const modeRequiredNew = "required: ['file', 'mode', 'search', 'replace'], properties: { file: { type: 'string' }, mode:";
+if (brain.includes(modeRequiredOld)) brain = brain.replace(modeRequiredOld, modeRequiredNew);
+else if (!brain.includes(modeRequiredNew)) throw new Error('edit mode contract not found; refusing explicit-mode migration');
+
 const promptOld = 'First inspect one supplied file with read_file. Then STOP INSPECTING and call edit_file with one precise, meaningful improvement.';
 const promptNew = 'First inspect one supplied file with read_file. Then STOP INSPECTING and immediately call edit_file with one precise, meaningful improvement. Keep the edit small so the tool call is fast.';
 if (brain.includes(promptOld)) brain = brain.replace(promptOld, promptNew);
@@ -37,6 +42,7 @@ for (const marker of [
   "const seconds = Math.min(90, Math.max(30, Math.floor(left() * 60)));",
   "options: { temperature: 0, num_ctx: 3072, num_predict: 420 }",
   "const maxTurns = Math.min(10, Math.max(4, Number(process.env.AUTOBOT_AGENT_TURNS || 10)));",
+  "required: ['file', 'mode', 'search', 'replace']",
   'Keep the edit small so the tool call is fast.'
 ]) if (!brain.includes(marker)) throw new Error(`performance marker missing: ${marker}`);
 
@@ -47,4 +53,4 @@ try {
   fs.writeFileSync(brainPath, originalBrain);
   throw new Error(`performance-hardened feature brain syntax validation failed; restored original: ${[error.stdout, error.stderr, error.message].filter(Boolean).join('\n').slice(0, 3000)}`);
 }
-console.log('[autobot] Qwen performance PASS: bounded 90s model calls, compact 3072 context, 420-token generation budget, up to 10 bounded turns, and fast small-edit guidance installed.');
+console.log('[autobot] Qwen performance PASS: bounded 90s model calls, compact 3072 context, 420-token generation budget, up to 10 bounded turns, explicit edit mode, and fast small-edit guidance installed.');
