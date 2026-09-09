@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Bikeztagram AutoBot — Aider-backed feature engineer.
- * Aider owns repository-map/edit/test execution; Bikeztagram owns objective,
+ * Aider owns repository-aware edit/test execution; Bikeztagram owns objective,
  * scope, rollback, verification, production gates and review.
  */
 import fs from 'node:fs';
@@ -11,13 +11,17 @@ import { execFileSync, spawnSync } from 'node:child_process';
 const root=process.cwd();
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const run=(cmd,args,options={})=>spawnSync(cmd,args,{cwd:root,encoding:'utf8',stdio:'inherit',...options});
-const protocol='aider-repo-map-v2';
+const protocol='aider-repo-map-v3';
 const maxPasses=Math.max(1,Math.min(3,Number(process.env.AUTOBOT_FEATURE_PASSES||1)));
 const model=process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b';
+const requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'15',10));
+const deadline=Date.now()+requestedMinutes*60_000;
+const perCallMaxMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_AIDER_CALL_TIMEOUT_MS||'180000',10));
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
 const objectives=JSON.parse(read('builder/brain/feature-objectives.json')).objectives||[];
 const state=fs.existsSync(statePath)?JSON.parse(read('builder/working/aider-feature-brain-state.json')):{protocol,completed:[],failed:[],runs:0};
 
+function remainingMs(){return Math.max(0,deadline-Date.now());}
 function objective(){
   const completed=new Set(state.completed||[]);
   return objectives.find(o=>o?.enabled!==false&&!completed.has(o.id)&&(!o.dependsOn||o.dependsOn.every(d=>completed.has(d))))||null;
@@ -33,24 +37,72 @@ function promptFor(obj,pass){
     `Objective-scoped product files: ${files.join(', ')}`,
     `Objective constraints: ${JSON.stringify(obj.constraints||[])}`,
     'First inspect the repository and relevant callers/contracts. Make one coherent, real product-quality improvement for this objective.',
-    'Treat the objective files above as the ONLY product files you may modify. Do not edit builder code, workflows, secrets, package/dependency manifests, generated output, or unrelated files.',
+    'The supplied objective files are the ONLY files you may modify. Do not modify any other path, including builder code, workflows, .gitignore, secrets, package/dependency manifests, generated output, or unrelated files.',
     'Preserve public contracts and all existing safety, scope, rollback, audit, production verification, and Gemini-free rules.',
     'Run the narrowest relevant verification and npm run build when practical. If a check fails, diagnose and repair it, then rerun the failed check.',
-    'Do not merely describe changes: actually edit the files.',
+    'Do not merely describe changes: actually edit the supplied files.',
     'Do not merge or create a pull request.'
   ].join('\\n');
+}
+function trackedPaths(){
+  try{return execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'}).split(/\\r?\\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);}catch{return[];}
+}
+function assertScope(before,obj){
+  const allowed=new Set(scopedFiles(obj));
+  const after=trackedPaths();
+  const newPaths=after.filter(p=>!before.has(p));
+  const unauthorized=newPaths.filter(p=>!allowed.has(p));
+  if(unauthorized.length){
+    console.error(`[aider] unauthorized modified paths: ${unauthorized.join(', ')}`);
+    for(const file of unauthorized){
+      try{execFileSync('git',['restore','--',file],{cwd:root,stdio:'inherit'});}catch{}
+      try{execFileSync('git',['clean','-fd','--',file],{cwd:root,stdio:'inherit'});}catch{}
+    }
+    throw new Error(`Aider modified files outside objective scope: ${unauthorized.join(', ')}`);
+  }
+}
+function verifyDiff(){execFileSync('git',['diff','--check'],{cwd:root,stdio:'inherit'});}
+function verifyBuild(){
+  const budget=Math.min(120_000,Math.max(30_000,remainingMs()-5_000));
+  if(budget<30_000)throw new Error('insufficient remaining run budget for build verification');
+  const result=run('npm',['run','build'],{timeout:budget});
+  if(result.error||result.status!==0)throw new Error(`npm run build failed with status ${result.status??'error'}`);
 }
 
 const obj=objective();
 if(!obj){console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective'}));process.exit(0);}
+const files=scopedFiles(obj);
+if(!files.length){console.error(`[aider] objective ${obj.id} has no scoped files`);process.exit(1);}
 let success=false;
 for(let pass=1;pass<=maxPasses;pass++){
+  if(remainingMs()<30_000){console.error('[aider] feature deadline reached before next pass');break;}
   state.runs=(state.runs||0)+1;
-  const result=run('aider',[`--model=${model}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-show-model-warnings','--message',promptFor(obj,pass)]);
+  const before=new Set(trackedPaths());
+  const timeout=Math.min(perCallMaxMs,Math.max(30_000,remainingMs()-5_000));
+  const args=[`--model=${model}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-show-model-warnings','--map-tokens=1024','--message',promptFor(obj,pass),...files];
+  const result=run('aider',args,{timeout});
+  if(result.error){
+    console.error(`[aider] pass ${pass} stopped: ${result.error.code||result.error.message}`);
+    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error.code||'process-error'}];
+    if(remainingMs()<30_000)break;
+    continue;
+  }
   if(result.status!==0){state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.status}];continue;}
-  try{execFileSync('git',['diff','--check'],{cwd:root,stdio:'inherit'});success=true;break;}catch{state.failed=[...(state.failed||[]),{id:obj.id,pass,code:'diff-check'}];}
+  try{
+    assertScope(before,obj);
+    verifyDiff();
+    verifyBuild();
+    success=true;
+    break;
+  }catch(error){
+    console.error(`[aider] pass ${pass} verification failed: ${error.message}`);
+    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:'verification',error:error.message}];
+    if(remainingMs()<30_000)break;
+  }
 }
 if(success){state.completed=[...(state.completed||[]),obj.id];state.lastSuccess={id:obj.id,at:new Date().toISOString()};}
-state.protocol=protocol;fs.mkdirSync(path.dirname(statePath),{recursive:true});fs.writeFileSync(statePath,JSON.stringify(state,null,2)+'\n');
-console.log(JSON.stringify({ok:success,protocol,objective:obj.id,passes:maxPasses,model}));
+state.protocol=protocol;
+fs.mkdirSync(path.dirname(statePath),{recursive:true});
+fs.writeFileSync(statePath,JSON.stringify(state,null,2)+'\\n');
+console.log(JSON.stringify({ok:success,protocol,objective:obj.id,passes:maxPasses,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs()}));
 process.exit(success?0:1);
