@@ -15,11 +15,29 @@ const protocol='aider-repo-map-v3';
 const maxPasses=Math.max(1,Math.min(3,Number(process.env.AUTOBOT_FEATURE_PASSES||1)));
 const model=process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b';
 const requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'15',10));
-const deadline=Date.now()+requestedMinutes*60_000;
+const configuredDeadline=Number.parseInt(process.env.AUTOBOT_FEATURE_DEADLINE_EPOCH_MS||'',10);
+const deadline=Number.isFinite(configuredDeadline)&&configuredDeadline>Date.now()?configuredDeadline:Date.now()+requestedMinutes*60_000;
 const perCallMaxMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_AIDER_CALL_TIMEOUT_MS||'180000',10));
 const aiderApiTimeoutSeconds=Math.max(30,Math.min(120,Number.parseInt(process.env.AUTOBOT_AIDER_API_TIMEOUT_SECONDS||'120',10)));
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
-const objectives=JSON.parse(read('builder/brain/feature-objectives.json')).objectives||[];
+
+function loadObjectives(){
+  const file=path.join(root,'builder/brain/feature-objectives.json');
+  try{return JSON.parse(fs.readFileSync(file,'utf8')).objectives||[];}
+  catch(error){
+    try{
+      const changed=execFileSync('git',['status','--short','--','builder/brain/feature-objectives.json'],{cwd:root,encoding:'utf8'}).trim();
+      if(changed){
+        console.error('[aider] protected feature-objectives.json was modified/corrupted; restoring tracked version.');
+        execFileSync('git',['restore','--','builder/brain/feature-objectives.json'],{cwd:root,stdio:'inherit'});
+        return JSON.parse(fs.readFileSync(file,'utf8')).objectives||[];
+      }
+    }catch{}
+    throw new Error(`feature objectives JSON is invalid and could not be safely restored: ${error.message}`);
+  }
+}
+
+const objectives=loadObjectives();
 const state=fs.existsSync(statePath)?JSON.parse(read('builder/working/aider-feature-brain-state.json')):{protocol,completed:[],failed:[],runs:0};
 
 function remainingMs(){return Math.max(0,deadline-Date.now());}
