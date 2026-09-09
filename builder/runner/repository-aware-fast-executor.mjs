@@ -10,7 +10,7 @@ const units = +(process.env.BUILDER_MAX_UNITS || 1000);
 const started = Date.now();
 const left = () => Math.max(0, minutes - (Date.now() - started) / 60000);
 const stateFile = path.join(root, 'builder/working/deterministic-autobot.json');
-const REQUIRED_LOCAL_MODEL = 'qwen3:4b-instruct-2507-q4_K_M';
+const REQUIRED_LOCAL_MODEL = 'devstral:24b';
 const run = (file, env = {}) => {
   const r = spawnSync(process.execPath, [file], {
     cwd: root,
@@ -79,8 +79,8 @@ function deterministic() {
   return r;
 }
 
-function qwenAgent() {
-  return run('builder/runner/repository-aware-feature-brain.mjs', {
+function devstralAgent() {
+  return run('builder/runner/repository-aware-devstral-agent.mjs', {
     BUILDER_MAX_MINUTES: String(Math.max(1, Math.min(10, Math.floor(left())))),
     AUTOBOT_FEATURE_MAX_ATTEMPTS: '1',
     AUTOBOT_FEATURE_MAX_EDITS: '3',
@@ -97,26 +97,26 @@ if (hardenRuntime() !== 0) {
   process.exit(2);
 }
 if (hardenEditProtocol() !== 0) {
-  console.error('[autobot] fast brain edit-protocol hardening failed; refusing to run Qwen unprotected');
+  console.error('[autobot] fast brain edit-protocol hardening failed; refusing to run Devstral unprotected');
   process.exit(2);
 }
 if (hardenPerformance() !== 0) {
-  console.error('[autobot] fast brain performance hardening failed; refusing to run Qwen with unverified model settings');
+  console.error('[autobot] fast brain performance hardening failed; refusing to run Devstral with unverified model settings');
   process.exit(2);
 }
 if (hardenEditScope() !== 0) {
-  console.error('[autobot] fast brain edit-scope hardening failed; refusing to run Qwen unprotected');
+  console.error('[autobot] fast brain edit-scope hardening failed; refusing to run Devstral unprotected');
   process.exit(2);
 }
 if (rollbackRegression() !== 0) {
-  console.error('[autobot] fast brain rollback regression failed; refusing to run Qwen unprotected');
+  console.error('[autobot] fast brain rollback regression failed; refusing to run Devstral unprotected');
   process.exit(2);
 }
 appendAudit('repository-aware-fast-run-started', {
   minutes,
   units,
   model: REQUIRED_LOCAL_MODEL,
-  mode: 'repository-aware-agent-v7',
+  mode: 'repository-aware-agent-v7-devstral-experimental',
 });
 
 while (left() > 1 && verified < units) {
@@ -124,7 +124,7 @@ while (left() > 1 && verified < units) {
   if (d !== 0) failures += 1;
   if (left() <= 1) break;
 
-  const f = qwenAgent();
+  const f = devstralAgent();
   if (f === 0) features += 1;
   else failures += 1;
   if (left() <= 1) break;
@@ -132,7 +132,7 @@ while (left() > 1 && verified < units) {
   const refreshed = index();
   if (refreshed !== 0) {
     failures += 1;
-    console.error('[autobot] repository index refresh failed after Qwen agent slice; stopping safely');
+    console.error('[autobot] repository index refresh failed after Devstral agent slice; stopping safely');
     break;
   }
   if (d !== 0 && f !== 0) break;
@@ -144,7 +144,7 @@ const summary = {
   failures,
   elapsedMinutes: Number(((Date.now() - started) / 60000).toFixed(2)),
   model: REQUIRED_LOCAL_MODEL,
-  mode: 'repository-aware-agent-v7',
+  mode: 'repository-aware-agent-v7-devstral-experimental',
 };
 appendAudit('repository-aware-fast-run-finished', summary);
 const audit = verifyAuditLog();
