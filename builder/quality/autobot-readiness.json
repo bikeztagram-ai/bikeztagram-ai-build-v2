@@ -1,11 +1,13 @@
 {
-  "version": 1,
+  "version": 3,
   "status": "ready-for-live-run",
-  "requiredComponents": 16,
+  "requiredComponents": 24,
   "missing": [],
   "executorSyntax": "passed",
+  "canonicalContracts": "passed",
+  "architecture": "repository-aware-agent-v7 / Qwen3 4B / transactional recovery",
   "merge": "human-review-only",
   "deployment": "human-review-only",
   "geminiRequired": false,
-  "generatedAt": "2026-08-27T20:44:55.937Z"
+  "generatedAt": "2026-09-09T07:50:19.019Z"
 }
