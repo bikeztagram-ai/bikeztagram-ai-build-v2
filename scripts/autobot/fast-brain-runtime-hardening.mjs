@@ -98,10 +98,19 @@ if (editHandlerPattern.test(brain)) {
   throw new Error('canonical edit handler shape is not recognized; refusing recovery migration');
 }
 
+// A blocked-file rejection is itself a failed edit attempt. Force the
+// controller back to inspection so Qwen cannot burn subsequent turns by
+// repeatedly calling edit_file on the same rejected file.
+brain = brain.replace(
+  "result = 'ERROR: same file is blocked for this attempt after a failed edit. Choose another objective file.';",
+  "result = 'ERROR: same file is blocked for this attempt after a failed edit. Choose another objective file.'; toolPhase = 'inspect';"
+);
+
 for (const marker of [
   'const allowedByPhase =', "toolPhase = 'inspect'", "toolPhase = 'edit'",
   "toolPhase = 'verify'", "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);'
 ]) if (!brain.includes(marker)) throw new Error(`tool-phase hardening marker missing: ${marker}`);
+if (!brain.includes("same file is blocked for this attempt after a failed edit. Choose another objective file.'; toolPhase = 'inspect';")) throw new Error('blocked-file recovery phase marker missing');
 fs.writeFileSync(brainPath, brain);
 
 let tasks = fs.readFileSync(taskPath, 'utf8');
@@ -115,9 +124,10 @@ for (const marker of [
   "const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');",
   "if (ext === '.jsx') args.push('--loader:.jsx=jsx');", "'--outfile=' + out",
   'const allowedByPhase =', "toolPhase = 'inspect'", "toolPhase = 'edit'",
-  "toolPhase = 'verify'", "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)'
+  "toolPhase = 'verify'", "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)',
+  "same file is blocked for this attempt after a failed edit. Choose another objective file.'; toolPhase = 'inspect';"
 ]) if (!finalBrain.includes(marker)) throw new Error(`final hardening verification missing: ${marker}`);
 const finalTasks = fs.readFileSync(taskPath, 'utf8');
 if (finalTasks.includes('npm run verify:batch33')) throw new Error('stale export verification command remains after migration');
 if (!finalTasks.includes('export-contract-check.mjs')) throw new Error('live export contract check is missing after migration');
-console.log('[autobot] Qwen runtime hardening PASS: canonical agent verified, real JS/JSX syntax validation installed, transactional edits verified, durable progress verified, failed-edit recovery verified, strict phase-gated tool controller installed, one-tool-per-turn enforcement installed, export migration guarded.');
+console.log('[autobot] Qwen runtime hardening PASS: canonical agent verified, real JS/JSX syntax validation installed, transactional edits verified, durable progress verified, failed-edit recovery verified, strict phase-gated tool controller installed, one-tool-per-turn enforcement installed, blocked-file recovery steering installed, export migration guarded.');
