@@ -1,4 +1,4 @@
-name: Autonomous Builder V2 Fast Brain — Devstral 24B Experimental
+name: DEVSTRAL AUTOBOT — RUN THIS
 
 on:
   workflow_dispatch:
