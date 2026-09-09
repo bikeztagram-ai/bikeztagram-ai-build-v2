@@ -7,7 +7,7 @@ const workflow=fs.readFileSync('.github/workflows/autonomous-builder-v2-fast.yml
 const objectives=JSON.parse(fs.readFileSync('builder/brain/feature-objectives.json','utf8')).objectives||[];
 const checks=[
  ['Aider adapter exists',runner.includes('aider')&&runner.includes('aider-repo-map-v2')],
- ['objective file schema',runner.includes('feature-objectives.json')&&runner.includes('o?.files')],
+ ['objective file schema',runner.includes('feature-objectives.json')&&runner.includes('obj?.files')],
  ['dependency schema',runner.includes('o.dependsOn')],
  ['bounded passes',runner.includes('AUTOBOT_FEATURE_PASSES')],
  ['diff verification',runner.includes("['diff','--check']")],
