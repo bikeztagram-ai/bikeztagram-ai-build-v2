@@ -2,65 +2,11 @@ import { buildCoveragePlan } from './director.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const finite=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
-const sourceIdentity=(moment,index)=>{
-  const mediaIndex=Number(moment?.mediaIndex);
-  if(Number.isInteger(mediaIndex)&&mediaIndex>=0)return mediaIndex;
-  const sourceIndex=Number(moment?.sourceIndex);
-  if(Number.isInteger(sourceIndex)&&sourceIndex>=0)return sourceIndex;
-  return index;
-};
-
-function momentsFromAnalysis(analysis){
-  if(Array.isArray(analysis?.bestMoments))return analysis.bestMoments;
-  if(Array.isArray(analysis?.cuts))return analysis.cuts;
-  return [];
-}
-
-function sourceItems(analysis){
-  if(Array.isArray(analysis?.sources)&&analysis.sources.length)return analysis.sources;
-  const moments=momentsFromAnalysis(analysis);
-  const bySource=new Map();
-  moments.forEach((moment,index)=>{
-    const sourceIndex=sourceIdentity(moment,index);
-    if(!bySource.has(sourceIndex))bySource.set(sourceIndex,{index:sourceIndex,mediaIndex:sourceIndex,type:moment?.type||moment?.mediaType||'video',name:moment?.filename||moment?.name||`source-${sourceIndex}`,duration:finite(moment?.durationInSeconds,finite(moment?.duration,1)),score:finite(moment?.score,50),cinematicScore:finite(moment?.cinematicScore,finite(moment?.score,50)),subject:moment?.subject});
-  });
-  return [...bySource.values()];
-}
-
-function bestMomentForSource(moments,sourceIndex){
-  const candidates=moments.map((moment,index)=>({moment,index})).filter(item=>sourceIdentity(item.moment,item.index)===sourceIndex);
-  return candidates.sort((a,b)=>finite(b.moment?.score,0)-finite(a.moment?.score,0)||a.index-b.index)[0]||null;
-}
-
-export function buildDirectorRuntimeSelection(analysis={},options={}){
-  const moments=momentsFromAnalysis(analysis);
-  const sources=sourceItems(analysis);
-  if(!sources.length||!moments.length)return{analysis,coverage:[],selectedMoments:[],source:'director-v3-runtime'};
-  const maxCuts=clamp(Math.floor(finite(options.maxCuts,8)),1,30);
-  const coverage=buildCoveragePlan(sources,{creativePrompt:options.creativePrompt||analysis?.prompt||'',maxShots:Math.min(maxCuts,sources.length)});
-  const selected=[];
-  const usedMomentIndices=new Set();
-  for(const item of coverage){
-    const source=sources[item.mediaIndex];
-    const sourceIndex=finite(source?.mediaIndex,item.mediaIndex);
-    const candidate=bestMomentForSource(moments,sourceIndex);
-    if(!candidate||usedMomentIndices.has(candidate.index))continue;
-    usedMomentIndices.add(candidate.index);
-    selected.push({...candidate.moment,__momentIndex:candidate.index,sourceIndex,mediaIndex:sourceIndex,editorialRole:item.role,directorSelectionScore:item.selectionScore,directorFamily:item.family,directorSelectionReason:item.selectionReason});
-  }
-  if(selected.length<maxCuts){
-    moments.map((moment,index)=>({moment,index})).sort((a,b)=>finite(b.moment?.score,0)-finite(a.moment?.score,0)||a.index-b.index).forEach(({moment,index})=>{
-      if(selected.length>=maxCuts||usedMomentIndices.has(index))return;
-      usedMomentIndices.add(index);
-      const sourceIndex=sourceIdentity(moment,index);
-      selected.push({...moment,__momentIndex:index,mediaIndex:sourceIndex,sourceIndex,directorSelectionScore:finite(moment?.score,50),directorSelectionReason:'Director V3 fallback: strongest remaining evidence'});
-    });
-  }
-  const cuts=selected.map(moment=>({momentIndex:moment.__momentIndex,mediaIndex:finite(moment?.mediaIndex,0),sourceIndex:finite(moment?.sourceIndex,finite(moment?.mediaIndex,0)),editorialRole:moment?.editorialRole||'cinematic-build',directorSelectionScore:finite(moment?.directorSelectionScore,0),directorFamily:moment?.directorFamily,reason:moment?.directorSelectionReason}));
-  return{
-    analysis:{...analysis,aiEditPlan:{cuts},directorDecision:{version:'universal-director-runtime-v1',coverage,selectedMedia:selected.map(moment=>({mediaIndex:finite(moment?.mediaIndex,0),editorialRole:moment?.editorialRole,score:finite(moment?.directorSelectionScore,0)}))}},
-    coverage,
-    selectedMoments:selected.map(({__momentIndex,...moment})=>moment),
-    source:'director-v3-runtime'
-  };
-}
+const normalized=(value,fallback=0)=>{const n=finite(value,fallback);return n>0&&n<=1?n*100:n;};
+const sourceIdentity=(moment,index)=>{const mediaIndex=Number(moment?.mediaIndex);if(Number.isInteger(mediaIndex)&&mediaIndex>=0)return mediaIndex;const sourceIndex=Number(moment?.sourceIndex);if(Number.isInteger(sourceIndex)&&sourceIndex>=0)return sourceIndex;return index;};
+const momentsFromAnalysis=analysis=>Array.isArray(analysis?.bestMoments)?analysis.bestMoments:Array.isArray(analysis?.cuts)?analysis.cuts:[];
+const qualityOfMoment=moment=>{const cinematic=normalized(moment?.cinematicScore??moment?.score,50);const motion=normalized(moment?.motionScore??moment?.motion,0);const visual=moment?.visualQuality||{};const visualScore=(normalized(visual.detail,0)+normalized(visual.contrast,0)+normalized(visual.sharpness,0)+normalized(visual.composition,0))/4;return cinematic*.45+motion*.2+visualScore*.35;};
+const mergeEvidence=(base,moments)=>{const strongest=[...moments].sort((a,b)=>qualityOfMoment(b)-qualityOfMoment(a)||finite(b?.score,0)-finite(a?.score,0))[0]||{};const visual=base?.visualQuality||{};const momentVisual=moments.map(m=>m?.visualQuality||{});const maxVisual=key=>Math.max(normalized(visual[key],0),...momentVisual.map(v=>normalized(v[key],0)));return{...base,score:Math.max(finite(base?.score,0),finite(strongest?.score,0)),cinematicScore:Math.max(normalized(base?.cinematicScore,0),normalized(strongest?.cinematicScore??strongest?.score,0)),motionScore:Math.max(normalized(base?.motionScore,0),...moments.map(m=>normalized(m?.motionScore??m?.motion,0))),visualQuality:{detail:maxVisual('detail')/100,contrast:maxVisual('contrast')/100,sharpness:maxVisual('sharpness')/100,composition:maxVisual('composition')/100},bestMoments:moments.slice(0,12)};};
+function sourceItems(analysis){const moments=momentsFromAnalysis(analysis);if(Array.isArray(analysis?.sources)&&analysis.sources.length){return analysis.sources.map((source,index)=>{const sourceIndex=sourceIdentity(source,index);const related=moments.filter((moment,momentIndex)=>sourceIdentity(moment,momentIndex)===sourceIndex);return mergeEvidence({...source,index,mediaIndex:Number.isInteger(Number(source?.mediaIndex))?Number(source.mediaIndex):sourceIndex},related);});}const bySource=new Map();moments.forEach((moment,index)=>{const sourceIndex=sourceIdentity(moment,index);const existing=bySource.get(sourceIndex);bySource.set(sourceIndex,{...(existing||{}),index:sourceIndex,mediaIndex:sourceIndex,type:moment?.type||moment?.mediaType||'video',name:moment?.filename||moment?.name||`source-${sourceIndex}`,durationInSeconds:Math.max(finite(existing?.durationInSeconds,0),finite(moment?.durationInSeconds,finite(moment?.duration,1))),subject:moment?.subject});});return[...bySource.entries()].map(([sourceIndex,source])=>mergeEvidence(source,moments.filter((moment,index)=>sourceIdentity(moment,index)===sourceIndex)));}
+function bestMomentForSource(moments,sourceIndex){return moments.map((moment,index)=>({moment,index,quality:qualityOfMoment(moment)})).filter(item=>sourceIdentity(item.moment,item.index)===sourceIndex).sort((a,b)=>b.quality-a.quality||finite(b.moment?.score,0)-finite(a.moment?.score,0)||a.index-b.index)[0]||null;}
+export function buildDirectorRuntimeSelection(analysis={},options={}){const moments=momentsFromAnalysis(analysis);const sources=sourceItems(analysis);if(!sources.length||!moments.length)return{analysis,coverage:[],selectedMoments:[],source:'director-v3-runtime'};const maxCuts=clamp(Math.floor(finite(options.maxCuts,8)),1,30);const coverage=buildCoveragePlan(sources,{creativePrompt:options.creativePrompt||analysis?.prompt||'',maxShots:Math.min(maxCuts,sources.length)});const selected=[];const usedMomentIndices=new Set();for(const item of coverage){const source=sources[item.mediaIndex];const sourceIndex=finite(source?.mediaIndex,item.mediaIndex);const candidate=bestMomentForSource(moments,sourceIndex);if(!candidate||usedMomentIndices.has(candidate.index))continue;usedMomentIndices.add(candidate.index);selected.push({...candidate.moment,__momentIndex:candidate.index,sourceIndex,mediaIndex:sourceIndex,editorialRole:item.role,directorSelectionScore:item.selectionScore,directorFamily:item.family,directorSelectionReason:item.selectionReason});}if(selected.length<maxCuts){moments.map((moment,index)=>({moment,index,quality:qualityOfMoment(moment)})).sort((a,b)=>b.quality-a.quality||finite(b.moment?.score,0)-finite(a.moment?.score,0)||a.index-b.index).forEach(({moment,index})=>{if(selected.length>=maxCuts||usedMomentIndices.has(index))return;usedMomentIndices.add(index);const sourceIndex=sourceIdentity(moment,index);selected.push({...moment,__momentIndex:index,mediaIndex:sourceIndex,sourceIndex,directorSelectionScore:finite(moment?.score,50),directorSelectionReason:'Director V3 fallback: strongest remaining evidence'});});}const cuts=selected.map(moment=>({momentIndex:moment.__momentIndex,mediaIndex:finite(moment?.mediaIndex,0),sourceIndex:finite(moment?.sourceIndex,finite(moment?.mediaIndex,0)),editorialRole:moment?.editorialRole||'cinematic-build',directorSelectionScore:finite(moment?.directorSelectionScore,0),directorFamily:moment?.directorFamily,reason:moment?.directorSelectionReason}));return{analysis:{...analysis,aiEditPlan:{cuts},directorDecision:{version:'universal-director-runtime-v1',coverage,selectedMedia:selected.map(moment=>({mediaIndex:finite(moment?.mediaIndex,0),editorialRole:moment?.editorialRole,score:finite(moment?.directorSelectionScore,0)}))}},coverage,selectedMoments:selected.map(({__momentIndex,...moment})=>moment),source:'director-v3-runtime'};}
