@@ -40,6 +40,8 @@ jobs:
         run: npm run verify:director-v3-intelligence
       - name: Verify Director V3 runtime integration
         run: npm run verify:director-v3-runtime-integration
+      - name: Verify Director V3 handoff integrity
+        run: npm run verify:director-v3-handoff-integrity
       - name: Verify director render handoff
         run: npm run verify:director-render-handoff-integrity
       - name: Verify render quality loop
