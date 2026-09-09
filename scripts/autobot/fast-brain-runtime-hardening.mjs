@@ -43,9 +43,6 @@ function runCheck`;
 if (!syntaxFunctionPattern.test(brain)) throw new Error('canonical syntaxCheck function shape is not recognized; refusing unsafe migration');
 brain = brain.replace(syntaxFunctionPattern, hardenedSyntaxFunction);
 
-// Match the complete modelCall function through its unique return statement.
-// A generic non-greedy brace match is unsafe because allowedByPhase contains
-// nested object/set braces and can truncate the generated function.
 const modelCallPattern = /function modelCall\(messages(?:, (?:readToolEnabled = true|toolPhase = 'inspect'))?\) \{[\s\S]*?\n\s*return response;\n\}/;
 const hardenedModelCall = `function modelCall(messages, toolPhase = 'inspect') {
   const seconds = Math.min(180, Math.max(45, Math.floor(left() * 60)));
@@ -55,7 +52,12 @@ const hardenedModelCall = `function modelCall(messages, toolPhase = 'inspect') {
     verify: new Set(['run_check']),
     submit: new Set(['submit']),
   };
-  const allowed = allowedByPhase[toolPhase] || allowedByPhase.inspect;
+  // If the previous tool result says the chosen file is blocked, force the
+  // next model request back to inspection. This prevents repeated edit calls
+  // on the same rejected file from consuming the remaining turn budget.
+  const blockedRecovery = messages.some((message) => String(message?.content || '').includes('same file is blocked for this attempt after a failed edit'));
+  const effectivePhase = blockedRecovery ? 'inspect' : toolPhase;
+  const allowed = allowedByPhase[effectivePhase] || allowedByPhase.inspect;
   const availableTools = tools.filter((tool) => allowed.has(tool.function?.name));
   const body = JSON.stringify({ model, stream: false, keep_alive: '15m', think: false, tools: availableTools, options: { temperature: 0, num_ctx: 4096, num_predict: 900 }, messages: trimMessages(messages) });
   const raw = run('curl', ['-sS', '--fail', '--connect-timeout', '10', '--max-time', String(seconds), \`\${host}/api/chat\`, '-H', 'Content-Type: application/json', '-d', body], { timeout: (seconds + 10) * 1000 });
@@ -98,19 +100,11 @@ if (editHandlerPattern.test(brain)) {
   throw new Error('canonical edit handler shape is not recognized; refusing recovery migration');
 }
 
-// A blocked-file rejection is itself a failed edit attempt. Force the
-// controller back to inspection so Qwen cannot burn subsequent turns by
-// repeatedly calling edit_file on the same rejected file.
-brain = brain.replace(
-  "result = 'ERROR: same file is blocked for this attempt after a failed edit. Choose another objective file.';",
-  "result = 'ERROR: same file is blocked for this attempt after a failed edit. Choose another objective file.'; toolPhase = 'inspect';"
-);
-
 for (const marker of [
-  'const allowedByPhase =', "toolPhase = 'inspect'", "toolPhase = 'edit'",
-  "toolPhase = 'verify'", "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);'
+  'const allowedByPhase =', 'const blockedRecovery =', 'const effectivePhase = blockedRecovery ? \'inspect\' : toolPhase;',
+  "toolPhase = 'inspect'", "toolPhase = 'edit'", "toolPhase = 'verify'",
+  "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)', 'response = modelCall(messages, toolPhase);'
 ]) if (!brain.includes(marker)) throw new Error(`tool-phase hardening marker missing: ${marker}`);
-if (!brain.includes("same file is blocked for this attempt after a failed edit. Choose another objective file.'; toolPhase = 'inspect';")) throw new Error('blocked-file recovery phase marker missing');
 fs.writeFileSync(brainPath, brain);
 
 let tasks = fs.readFileSync(taskPath, 'utf8');
@@ -123,9 +117,9 @@ const finalBrain = fs.readFileSync(brainPath, 'utf8');
 for (const marker of [
   "const esbuild = path.join(root, 'node_modules', '.bin', 'esbuild');",
   "if (ext === '.jsx') args.push('--loader:.jsx=jsx');", "'--outfile=' + out",
-  'const allowedByPhase =', "toolPhase = 'inspect'", "toolPhase = 'edit'",
-  "toolPhase = 'verify'", "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)',
-  "same file is blocked for this attempt after a failed edit. Choose another objective file.'; toolPhase = 'inspect';"
+  'const allowedByPhase =', 'const blockedRecovery =', 'const effectivePhase = blockedRecovery ? \'inspect\' : toolPhase;',
+  "toolPhase = 'inspect'", "toolPhase = 'edit'", "toolPhase = 'verify'",
+  "toolPhase = result === 'PASS' ? 'submit' : 'edit'", 'parsedCalls.slice(0, 1)'
 ]) if (!finalBrain.includes(marker)) throw new Error(`final hardening verification missing: ${marker}`);
 const finalTasks = fs.readFileSync(taskPath, 'utf8');
 if (finalTasks.includes('npm run verify:batch33')) throw new Error('stale export verification command remains after migration');
