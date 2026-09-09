@@ -30,9 +30,11 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
 
-      - name: Validate core source syntax
+      - name: Validate core JavaScript syntax
         run: |
           set -euo pipefail
           node --check src/director.js
           node --check src/renderer.js
-          node --check src/App.jsx
+
+      - name: Validate production build
+        run: npm run build
