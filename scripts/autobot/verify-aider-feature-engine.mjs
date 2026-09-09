@@ -19,7 +19,7 @@ const checks=[
  ['Aider cannot edit gitignore',runner.includes('--no-gitignore')],
  ['diff verification',runner.includes("['diff','--check']")],
  ['build verification',runner.includes("['run','build']")],
- ['scope enforcement',runner.includes('unauthorized modified paths')&&runner.includes('git restore')],
+ ['scope enforcement',runner.includes('unauthorized modified paths')&&runner.includes("['restore','--',file]")],
  ['no automatic commits',runner.includes('--no-auto-commits')&&runner.includes('--no-dirty-commits')],
  ['controller can select Aider',controller.includes("AUTOBOT_FEATURE_ENGINE === 'aider'")&&controller.includes('aider-feature-brain.mjs')],
  ['controller uses current protocol',controller.includes('aider-repo-map-v3')],
