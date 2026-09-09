@@ -55,6 +55,10 @@ function hardenEditProtocol() {
   return run('scripts/autobot/fast-brain-edit-protocol.mjs');
 }
 
+function hardenPerformance() {
+  return run('scripts/autobot/fast-brain-performance-hardening.mjs');
+}
+
 function hardenEditScope() {
   return run('scripts/autobot/fast-brain-scope-guard.mjs');
 }
@@ -80,7 +84,7 @@ function qwenAgent() {
     BUILDER_MAX_MINUTES: String(Math.max(1, Math.min(10, Math.floor(left())))),
     AUTOBOT_FEATURE_MAX_ATTEMPTS: '1',
     AUTOBOT_FEATURE_MAX_EDITS: '3',
-    AUTOBOT_AGENT_TURNS: '8',
+    AUTOBOT_AGENT_TURNS: '10',
     LOCAL_AI_MODEL: REQUIRED_LOCAL_MODEL,
   });
 }
@@ -94,6 +98,10 @@ if (hardenRuntime() !== 0) {
 }
 if (hardenEditProtocol() !== 0) {
   console.error('[autobot] fast brain edit-protocol hardening failed; refusing to run Qwen unprotected');
+  process.exit(2);
+}
+if (hardenPerformance() !== 0) {
+  console.error('[autobot] fast brain performance hardening failed; refusing to run Qwen with unverified model settings');
   process.exit(2);
 }
 if (hardenEditScope() !== 0) {
