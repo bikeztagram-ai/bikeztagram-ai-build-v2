@@ -51,6 +51,10 @@ function hardenRuntime() {
   return run('scripts/autobot/fast-brain-runtime-hardening.mjs');
 }
 
+function hardenEditProtocol() {
+  return run('scripts/autobot/fast-brain-edit-protocol.mjs');
+}
+
 function rollbackRegression() {
   return run('scripts/autobot/verify-fast-brain-rollback.mjs');
 }
@@ -82,6 +86,10 @@ if (!verifyRuntimeIdentity()) process.exit(2);
 if (index() !== 0) process.exit(2);
 if (hardenRuntime() !== 0) {
   console.error('[autobot] fast brain runtime hardening failed; stopping safely');
+  process.exit(2);
+}
+if (hardenEditProtocol() !== 0) {
+  console.error('[autobot] fast brain edit-protocol hardening failed; refusing to run Qwen unprotected');
   process.exit(2);
 }
 if (rollbackRegression() !== 0) {
