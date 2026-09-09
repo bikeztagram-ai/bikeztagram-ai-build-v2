@@ -25,8 +25,7 @@ assert.deepEqual(plan.directorSelection.map(item=>item.mediaId),plan.cuts.map(cu
 assert.deepEqual(plan.directorSelection.map(item=>item.sourceIndex),plan.cuts.map(cut=>cut.sourceIndex));
 assert.ok(plan.cuts.some(cut=>cut.mediaId==='action'),'directed action source must survive handoff');
 assert.ok(plan.cuts.some(cut=>cut.mediaId==='hero'),'directed hero source must survive handoff');
-assert.ok(plan.directorSelection.some(item=>item.score===94),'action director score must survive handoff');
-assert.ok(plan.directorSelection.some(item=>item.score===91),'hero director score must survive handoff');
-assert.ok(plan.directorSelection.every(item=>item.mediaId));
+assert.ok(plan.directorSelection.some(item=>item.mediaId==='action'&&item.score===94),'action director score and media identity must survive handoff');
+assert.ok(plan.directorSelection.some(item=>item.mediaId==='hero'&&item.score===91),'hero director score and media identity must survive handoff');
 
 console.log('director-v3-handoff-integrity: PASS');
