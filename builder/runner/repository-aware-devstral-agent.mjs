@@ -2,9 +2,8 @@
 /**
  * Experimental Devstral adapter for the repository-aware Fast Brain.
  *
- * The Qwen baseline remains untouched. Runtime hardening still operates on the
- * canonical feature brain first; this adapter creates an isolated temporary
- * Devstral variant only for the experimental agent invocation.
+ * The isolated Devstral copy is created from the hardened canonical feature
+ * brain so the experimental path retains the proven safety/edit machinery.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -15,6 +14,7 @@ const root = process.cwd();
 const source = path.join(root, 'builder/runner/repository-aware-feature-brain.mjs');
 const model = process.env.LOCAL_AI_MODEL || 'devstral:24b';
 const expected = 'devstral:24b';
+const canonicalModel = 'qwen3:4b-instruct-2507-q4_K_M';
 
 if (model !== expected) {
   console.error(`[autobot] Devstral adapter refusing model drift: ${model}`);
@@ -22,16 +22,18 @@ if (model !== expected) {
 }
 
 const original = fs.readFileSync(source, 'utf8');
-const qwenModel = 'qwen3:4b-instruct-2507-q4_K_M';
-if (!original.includes(qwenModel)) {
-  console.error('[autobot] Devstral adapter could not find the canonical Qwen model marker.');
+if (!original.includes(canonicalModel)) {
+  console.error('[autobot] Devstral adapter could not find the canonical model marker.');
   process.exit(2);
 }
 
 const temp = path.join(os.tmpdir(), `bikeztagram-devstral-feature-brain-${process.pid}.mjs`);
-const isolated = original.replaceAll(qwenModel, expected);
-if (isolated === original || !isolated.includes(expected)) {
-  console.error('[autobot] Devstral adapter failed to create an isolated model variant.');
+const isolated = original
+  .replaceAll(canonicalModel, expected)
+  .replaceAll('Qwen', 'Devstral')
+  .replaceAll('qwen', 'devstral');
+if (isolated === original || !isolated.includes(expected) || /qwen/i.test(isolated)) {
+  console.error('[autobot] Devstral adapter failed to create a model-clean isolated variant.');
   process.exit(2);
 }
 
