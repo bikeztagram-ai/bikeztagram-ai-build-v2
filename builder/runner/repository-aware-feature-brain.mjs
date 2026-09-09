@@ -88,11 +88,11 @@ function readFileWindow(file, start = 1, end = 90, objective) {
   if (!isSafeRepoFile(file)) return 'ERROR: file is not a safe indexed repository file.';
   if (!allowedFile(file, objective)) return 'ERROR: file is outside the objective write/read scope.';
   const lines = read(file).split(/\r?\n/);
-  const first = Math.max(1, Number(start) || 1);
-  const requestedEnd = Number(end) || 0;
-  const boundedEnd = requestedEnd > first ? Math.max(requestedEnd, first + 69) : first + 89;
-  const last = Math.min(lines.length, first + 89, boundedEnd);
-  return lines.slice(first - 1, last).map((line, i) => `${String(first + i).padStart(4, ' ')}| ${line}`).join('\n').slice(0, 4800);
+  const requestedStart = Math.max(1, Number(start) || 1);
+  const requestedEnd = Number(end) > requestedStart ? Number(end) : requestedStart + 89;
+  const first = Math.max(1, requestedStart - 35);
+  const last = Math.min(lines.length, Math.max(requestedEnd, requestedStart + 69) + 35);
+  return lines.slice(first - 1, last).map((line, i) => `${String(first + i).padStart(4, ' ')}| ${line}`).join('\n').slice(0, 7000);
 }
 function editFile(file, search, replacement, objective) {
   file = String(file || '');
@@ -114,10 +114,10 @@ function editFile(file, search, replacement, objective) {
 }
 
 const tools = [
-  { type: 'function', function: { name: 'read_file', description: 'Read an exact window from an objective file.', parameters: { type: 'object', required: ['file'], properties: { file: { type: 'string' }, start: { type: 'integer' }, end: { type: 'integer' } } } } },
+  { type: 'function', function: { name: 'read_file', description: 'Read an expanded context window around the requested location from an objective file. The returned window intentionally includes surrounding lines so you can see enclosing functions/blocks.', parameters: { type: 'object', required: ['file'], properties: { file: { type: 'string' }, start: { type: 'integer' }, end: { type: 'integer' } } } } },
   { type: 'function', function: { name: 'git_status', description: 'Inspect working tree status.', parameters: { type: 'object', properties: {} } } },
   { type: 'function', function: { name: 'git_diff', description: 'Inspect product source diff.', parameters: { type: 'object', properties: {} } } },
-  { type: 'function', function: { name: 'edit_file', description: 'Apply one exact replacement in an objective file.', parameters: { type: 'object', required: ['file', 'search', 'replace'], properties: { file: { type: 'string' }, search: { type: 'string' }, replace: { type: 'string' } } } } },
+  { type: 'function', function: { name: 'edit_file', description: 'Apply one exact replacement in an objective file. Prefer a complete syntactic block rather than a fragment.', parameters: { type: 'object', required: ['file', 'search', 'replace'], properties: { file: { type: 'string' }, search: { type: 'string' }, replace: { type: 'string' } } } } },
   { type: 'function', function: { name: 'run_check', description: 'Run build, diff-check, or changed-syntax.', parameters: { type: 'object', required: ['check'], properties: { check: { type: 'string', enum: ['build', 'diff-check', 'changed-syntax'] } } } } },
   { type: 'function', function: { name: 'submit', description: 'Finish after a real product edit and verification.', parameters: { type: 'object', required: ['summary'], properties: { summary: { type: 'string' } } } } }
 ];
@@ -143,8 +143,8 @@ function parseToolCalls(response) {
   return out;
 }
 function trimMessages(messages) {
-  if (messages.length <= 6) return messages;
-  return [messages[0], messages[1], ...messages.slice(-4)];
+  if (messages.length <= 8) return messages;
+  return [messages[0], messages[1], ...messages.slice(-6)];
 }
 function modelCall(messages) {
   const seconds = Math.min(180, Math.max(45, Math.floor(left() * 60)));
@@ -169,13 +169,15 @@ function executeObjective(objective, repair) {
     `CURRENT CONTEXT: ${context}`,
     '',
     'EXECUTION CONTRACT:',
-    'First inspect one supplied file with read_file if needed. Then STOP INSPECTING and call edit_file with one precise, meaningful improvement.',
+    'First inspect one supplied file with read_file if needed. The requested line range is only a location hint; the tool will return expanded surrounding context so you can see the enclosing function/block.',
+    'Do not edit until you have enough surrounding context to understand the complete syntactic unit you are changing.',
+    'Then STOP INSPECTING and call edit_file with one precise, meaningful improvement. Prefer a complete function/block or other syntactically self-contained multi-line search block.',
     'After EDIT APPLIED, call run_check with build or diff-check, repair failures if necessary, then call submit.',
     'Do not give an explanation or plan instead of a tool call. Do not edit infrastructure. Never invent media or capabilities.',
     repair ? 'This is a repair attempt after a previous non-submitting attempt. You MUST progress to edit_file.' : ''
   ].join('\n');
   let messages = [
-    { role: 'system', content: 'Act only through the supplied tools. Prefer an actionable tool call over prose. After one inspection, edit.' },
+    { role: 'system', content: 'Act only through the supplied tools. Prefer an actionable tool call over prose. Inspect enough surrounding code to understand the enclosing unit before editing. After inspection, edit.' },
     { role: 'user', content: basePrompt }
   ];
 
@@ -231,8 +233,8 @@ function executeObjective(objective, repair) {
   }
   const diff = gitDiff();
   if (!diff.trim()) { for (const [file, snapshot] of snapshots) if (read(file) !== snapshot) fs.writeFileSync(abs(file), snapshot); return { ok: false, reason: 'submission had no verified product diff', edits: editCount }; }
-  const build = runCheck('build'); const diffCheck = runCheck('diff-check');
-  if (build !== 'PASS' || diffCheck !== 'PASS') { for (const [file, snapshot] of snapshots) if (read(file) !== snapshot) fs.writeFileSync(abs(file), snapshot); return { ok: false, reason: `verification failed: ${build} / ${diffCheck}`, edits: editCount }; }
+  const build = runCheck('build'); const diffCheck = runCheck('diff-check'); const changedSyntax = runCheck('changed-syntax');
+  if (build !== 'PASS' || diffCheck !== 'PASS' || changedSyntax !== 'PASS') { for (const [file, snapshot] of snapshots) if (read(file) !== snapshot) fs.writeFileSync(abs(file, snapshot); return { ok: false, reason: `verification failed: ${build} / ${diffCheck} / ${changedSyntax}`, edits: editCount }; }
   progress[objective.id] = Math.max(progress[objective.id] || 0, 1); saveState();
   appendAudit('repository-aware-feature-complete', { protocol: PROTOCOL, objectiveId: objective.id, summary, edits: editCount });
   return { ok: true, objective: objective.id, summary, edits: editCount };
