@@ -27,14 +27,14 @@ const deterministicSliceMinutes = Math.max(3, Number.parseInt(process.env.AUTOBO
 const featureSliceMinutes = Math.max(3, Number.parseInt(process.env.AUTOBOT_FEATURE_SLICE_MINUTES || '15', 10));
 const maxFeatureCycles = Math.max(1, Number.parseInt(process.env.AUTOBOT_MAX_FEATURE_CYCLES || '24', 10));
 const featurePassesPerSlice = Math.max(1, Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES_PER_SLICE || '1', 10));
-const featureProtocol = process.env.AUTOBOT_FEATURE_ENGINE === 'aider' ? 'aider-repo-map-v1' : 'structured-search-replace-v3';
+const featureProtocol = process.env.AUTOBOT_FEATURE_ENGINE === 'aider' ? 'aider-repo-map-v3' : 'structured-search-replace-v3';
 const featureEngine = process.env.AUTOBOT_FEATURE_ENGINE === 'aider' ? 'builder/runner/aider-feature-brain.mjs' : 'builder/runner/feature-brain.mjs';
 const completedObjectives = new Set();
 
 function readState() { try { return JSON.parse(fs.readFileSync(checkpoint, 'utf8')); } catch { return null; } }
 function seedFromCheckpoint() { const state=readState(); if(!state)return; if(Array.isArray(state.history?.objectives))for(const id of state.history.objectives)completedObjectives.add(id); if(state.objectiveId&&state.status==='objective-complete')completedObjectives.add(state.objectiveId); }
 function remainingMinutes(){return Math.max(0,requestedMinutes-(Date.now()-started)/60000);}
-function writeRuntimeState(status='running'){const state={schemaVersion:2,status,requestedMinutes,requestedUnits,totalUnits,totalObjectives,iterations:iteration,replenishments,featureCycles,featurePassesPerSlice,consecutiveNoProgress,featureEngine,startedAt:new Date(started).toISOString(),updatedAt:new Date().toISOString(),elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),remainingMinutes:Number(remainingMinutes().toFixed(2))};fs.mkdirSync(path.dirname(runtimeStatePath),{recursive:true});fs.writeFileSync(runtimeStatePath,JSON.stringify(state,null,2)+'\n');return state;}
+function writeRuntimeState(status='running'){const state={schemaVersion:2,status,requestedMinutes,requestedUnits,totalUnits,totalObjectives,iterations:iteration,replenishments,featureCycles,featurePassesPerSlice,consecutiveNoProgress,featureEngine,featureProtocol,startedAt:new Date(started).toISOString(),updatedAt:new Date().toISOString(),elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),remainingMinutes:Number(remainingMinutes().toFixed(2))};fs.mkdirSync(path.dirname(runtimeStatePath),{recursive:true});fs.writeFileSync(runtimeStatePath,JSON.stringify(state,null,2)+'\n');return state;}
 function assertAuditIntegrity(stage){const result=verifyAuditLog(); if(!result.valid){console.error(`[autobot] audit integrity failure before ${stage}: ${result.error}`);process.exit(3);} return result;}
 function runOnce(minutes,units){const env={...process.env,BUILDER_MAX_MINUTES:String(Math.max(1,Math.ceil(minutes))),BUILDER_MAX_UNITS:String(Math.max(1,units)),BUILDER_COMPLETED_OBJECTIVES:[...completedObjectives].join(',')};const result=spawnSync(process.execPath,['builder/runner/deterministic-executor.mjs'],{cwd:root,stdio:'inherit',env});return result.error?1:(result.status??1);}
 function replenishBacklog(){if(replenishments>=maxReplenishments)return false;const result=spawnSync(process.execPath,['scripts/autobot/replenish-production-backlog.mjs'],{cwd:root,stdio:'inherit',env:{...process.env,AUTOBOT_MAX_GENERATED_WAVES:String(maxReplenishments)}});if(result.error||result.status!==0)return false;replenishments++;appendAudit('backlog-replenished',{wave:replenishments,maxWaves:maxReplenishments});writeRuntimeState();return true;}
@@ -47,7 +47,7 @@ appendAudit('run-started',{requestedMinutes,requestedUnits,completedObjectives:[
 
 while(totalUnits<requestedUnits&&remainingMinutes()>0){
   iteration++;
-  const deterministicSlice=Math.min(deterministicSliceMinutes,Math.max(1,Math.floor(remainingMinutes())));
+  const deterministicSlice=Math.min(deterministicSliceMinutes,Math.max(1,Math.floor(remainingMinutes()));
   appendAudit('iteration-started',{iteration,remainingMinutes:Math.floor(remainingMinutes()),remainingUnits:requestedUnits-totalUnits,featureCycles,deterministicSlice,consecutiveNoProgress});
   const status=runOnce(deterministicSlice,requestedUnits-totalUnits);
   const state=readState();
