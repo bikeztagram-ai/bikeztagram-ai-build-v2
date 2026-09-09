@@ -72,6 +72,9 @@ const obj=objective();
 if(!obj){console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective'}));process.exit(0);}
 const files=scopedFiles(obj);
 if(!files.length){console.error(`[aider] objective ${obj.id} has no scoped files`);process.exit(1);}
+const useSrcSubtree=files.every(file=>file.startsWith('src/'));
+const aiderCwd=useSrcSubtree?path.join(root,'src'):root;
+const aiderFiles=useSrcSubtree?files.map(file=>file.slice(4)):files;
 let success=false;
 for(let pass=1;pass<=maxPasses;pass++){
   const remaining=remainingMs();
@@ -79,8 +82,8 @@ for(let pass=1;pass<=maxPasses;pass++){
   state.runs=(state.runs||0)+1;
   const before=new Set(trackedPaths());
   const timeout=Math.min(perCallMaxMs,remaining-5_000);
-  const args=[`--model=${model}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-show-model-warnings','--map-tokens=1024','--subtree-only','--message',promptFor(obj,pass),...files];
-  const result=run('aider',args,{timeout});
+  const args=[`--model=${model}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=512','--subtree-only','--message',promptFor(obj,pass),...aiderFiles];
+  const result=spawnSync('aider',args,{cwd:aiderCwd,encoding:'utf8',stdio:'inherit',timeout});
   if(result.error){
     console.error(`[aider] pass ${pass} stopped: ${result.error.code||result.error.message}`);
     state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error.code||'process-error'}];
