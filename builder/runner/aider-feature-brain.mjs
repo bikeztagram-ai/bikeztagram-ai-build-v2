@@ -36,11 +36,10 @@ function promptFor(obj,pass){
     `Acceptance criteria: ${JSON.stringify(obj.acceptance||[])}`,
     `Objective-scoped product files: ${files.join(', ')}`,
     `Objective constraints: ${JSON.stringify(obj.constraints||[])}`,
-    'First inspect the repository and relevant callers/contracts. Make one coherent, real product-quality improvement for this objective.',
+    'Inspect the supplied product files and their relevant callers/contracts as needed. Make one coherent, real product-quality improvement for this objective.',
     'The supplied objective files are the ONLY files you may modify. Do not modify any other path, including builder code, workflows, .gitignore, secrets, package/dependency manifests, generated output, or unrelated files.',
     'Preserve public contracts and all existing safety, scope, rollback, audit, production verification, and Gemini-free rules.',
-    'Run the narrowest relevant verification and npm run build when practical. If a check fails, diagnose and repair it, then rerun the failed check.',
-    'Do not merely describe changes: actually edit the supplied files.',
+    'Run the narrowest relevant verification. Do not merely describe changes: actually edit the supplied files.',
     'Do not merge or create a pull request.'
   ].join('\\n');
 }
@@ -63,9 +62,9 @@ function assertScope(before,obj){
 }
 function verifyDiff(){execFileSync('git',['diff','--check'],{cwd:root,stdio:'inherit'});}
 function verifyBuild(){
-  const budget=Math.min(120_000,Math.max(30_000,remainingMs()-5_000));
-  if(budget<30_000)throw new Error('insufficient remaining run budget for build verification');
-  const result=run('npm',['run','build'],{timeout:budget});
+  const remaining=remainingMs();
+  if(remaining<35_000)throw new Error('insufficient remaining run budget for build verification');
+  const result=run('npm',['run','build'],{timeout:Math.min(120_000,remaining-5_000)});
   if(result.error||result.status!==0)throw new Error(`npm run build failed with status ${result.status??'error'}`);
 }
 
@@ -75,16 +74,17 @@ const files=scopedFiles(obj);
 if(!files.length){console.error(`[aider] objective ${obj.id} has no scoped files`);process.exit(1);}
 let success=false;
 for(let pass=1;pass<=maxPasses;pass++){
-  if(remainingMs()<30_000){console.error('[aider] feature deadline reached before next pass');break;}
+  const remaining=remainingMs();
+  if(remaining<35_000){console.error('[aider] feature deadline reached before next pass');break;}
   state.runs=(state.runs||0)+1;
   const before=new Set(trackedPaths());
-  const timeout=Math.min(perCallMaxMs,Math.max(30_000,remainingMs()-5_000));
-  const args=[`--model=${model}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-show-model-warnings','--map-tokens=1024','--message',promptFor(obj,pass),...files];
+  const timeout=Math.min(perCallMaxMs,remaining-5_000);
+  const args=[`--model=${model}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-show-model-warnings','--map-tokens=1024','--subtree-only','--message',promptFor(obj,pass),...files];
   const result=run('aider',args,{timeout});
   if(result.error){
     console.error(`[aider] pass ${pass} stopped: ${result.error.code||result.error.message}`);
     state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error.code||'process-error'}];
-    if(remainingMs()<30_000)break;
+    if(remainingMs()<35_000)break;
     continue;
   }
   if(result.status!==0){state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.status}];continue;}
@@ -97,7 +97,7 @@ for(let pass=1;pass<=maxPasses;pass++){
   }catch(error){
     console.error(`[aider] pass ${pass} verification failed: ${error.message}`);
     state.failed=[...(state.failed||[]),{id:obj.id,pass,code:'verification',error:error.message}];
-    if(remainingMs()<30_000)break;
+    if(remainingMs()<35_000)break;
   }
 }
 if(success){state.completed=[...(state.completed||[]),obj.id];state.lastSuccess={id:obj.id,at:new Date().toISOString()};}
