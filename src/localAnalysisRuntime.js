@@ -1,5 +1,6 @@
 import { analyseLocalMedia } from './localMediaAnalysis.js';
 import { createAIEditPlan } from './aiEditPlanner.js';
+import { buildDirectorRuntimeSelection } from './directorRuntimeAdapter.js';
 
 const originalFetch = window.fetch.bind(window);
 let installed = false;
@@ -9,6 +10,12 @@ const fileFromUrl = async (url, filename, mimeType) => {
   if (!response.ok) throw new Error(`Local analysis could not read source media (${response.status}).`);
   const blob = await response.blob();
   return new File([blob], filename || 'media', { type: mimeType || blob.type || 'application/octet-stream' });
+};
+
+const buildLocalPlan = (analysis, prompt, targetDuration) => {
+  const directed = buildDirectorRuntimeSelection(analysis, { creativePrompt: prompt, maxCuts: 8 });
+  const plan = createAIEditPlan(directed.analysis, { creativePrompt: prompt, targetDuration: targetDuration || 15, maxCuts: 8, colorGrade: 'dark-cinematic' });
+  return { plan, directorSelection: directed };
 };
 
 export function installLocalAnalysisRuntime() {
@@ -21,8 +28,8 @@ export function installLocalAnalysisRuntime() {
       if (path === '/api/captions') return jsonResponse({ success: true, hasSpeech: false, language: '', cues: [], notes: 'Local-only mode: speech analysis provider disabled.', source: 'local-only' });
       if (path === '/api/edit-plan') {
         const body = JSON.parse(init.body || '{}');
-        const plan = createAIEditPlan(body.analysis || {}, { creativePrompt: body.prompt || '', targetDuration: body.targetDuration || 15, maxCuts: 8, colorGrade: 'dark-cinematic' });
-        return jsonResponse({ success: true, plan, source: 'local-director' });
+        const { plan, directorSelection } = buildLocalPlan(body.analysis || {}, body.prompt || '', body.targetDuration);
+        return jsonResponse({ success: true, plan, directorSelection, source: 'local-director-v3' });
       }
       return originalFetch(input, init);
     }
@@ -35,8 +42,8 @@ export function installLocalAnalysisRuntime() {
       const files = [];
       for (const item of items.slice(0, 12)) files.push(await fileFromUrl(item.url, item.filename, item.mimeType));
       const analysis = await analyseLocalMedia(files, body.prompt || '');
-      const plan = createAIEditPlan(analysis, { creativePrompt: body.prompt || '', targetDuration: body.targetDuration || 15, maxCuts: 8, colorGrade: 'dark-cinematic' });
-      return jsonResponse({ success: true, analysis, aiEditPlan: plan, plan, source: 'local-browser-analysis' });
+      const { plan, directorSelection } = buildLocalPlan(analysis, body.prompt || '', body.targetDuration);
+      return jsonResponse({ success: true, analysis, aiEditPlan: plan, plan, directorSelection, source: 'local-browser-analysis-v4-director-v3' });
     } catch (error) {
       return jsonResponse({ success: false, error: error?.message || 'Local media analysis failed.' }, 500);
     }
