@@ -1,4 +1,4 @@
-name: Autonomous Builder V2 Fast Brain — Qwen3 4B
+name: Autonomous Builder V2 Fast Brain — Devstral 24B Experimental
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ on:
         options: ['15m','30m','1h','2h','3h','4h','5h','6h']
 
 concurrency:
-  group: autonomous-builder-v2-fast
+  group: autonomous-builder-v2-fast-devstral
   cancel-in-progress: false
 
 permissions:
@@ -27,7 +27,7 @@ permissions:
 env:
   BUILDER_MAX_UNITS: ${{ inputs.max_units }}
   REQUESTED_DURATION: ${{ inputs.duration }}
-  LOCAL_AI_MODEL: qwen3:4b-instruct-2507-q4_K_M
+  LOCAL_AI_MODEL: devstral:24b
   BUILDER_BASE_BRANCH: main
 
 jobs:
@@ -52,8 +52,8 @@ jobs:
           test "$actual" = "$expected"
           echo "[autobot] exact checkout revision: PASS"
 
-      - name: Verify Fast Brain release architecture
-        run: node scripts/autobot/verify-fast-brain-release-contract.mjs
+      - name: Verify Fast Brain Devstral experimental architecture
+        run: node scripts/autobot/verify-fast-brain-devstral-contract.mjs
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
@@ -62,11 +62,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ollama/models
-          key: bikeztagram-local-ai-${{ runner.os }}-qwen3-4b-instruct-2507-q4_K_M
+          key: bikeztagram-local-ai-${{ runner.os }}-devstral-24b
 
-      - name: Start local AI brain — Qwen3 4B
+      - name: Start local AI brain — Devstral 24B
         env:
-          LOCAL_AI_MODEL: qwen3:4b-instruct-2507-q4_K_M
+          LOCAL_AI_MODEL: devstral:24b
         run: bash scripts/autobot/install-local-brain.sh
 
       - name: Start performance proxy
@@ -87,14 +87,14 @@ jobs:
             exit 1
           fi
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=180' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=300' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=1' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=3' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_AGENT_TURNS=8' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_AGENT_TURNS=10' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=650' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=900' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_THINK=false' >> "$GITHUB_ENV"
-          echo '[autobot] Qwen3 4B performance proxy ready'
+          echo '[autobot] Devstral 24B performance proxy ready'
 
       - name: Resolve duration
         run: |
@@ -111,19 +111,20 @@ jobs:
           esac
           echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
           echo "BUILDER_SEGMENT=1" >> "$GITHUB_ENV"
-          echo "[autobot] Qwen3 4B fast-brain budget: ${minutes}m"
+          echo "[autobot] Devstral 24B Fast Brain budget: ${minutes}m"
 
       - name: Validate autonomous builder
         run: |
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/repository-aware-fast-executor.mjs
           node --check builder/runner/repository-aware-feature-brain.mjs
+          node --check builder/runner/repository-aware-devstral-agent.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
           node --check scripts/autobot/fast-brain-runtime-hardening.mjs
+          node --check scripts/autobot/fast-brain-performance-hardening.mjs
           node --check scripts/autobot/verify-fast-brain-rollback.mjs
-          node --check scripts/autobot/verify-fast-brain-release-contract.mjs
+          node --check scripts/autobot/verify-fast-brain-devstral-contract.mjs
           node --check scripts/autobot/verify-fast-brain-agent-harness.mjs
-          node --check scripts/autobot/verify-fast-brain-live-qwen-smoke.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
@@ -136,10 +137,7 @@ jobs:
           node scripts/autobot/verify-fast-brain-agent-harness.mjs
           node builder/quality/autobot-ready.mjs
 
-      - name: Prove real Qwen code-building path
-        run: node scripts/autobot/verify-fast-brain-live-qwen-smoke.mjs
-
-      - name: Run fast sustained builder — repository-aware Qwen3 4B
+      - name: Run fast sustained builder — repository-aware Devstral 24B
         run: node builder/runner/repository-aware-fast-executor.mjs
 
       - name: Require a real product-source change
@@ -189,14 +187,14 @@ jobs:
           git add -A
           git commit -m 'feat: autonomous builder fast brain checkpoint'
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the local Ollama performance proxy and repository-aware Qwen3 4B agent.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 Devstral checkpoint' --body 'Experimental autonomous builder checkpoint using isolated local Devstral 24B. Review required before merge.' || true
 
       - name: Post Cache local AI model
         if: always()
         uses: actions/cache/save@v4
         with:
           path: ~/.ollama/models
-          key: bikeztagram-local-ai-${{ runner.os }}-qwen3-4b-instruct-2507-q4_K_M
+          key: bikeztagram-local-ai-${{ runner.os }}-devstral-24b
 
       - name: Post Checkout exact workflow revision
         if: always()
@@ -207,4 +205,4 @@ jobs:
 
       - name: Complete job
         if: always()
-        run: echo 'Autonomous Builder V2 Fast Brain — Qwen3 4B complete.'
+        run: echo 'Autonomous Builder V2 Fast Brain — Devstral 24B experimental run complete.'
