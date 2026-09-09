@@ -40,6 +40,11 @@ const hardenedVerifyFailurePhase = "else if (call.name === 'run_check') { result
 if (brain.includes(verifyFailurePhase)) brain = brain.replace(verifyFailurePhase, hardenedVerifyFailurePhase);
 else if (!brain.includes("toolPhase = result === 'PASS' ? 'submit' : 'inspect'")) throw new Error('verification phase handler not found; refusing recovery migration');
 
+const executionPrompt = "First inspect one supplied file with read_file if needed. Then STOP INSPECTING and call edit_file with one precise, meaningful improvement.";
+const hardenedExecutionPrompt = "First inspect one supplied file with read_file. Then STOP INSPECTING and call edit_file with one precise, meaningful improvement. For a new top-level helper prefer mode=insert_before with a short unique declaration anchor; use insert_after only for a complete top-level statement; use replace only for a small complete syntactic unit. Never invent an enclosing function body.";
+if (brain.includes(executionPrompt)) brain = brain.replace(executionPrompt, hardenedExecutionPrompt);
+else if (!brain.includes('For a new top-level helper prefer mode=insert_before')) throw new Error('execution edit prompt not found; refusing prompt migration');
+
 const failurePrompt = "messages.push({ role: 'user', content: failedEditAttempts > 1 ? 'Two edit attempts have failed. STOP working on the current file. Your NEXT tool call MUST be read_file on a DIFFERENT objective file, then make one small syntactically complete edit there.' : 'Edit failed. Do NOT repeat the same replacement or edit the failed file again. Your NEXT tool call MUST be read_file on a DIFFERENT objective file, then make one small syntactically complete edit there.' });";
 const hardenedFailurePrompt = "messages.push({ role: 'user', content: failedEditAttempts > 1 ? 'Two edit attempts have failed. Re-inspect the affected code before editing. Your NEXT tool call MUST be read_file; after that use a different anchor or insert_before mode with the smallest complete top-level change.' : 'Edit failed and was rolled back. Re-inspect the affected code before editing. Your NEXT tool call MUST be read_file; do not repeat the same replacement or anchor. Prefer insert_before for a new top-level helper or insert_after for a complete top-level statement.' });";
 if (brain.includes(failurePrompt)) brain = brain.replace(failurePrompt, hardenedFailurePrompt);
@@ -53,6 +58,7 @@ const contractMarkers = [
   "call.args.mode === 'insert_before' ? insertBefore",
   "failedEditFiles.delete(String(call.args.file || ''))",
   "toolPhase = result === 'PASS' ? 'submit' : 'inspect'",
+  'For a new top-level helper prefer mode=insert_before',
   'Edit failed and was rolled back. Re-inspect',
 ];
 for (const marker of contractMarkers) if (!brain.includes(marker)) throw new Error(`edit protocol marker missing: ${marker}`);
@@ -63,4 +69,4 @@ try {
   fs.writeFileSync(brainPath, originalBrain);
   throw new Error(`hardened feature brain syntax validation failed; restored original: ${[error.stdout, error.stderr, error.message].filter(Boolean).join('\n').slice(0, 3000)}`);
 }
-console.log('[autobot] Qwen edit protocol PASS: insert_before/insert_after additive modes, bounded edit size, syntax rollback, same-file reinspection recovery, verification-failure reinspection, and post-hardening syntax validation installed.');
+console.log('[autobot] Qwen edit protocol PASS: insert_before/insert_after additive modes, bounded edit size, aligned edit prompt, syntax rollback, same-file reinspection recovery, verification-failure reinspection, and post-hardening syntax validation installed.');
