@@ -1,6 +1,43 @@
 {
-  "version": 3,
+  "version": 4,
   "objectives": [
+    {
+      "id": "autobot-self-improvement",
+      "kind": "self-improvement",
+      "priority": 110,
+      "title": "Self-audit and improve the Aider feature-engineering loop",
+      "dependsOn": [],
+      "files": ["builder/runner/aider-feature-brain.mjs"],
+      "allowNewFiles": ["builder/runner/self-improvement-planner.mjs"],
+      "protectedPaths": [
+        "builder/brain/feature-objectives.json",
+        "scripts/autobot/verify-self-improvement-boundary.mjs",
+        "scripts/autobot/verify-autobot-safety-contract.mjs",
+        "scripts/autobot/verify-autobot-safety-contract-v2.mjs",
+        "scripts/autobot/verify-autobot-continuous-loop.mjs",
+        "scripts/autobot/verify-autobot-feature-edit-protocol.mjs",
+        "builder/quality/",
+        ".github/workflows/",
+        "package.json"
+      ],
+      "acceptance": [
+        "self-improvement is explicitly distinguished from product work",
+        "Aider can create only explicitly allowlisted new files",
+        "hard protected paths cannot be edited by self-improvement",
+        "self-improvement cannot widen its own scope or protected-path policy",
+        "self-improvement boundary verifier passes",
+        "npm run build passes"
+      ],
+      "constraints": [
+        "remain Gemini-free and provider-free in product runtime",
+        "preserve no-auto-commit behavior",
+        "preserve rollback, scope, audit, production and verification gates",
+        "do not modify protected paths",
+        "do not modify workflows, package manifests, safety verifiers or objective definitions",
+        "do not create files outside allowNewFiles",
+        "make a real engineering improvement, not documentation-only or cosmetic work"
+      ]
+    },
     {"id":"cinematic-quality","priority":100,"title":"Improve cinematic edit quality end to end","dependsOn":[],"files":["src/director.js","src/aiEditPlanner.js","src/renderer.js"],"acceptance":["auditable director decisions","purposeful shot timing motion and transition intent","renderer consumes plan without black frames or timing regressions","npm run build passes"],"constraints":["preserve public contracts","do not rewrite renderer wholesale","do not invent media","do not modify protected infrastructure"]},
     {"id":"editor-reliability","priority":95,"title":"Improve editor lifecycle reliability","dependsOn":[],"files":["src/App.jsx","src/projectPersistence.js"],"acceptance":["truthful loading error and recovery states","saved metadata restores into real editor state","missing local media is explicit and recoverable","npm run build passes"],"constraints":["never persist File Blob or object URLs as durable media","preserve upload render export contracts"]},
     {"id":"social-export","priority":85,"title":"Improve creator export delivery","dependsOn":["editor-reliability"],"files":["src/socialExport.js","src/App.jsx"],"acceptance":["9:16 1:1 and 16:9 profiles are coherent","deterministic output metadata and filenames","truthful duration/output validation","npm run build passes"],"constraints":["preserve successful MP4 export","do not alter director or renderer implementation"]},
