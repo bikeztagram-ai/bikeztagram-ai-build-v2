@@ -12,6 +12,7 @@ const checks=[
  ['bounded passes',runner.includes('AUTOBOT_FEATURE_PASSES')],
  ['hard deadline',runner.includes('deadline=Date.now()+requestedMinutes*60_000')&&runner.includes('remainingMs()')],
  ['bounded Aider process',runner.includes('spawnSync')&&runner.includes('timeout')&&runner.includes('perCallMaxMs')],
+ ['bounded Aider API',runner.includes('--timeout=${aiderApiTimeoutSeconds}')&&runner.includes('AUTOBOT_AIDER_API_TIMEOUT_SECONDS')],
  ['scoped Aider files',runner.includes('...aiderFiles')&&runner.includes('scopedFiles(obj)')],
  ['focused product subtree',runner.includes("files.every(file=>file.startsWith('src/'))")&&runner.includes("path.join(root,'src')")],
  ['reduced repo-map scope',runner.includes('--subtree-only')&&runner.includes('--map-tokens=512')],
