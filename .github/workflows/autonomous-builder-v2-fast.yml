@@ -35,6 +35,10 @@ env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
   AUTOBOT_FEATURE_ENGINE: aider
+  AUTOBOT_FINISH_GRACE_MINUTES: 5
+  AUTOBOT_DETERMINISTIC_SLICE_MINUTES: 5
+  AUTOBOT_FEATURE_SLICE_MINUTES: 20
+  AUTOBOT_FEATURE_PASSES_PER_SLICE: 2
   BUILDER_BASE_BRANCH: main
 
 jobs:
@@ -86,11 +90,10 @@ jobs:
           echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_ENGINE=aider' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
-          echo '[autobot] performance proxy ready; Aider repo-map feature engine selected; closed-loop verification remains enabled'
+          echo '[autobot] performance proxy ready; Aider repo-map feature engine selected; resumable pass checkpoints enabled'
 
       - name: Resolve duration
         run: |
@@ -107,7 +110,7 @@ jobs:
           esac
           echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
           echo "BUILDER_SEGMENT=1" >> "$GITHUB_ENV"
-          echo "[autobot] fast-brain budget: ${minutes}m"
+          echo "[autobot] fast-brain budget: ${minutes}m + up to ${AUTOBOT_FINISH_GRACE_MINUTES}m finish grace"
 
       - name: Validate autonomous builder
         run: |
@@ -115,6 +118,7 @@ jobs:
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/feature-brain.mjs
           node --check builder/runner/aider-feature-brain.mjs
+          node --check builder/runner/aider-state-store.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
@@ -123,6 +127,7 @@ jobs:
           node scripts/autobot/verify-autobot-continuous-loop.mjs
           node scripts/autobot/verify-feature-objective-dependencies.mjs
           node scripts/autobot/verify-aider-feature-engine.mjs
+          node scripts/autobot/verify-aider-state-recovery.mjs
           node builder/quality/autobot-ready.mjs
 
       - name: Run fast sustained builder
@@ -141,18 +146,24 @@ jobs:
         if: always()
         run: node builder/runner/segment-state.mjs
 
-      - name: Publish checkpoint
+      - name: Publish clean product checkpoint
         id: publish
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # Runtime state, Aider caches/history and audit telemetry are execution artifacts,
+          # not product changes. Never package them into an AutoBot product checkpoint.
+          git restore -- builder/working builder/monitor builder/quality 2>/dev/null || true
+          rm -f .aider.chat.history.md .aider.input.history
+          rm -rf .aider.tags.cache.v4
+          git clean -fd -- builder/working builder/monitor builder/quality .aider.tags.cache.v4 2>/dev/null || true
           branch="autonomous-builder-v2-fast/${GITHUB_RUN_ID}"
           git checkout -b "$branch"
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add -- src package.json
           git commit -m 'feat: autonomous builder fast brain checkpoint' || true
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the Aider repository-map engine with local Ollama models while retaining Bikeztagram safety, scope and production verification gates.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the Aider repository-map engine with local Ollama models while retaining Bikeztagram safety, scope and production verification gates. Checkpoint publishing excludes runtime state, Aider caches/history and audit artifacts.' || true
