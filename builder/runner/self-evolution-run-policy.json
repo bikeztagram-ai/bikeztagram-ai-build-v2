@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "model": "qwen2.5-coder:7b",
+  "callTimeoutMs": 900000,
+  "verificationReserveMs": 90000,
+  "defaultRunDuration": "30m",
+  "longRunDurations": ["30m", "1h", "2h", "3h", "4h", "5h", "6h"],
+  "reason": "The 7B model needs a materially larger inference budget on CPU-only runners. Prefer complete, verified engineering progress over short retries.",
+  "rules": [
+    "Never reduce verification or safety controls to gain throughput.",
+    "Use the strongest configured local coding model for substantive engineering.",
+    "Prefer fewer complete verified objectives over many incomplete attempts.",
+    "Long runs should spend time on the current highest-value eligible objective and continue to the next objective after independent verification.",
+    "Treat timeout and no-progress as learning signals, not successes."
+  ]
+}
