@@ -48,7 +48,6 @@ assert.match(planner,/highestPriorityLearning/);
 assert.match(planner,/recommendedNextAction/);
 assert.match(planner,/timeoutFailures/);
 
-assert.match(workflow,/default: 'qwen2\.5-coder:7b'/);
 assert.match(workflow,/LOCAL_AI_MODEL: qwen2\.5-coder:7b/);
 assert.match(workflow,/AUTOBOT_AIDER_MODEL: ollama_chat\/qwen2\.5-coder:7b/);
 assert.doesNotMatch(workflow,/inputs\.local_model/,'self-evolution model must not be user-overridable');
