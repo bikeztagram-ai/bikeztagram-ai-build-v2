@@ -1,0 +1,158 @@
+name: 🚀 BIKEZTAGRAM AUTOBOT — FAST BRAIN
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_units:
+        description: 'Safety ceiling on verified deterministic units'
+        required: false
+        default: '1000'
+        type: string
+      duration:
+        description: 'Shared work time budget'
+        required: false
+        default: '15m'
+        type: choice
+        options: ['15m','30m','1h','2h','3h','4h','5h','6h']
+      local_model:
+        description: 'Local coding model'
+        required: false
+        default: 'qwen2.5-coder:7b'
+        type: string
+
+concurrency:
+  group: autonomous-builder-v2-fast
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+env:
+  BUILDER_MAX_UNITS: ${{ inputs.max_units }}
+  REQUESTED_DURATION: ${{ inputs.duration }}
+  LOCAL_AI_MODEL: ${{ inputs.local_model }}
+  AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
+  AUTOBOT_FEATURE_ENGINE: aider
+  BUILDER_BASE_BRANCH: main
+
+jobs:
+  fast-brain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 370
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Install Aider engine
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+
+      - name: Cache local AI model
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: bikeztagram-local-ai-${{ runner.os }}-${{ inputs.local_model }}
+
+      - name: Start local AI brain
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+        run: bash scripts/autobot/install-local-brain.sh
+
+      - name: Start performance proxy
+        run: |
+          set -euo pipefail
+          nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
+          proxy_ready=false
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:11435/health >/dev/null 2>&1; then
+              proxy_ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$proxy_ready" != true ]; then
+            echo 'Performance proxy failed to start.'
+            cat /tmp/bikeztagram-ollama-proxy.log || true
+            exit 1
+          fi
+          echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=2' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=2' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_ENGINE=aider' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
+          echo '[autobot] performance proxy ready; Aider repo-map feature engine selected; closed-loop verification remains enabled'
+
+      - name: Resolve duration
+        run: |
+          case "$REQUESTED_DURATION" in
+            15m) minutes=15;;
+            30m) minutes=30;;
+            1h) minutes=60;;
+            2h) minutes=120;;
+            3h) minutes=180;;
+            4h) minutes=240;;
+            5h) minutes=300;;
+            6h) minutes=360;;
+            *) echo "Unsupported duration: $REQUESTED_DURATION"; exit 1;;
+          esac
+          echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
+          echo "BUILDER_SEGMENT=1" >> "$GITHUB_ENV"
+          echo "[autobot] fast-brain budget: ${minutes}m"
+
+      - name: Validate autonomous builder
+        run: |
+          node --check builder/runner/deterministic-executor.mjs
+          node --check builder/runner/long-run-executor.mjs
+          node --check builder/runner/feature-brain.mjs
+          node --check builder/runner/aider-feature-brain.mjs
+          node --check builder/runner/ollama-performance-proxy.mjs
+          node scripts/autobot/verify-deterministic-executor.mjs
+          node scripts/autobot/verify-autobot-safety-contract.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v3.mjs
+          node scripts/autobot/verify-autobot-continuous-loop.mjs
+          node scripts/autobot/verify-feature-objective-dependencies.mjs
+          node scripts/autobot/verify-aider-feature-engine.mjs
+          node builder/quality/autobot-ready.mjs
+
+      - name: Run fast sustained builder
+        run: node builder/runner/long-run-executor.mjs
+
+      - name: Production verification
+        if: success()
+        run: |
+          npm run verify:autobot-production-gate
+          npm run verify:project-memory
+          npm run verify:autobot-continuous-loop
+          npm run verify:autobot-dependencies
+          npm run verify:director-v3-execution-intent
+
+      - name: Persist continuation state
+        if: always()
+        run: node builder/runner/segment-state.mjs
+
+      - name: Publish checkpoint
+        id: publish
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="autonomous-builder-v2-fast/${GITHUB_RUN_ID}"
+          git checkout -b "$branch"
+          git config user.name 'Bikeztagram Autonomous Builder V2'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat: autonomous builder fast brain checkpoint' || true
+          git push --set-upstream origin "$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the Aider repository-map engine with local Ollama models while retaining Bikeztagram safety, scope and production verification gates.' || true
