@@ -13,25 +13,44 @@ const readJson=file=>{try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch
 
 export function buildSelfImprovementBrief(learning=readJson(learningPath)){
   const data=learning&&typeof learning==='object'?learning:{};
-  const failures=Array.isArray(data.failures)?data.failures.slice(-12):[];
-  const successes=Array.isArray(data.successes)?data.successes.slice(-8):[];
+  const failures=Array.isArray(data.failures)?data.failures.slice(-20):[];
+  const successes=Array.isArray(data.successes)?data.successes.slice(-12):[];
   const recurring=new Map();
   for(const failure of failures){
     const key=String(failure.category||failure.code||'unknown');
     recurring.set(key,(recurring.get(key)||0)+1);
   }
-  const recurringFailures=[...recurring.entries()].sort((a,b)=>b[1]-a[1]).map(([category,count])=>({category,count}));
+  const recurringFailures=[...recurring.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([category,count])=>({category,count}));
   const focus=recurringFailures[0]||null;
+  const totalOutcomes=failures.length+successes.length;
+  const successRate=totalOutcomes?Number((successes.length/totalOutcomes).toFixed(3)):null;
+  const latestFailure=failures.at(-1)||null;
+  const timeoutCount=(failures.filter(x=>String(x.category||x.code||'').toLowerCase()==='timeout').length);
+  let recommendedNextAction='Make one small deterministic improvement, verify it independently, and record the result.';
+  if(timeoutCount>0){
+    recommendedNextAction='Prioritize bounded execution: cap model attempts, reserve time for verification, stop waiting on a stalled attempt, and retry only within the remaining budget.';
+  }else if(focus){
+    recommendedNextAction=`Prioritize the recurring ${focus.category} failure before attempting broader improvements.`;
+  }else if(!successes.length){
+    recommendedNextAction='Establish a measurable first success with a small bounded change before broadening scope.';
+  }
   return {
-    schemaVersion:1,
+    schemaVersion:2,
     observedFailures:failures.length,
     observedSuccesses:successes.length,
+    successRate,
     recurringFailures,
     highestPriorityLearning:focus?`Investigate recurring ${focus.category} failures (${focus.count} observations).`:'No recurring failure pattern yet; improve observability and verification before broadening scope.',
+    recommendedNextAction,
+    latestFailure:latestFailure?{category:latestFailure.category,message:latestFailure.message,pass:latestFailure.pass}:null,
+    efficiencySignals:{timeoutFailures:timeoutCount,noProgressFailures:failures.filter(x=>x.category==='no-progress').length,verifiedSuccesses:successes.length},
     recentFailures:failures.map(item=>({objective:item.objective,pass:item.pass,category:item.category,message:item.message})),
     recentSuccesses:successes.map(item=>({objective:item.objective,pass:item.pass,changedPaths:item.changedPaths||[]})),
     rules:[
       'Treat repeated verification failures as evidence that the feature-engineering loop needs a guard or better feedback, not as permission to weaken verification.',
+      'Treat timeouts as execution-budget failures: shorten or bound the next attempt rather than waiting indefinitely.',
+      'Reserve enough run time for independent verification and learning persistence.',
+      'A pass that changes nothing is not a success, even if the process exits cleanly.',
       'Prefer small deterministic control improvements over speculative rewrites.',
       'A failure lesson is only useful when it changes what the next pass is told to inspect or verify.',
       'Never relax scope, protected paths, rollback, audit, production gates, no-auto-commit behavior, or provider/Gemini constraints.'
