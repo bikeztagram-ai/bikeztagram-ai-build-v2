@@ -8,7 +8,7 @@ const data=JSON.parse(fs.readFileSync(path.join(root,'builder','brain','feature-
 const objectives=Array.isArray(data?.objectives)?data.objectives:[];
 assert.ok(objectives.length>0,'objective list must not be empty');
 const ids=new Set(objectives.map(o=>o?.id).filter(Boolean));
-const hardProtected=['builder/brain/feature-objectives.json','builder/quality/','.github/workflows/','scripts/autobot/verify-','scripts/autobot/run-production-gate.mjs','package.json'];
+const hardProtected=['builder/brain/feature-objectives.json','builder/runner/autobot-evolution-policy.json','builder/quality/','.github/workflows/','scripts/autobot/verify-','scripts/autobot/run-production-gate.mjs','package.json'];
 const safe=file=>typeof file==='string'&&file.length>0&&!path.isAbsolute(file)&&!file.split('/').includes('..');
 const failures=[];
 for(const objective of objectives){
