@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       max_units:
-        description: 'Safety ceiling on verified deterministic units'
+        description: 'Safety ceiling on verified deterministic units (unused while self-evolution-only)'
         required: false
         default: '1000'
         type: string
@@ -19,6 +19,12 @@ on:
         required: false
         default: 'qwen2.5-coder:7b'
         type: string
+      focus:
+        description: 'Autobot operating mode — locked to self-evolution until graduation'
+        required: false
+        default: 'self-improvement-only'
+        type: choice
+        options: ['self-improvement-only']
 
 concurrency:
   group: autonomous-builder-v2-fast
@@ -35,6 +41,7 @@ env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
   AUTOBOT_FEATURE_ENGINE: aider
+  AUTOBOT_FEATURE_FOCUS: self-improvement-only
   BUILDER_BASE_BRANCH: main
 
 jobs:
@@ -88,9 +95,10 @@ jobs:
           echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_ENGINE=aider' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_FOCUS=self-improvement-only' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
-          echo '[autobot] performance proxy ready; Aider repo-map feature engine selected; closed-loop verification remains enabled'
+          echo '[autobot] performance proxy ready; SELF-EVOLUTION-ONLY mode locked; product work disabled; closed-loop verification remains enabled'
 
       - name: Resolve duration
         run: |
@@ -107,7 +115,7 @@ jobs:
           esac
           echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
           echo "BUILDER_SEGMENT=1" >> "$GITHUB_ENV"
-          echo "[autobot] fast-brain budget: ${minutes}m"
+          echo "[autobot] fast-brain budget: ${minutes}m; mode: self-evolution-only"
 
       - name: Validate autonomous builder
         run: |
@@ -157,4 +165,4 @@ jobs:
           git add -A
           git commit -m 'feat: autonomous builder fast brain checkpoint' || true
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the Aider repository-map engine with local Ollama models while retaining Bikeztagram safety, scope and production verification gates.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Self-evolution-only autonomous builder checkpoint. Product work is locked pending graduation. Review required before merge. Uses the Aider repository-map engine with local Ollama models while retaining Bikeztagram safety, scope and production verification gates.' || true
