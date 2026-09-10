@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Runtime policy reference for the locked self-evolution controller",
+  "primaryModel": "qwen2.5-coder:7b",
+  "callTimeoutMs": 900000,
+  "verificationReserveMs": 90000,
+  "defaultRunDuration": "30m",
+  "strategy": "Prefer complete verified engineering improvements over short repeated inference attempts.",
+  "adaptiveRules": [
+    "Increase execution budget when the evidence shows inference is the bottleneck.",
+    "Keep verification time reserved and never trade safety for throughput.",
+    "Use longer runs to advance through multiple independently verified self-improvement objectives.",
+    "Treat timeout and no-progress as learning signals that can change the next route."
+  ]
+}
