@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "status": "finished",
+  "requestedMinutes": 15,
+  "requestedUnits": 1000,
+  "totalUnits": 1,
+  "totalObjectives": 5,
+  "iterations": 1,
+  "replenishments": 0,
+  "featureCycles": 1,
+  "featurePassesPerSlice": 2,
+  "consecutiveNoProgress": 0,
+  "featureEngine": "builder/runner/aider-feature-brain.mjs",
+  "featureProtocol": "aider-repo-map-v3",
+  "startedAt": "2026-09-10T15:38:59.064Z",
+  "updatedAt": "2026-09-10T15:53:54.176Z",
+  "elapsedMinutes": 14.92,
+  "remainingMinutes": 0.08
+}

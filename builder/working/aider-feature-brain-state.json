@@ -1,0 +1,12 @@
+{
+  "protocol": "aider-repo-map-v3",
+  "completed": [],
+  "failed": [
+    {
+      "id": "cinematic-quality",
+      "pass": 1,
+      "code": "ETIMEDOUT"
+    }
+  ],
+  "runs": 1
+}\n
