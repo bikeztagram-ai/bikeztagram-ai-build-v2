@@ -17,7 +17,7 @@ on:
       local_model:
         description: 'Local coding model'
         required: false
-        default: 'qwen2.5-coder:7b'
+        default: 'qwen2.5-coder:3b'
         type: string
       focus:
         description: 'Autobot operating mode — locked to self-evolution until graduation'
@@ -31,9 +31,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+  contents: read
 
 env:
   BUILDER_MAX_UNITS: ${{ inputs.max_units }}
@@ -42,6 +40,8 @@ env:
   AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
   AUTOBOT_FEATURE_ENGINE: aider
   AUTOBOT_FEATURE_FOCUS: self-improvement-only
+  AUTOBOT_AIDER_CALL_TIMEOUT_MS: 180000
+  AUTOBOT_VERIFICATION_RESERVE_MS: 60000
   BUILDER_BASE_BRANCH: main
 
 jobs:
@@ -66,6 +66,16 @@ jobs:
         with:
           path: ~/.ollama/models
           key: bikeztagram-local-ai-${{ runner.os }}-${{ inputs.local_model }}
+
+      - name: Restore self-evolution learning state
+        uses: actions/cache@v4
+        with:
+          path: |
+            builder/working/aider-feature-brain-learning.json
+            builder/working/aider-feature-brain-state.json
+          key: bikeztagram-autobot-learning-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            bikeztagram-autobot-learning-${{ github.ref_name }}-
 
       - name: Start local AI brain
         env:
@@ -93,11 +103,11 @@ jobs:
           echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=2' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=3' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_ENGINE=aider' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_FOCUS=self-improvement-only' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_CTX=4096' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=900' >> "$GITHUB_ENV"
           echo '[autobot] performance proxy ready; SELF-EVOLUTION-ONLY mode locked; product work disabled; closed-loop verification remains enabled'
 
       - name: Resolve duration
@@ -125,6 +135,8 @@ jobs:
           node --check builder/runner/aider-feature-brain.mjs
           node --check builder/runner/self-improvement-planner.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
+          node --check scripts/autobot/verify-objective-paths.mjs
+          npm run verify:autobot-objective-paths
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
@@ -133,7 +145,9 @@ jobs:
           node scripts/autobot/verify-feature-objective-dependencies.mjs
           node scripts/autobot/verify-aider-feature-engine.mjs
           node scripts/autobot/verify-self-improvement-boundary.mjs
+          node scripts/autobot/verify-self-evolution-runtime.mjs
           node builder/quality/autobot-ready.mjs
+          npm run build
 
       - name: Run fast sustained builder
         run: node builder/runner/long-run-executor.mjs
@@ -151,18 +165,33 @@ jobs:
         if: always()
         run: node builder/runner/segment-state.mjs
 
-      - name: Publish checkpoint
-        id: publish
-        if: success()
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Capture self-evolution candidate
+        if: always()
         run: |
-          set -euo pipefail
-          branch="autonomous-builder-v2-fast/${GITHUB_RUN_ID}"
-          git checkout -b "$branch"
-          git config user.name 'Bikeztagram Autonomous Builder V2'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'feat: autonomous builder fast brain checkpoint' || true
-          git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Self-evolution-only autonomous builder checkpoint. Product work is locked pending graduation. Review required before merge. Uses the Aider repository-map engine with local Ollama models while retaining Bikeztagram safety, scope and production verification gates.' || true
+          set +e
+          mkdir -p autobot-self-evolution-evidence/candidate-files
+          git diff --binary > autobot-self-evolution-evidence/self-evolution.patch
+          git diff --stat > autobot-self-evolution-evidence/diff-stat.txt
+          git status --short > autobot-self-evolution-evidence/git-status.txt
+          git ls-files --others --exclude-standard | grep -v '^\.aider' | grep -v '^builder/working/' | grep -v '^autobot-self-evolution-evidence/' > autobot-self-evolution-evidence/untracked-files.txt
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            mkdir -p "autobot-self-evolution-evidence/candidate-files/$(dirname "$file")"
+            cp "$file" "autobot-self-evolution-evidence/candidate-files/$file" 2>/dev/null || true
+          done < autobot-self-evolution-evidence/untracked-files.txt
+          cp builder/working/aider-feature-brain-learning.json autobot-self-evolution-evidence/ 2>/dev/null || true
+          cp builder/working/aider-feature-brain-state.json autobot-self-evolution-evidence/ 2>/dev/null || true
+          cp builder/working/long-run-state.json autobot-self-evolution-evidence/ 2>/dev/null || true
+          cp /tmp/bikeztagram-ollama-proxy.log autobot-self-evolution-evidence/ollama-proxy.log 2>/dev/null || true
+          printf 'commit=%s\n' "$GITHUB_SHA" > autobot-self-evolution-evidence/run.txt
+          printf 'mode=self-improvement-only\n' >> autobot-self-evolution-evidence/run.txt
+          printf 'candidate_requires_human_review=true\n' >> autobot-self-evolution-evidence/run.txt
+
+      - name: Upload self-evolution candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-self-evolution-${{ github.run_id }}
+          path: autobot-self-evolution-evidence
+          if-no-files-found: warn
+          retention-days: 14

@@ -8,8 +8,8 @@ import http from 'node:http';
 
 const listenPort = Number(process.env.OLLAMA_PROXY_PORT || 11435);
 const upstream = process.env.OLLAMA_UPSTREAM || 'http://127.0.0.1:11434';
-const maxContext = Number(process.env.LOCAL_AI_PROXY_NUM_CTX || 8192);
-const maxPredict = Number(process.env.LOCAL_AI_PROXY_NUM_PREDICT || 1500);
+const maxContext = Number(process.env.LOCAL_AI_PROXY_NUM_CTX || 4096);
+const maxPredict = Number(process.env.LOCAL_AI_PROXY_NUM_PREDICT || 900);
 
 function clampBody(body) {
   const request = JSON.parse(body);

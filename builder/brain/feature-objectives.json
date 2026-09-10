@@ -1,54 +1,61 @@
 {
-  "version": 5,
+  "version": 6,
   "objectives": [
     {
-      "id": "autobot-self-improvement",
+      "id": "autobot-self-performance",
+      "kind": "self-improvement",
+      "priority": 120,
+      "title": "Make self-evolution productive on hosted runners",
+      "dependsOn": [],
+      "files": ["builder/runner/aider-feature-brain.mjs", "builder/runner/ollama-performance-proxy.mjs"],
+      "allowNewFiles": ["builder/runner/self-improvement-planner.mjs"],
+      "protectedPaths": ["builder/brain/feature-objectives.json", "builder/runner/autobot-evolution-policy.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
+      "acceptance": ["self-improvement is distinct from product work", "model attempts are bounded and reserve verification time", "timeout and no-progress evidence drives a concrete efficiency improvement", "Aider cannot edit protected or out-of-scope paths", "no-progress is not success", "self-improvement boundary verifier passes", "npm run build passes"],
+      "constraints": ["remain Gemini-free and provider-free in product runtime", "preserve no-auto-commit, rollback, scope, audit, production and verification gates", "do not modify protected paths, workflows, safety verifiers, package manifests or objective definitions during the autonomous pass", "do not wait indefinitely for a model call", "make a real engineering improvement"]
+    },
+    {
+      "id": "autobot-self-assessment",
+      "kind": "self-improvement",
+      "priority": 115,
+      "title": "Make AutoBot measure itself and choose better next work",
+      "dependsOn": ["autobot-self-performance"],
+      "files": ["builder/runner/self-improvement-planner.mjs"],
+      "allowNewFiles": ["builder/runner/self-evolution-metrics.mjs"],
+      "protectedPaths": ["builder/brain/feature-objectives.json", "builder/runner/autobot-evolution-policy.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
+      "acceptance": ["planner derives measurable efficiency and outcome signals", "repeated failures outrank speculative work", "next action is deterministic and evidence-driven", "planner can distinguish improve, investigate and plateau", "safety and scope controls cannot be weakened", "npm run build passes"],
+      "constraints": ["keep planner deterministic and bounded", "do not claim improvement without measured evidence", "do not edit protected paths"]
+    },
+    {
+      "id": "autobot-self-orchestration",
       "kind": "self-improvement",
       "priority": 110,
-      "title": "Make the Aider self-evolution loop bounded, adaptive and productive",
-      "dependsOn": [],
-      "files": ["builder/runner/aider-feature-brain.mjs"],
-      "allowNewFiles": ["builder/runner/self-improvement-planner.mjs"],
-      "protectedPaths": [
-        "builder/brain/feature-objectives.json",
-        "scripts/autobot/verify-self-improvement-boundary.mjs",
-        "scripts/autobot/verify-autobot-safety-contract.mjs",
-        "scripts/autobot/verify-autobot-safety-contract-v2.mjs",
-        "scripts/autobot/verify-autobot-continuous-loop.mjs",
-        "scripts/autobot/verify-autobot-feature-edit-protocol.mjs",
-        "builder/quality/",
-        ".github/workflows/",
-        "package.json"
-      ],
-      "acceptance": [
-        "self-improvement is explicitly distinguished from product work",
-        "Aider can create only explicitly allowlisted new files",
-        "hard protected paths cannot be edited by self-improvement",
-        "self-improvement cannot widen its own scope or protected-path policy",
-        "model attempts have a bounded execution budget and reserve time for verification",
-        "timeouts and no-progress outcomes are recorded as learning signals",
-        "a clean process exit without an allowed code change is not treated as success",
-        "self-improvement boundary verifier passes",
-        "npm run build passes"
-      ],
-      "constraints": [
-        "remain Gemini-free and provider-free in product runtime",
-        "preserve no-auto-commit behavior",
-        "preserve rollback, scope, audit, production and verification gates",
-        "do not modify protected paths during the autonomous pass",
-        "do not modify workflows, package manifests, safety verifiers or objective definitions during the autonomous pass",
-        "do not create files outside allowNewFiles",
-        "do not wait indefinitely for a model call",
-        "make a real engineering improvement, not documentation-only or cosmetic work"
-      ]
+      "title": "Make the sustained controller allocate time intelligently",
+      "dependsOn": ["autobot-self-assessment"],
+      "files": ["builder/runner/long-run-executor.mjs"],
+      "allowNewFiles": [],
+      "protectedPaths": ["builder/brain/feature-objectives.json", "builder/runner/autobot-evolution-policy.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
+      "acceptance": ["self-evolution remains product-locked", "completed self-improvement advances to another eligible objective", "time allocation responds to measured outcomes", "no-progress cannot create an infinite hot loop", "shared deadline remains authoritative", "npm run build passes"],
+      "constraints": ["do not bypass feature-brain verification", "preserve audit integrity", "never unlock product work automatically"]
+    },
+    {
+      "id": "autobot-self-recovery",
+      "kind": "self-improvement",
+      "priority": 105,
+      "title": "Strengthen recovery from model and partial-edit failures",
+      "dependsOn": ["autobot-self-orchestration"],
+      "files": ["builder/runner/aider-feature-brain.mjs", "builder/runner/long-run-executor.mjs"],
+      "allowNewFiles": [],
+      "protectedPaths": ["builder/brain/feature-objectives.json", "builder/runner/autobot-evolution-policy.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
+      "acceptance": ["partial edits are rolled back safely", "timeout and process failures remain distinguishable", "recovery respects remaining time", "repeated failure cannot silently become success", "audit state remains valid", "npm run build passes"],
+      "constraints": ["never weaken scope or protected paths", "preserve no-auto-commit", "do not bypass independent verification", "do not unlock product work"]
     },
     {"id":"cinematic-quality","priority":100,"title":"Improve cinematic edit quality end to end","dependsOn":[],"files":["src/director.js","src/aiEditPlanner.js","src/renderer.js"],"acceptance":["auditable director decisions","purposeful shot timing motion and transition intent","renderer consumes plan without black frames or timing regressions","npm run build passes"],"constraints":["preserve public contracts","do not rewrite renderer wholesale","do not invent media","do not modify protected infrastructure"]},
     {"id":"editor-reliability","priority":95,"title":"Improve editor lifecycle reliability","dependsOn":[],"files":["src/App.jsx","src/projectPersistence.js"],"acceptance":["truthful loading error and recovery states","saved metadata restores into real editor state","missing local media is explicit and recoverable","npm run build passes"],"constraints":["never persist File Blob or object URLs as durable media","preserve upload render export contracts"]},
     {"id":"social-export","priority":85,"title":"Improve creator export delivery","dependsOn":["editor-reliability"],"files":["src/socialExport.js","src/App.jsx"],"acceptance":["9:16 1:1 and 16:9 profiles are coherent","deterministic output metadata and filenames","truthful duration/output validation","npm run build passes"],"constraints":["preserve successful MP4 export","do not alter director or renderer implementation"]},
     {"id":"timeline-nle","priority":84,"title":"Strengthen the universal executable timeline","dependsOn":["cinematic-quality"],"files":["src/executableTimeline.js","src/editorialRhythm.js","src/director.js"],"acceptance":["timeline preserves source identity and editorial roles","timing trims transforms speed and transitions remain executable","duration budget is deterministic","npm run build passes"],"constraints":["preserve existing timeline contracts","do not invent source media","keep timeline provider-neutral"]},
     {"id":"generation-runtime","priority":82,"title":"Strengthen real AI generation runtime and provider handoff","dependsOn":[],"files":["src/universalRenderRuntime.js","src/aiVideoProvider.js","src/promptOnlyVideoBatch.js"],"acceptance":["moving-media requests use real video generation or truthful unavailable state","generated assets are validated before editing","provider metadata is preserved","npm run build passes"],"constraints":["never use Gemini","never substitute stills for requested motion","no fake generated media","preserve provider abstraction"]},
-    {"id":"audio-intelligence","priority":76,"title":"Improve music arrangement and audio synchronisation","dependsOn":["timeline-nle"],"files":["src/musicProvider.js","src/musicArrangement.js","src/audioAnalysis.js"],"acceptance":["music structure follows edit rhythm","beat or cue metadata can drive editorial timing","audio failures are explicit and recoverable","npm run build passes"],"constraints":["preserve original-audio safety","do not download copyrighted music","keep provider-neutral"]},
-    {"id":"universal-creative-understanding","priority":74,"title":"Improve universal creative brief understanding and continuity","dependsOn":["cinematic-quality"],"files":["src/creativeIntentCompiler.js","src/universalCreativeEngine.js","src/creativeBrief.js"],"acceptance":["arbitrary subjects and worlds compile into coherent intent","continuity is preserved across scenes","camera action mood and constraints remain explicit","npm run build passes"],"constraints":["remain universal beyond motorcycles","preserve copyright-safety constraints","do not invent unsupported production capabilities"]},
+    {"id":"audio-intelligence","priority":76,"title":"Improve music arrangement and audio synchronisation","dependsOn":["timeline-nle"],"files":["src/musicProvider.js","src/musicArrangementRuntime.js","src/musicArrangementQuality.js"],"acceptance":["music structure follows edit rhythm","beat or cue metadata can drive editorial timing","audio failures are explicit and recoverable","npm run build passes"],"constraints":["preserve original-audio safety","do not download copyrighted music","keep provider-neutral"]},
+    {"id":"universal-creative-understanding","priority":74,"title":"Improve universal creative brief understanding and continuity","dependsOn":["cinematic-quality"],"files":["src/creativeIntentCompiler.js","src/universalCreativeEngine.js","src/creativeBriefModel.js"],"acceptance":["arbitrary subjects and worlds compile into coherent intent","continuity is preserved across scenes","camera action mood and constraints remain explicit","npm run build passes"],"constraints":["remain universal beyond motorcycles","preserve copyright-safety constraints","do not invent unsupported production capabilities"]},
     {"id":"mobile-editor","priority":65,"title":"Improve Android/PWA editing usability","dependsOn":["social-export","timeline-nle"],"files":["src/App.jsx","src/styles.css"],"acceptance":["usable touch targets","safe areas and responsive layout","readable error/status states","reduced-motion support","npm run build passes"],"constraints":["preserve cinematic visual identity","do not redesign unrelated product areas"]}
   ]
 }
