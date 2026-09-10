@@ -104,8 +104,8 @@ jobs:
           node --check builder/runner/aider-feature-brain.mjs
           node --check builder/runner/self-improvement-planner.mjs
           node --check builder/runner/long-run-executor.mjs
+          node scripts/autobot/verify-self-evolution-runtime.mjs
           node scripts/autobot/verify-self-improvement-boundary.mjs
-          node scripts/autobot/verify-aider-feature-engine.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           npm run build
 
