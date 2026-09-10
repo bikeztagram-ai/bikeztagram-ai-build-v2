@@ -21,7 +21,7 @@ const configuredCallMax=Math.max(60_000,Number.parseInt(process.env.AUTOBOT_AIDE
 const reserveMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_VERIFICATION_RESERVE_MS||'60_000',10));
 const learningPath=path.join(root,'builder/working/aider-feature-brain-learning.json');
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
-const runtimePrefixes=['.aider.chat.history.md','.aider.input.history','.aider.tags.cache.v4/','builder/working/','autobot-self-evolution-evidence/'];
+const runtimePrefixes=['.aider.chat.history.md','.aider.input.history','.aider.tags.cache.v4/','builder/working/aider-feature-brain-learning.json','builder/working/aider-feature-brain-state.json','builder/working/autobot-audit.jsonl','builder/working/long-run-state.json','autobot-self-evolution-evidence/'];
 const hardProtectedPrefixes=['builder/brain/feature-objectives.json','builder/runner/autobot-evolution-policy.json','builder/quality/','.github/workflows/','scripts/autobot/verify-','scripts/autobot/run-production-gate.mjs','package.json'];
 function loadObjectives(){const file=path.join(root,'builder','brain','feature-objectives.json');try{return JSON.parse(fs.readFileSync(file,'utf8')).objectives||[];}catch(error){try{execFileSync('git',['restore','--','builder/brain/feature-objectives.json'],{cwd:root,stdio:'inherit'});return JSON.parse(fs.readFileSync(file,'utf8')).objectives||[];}catch{}throw new Error(`feature objectives JSON is invalid: ${error.message}`);}}
 function loadJson(file,fallback){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return fallback;}}
