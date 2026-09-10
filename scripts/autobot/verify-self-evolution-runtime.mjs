@@ -31,7 +31,7 @@ assert.match(engine,/isRuntimeArtifact/);
 assert.match(controller,/selfImprovementOnly/);
 assert.match(controller,/AUTOBOT_FEATURE_FOCUS/);
 assert.match(controller,/featureCycles<maxFeatureCycles/);
-assert.match(controller,/aider-repo-map-v6-bounded-learning/);
+assert.match(controller,/aider-repo-map-v7-bounded-learning/);
 assert.match(planner,/recurringFailures/);
 assert.match(planner,/highestPriorityLearning/);
 assert.match(planner,/recommendedNextAction/);
