@@ -169,10 +169,16 @@ jobs:
         if: always()
         run: |
           set +e
-          mkdir -p autobot-self-evolution-evidence
+          mkdir -p autobot-self-evolution-evidence/candidate-files
           git diff --binary > autobot-self-evolution-evidence/self-evolution.patch
           git diff --stat > autobot-self-evolution-evidence/diff-stat.txt
           git status --short > autobot-self-evolution-evidence/git-status.txt
+          git ls-files --others --exclude-standard | grep -v '^\.aider' | grep -v '^builder/working/' | grep -v '^autobot-self-evolution-evidence/' > autobot-self-evolution-evidence/untracked-files.txt
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            mkdir -p "autobot-self-evolution-evidence/candidate-files/$(dirname "$file")"
+            cp "$file" "autobot-self-evolution-evidence/candidate-files/$file" 2>/dev/null || true
+          done < autobot-self-evolution-evidence/untracked-files.txt
           cp builder/working/aider-feature-brain-learning.json autobot-self-evolution-evidence/ 2>/dev/null || true
           cp builder/working/aider-feature-brain-state.json autobot-self-evolution-evidence/ 2>/dev/null || true
           cp builder/working/long-run-state.json autobot-self-evolution-evidence/ 2>/dev/null || true
