@@ -1,13 +1,8 @@
-name: Autonomous Builder V2 Fast Brain
+name: 🧠 AutoBot Self-Evolution ONLY (LOCKED)
 
 on:
   workflow_dispatch:
     inputs:
-      max_units:
-        description: 'Unused while self-evolution is locked'
-        required: false
-        default: '0'
-        type: string
       duration:
         description: 'Self-evolution work time budget'
         required: false
@@ -19,14 +14,9 @@ on:
         required: false
         default: 'qwen2.5-coder:7b'
         type: string
-      target_ref:
-        description: 'AutoBot self-evolution branch/ref to execute'
-        required: false
-        default: 'fix/autobot-product-review-self-improvement-v2'
-        type: string
 
 concurrency:
-  group: autonomous-builder-v2-fast
+  group: autobot-self-evolution-only
   cancel-in-progress: false
 
 permissions:
@@ -35,34 +25,40 @@ permissions:
   actions: write
 
 env:
-  BUILDER_MAX_UNITS: ${{ inputs.max_units }}
   REQUESTED_DURATION: ${{ inputs.duration }}
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
   AUTOBOT_FEATURE_ENGINE: aider
   AUTOBOT_FEATURE_FOCUS: self-improvement-only
   BUILDER_BASE_BRANCH: main
+  AUTOBOT_SELF_EVOLUTION_REF: fix/autobot-product-review-self-improvement-v2
 
 jobs:
-  fast-brain:
+  self-evolution:
+    name: Self-evolution (product work locked)
     runs-on: ubuntu-latest
     timeout-minutes: 370
     steps:
-      - name: Checkout requested AutoBot branch
+      - name: Checkout locked AutoBot self-evolution ref
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.target_ref }}
+          ref: fix/autobot-product-review-self-improvement-v2
           fetch-depth: 0
 
-      - name: Prove self-evolution lock
+      - name: Prove this is the locked self-evolution runner
         run: |
           set -euo pipefail
           test "$AUTOBOT_FEATURE_FOCUS" = 'self-improvement-only'
+          test "$AUTOBOT_FEATURE_ENGINE" = 'aider'
+          test "$AUTOBOT_SELF_EVOLUTION_REF" = 'fix/autobot-product-review-self-improvement-v2'
+          test "$(git branch --show-current)" = 'fix/autobot-product-review-self-improvement-v2'
           grep -q "const selfImprovementOnly=process.env.AUTOBOT_FEATURE_FOCUS==='self-improvement-only'" builder/runner/long-run-executor.mjs
           grep -q "selfImprovementOnly?featureCycles<maxFeatureCycles" builder/runner/long-run-executor.mjs
           grep -q '"mode": "self-evolution-only"' builder/runner/autobot-evolution-policy.json
           grep -q '"productWorkLocked": true' builder/runner/autobot-evolution-policy.json
           grep -q '"kind": "self-improvement"' builder/brain/feature-objectives.json
+          echo '[autobot] LOCK VERIFIED: SELF-EVOLUTION ONLY'
+          echo '[autobot] PRODUCT/DETERMINISTIC WORK: LOCKED'
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
@@ -81,8 +77,9 @@ jobs:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
         run: bash scripts/autobot/install-local-brain.sh
 
-      - name: Resolve duration
+      - name: Resolve self-evolution duration
         run: |
+          set -euo pipefail
           case "$REQUESTED_DURATION" in
             15m) minutes=15;;
             30m) minutes=30;;
@@ -95,6 +92,7 @@ jobs:
             *) echo "Unsupported duration: $REQUESTED_DURATION"; exit 1;;
           esac
           echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
+          echo 'BUILDER_MAX_UNITS=0' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_MAX_FEATURE_CYCLES=24' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_SLICE_MINUTES=15' >> "$GITHUB_ENV"
