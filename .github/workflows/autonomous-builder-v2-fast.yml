@@ -115,6 +115,7 @@ jobs:
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/feature-brain.mjs
           node --check builder/runner/aider-feature-brain.mjs
+          node --check builder/runner/aider-state-store.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
@@ -123,6 +124,7 @@ jobs:
           node scripts/autobot/verify-autobot-continuous-loop.mjs
           node scripts/autobot/verify-feature-objective-dependencies.mjs
           node scripts/autobot/verify-aider-feature-engine.mjs
+          node scripts/autobot/verify-aider-state-recovery.mjs
           node builder/quality/autobot-ready.mjs
 
       - name: Run fast sustained builder
