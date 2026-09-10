@@ -12,12 +12,15 @@ on:
       local_model:
         description: 'Open-source local coding model'
         required: false
-        default: 'qwen2.5-coder:7b'
+        default: 'qwen2.5-coder:3b'
         type: string
 
 concurrency:
   group: autobot-self-evolution-only
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 env:
   REQUESTED_DURATION: ${{ inputs.duration }}
@@ -27,6 +30,9 @@ env:
   AUTOBOT_FEATURE_FOCUS: self-improvement-only
   BUILDER_BASE_BRANCH: main
   AUTOBOT_SELF_EVOLUTION_REF: fix/autobot-product-review-self-improvement-v2
+  AUTOBOT_MIN_SELF_EVOLUTION_SHA: 2af5489d6026e2cd89c9b7df1cbeef2b002c1669
+  AUTOBOT_AIDER_CALL_TIMEOUT_MS: 180000
+  AUTOBOT_VERIFICATION_RESERVE_MS: 60000
 
 jobs:
   self-evolution:
@@ -40,14 +46,18 @@ jobs:
           ref: fix/autobot-product-review-self-improvement-v2
           fetch-depth: 0
 
-      - name: Prove this is the locked self-evolution runner
+      - name: Prove this is the current locked self-evolution runner
         run: |
           set -euo pipefail
           test "$AUTOBOT_FEATURE_FOCUS" = 'self-improvement-only'
           test "$AUTOBOT_FEATURE_ENGINE" = 'aider'
           test "$AUTOBOT_SELF_EVOLUTION_REF" = 'fix/autobot-product-review-self-improvement-v2'
           test "$(git branch --show-current)" = 'fix/autobot-product-review-self-improvement-v2'
-          grep -q "const selfImprovementOnly=process.env.AUTOBOT_FEATURE_FOCUS==='self-improvement-only'" builder/runner/long-run-executor.mjs
+          git merge-base --is-ancestor "$AUTOBOT_MIN_SELF_EVOLUTION_SHA" HEAD
+          echo "[autobot] EXECUTION REF: $(git branch --show-current)"
+          echo "[autobot] EXECUTION SHA: $(git rev-parse HEAD)"
+          echo "[autobot] REQUIRED FIX BASE: $AUTOBOT_MIN_SELF_EVOLUTION_SHA"
+          grep -q "aider-repo-map-v7-bounded-learning" builder/runner/aider-feature-brain.mjs
           grep -q "selfImprovementOnly?featureCycles<maxFeatureCycles" builder/runner/long-run-executor.mjs
           grep -q '"mode": "self-evolution-only"' builder/runner/autobot-evolution-policy.json
           grep -q '"productWorkLocked": true' builder/runner/autobot-evolution-policy.json
@@ -72,6 +82,34 @@ jobs:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
         run: bash scripts/autobot/install-local-brain.sh
 
+      - name: Start performance proxy
+        run: |
+          set -euo pipefail
+          nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
+          proxy_ready=false
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:11435/health >/dev/null 2>&1; then
+              proxy_ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$proxy_ready" != true ]; then
+            echo '[autobot] Performance proxy failed to start.'
+            cat /tmp/bikeztagram-ollama-proxy.log || true
+            exit 1
+          fi
+          echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=2' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=3' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_ENGINE=aider' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_FOCUS=self-improvement-only' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_CTX=4096' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=900' >> "$GITHUB_ENV"
+          echo '[autobot] PERFORMANCE PROXY READY'
+
       - name: Resolve self-evolution duration
         run: |
           set -euo pipefail
@@ -88,10 +126,10 @@ jobs:
           esac
           echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
           echo 'BUILDER_MAX_UNITS=0' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_MAX_FEATURE_CYCLES=24' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_SLICE_MINUTES=15' >> "$GITHUB_ENV"
           echo '[autobot] SELF-EVOLUTION ONLY: product/deterministic work is locked'
+          echo "[autobot] TIME BUDGET: ${minutes}m"
 
       - name: Validate self-evolution controls
         run: |
@@ -99,6 +137,8 @@ jobs:
           node --check builder/runner/aider-feature-brain.mjs
           node --check builder/runner/self-improvement-planner.mjs
           node --check builder/runner/long-run-executor.mjs
+          node --check builder/runner/ollama-performance-proxy.mjs
+          npm run verify:autobot-objective-paths
           node scripts/autobot/verify-self-evolution-runtime.mjs
           node scripts/autobot/verify-self-improvement-boundary.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
@@ -117,10 +157,13 @@ jobs:
           mkdir -p autobot-self-evolution-evidence
           git status --short > autobot-self-evolution-evidence/git-status.txt || true
           git diff --binary > autobot-self-evolution-evidence/self-evolution.patch || true
+          git rev-parse HEAD > autobot-self-evolution-evidence/execution-sha.txt || true
+          printf 'required_fix_base=%s\n' "$AUTOBOT_MIN_SELF_EVOLUTION_SHA" > autobot-self-evolution-evidence/execution-contract.txt
           cp builder/working/aider-feature-brain-learning.json autobot-self-evolution-evidence/learning.json 2>/dev/null || true
           cp builder/working/aider-feature-brain-state.json autobot-self-evolution-evidence/state.json 2>/dev/null || true
           cp builder/working/long-run-state.json autobot-self-evolution-evidence/long-run-state.json 2>/dev/null || true
           cp builder/working/autobot-audit.jsonl autobot-self-evolution-evidence/autobot-audit.jsonl 2>/dev/null || true
+          cp /tmp/bikeztagram-ollama-proxy.log autobot-self-evolution-evidence/ollama-proxy.log 2>/dev/null || true
 
       - name: Upload self-evolution evidence
         if: always()
@@ -129,3 +172,4 @@ jobs:
           name: autobot-self-evolution-${{ github.run_id }}
           path: autobot-self-evolution-evidence/
           if-no-files-found: ignore
+          retention-days: 14
