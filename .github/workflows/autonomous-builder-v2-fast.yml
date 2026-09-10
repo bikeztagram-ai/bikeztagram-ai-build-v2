@@ -1,4 +1,4 @@
-name: Autonomous Builder V2 Fast Brain
+name: 🚀 BIKEZTAGRAM AUTOBOT — FAST BRAIN
 
 on:
   workflow_dispatch:
@@ -141,18 +141,25 @@ jobs:
         if: always()
         run: node builder/runner/segment-state.mjs
 
-      - name: Publish checkpoint
+      - name: Publish clean product checkpoint
         id: publish
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # Runtime state, Aider caches/history and audit telemetry are execution artifacts,
+          # not product changes. Never package them into an AutoBot product checkpoint.
+          git restore -- builder/working builder/monitor builder/quality 2>/dev/null || true
+          rm -f .aider.chat.history.md .aider.input.history
+          rm -rf .aider.tags.cache.v4
+          git clean -fd -- builder/working builder/monitor builder/quality .aider.tags.cache.v4 2>/dev/null || true
+
           branch="autonomous-builder-v2-fast/${GITHUB_RUN_ID}"
           git checkout -b "$branch"
           git config user.name 'Bikeztagram Autonomous Builder V2'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add -- src package.json
           git commit -m 'feat: autonomous builder fast brain checkpoint' || true
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the Aider repository-map engine with local Ollama models while retaining Bikeztagram safety, scope and production verification gates.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the Aider repository-map engine with local Ollama models while retaining Bikeztagram safety, scope and production verification gates. Checkpoint publishing excludes runtime state, Aider caches/history and audit artifacts.' || true
