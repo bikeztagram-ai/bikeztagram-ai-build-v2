@@ -28,7 +28,7 @@ const deterministicSliceMinutes = Math.max(3, Number.parseInt(process.env.AUTOBO
 const featureSliceMinutes = Math.max(3, Number.parseInt(process.env.AUTOBOT_FEATURE_SLICE_MINUTES || '15', 10));
 const maxFeatureCycles = Math.max(1, Number.parseInt(process.env.AUTOBOT_MAX_FEATURE_CYCLES || '24', 10));
 const featurePassesPerSlice = Math.max(1, Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES_PER_SLICE || '1', 10));
-const featureProtocol = process.env.AUTOBOT_FEATURE_ENGINE === 'aider' ? 'aider-repo-map-v3' : 'structured-search-replace-v3';
+const featureProtocol = process.env.AUTOBOT_FEATURE_ENGINE === 'aider' ? 'aider-repo-map-v5-learning' : 'structured-search-replace-v3';
 const featureEngine = process.env.AUTOBOT_FEATURE_ENGINE === 'aider' ? 'builder/runner/aider-feature-brain.mjs' : 'builder/runner/feature-brain.mjs';
 const completedObjectives = new Set();
 
