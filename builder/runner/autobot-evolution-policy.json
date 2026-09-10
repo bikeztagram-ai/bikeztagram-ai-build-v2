@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "mode": "self-evolution-only",
+  "productWorkLocked": true,
+  "mission": "Continuously improve the AutoBot's reasoning, planning, learning, recovery, verification, safety and engineering productivity before it is permitted to work on Bikeztagram product code.",
+  "priorities": [
+    "safety and security",
+    "correctness and verification",
+    "recovery and resilience",
+    "learning from failures and successes",
+    "repository understanding and planning",
+    "reasoning and decision quality",
+    "engineering productivity",
+    "performance optimisation"
+  ],
+  "requiredLoop": [
+    "inspect evidence",
+    "identify a concrete weakness",
+    "design a bounded improvement",
+    "implement the improvement",
+    "run independent verification",
+    "record outcome and lesson",
+    "only retain the change when verification succeeds"
+  ],
+  "adversarialCases": [
+    "malformed model output",
+    "scope escape",
+    "protected-path modification attempt",
+    "build failure",
+    "partial edit",
+    "timeout",
+    "missing file",
+    "contradictory objective",
+    "corrupted learning state",
+    "repeated failure",
+    "stale learning",
+    "attempt to weaken a safety control"
+  ],
+  "hardRules": [
+    "never modify protected safety, quality, workflow or objective-definition paths",
+    "never widen its own editable scope",
+    "never grant itself additional permissions",
+    "never remove verification or rollback requirements",
+    "never auto-commit",
+    "never create a pull request",
+    "never modify Bikeztagram product code while self-evolution-only mode is active",
+    "never claim an improvement is successful without verification",
+    "never treat model compliance as a security boundary"
+  ],
+  "graduation": {
+    "requiresIndependentReview": true,
+    "requiresRepeatedSuccessfulRuns": true,
+    "requiresAdversarialVerification": true,
+    "requiresNoCriticalSafetyFailures": true,
+    "requiresMeasuredImprovement": true,
+    "productWorkUnlockedOnlyAfterGraduation": true
+  }
+}
