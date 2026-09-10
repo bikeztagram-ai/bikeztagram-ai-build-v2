@@ -31,9 +31,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+  contents: read
 
 env:
   BUILDER_MAX_UNITS: ${{ inputs.max_units }}
@@ -167,18 +165,27 @@ jobs:
         if: always()
         run: node builder/runner/segment-state.mjs
 
-      - name: Publish checkpoint
-        id: publish
-        if: success()
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Capture self-evolution candidate
+        if: always()
         run: |
-          set -euo pipefail
-          branch="autonomous-builder-v2-fast/${GITHUB_RUN_ID}"
-          git checkout -b "$branch"
-          git config user.name 'Bikeztagram Autonomous Builder V2'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'feat: autonomous builder fast brain checkpoint' || true
-          git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Self-evolution-only autonomous builder checkpoint. Product work is locked pending graduation. Review required before merge. Uses the Aider repository-map engine with local Ollama models while retaining Bikeztagram safety, scope and production verification gates.' || true
+          set +e
+          mkdir -p autobot-self-evolution-evidence
+          git diff --binary > autobot-self-evolution-evidence/self-evolution.patch
+          git diff --stat > autobot-self-evolution-evidence/diff-stat.txt
+          git status --short > autobot-self-evolution-evidence/git-status.txt
+          cp builder/working/aider-feature-brain-learning.json autobot-self-evolution-evidence/ 2>/dev/null || true
+          cp builder/working/aider-feature-brain-state.json autobot-self-evolution-evidence/ 2>/dev/null || true
+          cp builder/working/long-run-state.json autobot-self-evolution-evidence/ 2>/dev/null || true
+          cp /tmp/bikeztagram-ollama-proxy.log autobot-self-evolution-evidence/ollama-proxy.log 2>/dev/null || true
+          printf 'commit=%s\n' "$GITHUB_SHA" > autobot-self-evolution-evidence/run.txt
+          printf 'mode=self-improvement-only\n' >> autobot-self-evolution-evidence/run.txt
+          printf 'candidate_requires_human_review=true\n' >> autobot-self-evolution-evidence/run.txt
+
+      - name: Upload self-evolution candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-self-evolution-${{ github.run_id }}
+          path: autobot-self-evolution-evidence
+          if-no-files-found: warn
+          retention-days: 14
