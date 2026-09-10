@@ -51,7 +51,7 @@ function recordFailure(obj,pass,error){learning.failures=[...(learning.failures|
 function recordSuccess(obj,pass,before){learning.successes=[...(learning.successes||[]),{objective:obj.id,kind:obj.kind||'product',pass,changedPaths:trackedPaths().filter(p=>!before.has(p)),at:new Date().toISOString()}].slice(-100);}
 function persist(){fs.mkdirSync(path.dirname(statePath),{recursive:true});state.protocol=protocol;state.updatedAt=new Date().toISOString();fs.writeFileSync(statePath,JSON.stringify(state,null,2)+'\n');fs.writeFileSync(learningPath,JSON.stringify({...learning,schemaVersion:1},null,2)+'\n');}
 const obj=objective();
-if(!obj){console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective'}));process.exit(0);}
+if(!obj){state.lastStatus='no-eligible-objective';state.updatedAt=new Date().toISOString();fs.mkdirSync(path.dirname(statePath),{recursive:true});fs.writeFileSync(statePath,JSON.stringify(state,null,2)+'\n');console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective',completed:state.completed||[]}));process.exit(0);}
 try{validateObjective(obj);}catch(error){recordFailure(obj,0,error);persist();console.error(`[aider] invalid objective contract: ${error.message}`);process.exit(1);}
 const files=scopedFiles(obj),newFiles=allowNewFiles(obj),aiderScope=[...files,...newFiles];
 if(!aiderScope.length){console.error(`[aider] objective ${obj.id} has no editable files`);process.exit(1);}
@@ -87,7 +87,7 @@ for(let pass=1;pass<=maxPasses;pass++){
     if(remainingMs()<Math.max(35_000,reserveMs))break;
   }
 }
-if(success){state.completed=[...(state.completed||[]),obj.id];state.lastSuccess={id:obj.id,kind:obj.kind||'product',at:new Date().toISOString()};}
+if(success){state.completed=[...(state.completed||[]),obj.id];state.lastSuccess={id:obj.id,kind:obj.kind||'product',at:new Date().toISOString()};state.lastStatus='objective-complete';}else state.lastStatus='objective-failed';
 persist();
 console.log(JSON.stringify({ok:success,protocol,objective:obj.id,kind:obj.kind||'product',passes:maxPasses,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),learningFailures:(learning.failures||[]).length,learningSuccesses:(learning.successes||[]).length}));
 process.exit(success?0:1);
