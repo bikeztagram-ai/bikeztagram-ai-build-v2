@@ -7,9 +7,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { loadAiderState, saveAiderState } from './aider-state-store.mjs';
 
 const root=process.cwd();
-const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const run=(cmd,args,options={})=>spawnSync(cmd,args,{cwd:root,encoding:'utf8',stdio:'inherit',...options});
 const protocol='aider-repo-map-v3';
 const maxPasses=Math.max(1,Math.min(3,Number(process.env.AUTOBOT_FEATURE_PASSES||1)));
@@ -18,7 +18,6 @@ const requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTE
 const configuredDeadline=Number.parseInt(process.env.AUTOBOT_FEATURE_DEADLINE_EPOCH_MS||'',10);
 const deadline=Number.isFinite(configuredDeadline)&&configuredDeadline>Date.now()?configuredDeadline:Date.now()+requestedMinutes*60_000;
 const perCallMaxMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_AIDER_CALL_TIMEOUT_MS||String(6*60*60*1000),10));
-const verificationReserveMs=Math.max(90_000,Number.parseInt(process.env.AUTOBOT_FEATURE_VERIFICATION_RESERVE_MS||'150000',10));
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
 
 function loadObjectives(){
@@ -38,7 +37,11 @@ function loadObjectives(){
 }
 
 const objectives=loadObjectives();
-const state=fs.existsSync(statePath)?JSON.parse(read('builder/working/aider-feature-brain-state.json')):{protocol,completed:[],failed:[],runs:0};
+const loadedState=loadAiderState(statePath,{protocol,completed:[],failed:[],runs:0});
+const state=loadedState.state;
+if(loadedState.recovered){
+  console.warn(`[aider] recovered persistent state from ${loadedState.source}; continuing safely instead of aborting.`);
+}
 
 function remainingMs(){return Math.max(0,deadline-Date.now());}
 function objective(){
@@ -60,10 +63,10 @@ function promptFor(obj,pass){
     'Preserve public contracts and all existing safety, scope, rollback, audit, production verification, and Gemini-free rules.',
     'Run the narrowest relevant verification. Do not merely describe changes: actually edit the supplied files.',
     'Do not merge or create a pull request.'
-  ].join('\\n');
+  ].join('\n');
 }
 function trackedPaths(){
-  try{return execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'}).split(/\\r?\\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);}catch{return[];}
+  try{return execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'}).split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);}catch{return[];}
 }
 function rollbackObjectiveFiles(obj){
   for(const file of scopedFiles(obj)){
@@ -74,14 +77,14 @@ function rollbackObjectiveFiles(obj){
 function assertScope(before,obj){
   const allowed=new Set(scopedFiles(obj));
   const after=trackedPaths();
-  const unauthorized=after.filter(p=>!before.has(p)&&!allowed.has(p));
+  const newPaths=after.filter(p=>!before.has(p));
+  const unauthorized=newPaths.filter(p=>!allowed.has(p));
   if(unauthorized.length){
     console.error(`[aider] unauthorized modified paths: ${unauthorized.join(', ')}`);
     for(const file of unauthorized){
       try{execFileSync('git',['restore','--',file],{cwd:root,stdio:'inherit'});}catch{}
       try{execFileSync('git',['clean','-fd','--',file],{cwd:root,stdio:'inherit'});}catch{}
     }
-    rollbackObjectiveFiles(obj);
     throw new Error(`Aider modified files outside objective scope: ${unauthorized.join(', ')}`);
   }
 }
@@ -103,10 +106,10 @@ const aiderFiles=useSrcSubtree?files.map(file=>file.slice(4)):files;
 let success=false;
 for(let pass=1;pass<=maxPasses;pass++){
   const remaining=remainingMs();
-  if(remaining<verificationReserveMs){console.error('[aider] feature deadline reached; reserving time for verification');break;}
+  if(remaining<35_000){console.error('[aider] feature deadline reached before next pass');break;}
   state.runs=(state.runs||0)+1;
   const before=new Set(trackedPaths());
-  const timeout=Math.min(perCallMaxMs,remaining-verificationReserveMs);
+  const timeout=Math.min(perCallMaxMs,remaining-5_000);
   const apiTimeout=Math.max(30,Math.floor(timeout/1000));
   const args=[`--model=${model}`,`--timeout=${apiTimeout}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=512','--subtree-only','--message',promptFor(obj,pass),...aiderFiles];
   const result=spawnSync('aider',args,{cwd:aiderCwd,encoding:'utf8',stdio:'inherit',timeout});
@@ -114,7 +117,7 @@ for(let pass=1;pass<=maxPasses;pass++){
     console.error(`[aider] pass ${pass} stopped: ${result.error.code||result.error.message}; rolling back partial product edits`);
     rollbackObjectiveFiles(obj);
     state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error.code||'process-error'}];
-    if(remainingMs()<verificationReserveMs)break;
+    if(remainingMs()<35_000)break;
     continue;
   }
   if(result.status!==0){
@@ -133,12 +136,12 @@ for(let pass=1;pass<=maxPasses;pass++){
     console.error(`[aider] pass ${pass} verification failed: ${error.message}; rolling back product edits`);
     rollbackObjectiveFiles(obj);
     state.failed=[...(state.failed||[]),{id:obj.id,pass,code:'verification',error:error.message}];
-    if(remainingMs()<verificationReserveMs)break;
+    if(remainingMs()<35_000)break;
   }
 }
 if(success){state.completed=[...(state.completed||[]),obj.id];state.lastSuccess={id:obj.id,at:new Date().toISOString()};}
 state.protocol=protocol;
-fs.mkdirSync(path.dirname(statePath),{recursive:true});
-fs.writeFileSync(statePath,JSON.stringify(state,null,2)+'\\n');
-console.log(JSON.stringify({ok:success,protocol,objective:obj.id,passes:maxPasses,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs()}));
+state.lastRunAt=new Date().toISOString();
+saveAiderState(statePath,state);
+console.log(JSON.stringify({ok:success,protocol,objective:obj.id,passes:maxPasses,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),stateRecovery:loadedState.recovered?loadedState.source:null}));
 process.exit(success?0:1);
