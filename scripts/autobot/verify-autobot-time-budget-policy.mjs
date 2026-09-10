@@ -1,0 +1,10 @@
+const grace=Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES||'5',10);
+const deterministic=Number.parseInt(process.env.AUTOBOT_DETERMINISTIC_SLICE_MINUTES||'5',10);
+const feature=Number.parseInt(process.env.AUTOBOT_FEATURE_SLICE_MINUTES||'20',10);
+if(grace<0||grace>10)throw new Error('finish grace must stay bounded to 0-10 minutes');
+if(deterministic<3||feature<3)throw new Error('worker slices are below safe minimums');
+const selfShare=deterministic/(deterministic+feature)*0.5;
+if(selfShare<0.05||selfShare>0.20)throw new Error(`self-improvement reservation outside 5-20% envelope: ${selfShare}`);
+const productShare=1-selfShare;
+if(productShare<0.80)throw new Error(`product share below 80%: ${productShare}`);
+console.log(`autobot-time-budget-policy: PASS product=${Math.round(productShare*100)}% self-improvement=${Math.round(selfShare*100)}% grace=${grace}m`);
