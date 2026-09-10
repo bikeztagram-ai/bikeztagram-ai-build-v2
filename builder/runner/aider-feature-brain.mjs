@@ -18,6 +18,7 @@ const requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTE
 const configuredDeadline=Number.parseInt(process.env.AUTOBOT_FEATURE_DEADLINE_EPOCH_MS||'',10);
 const deadline=Number.isFinite(configuredDeadline)&&configuredDeadline>Date.now()?configuredDeadline:Date.now()+requestedMinutes*60_000;
 const perCallMaxMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_AIDER_CALL_TIMEOUT_MS||String(6*60*60*1000),10));
+const verificationReserveMs=Math.max(90_000,Number.parseInt(process.env.AUTOBOT_FEATURE_VERIFICATION_RESERVE_MS||'150000',10));
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
 
 function loadObjectives(){
@@ -64,17 +65,23 @@ function promptFor(obj,pass){
 function trackedPaths(){
   try{return execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'}).split(/\\r?\\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);}catch{return[];}
 }
+function rollbackObjectiveFiles(obj){
+  for(const file of scopedFiles(obj)){
+    try{execFileSync('git',['restore','--worktree','--',file],{cwd:root,stdio:'inherit'});}catch{}
+    try{execFileSync('git',['clean','-fd','--',file],{cwd:root,stdio:'inherit'});}catch{}
+  }
+}
 function assertScope(before,obj){
   const allowed=new Set(scopedFiles(obj));
   const after=trackedPaths();
-  const newPaths=after.filter(p=>!before.has(p));
-  const unauthorized=newPaths.filter(p=>!allowed.has(p));
+  const unauthorized=after.filter(p=>!before.has(p)&&!allowed.has(p));
   if(unauthorized.length){
     console.error(`[aider] unauthorized modified paths: ${unauthorized.join(', ')}`);
     for(const file of unauthorized){
       try{execFileSync('git',['restore','--',file],{cwd:root,stdio:'inherit'});}catch{}
       try{execFileSync('git',['clean','-fd','--',file],{cwd:root,stdio:'inherit'});}catch{}
     }
+    rollbackObjectiveFiles(obj);
     throw new Error(`Aider modified files outside objective scope: ${unauthorized.join(', ')}`);
   }
 }
@@ -96,20 +103,26 @@ const aiderFiles=useSrcSubtree?files.map(file=>file.slice(4)):files;
 let success=false;
 for(let pass=1;pass<=maxPasses;pass++){
   const remaining=remainingMs();
-  if(remaining<35_000){console.error('[aider] feature deadline reached before next pass');break;}
+  if(remaining<verificationReserveMs){console.error('[aider] feature deadline reached; reserving time for verification');break;}
   state.runs=(state.runs||0)+1;
   const before=new Set(trackedPaths());
-  const timeout=Math.min(perCallMaxMs,remaining-5_000);
+  const timeout=Math.min(perCallMaxMs,remaining-verificationReserveMs);
   const apiTimeout=Math.max(30,Math.floor(timeout/1000));
   const args=[`--model=${model}`,`--timeout=${apiTimeout}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=512','--subtree-only','--message',promptFor(obj,pass),...aiderFiles];
   const result=spawnSync('aider',args,{cwd:aiderCwd,encoding:'utf8',stdio:'inherit',timeout});
   if(result.error){
-    console.error(`[aider] pass ${pass} stopped: ${result.error.code||result.error.message}`);
+    console.error(`[aider] pass ${pass} stopped: ${result.error.code||result.error.message}; rolling back partial product edits`);
+    rollbackObjectiveFiles(obj);
     state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error.code||'process-error'}];
-    if(remainingMs()<35_000)break;
+    if(remainingMs()<verificationReserveMs)break;
     continue;
   }
-  if(result.status!==0){state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.status}];continue;}
+  if(result.status!==0){
+    console.error(`[aider] pass ${pass} exited ${result.status}; rolling back partial product edits`);
+    rollbackObjectiveFiles(obj);
+    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.status}];
+    continue;
+  }
   try{
     assertScope(before,obj);
     verifyDiff();
@@ -117,9 +130,10 @@ for(let pass=1;pass<=maxPasses;pass++){
     success=true;
     break;
   }catch(error){
-    console.error(`[aider] pass ${pass} verification failed: ${error.message}`);
+    console.error(`[aider] pass ${pass} verification failed: ${error.message}; rolling back product edits`);
+    rollbackObjectiveFiles(obj);
     state.failed=[...(state.failed||[]),{id:obj.id,pass,code:'verification',error:error.message}];
-    if(remainingMs()<35_000)break;
+    if(remainingMs()<verificationReserveMs)break;
   }
 }
 if(success){state.completed=[...(state.completed||[]),obj.id];state.lastSuccess={id:obj.id,at:new Date().toISOString()};}
