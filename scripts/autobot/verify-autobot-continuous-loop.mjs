@@ -12,17 +12,19 @@ const required = [
   ['deterministic execution', 'runOnce(deterministicSlice'],
   ['feature execution', 'runFeatureBrain()'],
   ['shared remaining-time guard', 'remainingMs()'],
-  ['absolute run deadline', 'const runDeadline = started + requestedMinutes * 60_000'],
+  ['absolute run deadline', 'const runDeadline=started+requestedMinutes*60_000'],
   ['deadline propagation', 'AUTOBOT_RUN_DEADLINE_EPOCH_MS'],
   ['iteration audit', "appendAudit('iteration-started'"],
   ['feature audit', "appendAudit('feature-brain-started'"],
-  ['final audit', 'verifyAuditLog()']
+  ['final audit', 'verifyAuditLog()'],
+  ['self-evolution mode', 'selfImprovementOnly'],
+  ['self-evolution focus propagation', 'AUTOBOT_FEATURE_FOCUS']
 ];
 for (const [label, marker] of required) if (!runner.includes(marker)) failures.push(`missing ${label}: ${marker}`);
-// A feature failure must not terminate the sustained controller. Detect only an
-// immediate terminal exit in the feature-status branch; do not use a broad
-// regex that can accidentally span later, unrelated break statements.
 if (/const featureStatus=runFeatureBrain\(\);\s*if\(featureStatus!==0\)\{[^}]*process\.exit\(/s.test(runner)) failures.push('feature brain is terminal instead of resumable');
-if (!/while\(totalUnits<requestedUnits&&remainingMs\(\)>0\)/.test(runner)) failures.push('no sustained shared-budget loop');
+const productLoop=/while\(totalUnits<requestedUnits&&remainingMs\(\)>0\)/.test(runner);
+const lockedLoop=/while\(\(selfImprovementOnly\?featureCycles<maxFeatureCycles:totalUnits<requestedUnits\)&&remainingMs\(\)>0\)/.test(runner);
+if (!productLoop && !lockedLoop) failures.push('no sustained shared-budget loop');
+if (!runner.includes("if(selfImprovementOnly){const featureStatus=runFeatureBrain()")) failures.push('locked self-evolution path is missing');
 if (failures.length) { console.error(failures.map(f => `FAIL: ${f}`).join('\n')); process.exit(1); }
-console.log('AutoBot continuous-loop contract PASS: bounded deterministic slices, bounded feature slices, repeated alternation, shared absolute time budget, deadline propagation, cycle ceiling, resumable feature failures, and audit evidence.');
+console.log('AutoBot continuous-loop contract PASS: bounded slices, shared absolute time budget, deadline propagation, cycle ceiling, resumable feature failures, locked self-evolution path, and audit evidence.');
