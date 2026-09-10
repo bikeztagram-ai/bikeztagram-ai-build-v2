@@ -23,7 +23,7 @@ const learningPath=path.join(root,'builder/working/aider-feature-brain-learning.
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
 const runtimePrefixes=['.aider.chat.history.md','.aider.input.history','.aider.tags.cache.v4/','builder/working/aider-feature-brain-learning.json','builder/working/aider-feature-brain-state.json'];
 const hardProtectedPrefixes=['builder/brain/feature-objectives.json','builder/quality/','.github/workflows/','scripts/autobot/verify-','scripts/autobot/run-production-gate.mjs','package.json'];
-function loadObjectives(){const file=path.join(root,'builder/brain/feature-objectives.json');try{return JSON.parse(fs.readFileSync(file,'utf8')).objectives||[];}catch(error){try{execFileSync('git',['restore','--','builder/brain/feature-objectives.json'],{cwd:root,stdio:'inherit'});return JSON.parse(fs.readFileSync(file,'utf8')).objectives||[];}catch{}throw new Error(`feature objectives JSON is invalid: ${error.message}`);}}
+function loadObjectives(){const file=path.join(root,'builder','brain','feature-objectives.json');try{return JSON.parse(fs.readFileSync(file,'utf8')).objectives||[];}catch(error){try{execFileSync('git',['restore','--','builder/brain/feature-objectives.json'],{cwd:root,stdio:'inherit'});return JSON.parse(fs.readFileSync(file,'utf8')).objectives||[];}catch{}throw new Error(`feature objectives JSON is invalid: ${error.message}`);}}
 function loadJson(file,fallback){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return fallback;}}
 const objectives=loadObjectives();
 const state=loadJson(statePath,{protocol,completed:[],failed:[],runs:0});
@@ -53,9 +53,11 @@ function persist(){fs.mkdirSync(path.dirname(statePath),{recursive:true});state.
 const obj=objective();
 if(!obj){state.lastStatus='no-eligible-objective';state.updatedAt=new Date().toISOString();fs.mkdirSync(path.dirname(statePath),{recursive:true});fs.writeFileSync(statePath,JSON.stringify(state,null,2)+'\n');console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective',completed:state.completed||[]}));process.exit(0);}
 try{validateObjective(obj);}catch(error){recordFailure(obj,0,error);persist();console.error(`[aider] invalid objective contract: ${error.message}`);process.exit(1);}
-const files=scopedFiles(obj),newFiles=allowNewFiles(obj),aiderScope=[...files,...newFiles];
-if(!aiderScope.length){console.error(`[aider] objective ${obj.id} has no editable files`);process.exit(1);}
-const useSrcSubtree=aiderScope.every(file=>file.startsWith('src/'));const aiderCwd=useSrcSubtree?path.join(root,'src'):root;const aiderFiles=useSrcSubtree?aiderScope.map(file=>file.slice(4)):aiderScope;
+const files=scopedFiles(obj),newFiles=allowNewFiles(obj),isSelfImprovement=obj.kind==='self-improvement';
+if(!files.length){console.error(`[aider] objective ${obj.id} has no existing editable files`);process.exit(1);}
+const scopePrefix=isSelfImprovement&&files.every(file=>file.startsWith('builder/runner/'))?'builder/runner/':files.every(file=>file.startsWith('src/'))?'src/':'';
+const aiderCwd=scopePrefix?path.join(root,scopePrefix):root;
+const aiderFiles=scopePrefix?files.filter(file=>file.startsWith(scopePrefix)).map(file=>file.slice(scopePrefix.length)):files;
 let success=false;
 for(let pass=1;pass<=maxPasses;pass++){
   const remaining=remainingMs();
@@ -89,5 +91,5 @@ for(let pass=1;pass<=maxPasses;pass++){
 }
 if(success){state.completed=[...(state.completed||[]),obj.id];state.lastSuccess={id:obj.id,kind:obj.kind||'product',at:new Date().toISOString()};state.lastStatus='objective-complete';}else state.lastStatus='objective-failed';
 persist();
-console.log(JSON.stringify({ok:success,protocol,objective:obj.id,kind:obj.kind||'product',passes:maxPasses,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),learningFailures:(learning.failures||[]).length,learningSuccesses:(learning.successes||[]).length}));
+console.log(JSON.stringify({ok:success,protocol,objective:obj.id,kind:obj.kind||'product',passes:maxPasses,model,scopePrefix,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),learningFailures:(learning.failures||[]).length,learningSuccesses:(learning.successes||[]).length}));
 process.exit(success?0:1);
