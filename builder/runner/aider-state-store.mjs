@@ -75,13 +75,12 @@ export function saveAiderState(statePath, state) {
     fs.closeSync(fd);
   }
 
-  if (fs.existsSync(statePath)) {
-    try {
-      const current = parseCandidate(statePath);
-      if (current) fs.copyFileSync(statePath, backupPath);
-    } catch {
-      // The new atomic state is still safe to publish even if the backup cannot be refreshed.
-    }
+  // Keep a complete, known-valid recovery copy before replacing the live state.
+  // This also guarantees recovery after the very first successful save.
+  try {
+    fs.copyFileSync(tempPath, backupPath);
+  } catch {
+    // The main state can still be atomically published; an older backup may remain usable.
   }
 
   fs.renameSync(tempPath, statePath);
