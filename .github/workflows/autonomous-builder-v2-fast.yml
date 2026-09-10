@@ -69,6 +69,16 @@ jobs:
           path: ~/.ollama/models
           key: bikeztagram-local-ai-${{ runner.os }}-${{ inputs.local_model }}
 
+      - name: Restore self-evolution learning state
+        uses: actions/cache@v4
+        with:
+          path: |
+            builder/working/aider-feature-brain-learning.json
+            builder/working/aider-feature-brain-state.json
+          key: bikeztagram-autobot-learning-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            bikeztagram-autobot-learning-${{ github.ref_name }}-
+
       - name: Start local AI brain
         env:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
@@ -95,7 +105,7 @@ jobs:
           echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=1' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=3' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_ENGINE=aider' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_FOCUS=self-improvement-only' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=4096' >> "$GITHUB_ENV"
@@ -137,6 +147,7 @@ jobs:
           node scripts/autobot/verify-self-improvement-boundary.mjs
           node scripts/autobot/verify-self-evolution-runtime.mjs
           node builder/quality/autobot-ready.mjs
+          npm run build
 
       - name: Run fast sustained builder
         run: node builder/runner/long-run-executor.mjs
