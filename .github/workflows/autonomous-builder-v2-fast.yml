@@ -17,7 +17,7 @@ on:
       local_model:
         description: 'Local coding model'
         required: false
-        default: 'qwen2.5-coder:7b'
+        default: 'qwen2.5-coder:3b'
         type: string
       focus:
         description: 'Autobot operating mode — locked to self-evolution until graduation'
@@ -42,6 +42,8 @@ env:
   AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
   AUTOBOT_FEATURE_ENGINE: aider
   AUTOBOT_FEATURE_FOCUS: self-improvement-only
+  AUTOBOT_AIDER_CALL_TIMEOUT_MS: 180000
+  AUTOBOT_VERIFICATION_RESERVE_MS: 60000
   BUILDER_BASE_BRANCH: main
 
 jobs:
@@ -93,11 +95,11 @@ jobs:
           echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
-          echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=2' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=1' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_ENGINE=aider' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_FOCUS=self-improvement-only' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_CTX=4096' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=900' >> "$GITHUB_ENV"
           echo '[autobot] performance proxy ready; SELF-EVOLUTION-ONLY mode locked; product work disabled; closed-loop verification remains enabled'
 
       - name: Resolve duration
@@ -133,6 +135,7 @@ jobs:
           node scripts/autobot/verify-feature-objective-dependencies.mjs
           node scripts/autobot/verify-aider-feature-engine.mjs
           node scripts/autobot/verify-self-improvement-boundary.mjs
+          node scripts/autobot/verify-self-evolution-runtime.mjs
           node builder/quality/autobot-ready.mjs
 
       - name: Run fast sustained builder
