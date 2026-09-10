@@ -1,0 +1,1 @@
+Self-evolution uses Qwen 2.5 Coder 7B with a deliberately long inference budget. This is intentional: the observed CPU-only Aider run spent nearly the full 15-minute smoke window before timing out. Longer runs should favour complete verified objectives over rapid retries.

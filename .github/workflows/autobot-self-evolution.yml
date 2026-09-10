@@ -6,7 +6,7 @@ on:
       duration:
         description: 'Self-evolution work time budget'
         required: false
-        default: '15m'
+        default: '30m'
         type: choice
         options: ['15m','30m','1h','2h','3h','4h','5h','6h']
       local_model:
@@ -31,8 +31,8 @@ env:
   BUILDER_BASE_BRANCH: main
   AUTOBOT_SELF_EVOLUTION_REF: fix/autobot-product-review-self-improvement-v2
   AUTOBOT_MIN_SELF_EVOLUTION_SHA: 2af5489d6026e2cd89c9b7df1cbeef2b002c1669
-  AUTOBOT_AIDER_CALL_TIMEOUT_MS: 360000
-  AUTOBOT_VERIFICATION_RESERVE_MS: 60000
+  AUTOBOT_AIDER_CALL_TIMEOUT_MS: 900000
+  AUTOBOT_VERIFICATION_RESERVE_MS: 90000
 
 jobs:
   self-evolution:
@@ -106,8 +106,8 @@ jobs:
           echo 'AUTOBOT_FEATURE_PASSES_PER_SLICE=3' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_ENGINE=aider' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_FOCUS=self-improvement-only' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_CTX=4096' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=900' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
           echo '[autobot] PERFORMANCE PROXY READY'
 
       - name: Resolve self-evolution duration
