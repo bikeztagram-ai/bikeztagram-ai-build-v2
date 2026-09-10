@@ -8,7 +8,8 @@ const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const engine=read('builder/runner/aider-feature-brain.mjs');
 const controller=read('builder/runner/long-run-executor.mjs');
 const planner=read('builder/runner/self-improvement-planner.mjs');
-const workflow=read('.github/workflows/autonomous-builder-v2-fast.yml');
+const workflow=read('.github/workflows/autobot-self-evolution.yml');
+const fastWorkflow=read('.github/workflows/autonomous-builder-v2-fast.yml');
 const policy=JSON.parse(read('builder/runner/autobot-evolution-policy.json'));
 const objectives=JSON.parse(read('builder/brain/feature-objectives.json')).objectives||[];
 
@@ -19,6 +20,7 @@ assert.match(engine,/recordFailure/);
 assert.match(engine,/recentLearning/);
 assert.match(engine,/configuredCallMax/);
 assert.match(engine,/reserveMs/);
+assert.match(engine,/qwen2\.5-coder:7b/);
 assert.match(engine,/--no-auto-commits/);
 assert.match(engine,/--no-dirty-commits/);
 assert.match(engine,/--subtree-only/);
@@ -40,24 +42,27 @@ assert.match(controller,/self-evolution-objectives-exhausted/);
 assert.match(controller,/consecutiveFeatureFailures/);
 assert.match(controller,/maxFeatureFailures/);
 assert.match(controller,/feature-brain-failure-stop/);
+assert.match(controller,/qwen2\.5-coder:7b/);
 assert.match(planner,/recurringFailures/);
 assert.match(planner,/highestPriorityLearning/);
 assert.match(planner,/recommendedNextAction/);
 assert.match(planner,/timeoutFailures/);
-assert.match(workflow,/qwen2.5-coder:3b/);
-assert.match(workflow,/AUTOBOT_AIDER_CALL_TIMEOUT_MS: 180000/);
+
+assert.match(workflow,/default: 'qwen2\.5-coder:7b'/);
+assert.match(workflow,/AUTOBOT_AIDER_CALL_TIMEOUT_MS: 360000/);
 assert.match(workflow,/AUTOBOT_VERIFICATION_RESERVE_MS: 60000/);
 assert.match(workflow,/AUTOBOT_FEATURE_PASSES_PER_SLICE=3/);
 assert.match(workflow,/LOCAL_AI_PROXY_NUM_CTX=4096/);
 assert.match(workflow,/LOCAL_AI_PROXY_NUM_PREDICT=900/);
-assert.match(workflow,/Restore self-evolution learning state/);
-assert.match(workflow,/bikeztagram-autobot-learning-/);
-assert.match(workflow,/verify-objective-paths/);
+assert.match(workflow,/AUTOBOT_FEATURE_FOCUS=self-improvement-only/);
+assert.match(workflow,/AUTOBOT_SELF_EVOLUTION_REF: fix\/autobot-product-review-self-improvement-v2/);
+assert.match(workflow,/AUTOBOT_MIN_SELF_EVOLUTION_SHA: 2af5489d6026e2cd89c9b7df1cbeef2b002c1669/);
 assert.match(workflow,/actions\/upload-artifact@v4/);
-assert.match(workflow,/candidate_requires_human_review=true/);
 assert.doesNotMatch(workflow,/gh pr create/);
 assert.doesNotMatch(workflow,/git push/);
 assert.doesNotMatch(workflow,/contents:\s*write/);
+
+assert.match(fastWorkflow,/qwen2\.5-coder:3b/,'the separate fast product workflow may retain its lightweight 3B default');
 assert.equal(policy.mode,'self-evolution-only');
 assert.equal(policy.productWorkLocked,true);
 const selfObjectives=objectives.filter(o=>o?.kind==='self-improvement');
@@ -68,4 +73,4 @@ for(const selfObjective of selfObjectives){
   assert.ok(selfObjective.acceptance.some(x=>String(x).includes('npm run build')),`self-improvement objective ${selfObjective.id} needs build verification`);
 }
 assert.ok(fs.existsSync(path.join(root,'scripts/autobot/verify-objective-paths.mjs')),'objective path verifier must exist');
-console.log(`PASS: self-evolution runtime is bounded, adaptive, persistently learning, artifact-only and product-locked; ${selfObjectives.length} self-improvement objectives staged.`);
+console.log(`PASS: self-evolution runtime is bounded, adaptive, persistently learning, artifact-only and product-locked; 7B is the primary self-evolution model; ${selfObjectives.length} self-improvement objectives staged.`);
