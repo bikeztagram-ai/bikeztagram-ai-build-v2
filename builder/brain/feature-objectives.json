@@ -1,17 +1,17 @@
 {
-  "version": 6,
+  "version": 7,
   "objectives": [
     {
       "id": "autobot-self-performance",
       "kind": "self-improvement",
-      "priority": 120,
-      "title": "Make self-evolution productive on hosted runners",
+      "priority": 125,
+      "title": "Make self-evolution reliably turn model reasoning into verified edits",
       "dependsOn": [],
       "files": ["builder/runner/aider-feature-brain.mjs", "builder/runner/ollama-performance-proxy.mjs"],
-      "allowNewFiles": ["builder/runner/self-improvement-planner.mjs"],
+      "allowNewFiles": [],
       "protectedPaths": ["builder/brain/feature-objectives.json", "builder/runner/autobot-evolution-policy.json", "scripts/autobot/verify-", "scripts/autobot/run-production-gate.mjs", "builder/quality/", ".github/workflows/", "package.json"],
-      "acceptance": ["self-improvement is distinct from product work", "model attempts are bounded and reserve verification time", "timeout and no-progress evidence drives a concrete efficiency improvement", "Aider cannot edit protected or out-of-scope paths", "no-progress is not success", "self-improvement boundary verifier passes", "npm run build passes"],
-      "constraints": ["remain Gemini-free and provider-free in product runtime", "preserve no-auto-commit, rollback, scope, audit, production and verification gates", "do not modify protected paths, workflows, safety verifiers, package manifests or objective definitions during the autonomous pass", "do not wait indefinitely for a model call", "make a real engineering improvement"]
+      "acceptance": ["self-improvement is distinct from product work", "Aider receives an explicit edit-first contract and must inspect then modify an allowed file when a concrete improvement is identified", "a no-diff attempt produces a bounded corrective edit attempt using the same scope and remaining deadline", "corrective feedback includes the observed no-progress or model-output failure rather than repeating the identical prompt", "only a real allowed-path diff can advance an objective to verification", "timeout, no-progress and edit failures remain truthful learning evidence", "Aider cannot edit protected or out-of-scope paths", "no-progress is not success", "self-improvement boundary verifier passes", "npm run build passes"],
+      "constraints": ["remain Gemini-free and provider-free in product runtime", "preserve no-auto-commit, rollback, scope, audit, production and verification gates", "do not modify protected paths, workflows, safety verifiers, package manifests or objective definitions during the autonomous pass", "do not wait indefinitely for a model call", "do not fabricate a patch or success", "make a real engineering improvement"]
     },
     {
       "id": "autobot-self-assessment",
