@@ -49,6 +49,9 @@ assert.match(planner,/recommendedNextAction/);
 assert.match(planner,/timeoutFailures/);
 
 assert.match(workflow,/default: 'qwen2\.5-coder:7b'/);
+assert.match(workflow,/LOCAL_AI_MODEL: qwen2\.5-coder:7b/);
+assert.match(workflow,/AUTOBOT_AIDER_MODEL: ollama_chat\/qwen2\.5-coder:7b/);
+assert.doesNotMatch(workflow,/inputs\.local_model/,'self-evolution model must not be user-overridable');
 assert.match(workflow,/AUTOBOT_AIDER_CALL_TIMEOUT_MS: 900000/);
 assert.match(workflow,/AUTOBOT_VERIFICATION_RESERVE_MS: 90000/);
 assert.match(workflow,/AUTOBOT_FEATURE_PASSES_PER_SLICE=3/);
@@ -74,4 +77,4 @@ for(const selfObjective of selfObjectives){
   assert.ok(selfObjective.acceptance.some(x=>String(x).includes('npm run build')),`self-improvement objective ${selfObjective.id} needs build verification`);
 }
 assert.ok(fs.existsSync(path.join(root,'scripts/autobot/verify-objective-paths.mjs')),'objective path verifier must exist');
-console.log(`PASS: self-evolution runtime is bounded, adaptive, persistently learning, artifact-only and product-locked; 7B is the primary self-evolution model; ${selfObjectives.length} self-improvement objectives staged.`);
+console.log(`PASS: self-evolution runtime is bounded, adaptive, persistently learning, artifact-only and product-locked; 7B is hard-locked as the self-evolution model; ${selfObjectives.length} self-improvement objectives staged.`);
