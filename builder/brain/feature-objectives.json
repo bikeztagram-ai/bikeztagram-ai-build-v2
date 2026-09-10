@@ -9,7 +9,7 @@
       "dependsOn": [],
       "files": ["builder/runner/aider-feature-brain.mjs", "builder/runner/ollama-performance-proxy.mjs"],
       "allowNewFiles": ["builder/runner/self-improvement-planner.mjs"],
-      "protectedPaths": ["builder/brain/feature-objectives.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
+      "protectedPaths": ["builder/brain/feature-objectives.json", "builder/runner/autobot-evolution-policy.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
       "acceptance": ["self-improvement is distinct from product work", "model attempts are bounded and reserve verification time", "timeout and no-progress evidence drives a concrete efficiency improvement", "Aider cannot edit protected or out-of-scope paths", "no-progress is not success", "self-improvement boundary verifier passes", "npm run build passes"],
       "constraints": ["remain Gemini-free and provider-free in product runtime", "preserve no-auto-commit, rollback, scope, audit, production and verification gates", "do not modify protected paths, workflows, safety verifiers, package manifests or objective definitions during the autonomous pass", "do not wait indefinitely for a model call", "make a real engineering improvement"]
     },
@@ -21,7 +21,7 @@
       "dependsOn": ["autobot-self-performance"],
       "files": ["builder/runner/self-improvement-planner.mjs"],
       "allowNewFiles": ["builder/runner/self-evolution-metrics.mjs"],
-      "protectedPaths": ["builder/brain/feature-objectives.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
+      "protectedPaths": ["builder/brain/feature-objectives.json", "builder/runner/autobot-evolution-policy.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
       "acceptance": ["planner derives measurable efficiency and outcome signals", "repeated failures outrank speculative work", "next action is deterministic and evidence-driven", "planner can distinguish improve, investigate and plateau", "safety and scope controls cannot be weakened", "npm run build passes"],
       "constraints": ["keep planner deterministic and bounded", "do not claim improvement without measured evidence", "do not edit protected paths"]
     },
@@ -33,7 +33,7 @@
       "dependsOn": ["autobot-self-assessment"],
       "files": ["builder/runner/long-run-executor.mjs"],
       "allowNewFiles": [],
-      "protectedPaths": ["builder/brain/feature-objectives.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
+      "protectedPaths": ["builder/brain/feature-objectives.json", "builder/runner/autobot-evolution-policy.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
       "acceptance": ["self-evolution remains product-locked", "completed self-improvement advances to another eligible objective", "time allocation responds to measured outcomes", "no-progress cannot create an infinite hot loop", "shared deadline remains authoritative", "npm run build passes"],
       "constraints": ["do not bypass feature-brain verification", "preserve audit integrity", "never unlock product work automatically"]
     },
@@ -45,7 +45,7 @@
       "dependsOn": ["autobot-self-orchestration"],
       "files": ["builder/runner/aider-feature-brain.mjs", "builder/runner/long-run-executor.mjs"],
       "allowNewFiles": [],
-      "protectedPaths": ["builder/brain/feature-objectives.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
+      "protectedPaths": ["builder/brain/feature-objectives.json", "builder/runner/autobot-evolution-policy.json", "scripts/autobot/verify-", "builder/quality/", ".github/workflows/", "package.json"],
       "acceptance": ["partial edits are rolled back safely", "timeout and process failures remain distinguishable", "recovery respects remaining time", "repeated failure cannot silently become success", "audit state remains valid", "npm run build passes"],
       "constraints": ["never weaken scope or protected paths", "preserve no-auto-commit", "do not bypass independent verification", "do not unlock product work"]
     },
