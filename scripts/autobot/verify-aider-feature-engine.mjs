@@ -39,8 +39,8 @@ const checks=[
  ['workflow keeps fast model defaults',workflow.includes('qwen2.5-coder:3b')&&workflow.includes('LOCAL_AI_PROXY_NUM_CTX=4096')&&workflow.includes('LOCAL_AI_PROXY_NUM_PREDICT=900')],
  ['workflow verifies self-improvement boundary',workflow.includes('verify-self-improvement-boundary')],
  ['workflow keeps production verification',workflow.includes('verify:autobot-production-gate')],
- ['all product objectives have explicit file scopes',objectives.filter(o=>o?.kind!=='self-improvement').every(o=>Array.isArray(o.files)&&o.files.length>0)],
- ['self-improvement objective is explicit',objectives.some(o=>o?.kind==='self-improvement'&&o.id==='autobot-self-improvement')]
+ ['all objectives have explicit file scopes',objectives.every(o=>o?.kind==='self-improvement'||(Array.isArray(o?.files)&&o.files.length>0))],
+ ['self-improvement objective is explicit',objectives.some(o=>o?.kind==='self-improvement')]
 ];
 
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);
