@@ -41,12 +41,18 @@ assert.match(planner,/recommendedNextAction/);
 assert.match(planner,/timeoutFailures/);
 assert.match(workflow,/qwen2.5-coder:3b/);
 assert.match(workflow,/AUTOBOT_AIDER_CALL_TIMEOUT_MS: 180000/);
+assert.match(workflow,/AUTOBOT_VERIFICATION_RESERVE_MS: 60000/);
+assert.match(workflow,/AUTOBOT_FEATURE_PASSES_PER_SLICE=3/);
 assert.match(workflow,/LOCAL_AI_PROXY_NUM_CTX=4096/);
 assert.match(workflow,/LOCAL_AI_PROXY_NUM_PREDICT=900/);
 assert.match(workflow,/Restore self-evolution learning state/);
 assert.match(workflow,/bikeztagram-autobot-learning-/);
 assert.match(workflow,/verify-objective-paths/);
-assert.match(workflow,/npm run build/);
+assert.match(workflow,/actions\/upload-artifact@v4/);
+assert.match(workflow,/candidate_requires_human_review=true/);
+assert.doesNotMatch(workflow,/gh pr create/);
+assert.doesNotMatch(workflow,/git push/);
+assert.doesNotMatch(workflow,/contents:\s*write/);
 assert.equal(policy.mode,'self-evolution-only');
 assert.equal(policy.productWorkLocked,true);
 const selfObjectives=objectives.filter(o=>o?.kind==='self-improvement');
@@ -57,4 +63,4 @@ for(const selfObjective of selfObjectives){
   assert.ok(selfObjective.acceptance.some(x=>String(x).includes('npm run build')),`self-improvement objective ${selfObjective.id} needs build verification`);
 }
 assert.ok(fs.existsSync(path.join(root,'scripts/autobot/verify-objective-paths.mjs')),'objective path verifier must exist');
-console.log(`PASS: self-evolution runtime is bounded, adaptive, persistently learning and product-locked; ${selfObjectives.length} self-improvement objectives staged.`);
+console.log(`PASS: self-evolution runtime is bounded, adaptive, persistently learning, artifact-only and product-locked; ${selfObjectives.length} self-improvement objectives staged.`);
