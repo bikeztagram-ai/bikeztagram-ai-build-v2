@@ -138,7 +138,7 @@ jobs:
           node --check builder/runner/self-improvement-planner.mjs
           node --check builder/runner/ollama-performance-proxy.mjs
           node --check scripts/autobot/verify-objective-paths.mjs
-          node scripts/autobot/verify-objective-paths.mjs
+          npm run verify:autobot-objective-paths
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
