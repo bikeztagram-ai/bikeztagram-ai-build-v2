@@ -1,11 +1,11 @@
 {
-  "version": 4,
+  "version": 5,
   "objectives": [
     {
       "id": "autobot-self-improvement",
       "kind": "self-improvement",
       "priority": 110,
-      "title": "Self-audit and improve the Aider feature-engineering loop",
+      "title": "Make the Aider self-evolution loop bounded, adaptive and productive",
       "dependsOn": [],
       "files": ["builder/runner/aider-feature-brain.mjs"],
       "allowNewFiles": ["builder/runner/self-improvement-planner.mjs"],
@@ -25,6 +25,9 @@
         "Aider can create only explicitly allowlisted new files",
         "hard protected paths cannot be edited by self-improvement",
         "self-improvement cannot widen its own scope or protected-path policy",
+        "model attempts have a bounded execution budget and reserve time for verification",
+        "timeouts and no-progress outcomes are recorded as learning signals",
+        "a clean process exit without an allowed code change is not treated as success",
         "self-improvement boundary verifier passes",
         "npm run build passes"
       ],
@@ -32,9 +35,10 @@
         "remain Gemini-free and provider-free in product runtime",
         "preserve no-auto-commit behavior",
         "preserve rollback, scope, audit, production and verification gates",
-        "do not modify protected paths",
-        "do not modify workflows, package manifests, safety verifiers or objective definitions",
+        "do not modify protected paths during the autonomous pass",
+        "do not modify workflows, package manifests, safety verifiers or objective definitions during the autonomous pass",
         "do not create files outside allowNewFiles",
+        "do not wait indefinitely for a model call",
         "make a real engineering improvement, not documentation-only or cosmetic work"
       ]
     },
