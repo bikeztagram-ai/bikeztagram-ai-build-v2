@@ -126,6 +126,10 @@ function verifyBuild(){
   if(remaining<35_000)throw new Error('insufficient remaining run budget for build verification');
   const result=run('npm',['run','build'],{timeout:Math.min(120_000,remaining-5_000)});
   if(result.error||result.status!==0)throw new Error(`npm run build failed with status ${result.status??'error'}`);
+  const qualityRemaining=remainingMs();
+  if(qualityRemaining<35_000)throw new Error('insufficient remaining run budget for product quality verification');
+  const quality=run('npm',['run','verify:autobot-product-change-quality'],{timeout:Math.min(120_000,qualityRemaining-5_000)});
+  if(quality.error||quality.status!==0)throw new Error(`AutoBot product quality verification failed with status ${quality.status??'error'}`);
 }
 
 const obj=objective();
@@ -192,5 +196,5 @@ if(success){
 state.protocol=protocol;
 state.lastRunAt=new Date().toISOString();
 saveAiderState(statePath,state);
-console.log(JSON.stringify({ok:success,protocol,objective:obj.id,passes:maxPasses,startingPass:firstPass,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),normalRemainingMs:normalRemainingMs(),resumable:!success&&state.inProgress?.id===obj.id,stateRecovery:loadedState.recovered?loadedState.source:null,adversarialReviewEnabled:maxPasses>1,productDirectiveLoaded:Boolean(productDirective)}));
+console.log(JSON.stringify({ok:success,protocol,objective:obj.id,passes:maxPasses,startingPass:firstPass,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),normalRemainingMs:normalRemainingMs(),resumable:!success&&state.inProgress?.id===obj.id,stateRecovery:loadedState.recovered?loadedState.source:null,adversarialReviewEnabled:maxPasses>1,productDirectiveLoaded:Boolean(productDirective),postChangeProductQualityGuard:true}));
 process.exit(success?0:1);
