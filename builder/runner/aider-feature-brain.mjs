@@ -15,8 +15,8 @@ import { loadAiderState, saveAiderState } from './aider-state-store.mjs';
 
 const root=process.cwd();
 const run=(cmd,args,options={})=>spawnSync(cmd,args,{cwd:root,encoding:'utf8',stdio:'inherit',...options});
-const protocol='aider-repo-map-v3';
-const maxPasses=Math.max(1,Math.min(3,Number(process.env.AUTOBOT_FEATURE_PASSES||1)));
+const protocol=process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4';
+const maxPasses=Math.max(1,Math.min(3,Number(process.env.AUTOBOT_FEATURE_PASSES||2)));
 const model=process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b';
 const requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'15',10));
 const configuredDeadline=Number.parseInt(process.env.AUTOBOT_FEATURE_DEADLINE_EPOCH_MS||'',10);
@@ -24,6 +24,9 @@ const deadline=Number.isFinite(configuredDeadline)&&configuredDeadline>Date.now(
 const normalDeadline=Number.parseInt(process.env.AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS||String(deadline),10);
 const perCallMaxMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_AIDER_CALL_TIMEOUT_MS||String(6*60*60*1000),10));
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
+const directivePath=path.join(root,'builder/brain/autobot-product-directive.md');
+let productDirective='';
+try{productDirective=fs.readFileSync(directivePath,'utf8').trim();}catch(error){console.warn(`[aider] product directive unavailable: ${error.message}`);}
 
 function loadObjectives(){
   const file=path.join(root,'builder/brain/feature-objectives.json');
@@ -63,18 +66,26 @@ function scopedFiles(obj){return Array.isArray(obj?.files)?obj.files.filter(Bool
 function promptFor(obj,pass){
   const files=scopedFiles(obj);
   const completedPasses=state.inProgress?.id===obj.id?Number(state.inProgress.completedPasses||0):0;
+  const reviewPass=pass>1;
+  const directiveSection=productDirective?`\nPRODUCT QUALITY DIRECTIVE:\n${productDirective}\n`:'\nPRODUCT QUALITY DIRECTIVE: unavailable; apply the same principles from the objective acceptance criteria.\n';
   return [
-    'You are the Bikeztagram AI autonomous feature engineer.',
+    'You are the Bikeztagram AI autonomous feature engineer. You are not a ticket-filler: optimise for real product quality.',
     `Objective: ${obj.title||obj.id}`,
     `Pass ${pass} of ${maxPasses}.`,
+    reviewPass?'THIS IS AN ADVERSARIAL REVIEW/IMPROVEMENT PASS. Treat the existing work as suspect until you inspect it. Look for regressions, arbitrary limits, dead or unwired logic, weak edge-case handling, false quality signals, and changes that pass tests but make the actual product worse. Fix justified weaknesses rather than merely adding more code.':'This is the primary implementation pass. First understand the current decision path, then make one coherent product-quality improvement.',
     completedPasses>0?`This objective is being resumed after ${completedPasses} verified pass(es). Preserve those changes and continue the unfinished portion; do not redo completed work.`:'This objective is new in this worker state.',
     `Acceptance criteria: ${JSON.stringify(obj.acceptance||[])}`,
     `Objective-scoped product files: ${files.join(', ')}`,
     `Objective constraints: ${JSON.stringify(obj.constraints||[])}`,
-    'Inspect the supplied product files and their relevant callers/contracts as needed. Make one coherent, real product-quality improvement for this objective.',
+    directiveSection,
+    'Inspect the supplied product files and their relevant callers/contracts as needed. Identify where the change will affect production behaviour before editing.',
     'The supplied objective files are the ONLY files you may modify. Do not modify any other path, including builder code, workflows, .gitignore, secrets, package/dependency manifests, generated output, or unrelated files.',
     'Preserve public contracts and all existing safety, scope, rollback, audit, production verification, and Gemini-free rules.',
-    'Run the narrowest relevant verification. Do not merely describe changes: actually edit the supplied files.',
+    'Do not introduce arbitrary limits that discard useful user media. For director/editor objectives, story structure must be dynamic and shot count must follow creative intent, useful media, target duration and rhythm.',
+    'Do not add helpers, exports, metadata or quality scores unless they are connected to and consumed by the production decision path.',
+    'Run the narrowest relevant verification. When practical, exercise both sparse and rich inputs for selection/timeline/continuity changes.',
+    'If the current implementation is already correct, do not churn it. Improve only where evidence or reasoning supports the change.',
+    'Do not merely describe changes: actually edit the supplied files.',
     'Do not merge or create a pull request.'
   ].join('\n');
 }
@@ -136,7 +147,7 @@ for(let pass=firstPass;pass<=maxPasses;pass++){
   const snapshot=snapshotFiles(files);
   const timeout=Math.min(perCallMaxMs,Math.max(30_000,remaining-5_000));
   const apiTimeout=Math.max(30,Math.floor(timeout/1000));
-  const args=[`--model=${model}`,`--timeout=${apiTimeout}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=512','--subtree-only','--message',promptFor(obj,pass),...aiderFiles];
+  const args=[`--model=${model}`,`--timeout=${apiTimeout}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only','--message',promptFor(obj,pass),...aiderFiles];
   const result=spawnSync('aider',args,{cwd:aiderCwd,encoding:'utf8',stdio:'inherit',timeout});
   if(result.error){
     console.error(`[aider] pass ${pass} stopped: ${result.error.code||result.error.message}; rolling back only this pass`);
@@ -181,5 +192,5 @@ if(success){
 state.protocol=protocol;
 state.lastRunAt=new Date().toISOString();
 saveAiderState(statePath,state);
-console.log(JSON.stringify({ok:success,protocol,objective:obj.id,passes:maxPasses,startingPass:firstPass,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),normalRemainingMs:normalRemainingMs(),resumable:!success&&state.inProgress?.id===obj.id,stateRecovery:loadedState.recovered?loadedState.source:null}));
+console.log(JSON.stringify({ok:success,protocol,objective:obj.id,passes:maxPasses,startingPass:firstPass,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),normalRemainingMs:normalRemainingMs(),resumable:!success&&state.inProgress?.id===obj.id,stateRecovery:loadedState.recovered?loadedState.source:null,adversarialReviewEnabled:maxPasses>1,productDirectiveLoaded:Boolean(productDirective)}));
 process.exit(success?0:1);
