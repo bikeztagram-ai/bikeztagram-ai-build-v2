@@ -59,3 +59,21 @@ export function classifyRequestFailure(error){
  if(!status) return 'network-unavailable';
  return 'unknown';
 }
+
+export function classifyApiFailure(error){
+ const status=Number(error?.status||error?.response?.status||0);
+ const message=String(error?.message||error||'').toLowerCase();
+ if(status===408||status===504||message.includes('timeout')) return {kind:'timeout',retryable:true};
+ if(status===429||message.includes('rate limit')||message.includes('quota')) return {kind:'rate-limit',retryable:true};
+ if(status>=500||message.includes('unavailable')||message.includes('service')) return {kind:'provider-unavailable',retryable:true};
+ if(!navigatorOnlineSafe()) return {kind:'offline',retryable:true};
+ return {kind:'request-failed',retryable:false};
+}
+function navigatorOnlineSafe(){return typeof navigator==='undefined'||navigator.onLine!==false;}
+
+export function getRetryDelay(attempt,options={}){
+ const n=Math.max(0,Number(attempt)||0);
+ const base=Math.max(50,Number(options.baseMs)||400);
+ const cap=Math.max(base,Number(options.maxMs)||4000);
+ return Math.min(cap,Math.round(base*(2**n)));
+}
