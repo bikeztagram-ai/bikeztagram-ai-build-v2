@@ -32,6 +32,7 @@ env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
   AUTOBOT_FEATURE_ENGINE: aider
+  AUTOBOT_WORKER_CONFIG_VERSION: aider-v3-resumable-15m-1pass
   AUTOBOT_FINISH_GRACE_MINUTES: 5
   AUTOBOT_DETERMINISTIC_SLICE_MINUTES: 5
   AUTOBOT_FEATURE_SLICE_MINUTES: 15
@@ -87,6 +88,7 @@ jobs:
           echo '[autobot] performance proxy ready; Aider repo-map feature engine selected; resumable pass checkpoints enabled'
       - name: Resolve duration
         run: |
+          set -euo pipefail
           case "$REQUESTED_DURATION" in
             15m) minutes=15;; 30m) minutes=30;; 1h) minutes=60;; 2h) minutes=120;; 3h) minutes=180;; 4h) minutes=240;; 5h) minutes=300;; 6h) minutes=360;;
             *) echo "Unsupported duration: $REQUESTED_DURATION"; exit 1;;
@@ -96,6 +98,15 @@ jobs:
           echo "[autobot] fast-brain budget: ${minutes}m + up to ${AUTOBOT_FINISH_GRACE_MINUTES}m finish grace"
       - name: Validate autonomous builder
         run: |
+          set -euo pipefail
+          echo "[autobot] workflow revision: ${GITHUB_SHA}"
+          echo "[autobot] worker config: ${AUTOBOT_WORKER_CONFIG_VERSION}"
+          echo "[autobot] feature slice: ${AUTOBOT_FEATURE_SLICE_MINUTES}m; passes per slice: ${AUTOBOT_FEATURE_PASSES_PER_SLICE}; engine: ${AUTOBOT_FEATURE_ENGINE}"
+          test "$AUTOBOT_FEATURE_ENGINE" = aider
+          test "$AUTOBOT_FEATURE_SLICE_MINUTES" = 15
+          test "$AUTOBOT_FEATURE_PASSES_PER_SLICE" = 1
+          test -f builder/runner/aider-state-store.mjs
+          test -f scripts/autobot/verify-aider-state-recovery.mjs
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/feature-brain.mjs
