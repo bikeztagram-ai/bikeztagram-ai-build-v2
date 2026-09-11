@@ -8,3 +8,15 @@ export async function shareSocialFilm(blob,{presetId='portrait',name='bikeztagra
 export function validateSocialExport(blob,presetId='portrait'){const info=getSocialExportInfo(blob,presetId),failures=[];if(!(blob instanceof Blob)||!blob.size)failures.push('empty-output');if(!Number.isFinite(Number(info.width))||!Number.isFinite(Number(info.height)))failures.push('invalid-dimensions');if(Number(info.width)<=0||Number(info.height)<=0)failures.push('invalid-dimensions');if(!SOCIAL_PRESETS[presetId])failures.push('unknown-profile');return{ok:failures.length===0,failures,info};}
 export function validateSocialExportDuration(actualSeconds,targetSeconds,tolerance=0.25){const actual=Number(actualSeconds),target=Number(targetSeconds),allowed=Math.max(Number(tolerance)||0,0);if(!Number.isFinite(actual)||actual<0||!Number.isFinite(target)||target<=0)return{ok:false,reason:'invalid-duration'};return{ok:Math.abs(actual-target)<=allowed,actualSeconds:actual,targetSeconds:target,tolerance:allowed,reason:Math.abs(actual-target)<=allowed?null:'duration-mismatch'};}
 export function getSocialExportProfiles(){return Object.freeze(Object.fromEntries(Object.entries(SOCIAL_PRESETS).map(([id,p])=>[id,{id,label:p.label,width:p.width,height:p.height,aspectRatio:p.aspectRatio,platforms:[...(p.platforms||[])]}])));}
+
+export function buildSocialFilename(name,presetId='portrait',extension='mp4'){
+ const info=SOCIAL_PRESETS[presetId]||SOCIAL_PRESETS.portrait;
+ const base=safeFilename(name);
+ const ext=String(extension||info.extension||'mp4').replace(/[^a-z0-9]/gi,'').toLowerCase()||'mp4';
+ return `${base}-${info.width}x${info.height}.${ext}`;
+}
+
+export function validateSocialFilename(filename){
+ const value=String(filename||'');
+ return {ok:value.length>0&&value.length<=100&&!/[\\/:*?"<>|]/.test(value),filename:value,reason:value.length===0?'empty':value.length>100?'too-long':/[\\/:*?"<>|]/.test(value)?'unsafe-character':null};
+}
