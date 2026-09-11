@@ -123,6 +123,7 @@ jobs:
           node scripts/autobot/verify-aider-feature-engine.mjs
           node scripts/autobot/verify-aider-state-recovery.mjs
           node scripts/autobot/verify-director-story-planner-runtime.mjs
+          node scripts/autobot/verify-director-story-planner-idempotence.mjs
           node scripts/autobot/verify-autobot-time-budget-policy.mjs
           node builder/quality/autobot-ready.mjs
       - name: Run fast sustained builder
