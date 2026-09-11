@@ -5,6 +5,6 @@ const planner=fs.readFileSync('src/aiEditPlanner.js','utf8');
 if(!director.includes('export function buildDirectorStory'))throw new Error('Director story planner export missing.');
 if(!director.includes('directorStoryRole'))throw new Error('Director story role metadata missing.');
 if(!planner.includes("import { buildDirectorStory } from './director.js';"))throw new Error('Edit planner is not connected to story planner.');
-if(!/const\s+storyBeats\s*=\s*buildDirectorStory\s*\(/.test(planner))throw new Error('Edit planner does not create story beats.');
-if(!/storyBeats\s*:\s*storyBeats\.map\s*\(/.test(planner))throw new Error('Edit plan does not expose story beat evidence.');
+if(!planner.includes('const storyBeats=buildDirectorStory'))throw new Error('Edit planner does not create story beats.');
+if(!planner.includes('storyBeats:storyBeats.map'))throw new Error('Edit plan does not expose story beat evidence.');
 console.log('director-story-contract: PASS');
