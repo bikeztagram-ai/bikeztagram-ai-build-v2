@@ -32,6 +32,7 @@ env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
   AUTOBOT_FEATURE_ENGINE: aider
+  AUTOBOT_FEATURE_PROTOCOL: aider-repo-map-v4
   AUTOBOT_WORKER_CONFIG_VERSION: aider-v4-adversarial-2pass
   AUTOBOT_FINISH_GRACE_MINUTES: 5
   AUTOBOT_DETERMINISTIC_SLICE_MINUTES: 5
@@ -83,9 +84,10 @@ jobs:
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_ENGINE=aider' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_PROTOCOL=aider-repo-map-v4' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_PREDICT=2200' >> "$GITHUB_ENV"
-          echo '[autobot] performance proxy ready; Aider repo-map feature engine selected; adversarial two-pass product review enabled'
+          echo '[autobot] performance proxy ready; Aider repo-map v4 feature engine selected; adversarial two-pass product review enabled'
       - name: Resolve duration
         run: |
           set -euo pipefail
@@ -101,8 +103,10 @@ jobs:
           set -euo pipefail
           echo "[autobot] workflow revision: ${GITHUB_SHA}"
           echo "[autobot] worker config: ${AUTOBOT_WORKER_CONFIG_VERSION}"
+          echo "[autobot] feature protocol: ${AUTOBOT_FEATURE_PROTOCOL}"
           echo "[autobot] feature slice: ${AUTOBOT_FEATURE_SLICE_MINUTES}m; passes per slice: ${AUTOBOT_FEATURE_PASSES_PER_SLICE}; engine: ${AUTOBOT_FEATURE_ENGINE}"
           test "$AUTOBOT_FEATURE_ENGINE" = aider
+          test "$AUTOBOT_FEATURE_PROTOCOL" = aider-repo-map-v4
           test "$AUTOBOT_FEATURE_SLICE_MINUTES" = 20
           test "$AUTOBOT_FEATURE_PASSES_PER_SLICE" = 2
           test -f builder/brain/autobot-product-directive.md
