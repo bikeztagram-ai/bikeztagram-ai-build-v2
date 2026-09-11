@@ -1,15 +1,15 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "objectiveWeights": {
     "production-implementation": 1,
     "production-integration": 1,
     "production-enhancement": 1,
     "production-hardening": 1,
-    "accessibility-hardening": 1,
-    "builder-analysis": 1,
-    "builder-hardening": 1,
-    "self-improvement": 1
+    "accessibility-hardening": 0.9,
+    "builder-analysis": 0.25,
+    "builder-hardening": 0.25,
+    "self-improvement": 0.2
   },
   "maxAdjustment": 1,
-  "updatedAt": null
+  "updatedAt": "2026-09-10T00:00:00Z"
 }
