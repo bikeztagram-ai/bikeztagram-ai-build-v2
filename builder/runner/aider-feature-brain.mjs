@@ -15,7 +15,7 @@ import { loadAiderState, saveAiderState } from './aider-state-store.mjs';
 
 const root=process.cwd();
 const run=(cmd,args,options={})=>spawnSync(cmd,args,{cwd:root,encoding:'utf8',stdio:'inherit',...options});
-const protocol='aider-repo-map-v4';
+const protocol=process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4';
 const maxPasses=Math.max(1,Math.min(3,Number(process.env.AUTOBOT_FEATURE_PASSES||2)));
 const model=process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b';
 const requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'15',10));
