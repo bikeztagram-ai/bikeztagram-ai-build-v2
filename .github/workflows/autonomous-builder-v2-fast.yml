@@ -32,11 +32,12 @@ env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
   AUTOBOT_FEATURE_ENGINE: aider
-  AUTOBOT_WORKER_CONFIG_VERSION: aider-v3-resumable-15m-1pass
+  AUTOBOT_FEATURE_PROTOCOL: aider-repo-map-v4
+  AUTOBOT_WORKER_CONFIG_VERSION: aider-v4-adversarial-2pass
   AUTOBOT_FINISH_GRACE_MINUTES: 5
   AUTOBOT_DETERMINISTIC_SLICE_MINUTES: 5
-  AUTOBOT_FEATURE_SLICE_MINUTES: 15
-  AUTOBOT_FEATURE_PASSES_PER_SLICE: 1
+  AUTOBOT_FEATURE_SLICE_MINUTES: 20
+  AUTOBOT_FEATURE_PASSES_PER_SLICE: 2
   BUILDER_BASE_BRANCH: main
 jobs:
   fast-brain:
@@ -83,9 +84,10 @@ jobs:
           echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
           echo 'AUTOBOT_FEATURE_ENGINE=aider' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_PROTOCOL=aider-repo-map-v4' >> "$GITHUB_ENV"
           echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
-          echo 'LOCAL_AI_PROXY_NUM_PREDICT=1500' >> "$GITHUB_ENV"
-          echo '[autobot] performance proxy ready; Aider repo-map feature engine selected; resumable pass checkpoints enabled'
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=2200' >> "$GITHUB_ENV"
+          echo '[autobot] performance proxy ready; Aider repo-map v4 feature engine selected; adversarial two-pass product review enabled'
       - name: Resolve duration
         run: |
           set -euo pipefail
@@ -101,10 +103,13 @@ jobs:
           set -euo pipefail
           echo "[autobot] workflow revision: ${GITHUB_SHA}"
           echo "[autobot] worker config: ${AUTOBOT_WORKER_CONFIG_VERSION}"
+          echo "[autobot] feature protocol: ${AUTOBOT_FEATURE_PROTOCOL}"
           echo "[autobot] feature slice: ${AUTOBOT_FEATURE_SLICE_MINUTES}m; passes per slice: ${AUTOBOT_FEATURE_PASSES_PER_SLICE}; engine: ${AUTOBOT_FEATURE_ENGINE}"
           test "$AUTOBOT_FEATURE_ENGINE" = aider
-          test "$AUTOBOT_FEATURE_SLICE_MINUTES" = 15
-          test "$AUTOBOT_FEATURE_PASSES_PER_SLICE" = 1
+          test "$AUTOBOT_FEATURE_PROTOCOL" = aider-repo-map-v4
+          test "$AUTOBOT_FEATURE_SLICE_MINUTES" = 20
+          test "$AUTOBOT_FEATURE_PASSES_PER_SLICE" = 2
+          test -f builder/brain/autobot-product-directive.md
           test -f builder/runner/aider-state-store.mjs
           test -f scripts/autobot/verify-aider-state-recovery.mjs
           node --check builder/runner/deterministic-executor.mjs
@@ -156,4 +161,4 @@ jobs:
           git add -- src package.json
           git commit -m 'feat: autonomous builder fast brain checkpoint' || true
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Performance-tuned autonomous builder checkpoint. Review required before merge. Uses the Aider repository-map engine with local Ollama models while retaining Bikeztagram safety, scope and production verification gates. Checkpoint publishing excludes runtime state, Aider caches/history and audit artifacts.' || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'Autonomous Builder V2 fast brain checkpoint' --body 'Autonomous product checkpoint. Uses the Aider repository-map engine with local Ollama models, adversarial two-pass feature review, resumable state, and Bikeztagram safety/scope/production verification gates. Review required before merge.' || true
