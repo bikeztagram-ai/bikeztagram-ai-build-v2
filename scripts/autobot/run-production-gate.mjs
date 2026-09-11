@@ -12,6 +12,7 @@ const steps = [
   ['executable-timeline', 'npm', ['run', 'verify:executable-timeline']],
   ['director-handoff', 'npm', ['run', 'verify:director-timeline-handoff']],
   ['cinematic-quality', 'npm', ['run', 'verify:cinematic-quality-gate']],
+  ['autobot-product-change-quality', 'npm', ['run', 'verify:autobot-product-change-quality']],
   ['render-acceptance', 'npm', ['run', 'verify:render-acceptance-quality-gate']],
   ['music-arrangement-quality', 'npm', ['run', 'verify:music-arrangement-quality']],
   ['universal-production', 'npm', ['run', 'verify:universal-production-contract']],
