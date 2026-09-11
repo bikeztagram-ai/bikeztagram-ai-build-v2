@@ -62,6 +62,12 @@ Prefer tests that exercise the actual decision path. Verify multiple input sizes
 
 A feature is not complete if it only adds exports, types, helpers or metadata without demonstrating production consumption.
 
+For cinematic product changes, the authoritative post-change guard is `scripts/autobot/verify-autobot-product-change-quality.mjs`. It is wired into `scripts/autobot/run-production-gate.mjs` and exposed as `npm run verify:autobot-product-change-quality`. When cinematic product files change, this guard must reject fixed-role story ceilings and dead quality/continuity helpers, and it must verify that new story logic reaches the production planner.
+
+## Integration and discoverability
+
+Every new AutoBot file, rule, protocol, objective, verifier or renamed path must be discoverable from the exact consumers that need it. When adding or changing one component, trace and update its path, exact wording, caller, configuration, protocol/version, controller/runner, validator/contract, workflow wiring, state/resume handling, tests/verification and documentation. When removing or renaming something, remove or update every stale reference so AutoBot never searches for something that no longer exists.
+
 ## Safety and scope
 
 Never modify protected AutoBot infrastructure during a product objective unless the objective explicitly allows it. Never modify secrets, credentials or unrelated files. Never invent media or pretend an unavailable capability worked. Never reintroduce Gemini. Preserve copyright-safety and provider-neutral behaviour.

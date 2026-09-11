@@ -7,11 +7,17 @@ const controllerPath='builder/runner/long-run-executor.mjs';
 const workflowPath='.github/workflows/autonomous-builder-v2-fast.yml';
 const directivePath='builder/brain/autobot-product-directive.md';
 const objectivesPath='builder/brain/feature-objectives.json';
+const productionGatePath='scripts/autobot/run-production-gate.mjs';
+const productQualityVerifierPath='scripts/autobot/verify-autobot-product-change-quality.mjs';
+const packagePath='package.json';
 const runner=fs.readFileSync(runnerPath,'utf8');
 const controller=fs.readFileSync(controllerPath,'utf8');
 const workflow=fs.readFileSync(workflowPath,'utf8');
 const directive=fs.readFileSync(directivePath,'utf8');
 const objectivesDocument=JSON.parse(fs.readFileSync(objectivesPath,'utf8'));
+const productionGate=fs.readFileSync(productionGatePath,'utf8');
+const productQualityVerifier=fs.readFileSync(productQualityVerifierPath,'utf8');
+const packageDocument=JSON.parse(fs.readFileSync(packagePath,'utf8'));
 const objectives=objectivesDocument.objectives||[];
 
 const expectedProtocol='aider-repo-map-v4';
@@ -41,6 +47,7 @@ const checks=[
  ['Aider cannot edit gitignore',runner.includes('--no-gitignore')],
  ['diff verification',runner.includes("['diff','--check']")],
  ['build verification',runner.includes("['run','build']")],
+ ['post-change product quality verification',runner.includes("['run','verify:autobot-product-change-quality']")&&runner.includes('postChangeProductQualityGuard:true')],
  ['scope enforcement',runner.includes('unauthorized modified paths')&&runner.includes("['restore','--',file]")],
  ['protected objective recovery',runner.includes('protected feature-objectives.json')&&runner.includes("'restore','--','builder/brain/feature-objectives.json'")],
  ['no automatic commits',runner.includes('--no-auto-commits')&&runner.includes('--no-dirty-commits')],
@@ -48,6 +55,8 @@ const checks=[
  ['adversarial review is explicit',runner.includes('ADVERSARIAL REVIEW/IMPROVEMENT PASS')&&runner.includes('adversarialReviewEnabled')],
  ['directive contains adversarial review rules',directive.includes('Self-improvement is part of the work')&&directive.includes('After a coherent change passes its first verification')],
  ['directive contains dynamic story rules',directive.includes('Story structure must be dynamic')&&directive.includes('arbitrary four-shot bottleneck')],
+ ['directive documents product guard path',directive.includes('scripts/autobot/verify-autobot-product-change-quality.mjs')&&directive.includes('scripts/autobot/run-production-gate.mjs')],
+ ['directive contains integration discoverability rules',directive.includes('Every new AutoBot file, rule, protocol, objective, verifier or renamed path')&&directive.includes('exact consumers')],
  ['objective schema version is current',objectivesDocument.version===5],
  ['all objectives have explicit file scopes',objectives.every(o=>Array.isArray(o.files)&&o.files.length>0)],
  ['all scoped objective files exist',objectives.every(o=>o.files.every(file=>fs.existsSync(file)))],
@@ -55,6 +64,12 @@ const checks=[
  ['workflow validates directive',workflow.includes('test -f builder/brain/autobot-product-directive.md')],
  ['workflow validates Aider state recovery',workflow.includes('verify-aider-state-recovery.mjs')],
  ['workflow keeps production verification',workflow.includes('verify:autobot-production-gate')],
+ ['production gate includes product quality guard',productionGate.includes("['autobot-product-change-quality', 'npm', ['run', 'verify:autobot-product-change-quality']]")],
+ ['product quality verifier exists',fs.existsSync(productQualityVerifierPath)],
+ ['product quality verifier tests rich story scaling',productQualityVerifier.includes('story.length>=5')&&productQualityVerifier.includes('Array.from({length:8')],
+ ['product quality verifier tests production consumption',productQualityVerifier.includes('buildDirectorStory')&&productQualityVerifier.includes('storyBeats\\.map')],
+ ['product quality verifier rejects dead continuity intelligence',productQualityVerifier.includes('scoreDirectorContinuity')&&productQualityVerifier.includes('dead-intelligence guard failed')],
+ ['npm exposes product quality verifier',packageDocument.scripts?.['verify:autobot-product-change-quality']==='node scripts/autobot/verify-autobot-product-change-quality.mjs'],
  ['workflow installs Aider',workflow.includes('aider-chat')],
  ['workflow selects Aider',workflow.includes('AUTOBOT_FEATURE_ENGINE: aider')],
  ['workflow uses current feature slice',workflow.includes(`AUTOBOT_FEATURE_SLICE_MINUTES: ${expectedSliceMinutes}`)]
