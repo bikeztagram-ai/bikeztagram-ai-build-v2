@@ -24,6 +24,7 @@ const expectedProtocol='aider-repo-map-v4';
 const expectedPasses=2;
 const expectedMapTokens=768;
 const expectedSliceMinutes=20;
+const expectedObjectivesSchemaVersion=6;
 
 const checks=[
  ['Aider adapter exists',runner.includes('aider')],
@@ -57,7 +58,7 @@ const checks=[
  ['directive contains dynamic story rules',directive.includes('Story structure must be dynamic')&&directive.includes('arbitrary four-shot bottleneck')],
  ['directive documents product guard path',directive.includes('scripts/autobot/verify-autobot-product-change-quality.mjs')&&directive.includes('scripts/autobot/run-production-gate.mjs')],
  ['directive contains integration discoverability rules',directive.includes('Every new AutoBot file, rule, protocol, objective, verifier or renamed path')&&directive.includes('exact consumers')],
- ['objective schema version is current',objectivesDocument.version===5],
+ ['objective schema version is current',objectivesDocument.version===expectedObjectivesSchemaVersion],
  ['all objectives have explicit file scopes',objectives.every(o=>Array.isArray(o.files)&&o.files.length>0)],
  ['all scoped objective files exist',objectives.every(o=>o.files.every(file=>fs.existsSync(file)))],
  ['all objectives require adversarial review',objectives.every(o=>(o.acceptance||[]).some(item=>String(item).toLowerCase().includes('adversarial')))],
@@ -78,4 +79,4 @@ const checks=[
 const failures=checks.filter(([,ok])=>!ok).map(([name])=>name);
 if(failures.length){console.error(`Aider feature-engine contract FAIL: ${failures.join(', ')}`);process.exit(1);}
 assert.equal(failures.length,0);
-console.log(`Aider feature-engine contract PASS: ${checks.length}/${checks.length}; protocol=${expectedProtocol}; mapTokens=${expectedMapTokens}; passes=${expectedPasses}`);
+console.log(`Aider feature-engine contract PASS: ${checks.length}/${checks.length}; protocol=${expectedProtocol}; mapTokens=${expectedMapTokens}; passes=${expectedPasses}; objectiveSchema=${expectedObjectivesSchemaVersion}`);
