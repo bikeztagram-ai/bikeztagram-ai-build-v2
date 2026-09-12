@@ -52,10 +52,6 @@ Owns:
 Exact product scope:
 
 `src/director.js`
-`src/directorPlan.js`
-`src/directorSelection.js`
-`src/directorRhythm.js`
-`src/directorRenderRuntime.js`
 `src/aiEditPlanner.js`
 
 ### Timeline Builder
@@ -78,12 +74,38 @@ Owns:
 Exact product scope:
 
 `src/executableTimeline.js`
-`src/timelineDirector.js`
 `src/editorialRhythm.js`
-`src/beatAwareTimeline.js`
-`src/renderTiming.js`
+`src/renderer.js`
 
 These are complementary specialist Builders rather than competing copies of the protected Builder. Their scopes are intentionally narrow enough to permit future isolated parallelism without allowing two workers to silently edit the same product surface.
+
+## Specialist Builder Handoff
+
+The specialist Builder writes its verified candidate handoff through:
+
+`builder/runner/autobot-specialist-handoff.mjs`
+
+The durable handoff output is:
+
+`builder/working/autobot-specialist-handoff.json`
+
+The handoff schema is:
+
+`autobot-specialist-handoff-v1`
+
+A verified specialist candidate records the exact `baseCommit`, `candidateCommit`, preserved branch name, declared `ownsFiles`, product-quality verification command and the downstream Reviewer contract:
+
+`AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT`
+
+The handoff is validated before it is written. Its verifier is:
+
+`scripts/autobot/verify-autobot-specialist-handoff.mjs`
+
+Package command:
+
+`verify:autobot-specialist-handoff`
+
+The authoritative registry records the exact handoff output, contract and verifier paths under `coordination`. These paths must stay aligned with the producer and verifier whenever they are changed.
 
 ## Failure Queue
 
@@ -211,6 +233,20 @@ It remains **plan-only**. It reads the registry, durable failure queue and resum
 
 It may route repaired work to QA, open failures to Repair, resumable work to the protected Builder, or a validated explicit commit pair to Reviewer. It does not launch workers while the foundation is disabled.
 
+## Foundation Validation Workflow
+
+The dedicated manual validation workflow is:
+
+`.github/workflows/autobot-fleet-foundation-validation.yml`
+
+It is the correct test entrypoint for the fleet foundation. It does **not** run the normal product Builder objective loop. It runs the registered fleet verifiers, exercises the Coordinator in plan-only mode, confirms the protected Builder remains preserved, and runs a production build.
+
+The workflow is deliberately separate from:
+
+`.github/workflows/autonomous-builder-v2-fast.yml`
+
+The proven production Builder workflow remains the only workflow allowed to run the current autonomous product Builder. The fleet validation workflow must never activate or replace it.
+
 ## Fleet Registry
 
 The authoritative registry is:
@@ -232,9 +268,10 @@ A removed or renamed item must not remain discoverable through stale active word
 3. Prove adversarial Reviewer and explicit commit handoff.
 4. Prove analysis-only Self-Improvement evidence.
 5. Prove Specialist Builder isolation, scope enforcement and candidate handoff.
-6. Add coordinator scheduling only after every worker contract is independently verified.
-7. Add controlled parallelism only where `ownsFiles` scopes do not conflict and isolation is guaranteed.
-8. Allow measured self-improvement proposals through a human-reviewed improvement lane.
-9. Only then consider continuous autonomous orchestration.
+6. Run the dedicated Foundation Validation Workflow and require all foundation contracts plus the production build to pass.
+7. Add coordinator scheduling only after every worker contract is independently verified.
+8. Add controlled parallelism only where `ownsFiles` scopes do not conflict and isolation is guaranteed.
+9. Allow measured self-improvement proposals through a human-reviewed improvement lane.
+10. Only then consider continuous autonomous orchestration.
 
 No stage may weaken production gates, safety, rollback, audit or protected workflow controls merely to make the fleet appear successful.
