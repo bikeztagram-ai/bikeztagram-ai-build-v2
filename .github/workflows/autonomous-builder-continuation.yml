@@ -60,6 +60,7 @@ jobs:
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node scripts/autobot/verify-autobot-continuous-loop.mjs
           node scripts/autobot/verify-autobot-live-telemetry.mjs
+          node scripts/autobot/verify-autobot-brain-registry.mjs
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
       - name: Cache local AI model
