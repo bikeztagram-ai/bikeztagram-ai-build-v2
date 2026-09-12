@@ -1,18 +1,11 @@
 #!/usr/bin/env node
-/**
- * AutoBot post-change product-quality guard.
- * Validates changed cinematic production paths without assuming that every
- * cinematic file change must also contain the director story subsystem.
- */
+/** AutoBot post-change product-quality guard for changed cinematic production paths. */
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const root=process.cwd();
 const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/renderer.js','src/editorialRhythm.js','src/executableTimeline.js']);
-function changedPaths(){
-  const output=execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'});
-  return output.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);
-}
+function changedPaths(){const output=execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'});return output.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);}
 function read(path){return fs.readFileSync(`${root}/${path}`,'utf8');}
 function assert(condition,message){if(!condition)throw new Error(message);}
 function richMedia(){return Array.from({length:8},(_,index)=>({id:`rich-${index}`,type:index%2?'video/mp4':'image/jpeg',name:['wide mountain establishing','rider approaching road','motorcycle cornering action','cockpit detail close-up','mountain landscape journey','bike accelerating speed','sunset motorcycle reveal','hero motorcycle showcase'][index],duration:index%2?4:0,width:1920,height:1080,score:75+index}));}
@@ -20,10 +13,7 @@ function sparseMedia(count){return Array.from({length:count},(_,index)=>({id:`sp
 
 const changed=changedPaths();
 const cinematicChanged=changed.filter(path=>cinematicPaths.has(path));
-if(!cinematicChanged.length){
-  console.log('autobot-product-change-quality: PASS not-applicable (no cinematic product files changed)');
-  process.exit(0);
-}
+if(!cinematicChanged.length){console.log('autobot-product-change-quality: PASS not-applicable (no cinematic product files changed)');process.exit(0);}
 
 const planner=read('src/aiEditPlanner.js');
 const director=read('src/director.js');
@@ -49,6 +39,9 @@ if(/buildDirectorStory/.test(planner)||/storyBeats/.test(planner)){
   assert(/import\s*\{\s*buildDirectorStory\s*\}\s*from ['"]\.\/director\.js['"]/.test(planner),'production-path guard failed: aiEditPlanner.js does not import the canonical director story planner');
   assert(/const\s+storyBeats\s*=\s*buildDirectorStory\(/.test(planner),'production-path guard failed: aiEditPlanner.js does not construct story beats in the planner path');
   assert(/storyBeats\.map\(/.test(planner),'production-path guard failed: story beats are not consumed to construct auditable edit-plan evidence');
+  const storyFallbackIndex=planner.indexOf('}else if(storyBeats.length){');
+  const selectedFallbackIndex=planner.indexOf('}else if(selectedMoments.length){');
+  assert(storyFallbackIndex>=0&&selectedFallbackIndex>=0&&storyFallbackIndex<selectedFallbackIndex,'production-path guard failed: story beats are not the first deterministic planner fallback');
 }
 
 if(/export function scoreDirectorContinuity\s*\(/.test(director)){
@@ -56,13 +49,10 @@ if(/export function scoreDirectorContinuity\s*\(/.test(director)){
   const references=srcFiles.reduce((count,path)=>count+(read(path).match(/scoreDirectorContinuity\s*\(/g)||[]).length,0);
   assert(references>=2,'dead-intelligence guard failed: scoreDirectorContinuity is exported but not consumed by production code');
 }
-
 for(const helper of ['filterCaptionCues','normaliseCaptionTiming']){
-  const captionPath='src/captionPlanner.js';
-  if(!changed.includes(captionPath))continue;
+  if(!changed.includes('src/captionPlanner.js'))continue;
   const srcFiles=execFileSync('git',['ls-files','src'],{cwd:root,encoding:'utf8'}).split(/\r?\n/).filter(Boolean);
   const references=srcFiles.reduce((count,path)=>count+(read(path).match(new RegExp(`${helper}\\s*\\(`,'g'))||[]).length,0);
   assert(references>=2,`dead-intelligence guard failed: ${helper} is exported but not consumed by production code`);
 }
-
 console.log(`autobot-product-change-quality: PASS cinematic guard; changed=${cinematicChanged.join(',')}; storyBeats=${storyLength??'not-applicable'}; production-path=${storyIntegrationRequested?'verified':'unchanged'}`);
