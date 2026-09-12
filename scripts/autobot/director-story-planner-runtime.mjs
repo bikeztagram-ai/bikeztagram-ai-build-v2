@@ -11,7 +11,6 @@ const run=file=>execFileSync(process.execPath,[file],{stdio:'inherit'});
 
 let planner=read(plannerFile);
 let director=read(directorFile);
-
 if(!director.includes('export function buildDirectorStory')){
   run('scripts/autobot/director-story-runtime.mjs');
   director=read(directorFile);
@@ -35,9 +34,8 @@ const storyFallbackMarker='}else if(storyBeats.length){';
 const selectedFallbackMarker='}else if(selectedMoments.length){';
 if(!planner.includes(storyFallbackMarker)){
   if(!planner.includes(selectedFallbackMarker))throw new Error('selectedMoments fallback structural anchor not found; refusing blind edit.');
-  planner=planner.replace(selectedFallbackMarker,`${storyFallbackMarker}cuts=storyBeats.map((moment,index)=>makeCut(moment,index,storyBeats.length,analysis,{...options,targetDuration},mode));${selectedFallbackMarker.slice(1)}`);
+  planner=planner.replace(selectedFallbackMarker,`${storyFallbackMarker}cuts=storyBeats.map((moment,index)=>makeCut(moment,index,storyBeats.length,analysis,{...options,targetDuration},mode);}else if(selectedMoments.length){`);
 }
-
 if(planner.indexOf(storyFallbackMarker)>planner.indexOf(selectedFallbackMarker))throw new Error('director story fallback must run before the generic selectedMoments fallback; refusing to leave dead story intelligence.');
 
 if(!planner.includes('storyBeats:storyBeats.map(')){
