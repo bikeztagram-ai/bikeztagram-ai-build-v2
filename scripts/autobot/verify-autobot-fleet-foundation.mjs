@@ -36,9 +36,11 @@ assert(coordinator.includes('mode:registry.coordination?.mode||\'plan-only\''),'
 assert(coordinator.includes('activationBlocked:registry.enabled!==true||registry.coordination?.mode!==\'active\''),'coordinator must block activation while foundation is disabled');
 assert(coordinator.includes('No worker is launched by this foundation coordinator.'),'coordinator must not launch workers in foundation mode');
 assert(queue.includes("const SCHEMA_VERSION=1"),'failure queue schema marker missing');
-assert(queue.includes("status:'open'"),'failure queue must create open records');
+assert(queue.includes("const STATUSES=new Set(['open','claimed','repairing','repaired','verified','rejected','blocked'])"),'failure queue status contract missing');
 assert(queue.includes('export function appendFailure'),'failure queue append API missing');
 assert(queue.includes('export function readFailures'),'failure queue read API missing');
+assert(queue.includes('export function transitionFailure'),'failure queue transition API missing');
+assert(queue.includes('append-only'),'failure queue must preserve historical evidence');
 assert(doc.includes('Protected Builder'),'foundation document must describe the protected builder');
 assert(doc.includes('Failure Queue'),'foundation document must describe the failure queue');
 assert(doc.includes('Coordinator'),'foundation document must describe the coordinator');
@@ -47,4 +49,4 @@ assert(!workflowText.includes('autobot-coordinator.mjs'),'existing production wo
 assert(!workflowText.includes('autobot-repair.mjs'),'existing production workflow must not activate an unimplemented repair bot');
 execFileSync(process.execPath,['--check',coordinatorFile],{cwd:root,stdio:'inherit'});
 execFileSync(process.execPath,['--check',queueFile],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,schemaVersion:1,mode:registry.coordination.mode,enabled:registry.enabled,bots:registry.bots.map(bot=>({id:bot.id,status:bot.status,protected:Boolean(bot.protected)})),workflowActivation:false,protectedBuilder:'builder/runner/aider-feature-brain.mjs'}));
+console.log(JSON.stringify({ok:true,schemaVersion:1,mode:registry.coordination.mode,enabled:registry.enabled,bots:registry.bots.map(bot=>({id:bot.id,status:bot.status,protected:Boolean(bot.protected)})),failureStateMachine:['open','claimed','repairing','repaired','verified','rejected','blocked'],workflowActivation:false,protectedBuilder:'builder/runner/aider-feature-brain.mjs'}));
