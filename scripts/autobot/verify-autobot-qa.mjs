@@ -19,6 +19,8 @@ assert(qa.includes("from './autobot-failure-queue.mjs'"),'QA must discover the e
 assert(qa.includes("readFailures({status:'repaired'})"),'QA must consume only REPAIRED handoffs');
 assert(qa.includes("transitionFailure(record.id,'verified'"),'QA must be the worker that closes a successful repair handoff');
 assert(qa.includes("transitionFailure(record.id,'rejected'"),'QA must reject failed repair handoffs');
+assert(qa.includes('repairBaseCommit'),'QA must consume the exact recorded repair base commit');
+assert(qa.includes("const base=git(['rev-parse',record.repairBaseCommit])"),'QA must resolve the recorded repair base through git');
 assert(qa.includes("git(['worktree','add','--detach',worktree,base])"),'QA must reconstruct the repair in an isolated worktree');
 assert(qa.includes("git(['diff','--name-only',`${base}..${commit}`])"),'QA must inspect the committed repair diff independently');
 assert(qa.includes("const unauthorized=changed.filter(file=>!record.files.includes(file))"),'QA must enforce the original failure scope');
@@ -33,6 +35,7 @@ assert(qaBot?.entrypoint===qaFile,'registry QA entrypoint must exactly match the
 assert(qaBot?.status==='verified','QA must be registry-marked verified only after its contract exists');
 assert(qaBot?.protected===false,'QA must remain unprotected');
 assert(queue.includes("repaired:new Set(['verified','rejected','blocked'])"),'queue must expose the repaired-to-QA transition contract');
+assert(queue.includes('repairBaseCommit:normalise(input.repairBaseCommit)'),'queue must preserve the repair base for QA');
 execFileSync(process.execPath,['--check',qaFile],{cwd:root,stdio:'inherit'});
 execFileSync(process.execPath,['--check',queueFile],{cwd:root,stdio:'inherit'});
 console.log(JSON.stringify({ok:true,qaEntrypoint:qaFile,consumes:'repaired',successTransition:'verified',failureTransition:'rejected',isolatedWorktree:true,automaticPush:false,automaticMerge:false,independentBuild:true,productQualityGuard:true}));
