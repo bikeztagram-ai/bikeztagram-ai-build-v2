@@ -10,6 +10,7 @@
     "recoveryRunner": "builder/runner/autobot-fleet-recovery.mjs",
     "recoveryWorkflow": ".github/workflows/autobot-fleet-recovery.yml",
     "recoveryDocumentation": "builder/brain/autobot-fleet-controlled-recovery.md",
+    "recoveryTestPlan": "builder/brain/autobot-recovery-test-plan.md",
     "failureQueue": "builder/working/autobot-failure-queue.jsonl",
     "sharedEvidence": "builder/working/autobot-fleet-plan.json",
     "specialistHandoff": "builder/working/autobot-specialist-handoff.json",
