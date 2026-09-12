@@ -1,12 +1,16 @@
 {
-  "version": 1,
+  "version": 2,
   "batchId": null,
-  "requestedDuration": "15m",
+  "workflowRunId": "34702462750",
+  "requestedDuration": "6h",
   "segment": 1,
   "segments": 1,
   "nextSegment": null,
   "resumeRequired": false,
   "checkpoint": "builder/working/deterministic-autobot.json",
   "evidence": "builder/working/deterministic-autobot-evidence.json",
-  "generatedAt": "2026-08-27T20:45:06.235Z"
+  "runtimeState": "builder/working/long-run-state.json",
+  "aiderState": "builder/working/aider-feature-brain-state.json",
+  "liveTelemetry": "builder/working/autobot-live-telemetry.log",
+  "generatedAt": "2026-09-12T21:07:13.095Z"
 }
