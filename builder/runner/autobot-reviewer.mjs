@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFailure } from './autobot-failure-queue.mjs';
 
 const root=process.cwd();
@@ -34,7 +34,11 @@ try{
   }
   if(!changed.length)finding('high','no-change','candidate contains no changes relative to review base');
   try{run('git',['diff','--check',`${base}..${candidate}`],tempDir);}catch(error){finding('critical','patch-integrity-failed','candidate diff has whitespace or patch-integrity errors',[String(error.stdout||error.stderr||error.message).slice(-1200)]);}
-  try{build=run('npm',['run','build'],tempDir);}catch(error){finding('critical','build-failed','candidate build failed',[String(error.stdout||error.stderr||error.message).slice(-1200)]);}
+  const install=spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:tempDir,encoding:'utf8',stdio:'pipe',timeout:180_000});
+  if(install.error||install.status!==0){finding('critical','dependency-install-failed','candidate dependency installation failed',[String(install.stderr||install.error?.message||install.status).slice(-1200)]);}
+  else{
+    try{build=run('npm',['run','build'],tempDir);}catch(error){finding('critical','build-failed','candidate build failed',[String(error.stdout||error.stderr||error.message).slice(-1200)]);}
+  }
 }finally{try{git(['worktree','remove','--force',tempDir]);}catch{}}
 const status=findings.some(f=>f.severity==='critical')?'reject':findings.some(f=>f.severity==='high')?'needs-repair':'pass';
 const review={schemaVersion:1,reviewer:'autobot-reviewer',baseCommit:base,candidateCommit:candidate,changedFiles:changed,productFiles,status,findings,buildVerified:build!=='not-run',automaticMerge:false,automaticPush:false,generatedAt:new Date().toISOString()};
