@@ -9,13 +9,13 @@ import path from 'node:path';
 
 const root=process.cwd();
 const outputPath=path.resolve(root,process.env.AUTOBOT_SELF_IMPROVEMENT_OUTPUT||'builder/working/autobot-self-improvement.json');
-const queuePath=path.resolve(root,'builder/working/autobot-failure-queue.jsonl');
-const telemetryPath=path.resolve(root,'builder/working/autobot-live-telemetry.log');
-const statePath=path.resolve(root,'builder/working/autobot-state.json');
+const queuePath=path.resolve(root,process.env.AUTOBOT_FAILURE_QUEUE_PATH||'builder/working/autobot-failure-queue.jsonl');
+const telemetryPath=path.resolve(root,process.env.AUTOBOT_TELEMETRY_PATH||'builder/working/autobot-live-telemetry.log');
+const statePath=path.resolve(root,process.env.AUTOBOT_STATE_PATH||'builder/working/autobot-state.json');
 const reviewPaths=[
-  path.resolve(root,'builder/working/autobot-review.json'),
-  path.resolve(root,'builder/working/autobot-review-evidence.json'),
-  path.resolve(root,'builder/working/autobot-reviewer.json')
+  path.resolve(root,process.env.AUTOBOT_REVIEW_PATH||'builder/working/autobot-review.json'),
+  path.resolve(root,process.env.AUTOBOT_REVIEW_EVIDENCE_PATH||'builder/working/autobot-review-evidence.json'),
+  path.resolve(root,process.env.AUTOBOT_REVIEWER_EVIDENCE_PATH||'builder/working/autobot-reviewer.json')
 ];
 const maxPatterns=Math.max(1,Math.min(50,Number(process.env.AUTOBOT_SELF_IMPROVEMENT_MAX_PATTERNS||10)));
 
