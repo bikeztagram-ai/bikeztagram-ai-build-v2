@@ -16,6 +16,8 @@
   },
   "bots": [
     {"id":"builder","role":"protected-product-builder","entrypoint":"builder/runner/aider-feature-brain.mjs","status":"proven","owns":["objective-scoped product implementation"],"protected":true},
+    {"id":"director-builder","role":"specialist-cinematic-director-builder","entrypoint":"builder/runner/autobot-specialist-builder.mjs","status":"verified","owns":["creative direction","story construction","shot selection","director runtime"],"ownsFiles":["src/director.js","src/directorPlan.js","src/directorSelection.js","src/directorRhythm.js","src/directorRenderRuntime.js","src/aiEditPlanner.js"],"specialistBuilder":true,"protected":false},
+    {"id":"timeline-builder","role":"specialist-executable-timeline-builder","entrypoint":"builder/runner/autobot-specialist-builder.mjs","status":"verified","owns":["timeline execution","editorial rhythm","cut timing","transition and motion execution"],"ownsFiles":["src/executableTimeline.js","src/timelineDirector.js","src/editorialRhythm.js","src/beatAwareTimeline.js","src/renderTiming.js"],"specialistBuilder":true,"protected":false},
     {"id":"repair","role":"failure-analysis-and-repair","entrypoint":"builder/runner/autobot-repair.mjs","status":"verified","owns":["failure diagnosis","repair proposals","verified isolated fixes"],"protected":false},
     {"id":"qa","role":"independent-product-verifier","entrypoint":"builder/runner/autobot-qa.mjs","status":"verified","owns":["regression checks","product-quality review","handoff evidence"],"protected":false},
     {"id":"reviewer","role":"adversarial-product-reviewer","entrypoint":"builder/runner/autobot-reviewer.mjs","status":"verified","owns":["product-gap review","quality challenge","anti-churn review"],"protected":false},
@@ -28,6 +30,8 @@
     "No worker may weaken a validator, safety rule, protected workflow or production gate merely to turn a failure into a pass.",
     "Every new bot, entrypoint, path, protocol name and handoff contract must be registered here and covered by the fleet verifier before activation.",
     "Removed or renamed bots and entrypoints must be removed from this registry and all active discovery paths at the same time.",
-    "The coordinator must never invent a worker, path or protocol that is absent from this registry."
+    "The coordinator must never invent a worker, path or protocol that is absent from this registry.",
+    "Specialist Builders must use the shared isolated runner, explicit bot id, explicit objective and exact registry-owned file scope.",
+    "Specialist Builder changes must produce an explicit base/candidate commit pair for downstream Reviewer and QA handoff."
   ]
 }
