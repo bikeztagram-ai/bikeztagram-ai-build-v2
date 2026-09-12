@@ -74,6 +74,13 @@ assert(coordinator.includes('No worker is launched by this foundation coordinato
 assert(coordinator.includes("if(queue.repaired.length)"),'coordinator must discover pending repaired handoffs');
 assert(coordinator.includes("kind:'qa-required'"),'coordinator must route repaired handoffs to QA');
 assert(coordinator.includes("registry.bots.find(bot=>bot.id==='qa')"),'coordinator must discover the QA worker from the registry');
+assert(coordinator.includes("const reviewBaseCommit=String(process.env.AUTOBOT_REVIEW_BASE_COMMIT||'').trim()"),'coordinator must discover the explicit reviewer base-commit contract');
+assert(coordinator.includes("const reviewCommit=String(process.env.AUTOBOT_REVIEW_COMMIT||'').trim()"),'coordinator must discover the explicit reviewer candidate-commit contract');
+assert(coordinator.includes('function validCommit(value){return /^[0-9a-f]{40}$/i.test(value);}'),'coordinator must validate review commit identifiers before handoff');
+assert(coordinator.includes("kind:'reviewer-required'"),'coordinator must route an explicit candidate handoff to Reviewer');
+assert(coordinator.includes("{baseCommit:reviewBaseCommit,candidateCommit:reviewCommit}"),'coordinator must pass both exact review commits into the plan');
+assert(coordinator.includes("contract:'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT'"),'coordinator must publish the exact reviewer handoff contract wording');
+assert(!coordinator.includes('state?.lastRunCommit'),'coordinator must not depend on an undocumented Builder-state field');
 assert(queue.includes("const SCHEMA_VERSION=1"),'failure queue schema marker missing');
 assert(queue.includes("const STATUSES=new Set(['open','claimed','repairing','repaired','verified','rejected','blocked'])"),'failure queue status contract missing');
 assert(queue.includes('const ALLOWED_TRANSITIONS='),'failure queue must define legal state transitions');
@@ -157,4 +164,4 @@ try{
 }
 
 for(const file of [coordinatorFile,queueFile,repairFile,qaFile,reviewerFile,selfImprovementFile,repairVerifierFile,qaVerifierFile,reviewerVerifierFile,selfImprovementVerifierFile])execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,schemaVersion:1,mode:registry.coordination.mode,enabled:registry.enabled,bots:registry.bots.map(bot=>({id:bot.id,status:bot.status,protected:Boolean(bot.protected)})),failureStateMachine:['open','claimed','repairing','repaired','verified','rejected','blocked'],repairBot:repairFile,qaBot:qaFile,reviewerBot:reviewerFile,selfImprovementBot:selfImprovementFile,workflowActivation:false,protectedBuilder:'builder/runner/aider-feature-brain.mjs'}));
+console.log(JSON.stringify({ok:true,schemaVersion:1,mode:registry.coordination.mode,enabled:registry.enabled,bots:registry.bots.map(bot=>({id:bot.id,status:bot.status,protected:Boolean(bot.protected)})),failureStateMachine:['open','claimed','repairing','repaired','verified','rejected','blocked'],reviewHandoffContract:['AUTOBOT_REVIEW_BASE_COMMIT','AUTOBOT_REVIEW_COMMIT'],repairBot:repairFile,qaBot:qaFile,reviewerBot:reviewerFile,selfImprovementBot:selfImprovementFile,workflowActivation:false,protectedBuilder:'builder/runner/aider-feature-brain.mjs'}));
