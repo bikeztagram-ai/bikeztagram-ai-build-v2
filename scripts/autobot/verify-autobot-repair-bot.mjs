@@ -24,7 +24,8 @@ assert(repair.includes("const baseCommit=git(['rev-parse','HEAD'])"),'Repair Bot
 assert(repair.includes('repairBaseCommit:baseCommit'),'Repair Bot must persist the exact base commit in repair handoff evidence');
 assert(repair.includes("'--no-auto-commits'"),'Aider must not auto-commit inside the Repair Bot');
 assert(repair.includes("git(['commit','-m',`fix(autobot): repair failure ${record.id}`],worktree)"),'Repair Bot must create a focused repair commit only after verification');
-assert(repair.includes("const unauthorized=changed.filter(file=>!files.includes(file))"),'Repair Bot must enforce the failure file scope');
+assert(repair.includes("const unauthorized=touched.filter(file=>!files.includes(file))"),'Repair Bot must enforce the failure file scope');
+assert(repair.includes("npm install --no-audit --no-fund --no-package-lock")||repair.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'Repair Bot must install dependencies inside its isolated worktree');
 assert(repair.includes("npm run build"),'Repair Bot must verify the isolated build');
 assert(repair.includes("npm run verify:autobot-product-change-quality"),'Repair Bot must run the product-quality guard');
 assert(!repair.includes("git(['merge'"),'Repair Bot must not contain a merge operation');
@@ -36,6 +37,7 @@ assert(repairBot?.status==='verified','Repair Bot must be registry-marked verifi
 assert(repairBot?.protected===false,'Repair Bot must remain unprotected');
 assert(queue.includes("const STATUSES=new Set(['open','claimed','repairing','repaired','verified','rejected','blocked'])"),'queue must expose the full Repair Bot lifecycle');
 assert(queue.includes('repairBaseCommit:normalise(input.repairBaseCommit)'),'queue must persist repair base commit handoff metadata');
+assert(queue.includes('repairBaseCommit:input.repairBaseCommit===undefined?current.repairBaseCommit:input.repairBaseCommit'),'queue must preserve repair base commit across later transitions');
 
 const tempDir=fs.mkdtempSync(path.join(os.tmpdir(),'bikeztagram-repair-contract-'));
 const tempQueue=path.join(tempDir,'failure.jsonl');
@@ -54,6 +56,7 @@ try{
   const latest=queueModule.readFailures().find(record=>record.id===created.id);
   assert(latest?.status==='verified','append-only queue must fold the latest status by failure id');
   assert(latest?.repairBaseCommit===base,'repair base commit must survive the full handoff lifecycle');
+  assert(latest?.repairCommit===commit,'repair commit must survive the full handoff lifecycle');
   const plan=repairModule.repairPlan({failureId:'missing'});
   assert(plan.status==='no-open-failure','Repair Bot must report no-open-failure for an unknown id');
   assert(queueModule.readFailures().length===1,'queue transition test must retain one folded failure record');
@@ -63,4 +66,4 @@ try{
 
 execFileSync(process.execPath,['--check',repairFile],{cwd:root,stdio:'inherit'});
 execFileSync(process.execPath,['--check',queueFile],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,repairEntrypoint:repairFile,queueLifecycle:['open','claimed','repairing','repaired','verified','rejected','blocked'],isolatedWorktree:true,automaticPush:false,automaticMerge:false,productQualityGuard:true}));
+console.log(JSON.stringify({ok:true,repairEntrypoint:repairFile,queueLifecycle:['open','claimed','repairing','repaired','verified','rejected','blocked'],isolatedWorktree:true,isolatedDependencyInstall:true,automaticPush:false,automaticMerge:false,productQualityGuard:true}));
