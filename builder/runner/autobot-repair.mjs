@@ -113,9 +113,6 @@ function runRepair(record,files){
     transitionFailure(record.id,'repaired',{transitionedBy:'autobot-repair',repairBranch:branch,repairCommit:commit,resolution:'isolated repair passed diff, build and product-quality verification; awaiting independent QA.'});
     repaired=true;
     return {ok:true,failureId:record.id,branch,commit};
-  }catch(error){
-    try{transitionFailure(record.id,'blocked',{transitionedBy:'autobot-repair',repairBranch:branch,resolution:error.message});}catch(transitionError){console.error(`[repair] failed to record BLOCKED state: ${transitionError.message}`);}
-    throw error;
   }finally{
     cleanup(worktree,branch,repaired);
   }
