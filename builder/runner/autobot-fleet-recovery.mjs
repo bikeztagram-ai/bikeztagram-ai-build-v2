@@ -42,7 +42,7 @@ function captureFailure(){
   const files=[...new Set([...(Array.isArray(task?.files)?task.files:[]),...changed])].filter(file=>file&&!file.startsWith('.github/'));
   if(!checkpoint?.error)fail('Builder failure evidence does not contain a durable error message.');
   if(!files.length)fail('Builder failure evidence does not identify a repairable product-file scope.');
-  const failure=appendFailure({
+  return appendFailure({
     source:'autobot-fleet-recovery',
     runId:process.env.GITHUB_RUN_ID||'local',
     stage:'builder-failure',
@@ -50,16 +50,12 @@ function captureFailure(){
     expected:'Builder objective completes with verification passing',
     actual:checkpoint.error,
     files,
-    evidence:[
-      'builder/working/deterministic-autobot.json',
-      'builder/working/deterministic-autobot-evidence.json'
-    ],
+    evidence:[checkpointPath,evidencePath],
     attempted:task?.implementation||[],
     retryable:true,
     repairHint:`Repair blocked Builder task ${checkpoint.blockedTask||checkpoint.currentTask||'unknown'} using the isolated Repair Bot.`,
     metadata:{objectiveId:checkpoint.objectiveId||null,taskId:checkpoint.blockedTask||checkpoint.currentTask||null,taskFiles:task?.files||[],changedFiles:changed,evidenceUnits:evidence?.units?.length||0}
   });
-  return failure;
 }
 function runReviewer(baseCommit,candidateCommit){
   if(!validCommit(baseCommit)||!validCommit(candidateCommit))fail('Reviewer handoff requires full base and candidate commit SHAs.');
@@ -74,11 +70,11 @@ function runReviewer(baseCommit,candidateCommit){
   }
 }
 function writeState(state){fs.writeFileSync(fleetStatePath,JSON.stringify({...state,updatedAt:new Date().toISOString()},null,2)+'\n');}
-export function recoverFleet({failureId=null,capture=false}={}){
+export function captureBuilderFailure(){return captureFailure();}
+export function recoverFleet({failureId=null}={}){
   const registry=readJson(registryPath);
   if(registry.enabled!==true||registry.coordination?.mode!=='active')fail('AutoBot fleet execution is disabled; recovery orchestration must be explicitly activated after foundation verification.');
   let failure=failureId?readFailures({status:'open'}).find(item=>item.id===failureId):null;
-  if(capture)failure=captureFailure();
   if(!failure)failure=readFailures({status:'open'})[0]||null;
   if(!failure)return {ok:true,status:'no-open-failure'};
   writeState({schemaVersion:1,status:'repairing',failureId:failure.id});
@@ -98,7 +94,7 @@ export function recoverFleet({failureId=null,capture=false}={}){
 if(import.meta.url===`file://${process.argv[1]}`){
   const command=process.argv[2]||'recover';
   const failureId=process.argv[3]||null;
-  if(command==='capture')console.log(JSON.stringify(recoverFleet({capture:true}),null,2));
+  if(command==='capture')console.log(JSON.stringify(captureBuilderFailure(),null,2));
   else if(command==='recover')console.log(JSON.stringify(recoverFleet({failureId}),null,2));
   else fail(`unknown command: ${command}`);
 }
