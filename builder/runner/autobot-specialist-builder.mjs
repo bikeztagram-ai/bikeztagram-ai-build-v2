@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync, execFileSync } from 'node:child_process';
+import { writeSpecialistHandoff } from './autobot-specialist-handoff.mjs';
 
 const root=process.cwd();
 const registryPath=path.join(root,'builder/brain/autobot-fleet.json');
@@ -73,8 +74,14 @@ try{
   const commitMessage=`autobot(${botId}): ${objective.slice(0,72)}`;
   run('git',['commit','-m',commitMessage],worktree);
   const candidate=git(['rev-parse','HEAD'],worktree);
+  const handoffPath=writeSpecialistHandoff({
+    schemaVersion:'autobot-specialist-handoff-v1',
+    botId,objective,baseCommit:base,candidateCommit:candidate,branch,
+    ownsFiles:stagedDiff,productQualityCheck:productQuality,status:'verified-candidate',
+    downstream:{reviewContract:'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT'}
+  });
   keepBranch=true;
-  console.log(JSON.stringify({schemaVersion:1,ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:stagedDiff,productQualityCheck:productQuality,activationBlocked:false}));
+  console.log(JSON.stringify({schemaVersion:1,ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:stagedDiff,productQualityCheck:productQuality,handoffPath,activationBlocked:false}));
 }finally{
   try{run('git',['worktree','remove','--force',worktree],root);}catch{}
   if(!keepBranch){try{run('git',['branch','-D',branch],root);}catch{}}
