@@ -1,0 +1,5 @@
+Builder failure evidence -> Failure Queue -> Repair Bot -> QA Bot -> Reviewer Bot -> durable recovery evidence -> protected integration STOP
+Registry discovery: builder/brain/autobot-fleet.json
+Recovery runner: builder/runner/autobot-fleet-recovery.mjs
+Activation: enabled:true + coordination.mode:'active'
+Current production state: enabled:false + coordination.mode:'plan-only'
