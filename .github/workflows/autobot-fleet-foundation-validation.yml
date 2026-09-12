@@ -1,0 +1,70 @@
+name: 🏍️ BIKEZTAGRAM AUTOBOT — FLEET FOUNDATION VALIDATION
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: autobot-fleet-foundation-validation
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AUTOBOT_FAILURE_QUEUE_PATH: builder/working/autobot-failure-queue.jsonl
+  AUTOBOT_SPECIALIST_HANDOFF_PATH: builder/working/autobot-specialist-handoff.json
+
+jobs:
+  validate-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Verify AutoBot fleet foundation contracts
+        run: |
+          set -euo pipefail
+          npm run verify:autobot-fleet-foundation
+          npm run verify:autobot-repair-bot
+          npm run verify:autobot-qa
+          npm run verify:autobot-reviewer
+          npm run verify:autobot-reviewer-handoff
+          npm run verify:autobot-specialist-builder
+          npm run verify:autobot-specialist-handoff
+          npm run verify:autobot-self-improvement
+
+      - name: Exercise plan-only coordinator
+        run: |
+          set -euo pipefail
+          rm -f builder/working/autobot-fleet-plan.json
+          node builder/runner/autobot-coordinator.mjs
+          test -f builder/working/autobot-fleet-plan.json
+          node --input-type=module -e "import fs from 'node:fs'; const p=JSON.parse(fs.readFileSync('builder/working/autobot-fleet-plan.json','utf8')); if(p.enabled!==false) throw new Error('fleet validation activated the fleet'); if(p.mode!=='plan-only') throw new Error('fleet validation left plan-only mode'); if(p.activationBlocked!==true) throw new Error('coordinator did not report activation blocked'); if(p.protectedBuilder?.entrypoint!=='builder/runner/aider-feature-brain.mjs'||p.protectedBuilder?.preserved!==true) throw new Error('protected Builder contract changed'); if(p.specialistCandidate?.contract!=='AUTOBOT_SPECIALIST_BOT_ID + AUTOBOT_SPECIALIST_OBJECTIVE') throw new Error('specialist discovery contract missing'); if(p.reviewCandidate?.contract!=='AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT') throw new Error('Reviewer discovery contract missing'); console.log(JSON.stringify({ok:true,mode:p.mode,enabled:p.enabled,activationBlocked:p.activationBlocked,next:p.next?.kind,protectedBuilder:p.protectedBuilder.entrypoint,specialistContract:p.specialistCandidate.contract,reviewContract:p.reviewCandidate.contract},null,2));"
+
+      - name: Verify production build remains healthy
+        run: npm run build
+
+      - name: Confirm foundation workflow does not activate workers
+        run: |
+          set -euo pipefail
+          workflow='.github/workflows/autonomous-builder-v2-fast.yml'
+          for forbidden in \
+            builder/runner/autobot-coordinator.mjs \
+            builder/runner/autobot-repair.mjs \
+            builder/runner/autobot-qa.mjs \
+            builder/runner/autobot-reviewer.mjs \
+            builder/runner/autobot-self-improvement.mjs \
+            builder/runner/autobot-specialist-builder.mjs; do
+            if grep -Fq "$forbidden" "$workflow"; then
+              echo "Protected proven workflow references a new fleet worker: $forbidden"
+              exit 1
+            fi
+          done
+          echo '[autobot] fleet foundation validation complete; proven Builder remains the only active production worker.'
