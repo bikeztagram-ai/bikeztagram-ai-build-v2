@@ -36,7 +36,7 @@ assert(qaBot?.entrypoint===qaFile,'registry QA entrypoint must exactly match the
 assert(qaBot?.status==='verified','QA must be registry-marked verified only after its contract exists');
 assert(qaBot?.protected===false,'QA must remain unprotected');
 assert(queue.includes("repaired:new Set(['verified','rejected','blocked'])"),'queue must expose the repaired-to-QA transition contract');
-assert(queue.includes('repairBaseCommit:normalise(input.repairBaseCommit)'),'queue must preserve the repair base for QA');
+assert(queue.includes('repairBaseCommit:input.repairBaseCommit===undefined?current.repairBaseCommit:input.repairBaseCommit'),'queue must preserve the repair base for QA');
 execFileSync(process.execPath,['--check',qaFile],{cwd:root,stdio:'inherit'});
 execFileSync(process.execPath,['--check',queueFile],{cwd:root,stdio:'inherit'});
 console.log(JSON.stringify({ok:true,qaEntrypoint:qaFile,consumes:'repaired',successTransition:'verified',failureTransition:'rejected',isolatedWorktree:true,isolatedDependencyInstall:true,automaticPush:false,automaticMerge:false,independentBuild:true,productQualityGuard:true}));
