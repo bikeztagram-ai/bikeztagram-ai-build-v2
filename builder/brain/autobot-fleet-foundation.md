@@ -6,7 +6,7 @@ This is the first protected step toward a multi-agent Bikeztagram development sy
 
 The long-term system is:
 
-`Bikeztagram North Star -> Coordinator -> specialist worker -> verification -> handoff -> next worker -> repair/self-improvement when required -> repeat`
+`Bikeztagram North Star -> Coordinator -> specialist worker -> verification -> adversarial review -> handoff -> next worker -> repair/self-improvement when required -> repeat`
 
 ## Protected Builder
 
@@ -103,6 +103,35 @@ and the main verification suite exposes it as:
 
 `verify:autobot-qa`
 
+## Adversarial Reviewer Bot
+
+The third specialist worker is implemented at the exact registered path:
+
+`builder/runner/autobot-reviewer.mjs`
+
+The Reviewer is deliberately independent of the Builder and Repair Bot. Its job is not to make a candidate pass; its job is to try to prove that a candidate is **not** good enough.
+
+Its contract is:
+
+1. Review an explicit `AUTOBOT_REVIEW_BASE_COMMIT` against `AUTOBOT_REVIEW_COMMIT`.
+2. Inspect the complete candidate diff and changed-file scope.
+3. Reject changes to protected Builder/workflow/objective infrastructure.
+4. Independently run the project build.
+5. Challenge cinematic product changes for fixed story templates, evidence-free selection and duration-blind planning.
+6. Produce an auditable disposition: `pass`, `needs-repair` or `reject`.
+7. Write structured evidence to `builder/working/autobot-review.json` unless another explicit output path is supplied.
+8. Never merge or push.
+
+Its verifier is:
+
+`scripts/autobot/verify-autobot-reviewer.mjs`
+
+and the main verification suite exposes it as:
+
+`verify:autobot-reviewer`
+
+The registry marks `reviewer` as `verified`, while the fleet remains disabled and plan-only. The Reviewer is therefore ready for controlled use but is not silently activated by the existing production workflow.
+
 ## Coordinator
 
 The V1 coordinator is:
@@ -119,7 +148,7 @@ and writes:
 
 `builder/working/autobot-fleet-plan.json`
 
-It may identify that a repair is required, that the proven builder has resumable work, or that the builder is ready. It must not launch another worker in this foundation stage.
+It may identify that a repair is required, that a repaired handoff needs QA, that the proven builder has resumable work, or that the builder is ready. It must not launch another worker in this foundation stage.
 
 ## Fleet Registry
 
@@ -134,7 +163,7 @@ The registry currently describes:
 - `builder` — proven protected product builder
 - `repair` — verified isolated failure-analysis and repair worker
 - `qa` — verified independent product verifier
-- `reviewer` — planned adversarial product reviewer
+- `reviewer` — verified adversarial product reviewer
 - `self-improvement` — planned AutoBot-system improvement worker
 
 ### Discoverability contract
@@ -150,9 +179,10 @@ Activation is intentionally staged:
 1. Prove the registry and queue primitives, including durable failure transitions.
 2. Prove isolated repair-worker execution without touching the protected builder.
 3. Prove independent QA/handoff contracts.
-4. Add coordinator scheduling only after worker contracts are verified.
-5. Add controlled parallel workers with conflict isolation.
-6. Add measured self-improvement for recurring failures.
-7. Only then consider continuous autonomous orchestration.
+4. Prove adversarial Reviewer contracts and candidate-quality dispositions.
+5. Add coordinator scheduling only after worker contracts are verified.
+6. Add controlled parallel workers with conflict isolation.
+7. Add measured self-improvement for recurring failures.
+8. Only then consider continuous autonomous orchestration.
 
 No stage may weaken existing production gates, safety rules, rollback, audit or protected workflow controls merely to make the fleet appear successful.
