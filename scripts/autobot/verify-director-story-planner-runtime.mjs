@@ -15,7 +15,10 @@ const requiredRuntime=[
 for(const marker of requiredRuntime)if(!runtime.includes(marker))failures.push(`runtime missing ${marker}`);
 if(!runtime.includes('const currentEvidence='))failures.push('runtime lacks current planner evidence anchor');
 if(!runtime.includes('const legacyEvidence='))failures.push('runtime lacks legacy planner evidence anchor');
+const storyMap='cuts=storyBeats.map((moment,index)=>makeCut(moment,index,storyBeats.length,analysis,{...options,targetDuration},mode));';
+if(!runtime.includes(storyMap))failures.push('runtime story fallback must close both makeCut and Array.map calls');
+if(runtime.includes('cuts=storyBeats.map((moment,index)=>makeCut(moment,index,storyBeats.length,analysis,{...options,targetDuration},mode);'))failures.push('runtime contains malformed story fallback missing Array.map close');
 if(!planner.includes("import { selectDirectorMoments } from './directorSelection.js';"))failures.push('current planner selection import anchor missing');
 if(!planner.includes('directorSelection:directorSelectionFromCuts(cuts),'))failures.push('current planner directorSelection evidence shape missing');
 if(failures.length){console.error(failures.map(f=>`FAIL: ${f}`).join('\n'));process.exit(1);}
-console.log('director-story-planner-runtime contract PASS: current and legacy planner evidence anchors are supported.');
+console.log('director-story-planner-runtime contract PASS: current and legacy planner evidence anchors plus story-map syntax contract are supported.');
