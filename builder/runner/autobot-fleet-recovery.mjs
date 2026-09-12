@@ -10,8 +10,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { appendFailure, readFailures } from './autobot-failure-queue.mjs';
-import { repairOne } from './autobot-repair.mjs';
-import { qaOne } from './autobot-qa.mjs';
 
 const root=process.cwd();
 const checkpointPath=path.join(root,'builder','working','deterministic-autobot.json');
@@ -57,11 +55,12 @@ function captureFailure(){
     metadata:{objectiveId:checkpoint.objectiveId||null,taskId:checkpoint.blockedTask||checkpoint.currentTask||null,taskFiles:task?.files||[],changedFiles:changed,evidenceUnits:evidence?.units?.length||0}
   });
 }
-function runReviewer(baseCommit,candidateCommit){
+async function runReviewer(baseCommit,candidateCommit){
   if(!validCommit(baseCommit)||!validCommit(candidateCommit))fail('Reviewer handoff requires full base and candidate commit SHAs.');
+  const { execFileSync:run }=await import('node:child_process');
   const env={...process.env,AUTOBOT_REVIEW_BASE_COMMIT:baseCommit,AUTOBOT_REVIEW_COMMIT:candidateCommit,AUTOBOT_REVIEW_OUTPUT:path.join(root,'builder','working','autobot-review.json')};
   try{
-    execFileSync(process.execPath,['builder/runner/autobot-reviewer.mjs'],{cwd:root,env,stdio:'inherit'});
+    run(process.execPath,['builder/runner/autobot-reviewer.mjs'],{cwd:root,env,stdio:'inherit'});
     return {status:'pass'};
   }catch(error){
     if(error.status===3)return {status:'needs-repair'};
@@ -71,9 +70,11 @@ function runReviewer(baseCommit,candidateCommit){
 }
 function writeState(state){fs.writeFileSync(fleetStatePath,JSON.stringify({...state,updatedAt:new Date().toISOString()},null,2)+'\n');}
 export function captureBuilderFailure(){return captureFailure();}
-export function recoverFleet({failureId=null}={}){
+export async function recoverFleet({failureId=null}={}){
   const registry=readJson(registryPath);
   if(registry.enabled!==true||registry.coordination?.mode!=='active')fail('AutoBot fleet execution is disabled; recovery orchestration must be explicitly activated after foundation verification.');
+  const { repairOne }=await import('./autobot-repair.mjs');
+  const { qaOne }=await import('./autobot-qa.mjs');
   let failure=failureId?readFailures({status:'open'}).find(item=>item.id===failureId):null;
   if(!failure)failure=readFailures({status:'open'})[0]||null;
   if(!failure)return {ok:true,status:'no-open-failure'};
@@ -84,7 +85,7 @@ export function recoverFleet({failureId=null}={}){
   const qa=qaOne({failureId:failure.id});
   if(!qa?.ok)fail('QA Bot did not verify the repaired handoff.');
   writeState({schemaVersion:1,status:'reviewing',failureId:failure.id,repair,qa});
-  const review=runReviewer(qa.baseCommit,qa.repairCommit);
+  const review=await runReviewer(qa.baseCommit,qa.repairCommit);
   const finalStatus=review.status==='pass'?'verified-candidate':review.status==='needs-repair'?'review-needs-repair':'review-rejected';
   const result={ok:review.status==='pass',status:finalStatus,failureId:failure.id,repair,qa,review,protectedIntegration:false};
   writeState(result);
@@ -95,6 +96,6 @@ if(import.meta.url===`file://${process.argv[1]}`){
   const command=process.argv[2]||'recover';
   const failureId=process.argv[3]||null;
   if(command==='capture')console.log(JSON.stringify(captureBuilderFailure(),null,2));
-  else if(command==='recover')console.log(JSON.stringify(recoverFleet({failureId}),null,2));
+  else if(command==='recover')console.log(JSON.stringify(await recoverFleet({failureId}),null,2));
   else fail(`unknown command: ${command}`);
 }
