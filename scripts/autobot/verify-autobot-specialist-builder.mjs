@@ -24,6 +24,7 @@ assert(runner.includes('out-of-scope files'),'Specialist Builder must reject out
 assert(runner.includes("git',['worktree','add','-b',branch,worktree,base]"),'Specialist Builder must work in a disposable isolated worktree.');
 assert(runner.includes("git',['worktree','remove','--force',worktree]"),'Specialist Builder must remove its disposable worktree.');
 assert(runner.includes("git(['diff','HEAD','--check'],worktree)"),'Specialist Builder must run diff validation before handoff.');
+assert(runner.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'Specialist Builder must install dependencies inside its isolated worktree.');
 assert(runner.includes("AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality'"),'Specialist Builder must expose the exact product-quality verification command contract.');
 assert(runner.includes("run('sh',['-lc',productQuality],worktree)"),'Specialist Builder must execute its declared product-quality verification command.');
 assert(runner.includes("'--no-auto-commits'"),'Aider must not auto-commit inside the specialist worker.');
