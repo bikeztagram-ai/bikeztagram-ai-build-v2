@@ -66,9 +66,24 @@ function promptFor(record,files){
     'Do not merge or push. Leave the isolated checkout with a focused repair commit only.'
   ].join('\n');
 }
-function cleanup(worktree,branch){
+function cleanup(worktree,branch,keepBranch=false){
   try{git(['worktree','remove','--force',worktree]);}catch{}
-  try{git(['branch','-D',branch]);}catch{}
+  if(!keepBranch){try{git(['branch','-D',branch]);}catch{}}
+}
+function claimOpenFailure(requestedId){
+  const lockPath=`${queuePath}.claim-lock`;
+  let fd=null;
+  try{
+    try{fd=fs.openSync(lockPath,'wx');}
+    catch(error){fail(`another Repair Bot is claiming a failure (${error.code||'lock unavailable'})`);}
+    const record=selectFailure(requestedId);
+    if(!record)return null;
+    transitionFailure(record.id,'claimed',{transitionedBy:'autobot-repair'});
+    return record;
+  }finally{
+    if(fd!==null)try{fs.closeSync(fd);}catch{}
+    try{fs.unlinkSync(lockPath);}catch{}
+  }
 }
 function runRepair(record,files){
   fs.mkdirSync(repairRoot,{recursive:true});
@@ -76,6 +91,7 @@ function runRepair(record,files){
   const worktree=worktreeFor(record.id);
   cleanup(worktree,branch);
   git(['worktree','add','-b',branch,worktree,'HEAD']);
+  let repaired=false;
   try{
     transitionFailure(record.id,'repairing',{transitionedBy:'autobot-repair',repairBranch:branch});
     const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only','--message',promptFor(record,files),...files];
@@ -95,23 +111,30 @@ function runRepair(record,files){
     git(['commit','-m',`fix(autobot): repair failure ${record.id}`],worktree);
     const commit=git(['rev-parse','HEAD'],worktree);
     transitionFailure(record.id,'repaired',{transitionedBy:'autobot-repair',repairBranch:branch,repairCommit:commit,resolution:'isolated repair passed diff, build and product-quality verification; awaiting independent QA.'});
-    return {ok:true,failureId:record.id,branch,commit,worktree};
+    repaired=true;
+    return {ok:true,failureId:record.id,branch,commit};
   }catch(error){
     try{transitionFailure(record.id,'blocked',{transitionedBy:'autobot-repair',repairBranch:branch,resolution:error.message});}catch(transitionError){console.error(`[repair] failed to record BLOCKED state: ${transitionError.message}`);}
     throw error;
   }finally{
-    cleanup(worktree,branch);
+    cleanup(worktree,branch,repaired);
   }
 }
 
 export function repairOne({failureId=null}={}){
-  const record=selectFailure(failureId);
-  const files=validateFailure(record);
-  return runRepair(record,files);
+  const record=claimOpenFailure(failureId);
+  if(!record)return {ok:true,status:'no-open-failure'};
+  try{
+    const files=validateFailure(record);
+    return runRepair(record,files);
+  }catch(error){
+    try{transitionFailure(record.id,'blocked',{transitionedBy:'autobot-repair',resolution:error.message});}catch(transitionError){console.error(`[repair] failed to record BLOCKED state: ${transitionError.message}`);}
+    throw error;
+  }
 }
 
 export function repairPlan({failureId=null}={}){
-  const record=selectFailure(failureId);
+  const record=readFailures({status:'open'}).find(item=>failureId?item.id===failureId:true);
   if(!record)return {ok:true,status:'no-open-failure'};
   const files=validateFailure(record);
   return {ok:true,status:'ready',failureId:record.id,stage:record.stage,files,isolatedBranch:branchFor(record.id),protectedCheckout:root};
