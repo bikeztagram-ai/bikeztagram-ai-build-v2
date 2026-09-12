@@ -37,8 +37,6 @@ try{
   const selectedFallbackMarker='}else if(selectedMoments.length){';
   if(!planner.includes(storyFallbackMarker)){
     if(!planner.includes(selectedFallbackMarker))throw new Error('selectedMoments fallback structural anchor not found; refusing blind edit.');
-    const storyFallback=`${storyFallbackMarker}cuts=storyBeats.map((moment,index)=>makeCut(moment,index,storyBeats.length,analysis,{...options,targetDuration},mode);`;
-    // Build the replacement from complete syntax rather than a regex splice, then validate below.
     const replacement=`${storyFallbackMarker}cuts=storyBeats.map((moment,index)=>makeCut(moment,index,storyBeats.length,analysis,{...options,targetDuration},mode);}`;
     planner=planner.replace(selectedFallbackMarker,`${replacement}else if(selectedMoments.length){`);
   }
