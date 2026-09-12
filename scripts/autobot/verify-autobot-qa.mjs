@@ -26,8 +26,8 @@ assert(qa.includes("git(['diff','--name-only',`${base}..${commit}`])"),'QA must 
 assert(qa.includes("const unauthorized=changed.filter(file=>!record.files.includes(file))"),'QA must enforce the original failure scope');
 assert(qa.includes("git diff --check")||qa.includes("['diff','--check']"),'QA must verify reconstructed patch integrity');
 assert(qa.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'QA must install dependencies inside the isolated worktree');
-assert(qa.includes('npm run build'),'QA must verify the reconstructed build');
-assert(qa.includes('npm run verify:autobot-product-change-quality'),'QA must run product-quality verification');
+assert(qa.includes("spawnSync('npm',['run','build']"),'QA must verify the reconstructed build through the implemented npm invocation contract');
+assert(qa.includes("spawnSync('npm',['run','verify:autobot-product-change-quality']"),'QA must run product-quality verification through the implemented npm invocation contract');
 assert(!qa.includes("git(['merge'"),'QA must not merge repairs');
 assert(!qa.includes("git(['push'"),'QA must not push repairs');
 assert(doc.includes('independent QA'),'fleet documentation must describe independent QA');
