@@ -2,6 +2,15 @@ name: 🏍️ BIKEZTAGRAM AUTOBOT — FLEET FOUNDATION VALIDATION
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Foundation branch or commit to validate'
+        required: true
+        default: 'autobot-fleet-foundation-v4'
+        type: string
+  push:
+    branches:
+      - autobot-fleet-foundation-v4
 
 concurrency:
   group: autobot-fleet-foundation-validation
@@ -19,10 +28,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Checkout exact workflow revision
+      - name: Checkout selected foundation revision
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.ref || github.ref }}
           fetch-depth: 0
 
       - name: Install dependencies
