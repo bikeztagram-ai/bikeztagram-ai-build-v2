@@ -89,11 +89,12 @@ function runRepair(record,files){
   fs.mkdirSync(repairRoot,{recursive:true});
   const branch=branchFor(record.id);
   const worktree=worktreeFor(record.id);
+  const baseCommit=git(['rev-parse','HEAD']);
   cleanup(worktree,branch);
-  git(['worktree','add','-b',branch,worktree,'HEAD']);
+  git(['worktree','add','-b',branch,worktree,baseCommit]);
   let repaired=false;
   try{
-    transitionFailure(record.id,'repairing',{transitionedBy:'autobot-repair',repairBranch:branch});
+    transitionFailure(record.id,'repairing',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit});
     const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only','--message',promptFor(record,files),...files];
     const result=spawnSync('aider',args,{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:timeoutMs});
     if(result.error||result.status!==0)fail(`Aider repair failed with ${result.error?.code||result.status||'process error'}`);
@@ -110,9 +111,9 @@ function runRepair(record,files){
     git(['add','--',...files],worktree);
     git(['commit','-m',`fix(autobot): repair failure ${record.id}`],worktree);
     const commit=git(['rev-parse','HEAD'],worktree);
-    transitionFailure(record.id,'repaired',{transitionedBy:'autobot-repair',repairBranch:branch,repairCommit:commit,resolution:'isolated repair passed diff, build and product-quality verification; awaiting independent QA.'});
+    transitionFailure(record.id,'repaired',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit,repairCommit:commit,resolution:'isolated repair passed diff, build and product-quality verification; awaiting independent QA.'});
     repaired=true;
-    return {ok:true,failureId:record.id,branch,commit};
+    return {ok:true,failureId:record.id,branch,baseCommit:baseCommit,commit};
   }finally{
     cleanup(worktree,branch,repaired);
   }
