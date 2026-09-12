@@ -56,19 +56,20 @@ try{
     'Implement the smallest complete product-quality change that genuinely serves the objective.',
     'Run targeted verification and npm run build before finishing.',
     'Do not merge or push. Leave a clean, reviewable commit-ready working tree.'
-  ].join('\\n');
+  ].join('\n');
   const aider=String(process.env.AIDER_BIN||'aider').trim();
   run(aider,['--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--map-tokens=768','--subtree-only','--message',prompt,...files],worktree);
-  const all=git(['status','--porcelain'],worktree).split(/\\r?\\n/).map(line=>line.trim()).filter(Boolean).map(line=>line.slice(3));
-  const changed=git(['diff','HEAD','--name-only'],worktree).split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
+  const all=git(['status','--porcelain','--untracked-files=no'],worktree).split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>line.slice(3));
+  const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const touched=Array.from(new Set([...changed,...all]));
   if(touched.some(file=>!files.includes(file))) fail(`Specialist Builder modified out-of-scope files: ${touched.filter(file=>!files.includes(file)).join(', ')}`);
   run('git',['diff','HEAD','--check'],worktree);
+  run('npm',['install','--no-audit','--no-fund','--no-package-lock'],worktree);
   run('npm',['run','build'],worktree);
   const productQuality=String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality').trim();
   run('sh',['-lc',productQuality],worktree);
   git(['add','--',...files],worktree);
-  const stagedDiff=git(['diff','--cached','--name-only'],worktree).split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
+  const stagedDiff=git(['diff','--cached','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   if(stagedDiff.some(file=>!files.includes(file))) fail('Staged specialist diff escaped declared scope.');
   if(!stagedDiff.length) fail('Specialist Builder produced no product change.');
   const commitMessage=`autobot(${botId}): ${objective.slice(0,72)}`;
