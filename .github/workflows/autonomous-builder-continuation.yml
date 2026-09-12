@@ -59,6 +59,8 @@ jobs:
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node scripts/autobot/verify-autobot-continuous-loop.mjs
+          node scripts/autobot/verify-autobot-live-telemetry.mjs
+          node scripts/autobot/verify-autobot-brain-registry.mjs
       - name: Install dependencies
         run: npm install --no-audit --no-fund --no-package-lock
       - name: Cache local AI model
@@ -70,14 +72,14 @@ jobs:
         env:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
         run: bash scripts/autobot/install-local-brain.sh
-      - name: Run bounded continuation
+      - name: Run bounded continuation with live telemetry
         run: |
           set -euo pipefail
           budget="$REMAINING_MINUTES"
           if [ "$budget" -gt 360 ]; then budget=360; fi
           export BUILDER_MAX_MINUTES="$budget"
           export BUILDER_SEGMENT=continuation
-          node builder/runner/long-run-executor.mjs
+          node builder/runner/run-with-live-telemetry.mjs
       - name: Production verification
         if: success()
         run: |
@@ -85,8 +87,18 @@ jobs:
           npm run verify:project-memory
           npm run verify:autobot-continuous-loop
           npm run verify:autobot-dependencies
-      - name: Publish checkpoint
+      - name: Persist AutoBot continuation evidence
         if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-run-evidence-continuation-${{ github.run_id }}
+          path: |
+            builder/working/*.json
+            builder/working/autobot-live-telemetry.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Publish verified checkpoint
+        if: success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
