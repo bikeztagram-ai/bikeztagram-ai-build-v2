@@ -26,8 +26,8 @@ assert(repair.includes("'--no-auto-commits'"),'Aider must not auto-commit inside
 assert(repair.includes("git(['commit','-m',`fix(autobot): repair failure ${record.id}`],worktree)"),'Repair Bot must create a focused repair commit only after verification');
 assert(repair.includes("const unauthorized=touched.filter(file=>!files.includes(file))"),'Repair Bot must enforce the failure file scope');
 assert(repair.includes("npm install --no-audit --no-fund --no-package-lock")||repair.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'Repair Bot must install dependencies inside its isolated worktree');
-assert(repair.includes("npm run build"),'Repair Bot must verify the isolated build');
-assert(repair.includes("npm run verify:autobot-product-change-quality"),'Repair Bot must run the product-quality guard');
+assert(repair.includes("spawnSync('npm',['run','build']"),'Repair Bot must verify the isolated build through the implemented npm invocation contract');
+assert(repair.includes("spawnSync('npm',['run','verify:autobot-product-change-quality']"),'Repair Bot must run the product-quality guard through the implemented npm invocation contract');
 assert(!repair.includes("git(['merge'"),'Repair Bot must not contain a merge operation');
 assert(!repair.includes("git(['push'"),'Repair Bot must not push repairs automatically');
 assert(repair.includes("builder/runner/aider-feature-brain.mjs"),'Protected Builder must be explicitly excluded from Repair Bot edits');
