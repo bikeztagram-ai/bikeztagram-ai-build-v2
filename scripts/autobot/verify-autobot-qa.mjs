@@ -25,6 +25,7 @@ assert(qa.includes("git(['worktree','add','--detach',worktree,base])"),'QA must 
 assert(qa.includes("git(['diff','--name-only',`${base}..${commit}`])"),'QA must inspect the committed repair diff independently');
 assert(qa.includes("const unauthorized=changed.filter(file=>!record.files.includes(file))"),'QA must enforce the original failure scope');
 assert(qa.includes("git diff --check")||qa.includes("['diff','--check']"),'QA must verify reconstructed patch integrity');
+assert(qa.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'QA must install dependencies inside the isolated worktree');
 assert(qa.includes('npm run build'),'QA must verify the reconstructed build');
 assert(qa.includes('npm run verify:autobot-product-change-quality'),'QA must run product-quality verification');
 assert(!qa.includes("git(['merge'"),'QA must not merge repairs');
@@ -38,4 +39,4 @@ assert(queue.includes("repaired:new Set(['verified','rejected','blocked'])"),'qu
 assert(queue.includes('repairBaseCommit:normalise(input.repairBaseCommit)'),'queue must preserve the repair base for QA');
 execFileSync(process.execPath,['--check',qaFile],{cwd:root,stdio:'inherit'});
 execFileSync(process.execPath,['--check',queueFile],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,qaEntrypoint:qaFile,consumes:'repaired',successTransition:'verified',failureTransition:'rejected',isolatedWorktree:true,automaticPush:false,automaticMerge:false,independentBuild:true,productQualityGuard:true}));
+console.log(JSON.stringify({ok:true,qaEntrypoint:qaFile,consumes:'repaired',successTransition:'verified',failureTransition:'rejected',isolatedWorktree:true,isolatedDependencyInstall:true,automaticPush:false,automaticMerge:false,independentBuild:true,productQualityGuard:true}));
