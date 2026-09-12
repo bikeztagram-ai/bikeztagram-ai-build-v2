@@ -143,6 +143,23 @@ jobs:
       - name: Persist continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
+      - name: Capture durable Builder failure for AutoBot fleet
+        if: failure()
+        run: |
+          set -euo pipefail
+          node builder/runner/autobot-fleet-recovery.mjs capture > builder/working/autobot-builder-failure-capture.json
+          cat builder/working/autobot-builder-failure-capture.json
+      - name: Upload Builder failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-builder-failure-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            builder/working/deterministic-autobot.json
+            builder/working/deterministic-autobot-evidence.json
+            builder/working/autobot-failure-queue.jsonl
+            builder/working/autobot-builder-failure-capture.json
       - name: Publish clean product checkpoint
         id: publish
         if: success()
