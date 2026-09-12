@@ -56,10 +56,15 @@ assert(fs.existsSync(path.join(root,qaVerifierFile)),'QA Bot verifier path must 
 assert(coordinator.includes('mode:registry.coordination?.mode||\'plan-only\''),'coordinator must discover its mode from registry');
 assert(coordinator.includes('activationBlocked:registry.enabled!==true||registry.coordination?.mode!==\'active\''),'coordinator must block activation while foundation is disabled');
 assert(coordinator.includes('No worker is launched by this foundation coordinator.'),'coordinator must not launch workers in foundation mode');
+assert(coordinator.includes("if(queue.repaired.length)"),'coordinator must discover pending repaired handoffs');
+assert(coordinator.includes("kind:'qa-required'"),'coordinator must route repaired handoffs to QA');
+assert(coordinator.includes("registry.bots.find(bot=>bot.id==='qa')"),'coordinator must discover the QA worker from the registry');
+assert(coordinator.includes("['proven','verified'].includes(bot?.status)"),'coordinator must treat verified specialist workers as executable only after implementation exists');
 assert(queue.includes("const SCHEMA_VERSION=1"),'failure queue schema marker missing');
 assert(queue.includes("const STATUSES=new Set(['open','claimed','repairing','repaired','verified','rejected','blocked'])"),'failure queue status contract missing');
 assert(queue.includes('const ALLOWED_TRANSITIONS='),'failure queue must define legal state transitions');
 assert(queue.includes('repairBaseCommit:normalise(input.repairBaseCommit)'),'failure queue must preserve the repair base commit for independent QA');
+assert(queue.includes('repaired:records.filter(r=>r.status===\'repaired\')'),'failure queue summary must expose repaired QA handoffs');
 assert(queue.includes('export function appendFailure'),'failure queue append API missing');
 assert(queue.includes('export function readFailures'),'failure queue read API missing');
 assert(queue.includes('export function transitionFailure'),'failure queue transition API missing');
