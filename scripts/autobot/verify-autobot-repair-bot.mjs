@@ -25,7 +25,7 @@ assert(repair.includes("git(['commit','-m',`fix(autobot): repair failure ${recor
 assert(repair.includes("const unauthorized=changed.filter(file=>!files.includes(file))"),'Repair Bot must enforce the failure file scope');
 assert(repair.includes("npm run build"),'Repair Bot must verify the isolated build');
 assert(repair.includes("npm run verify:autobot-product-change-quality"),'Repair Bot must run the product-quality guard');
-assert(!repair.includes('git',['merge']),'Repair Bot must not contain a merge operation');
+assert(!repair.includes("git(['merge'"),'Repair Bot must not contain a merge operation');
 assert(!repair.includes("git(['push'"),'Repair Bot must not push repairs automatically');
 assert(repair.includes("builder/runner/aider-feature-brain.mjs"),'Protected Builder must be explicitly excluded from Repair Bot edits');
 const repairBot=registry.bots.find(bot=>bot.id==='repair');
