@@ -59,16 +59,18 @@ function runQA(record){
     const patch=git(['diff','--binary',`${base}..${commit}`]);
     if(!patch)fail('repair commit has no reconstructable patch');
     execFileSync('git',['apply','--whitespace=nowarn'],{cwd:worktree,input:patch,encoding:'utf8',stdio:['pipe','inherit','inherit']});
-    const qaChanged=git(['status','--short'],worktree).split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);
+    const qaChanged=git(['status','--short','--untracked-files=no'],worktree).split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);
     const qaUnauthorized=qaChanged.filter(file=>!record.files.includes(file));
     if(qaUnauthorized.length)fail(`QA reconstruction changed files outside failure scope: ${qaUnauthorized.join(', ')}`);
     const diffCheck=spawnSync('git',['diff','--check'],{cwd:worktree,encoding:'utf8',stdio:'inherit'});
     if(diffCheck.error||diffCheck.status!==0)fail('QA reconstructed patch failed git diff --check');
+    const install=spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(180_000,timeoutMs)});
+    if(install.error||install.status!==0)fail(`QA isolated npm install failed with ${install.status??'error'}`);
     const build=spawnSync('npm',['run','build'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(120_000,timeoutMs)});
     if(build.error||build.status!==0)fail(`QA build failed with ${build.status??'error'}`);
     const quality=spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(120_000,timeoutMs)});
     if(quality.error||quality.status!==0)fail(`QA product-quality verification failed with ${quality.status??'error'}`);
-    transitionFailure(record.id,'verified',{transitionedBy:'autobot-qa',repairBranch:record.repairBranch,repairBaseCommit:base,repairCommit:commit,resolution:'independent QA reconstructed the repair from its recorded base and passed diff, build and product-quality verification.'});
+    transitionFailure(record.id,'verified',{transitionedBy:'autobot-qa',repairBranch:record.repairBranch,repairBaseCommit:base,repairCommit:commit,resolution:'independent QA reconstructed the repair from its recorded base and passed diff, dependency install, build and product-quality verification.'});
     return {ok:true,failureId:record.id,baseCommit:base,repairCommit:commit,changedFiles:changed};
   }catch(error){
     try{transitionFailure(record.id,'rejected',{transitionedBy:'autobot-qa',repairBranch:record.repairBranch,repairBaseCommit:record.repairBaseCommit,repairCommit:record.repairCommit,resolution:error.message});}catch(transitionError){console.error(`[qa] failed to record REJECTED state: ${transitionError.message}`);}
