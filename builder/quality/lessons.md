@@ -50,11 +50,18 @@ This file is durable guidance for every future Bikeztagram AI batch. It exists s
 - Persistence tests should cover save/load, reload-after-edit, schema migration, corruption/partial state, missing media and continued editing. Unit tests alone are insufficient evidence of a successful recovery lifecycle.
 - When a batch exposes a semantic gap such as "atomic" versus "last-known-good", future objectives and prompts must use explicit acceptance behaviour rather than relying on ambiguous architectural terminology.
 
-### Batch 99: durable media reference safety
-- Browser object URLs (`blob:`) are temporary session-scoped references and must never be persisted or labelled as restorable media.
-- Persist only genuinely durable references such as validated `http:`/`https:` URLs. Local File/Blob media must be represented as metadata with an explicit missing-media/reselection state after reload.
-- Any persistence feature that claims media recovery must include a regression check distinguishing temporary object URLs from durable remote references.
-- A lesson is active only when the builder's deterministic verification rejects the unsafe case and accepts the safe case.
+### Batch 103 / latest autonomous run: director story quality
+- A deterministic story contract that only checks for an export and role metadata can accept a hard-coded four-beat ceiling while rich media is silently discarded.
+- Rich-media story construction must be behaviourally tested against one-source, two-source and rich libraries. The story count must scale from useful media and target duration rather than a fixed role list.
+- Story roles are a vocabulary, not a fixed template. Prompt intent should influence the middle beats while hook/ending and source diversity remain coherent.
+- Story intelligence is incomplete unless the production edit planner consumes the story beats and retains auditable role/source evidence.
+- A post-change product guard must be aligned with the canonical runtime and task contracts. It must not statically import an optional capability before checking whether that capability is actually part of the changed production path.
+
+### Autonomous run observability and failure evidence
+- Failed autonomous runs must leave durable evidence even when production verification prevents checkpoint publication. Local `builder/working` state alone is not durable across a hosted job boundary.
+- The live observation path must be explicit and machine-checkable: runner wrapper -> structured telemetry -> GitHub Actions logs -> workflow artifact.
+- Telemetry must show actual progress signals (objective/task/iteration/feature cycle/verification/remaining time/no-progress state) without exposing secrets or source contents.
+- Do not commit telemetry heartbeats repeatedly. Persist them as run evidence and publish only verified product checkpoints; this avoids unnecessary repository churn and deployment pressure.
 
 ## How architecture advisors should be used
 
@@ -80,3 +87,5 @@ Before declaring a batch verified, the builder should be able to answer YES to a
 8. Are provider failures, missing media and unsupported paths truthful and recoverable rather than silently fabricated?
 9. Did I avoid unrelated roadmap work and unnecessary refactors?
 10. Can a human reviewer understand what changed, what was verified, and any remaining limitation from the PR/checkpoint?
+11. If the run failed, is the failure evidence durable and inspectable outside the ephemeral worker filesystem?
+12. If a new file, renamed path, objective, protocol or verifier was introduced, can AutoBot find it through its exact caller, workflow, validator, state and documentation references?
