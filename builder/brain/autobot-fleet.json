@@ -34,8 +34,8 @@
     {
       "id": "qa",
       "role": "independent-product-verifier",
-      "entrypoint": "future:builder/runner/autobot-qa.mjs",
-      "status": "planned",
+      "entrypoint": "builder/runner/autobot-qa.mjs",
+      "status": "verified",
       "owns": ["regression checks", "product-quality review", "handoff evidence"],
       "protected": false
     },
