@@ -62,15 +62,28 @@ Prefer tests that exercise the actual decision path. Verify multiple input sizes
 
 A feature is not complete if it only adds exports, types, helpers or metadata without demonstrating production consumption.
 
-For cinematic product changes, the authoritative post-change guard is `scripts/autobot/verify-autobot-product-change-quality.mjs`. It is wired into `scripts/autobot/run-production-gate.mjs` and exposed as `npm run verify:autobot-product-change-quality`. When cinematic product files change, this guard must reject fixed-role story ceilings and dead quality/continuity helpers, and it must verify that new story logic reaches the production planner.
+For cinematic product changes, the authoritative post-change guard is `scripts/autobot/verify-autobot-product-change-quality.mjs`. It is wired into `scripts/autobot/run-production-gate.mjs` and exposed as `npm run verify:autobot-product-change-quality`. When a director story change or planner story integration is present, this guard must exercise single-source, two-source and rich-media behaviour, reject fixed-role story ceilings, reject duplicate source selection, require auditable story evidence and verify that story logic reaches the production planner. It must remain safe for unrelated renderer/timeline cinematic changes by checking only the capabilities actually changed.
+
+## AutoBot live observability and durable evidence
+
+The exact live observation path is:
+`builder/runner/run-with-live-telemetry.mjs` → `builder/runner/autobot-telemetry.mjs` → GitHub Actions job log plus `builder/working/autobot-live-telemetry.log`.
+
+The wrapper launches the canonical `builder/runner/long-run-executor.mjs` unchanged and emits structured `AUTOBOT_EVENT` heartbeat records while it runs. Heartbeats expose safe run state such as objective, task, iteration, feature cycle, model/protocol, elapsed time, remaining time, verified units and no-progress state. They must never emit secrets or source contents.
+
+The telemetry contract is verified by `scripts/autobot/verify-autobot-live-telemetry.mjs`, registered as `npm run verify:autobot-live-telemetry` and executed by the primary and continuation workflows before work begins. `builder/runner/segment-state.mjs` records the exact telemetry, runtime, Aider and deterministic evidence paths. The workflows persist those files with `actions/upload-artifact@v4` under an `always()` evidence step so failed runs remain inspectable even when no checkpoint PR is produced.
+
+When asked to inspect a live AutoBot run, inspect the current GitHub Actions run/job and its decoded job logs first, then use the structured `AUTOBOT_EVENT` heartbeat records and run artifacts to determine what the worker is actually doing. Do not infer progress merely from elapsed time or a green step.
 
 ## Integration and discoverability
 
 Every new AutoBot file, rule, protocol, objective, verifier or renamed path must be discoverable from the exact consumers that need it. When adding or changing one component, trace and update its path, exact wording, caller, configuration, protocol/version, controller/runner, validator/contract, workflow wiring, state/resume handling, tests/verification and documentation. When removing or renaming something, remove or update every stale reference so AutoBot never searches for something that no longer exists.
 
+This is a hard integration rule, not optional cleanup: new file → exact loader/caller → exact workflow/runner path → validator → state/resume → evidence → documentation; renamed/removed item → every old path and exact-string reference updated or removed.
+
 ## Safety and scope
 
-Never modify protected AutoBot infrastructure during a product objective unless the objective explicitly allows it. Never modify secrets, credentials or unrelated files. Never invent media or pretend an unavailable capability worked. Never reintroduce Gemini. Preserve copyright-safety and provider-neutral behaviour.
+Never modify protected AutoBot infrastructure during a product objective unless the objective explicitly allows it. Never modify secrets, credentials or unrelated files. Never invent media or pretend an unavailable capability worked. Never reintroduce removed provider-specific paths. Preserve copyright-safety and provider-neutral behaviour.
 
 Do not merge or create pull requests from inside the feature worker.
 
