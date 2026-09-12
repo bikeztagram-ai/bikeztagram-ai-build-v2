@@ -72,8 +72,6 @@ and the main verification suite exposes it as:
 
 `verify:autobot-repair-bot`
 
-The registry marks `repair` as `verified`, while the fleet itself remains disabled and plan-only. This means the worker is ready for controlled isolated use but cannot be launched by the existing production workflow or the foundation coordinator.
-
 ## Independent QA Bot
 
 The second specialist worker is implemented at the exact registered path:
@@ -121,6 +119,28 @@ and the main verification suite exposes it as:
 
 The Reviewer produces an auditable `pass`, `needs-repair` or `reject` disposition and never merges or pushes. It remains an isolated specialist until the fleet coordinator is separately activated.
 
+## Self-Improvement Bot
+
+The fourth specialist worker is implemented at the exact registered path:
+
+`builder/runner/autobot-self-improvement.mjs`
+
+It is deliberately **analysis-only** in V1. It consumes the durable failure queue, live AutoBot telemetry, resumable Builder state when present, and available Reviewer evidence. It groups recurring failure signatures, classifies likely failure layers (brain, contract, verification, runner or task), ranks evidence-backed proposals and writes them to:
+
+`builder/working/autobot-self-improvement.json`
+
+The output schema is `autobot-self-improvement-v1`. Every proposal records evidence, confidence, expected impact and `requiresHumanReview: true`. The worker records `appliedChanges: []` and has no repository-write, merge or push capability. Protected Builder/workflow/objective-registry paths are explicitly declared and cannot be changed by this worker.
+
+Its verifier is:
+
+`scripts/autobot/verify-autobot-self-improvement.mjs`
+
+and the main verification suite exposes it as:
+
+`verify:autobot-self-improvement`
+
+This is the first safe self-improvement stage: it learns from failures without being allowed to rewrite the system that judges it.
+
 ## Coordinator
 
 The V1 coordinator is:
@@ -153,7 +173,7 @@ The registry currently describes:
 - `repair` — verified isolated failure-analysis and repair worker
 - `qa` — verified independent product verifier
 - `reviewer` — verified adversarial product reviewer
-- `self-improvement` — planned AutoBot-system improvement worker
+- `self-improvement` — verified analysis-only AutoBot-system improvement worker
 
 ### Discoverability contract
 
@@ -169,9 +189,10 @@ Activation is intentionally staged:
 2. Prove isolated repair-worker execution without touching the protected builder.
 3. Prove independent QA/handoff contracts.
 4. Prove adversarial Reviewer execution and review evidence.
-5. Add coordinator scheduling only after worker contracts are verified.
-6. Add controlled parallel workers with conflict isolation.
-7. Add measured self-improvement for recurring failures.
-8. Only then consider continuous autonomous orchestration.
+5. Prove analysis-only Self-Improvement and its evidence contract.
+6. Add coordinator scheduling only after worker contracts are verified.
+7. Add controlled parallel workers with conflict isolation.
+8. Allow measured self-improvement proposals to feed a human-reviewed improvement lane.
+9. Only then consider continuous autonomous orchestration.
 
 No stage may weaken existing production gates, safety rules, rollback, audit or protected workflow controls merely to make the fleet appear successful.

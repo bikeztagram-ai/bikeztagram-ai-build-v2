@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "foundation-only",
   "enabled": false,
-  "purpose": "Define the future AutoBot fleet without changing the proven single-builder workflow until the fleet foundation is independently verified.",
+  "purpose": "Define the future AutoBot fleet without changing or replacing the proven single-builder workflow until the fleet foundation is independently verified.",
   "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving the protected proven builder and truthful verification.",
   "coordination": {
     "mode": "plan-only",
@@ -19,7 +19,7 @@
     {"id":"repair","role":"failure-analysis-and-repair","entrypoint":"builder/runner/autobot-repair.mjs","status":"verified","owns":["failure diagnosis","repair proposals","verified isolated fixes"],"protected":false},
     {"id":"qa","role":"independent-product-verifier","entrypoint":"builder/runner/autobot-qa.mjs","status":"verified","owns":["regression checks","product-quality review","handoff evidence"],"protected":false},
     {"id":"reviewer","role":"adversarial-product-reviewer","entrypoint":"builder/runner/autobot-reviewer.mjs","status":"verified","owns":["product-gap review","quality challenge","anti-churn review"],"protected":false},
-    {"id":"self-improvement","role":"autobot-system-improvement","entrypoint":"future:builder/runner/autobot-self-improvement.mjs","status":"planned","owns":["failure pattern analysis","brain/task/contract improvements","measured self-improvement"],"protected":false}
+    {"id":"self-improvement","role":"autobot-system-improvement","entrypoint":"builder/runner/autobot-self-improvement.mjs","status":"verified","owns":["failure pattern analysis","brain/task/contract improvements","measured self-improvement"],"protected":false}
   ],
   "handoffRules": [
     "Workers must write structured evidence before handing work to another worker.",
