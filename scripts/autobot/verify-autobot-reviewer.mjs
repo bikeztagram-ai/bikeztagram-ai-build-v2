@@ -21,9 +21,10 @@ assert(reviewer.includes('fixed-story-template')&&reviewer.includes('missing-evi
 assert(reviewer.includes("automaticMerge:false")&&reviewer.includes("automaticPush:false"),'Reviewer must never merge or push.');
 assert(reviewer.includes("appendFailure({source:'autobot-reviewer'"),'Reviewer must hand needs-repair findings to the authoritative queue.');
 assert(reviewer.includes('failureId')&&reviewer.includes('repairHint'),'Reviewer evidence must retain repair handoff metadata.');
+assert(reviewer.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'Reviewer must install dependencies inside the isolated candidate worktree.');
 assert(reviewer.includes("run('npm',['run','build'],tempDir)"),'Reviewer must independently build the candidate.');
 const bot=registry.bots.find(item=>item.id==='reviewer');
 assert(bot?.entrypoint===reviewerFile&&bot?.status==='verified'&&bot?.protected===false,'registry Reviewer contract must exactly match implementation.');
 assert(doc.includes('Adversarial Reviewer Bot'),'foundation documentation must describe the Reviewer.');
 execFileSync(process.execPath,['--check',reviewerFile],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,reviewerEntrypoint:reviewerFile,contract:['AUTOBOT_REVIEW_BASE_COMMIT','AUTOBOT_REVIEW_COMMIT'],dispositions:['pass','needs-repair','reject'],automaticMerge:false,automaticPush:false}));
+console.log(JSON.stringify({ok:true,reviewerEntrypoint:reviewerFile,contract:['AUTOBOT_REVIEW_BASE_COMMIT','AUTOBOT_REVIEW_COMMIT'],dispositions:['pass','needs-repair','reject'],isolatedDependencyInstall:true,automaticMerge:false,automaticPush:false}));
