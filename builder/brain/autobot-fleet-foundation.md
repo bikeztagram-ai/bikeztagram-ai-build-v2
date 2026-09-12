@@ -42,9 +42,11 @@ with terminal/blocked outcomes:
 
 Illegal backwards or skipped transitions are rejected by the queue contract. This prevents a worker from falsely marking a failure verified without going through the repair and verification handoff stages.
 
+The `repaired` handoff also records the exact `repairBaseCommit` and `repairCommit`, allowing independent QA to reconstruct the repair without trusting the Repair Bot's working tree.
+
 ## Repair Bot
 
-The first specialist worker is now implemented at the exact registered path:
+The first specialist worker is implemented at the exact registered path:
 
 `builder/runner/autobot-repair.mjs`
 
@@ -56,7 +58,7 @@ Its contract is intentionally isolated:
 4. Ask Aider to diagnose and repair only the declared failure files.
 5. Check the isolated diff and reject any out-of-scope modification.
 6. Run `npm run build` and `npm run verify:autobot-product-change-quality` in the isolated worktree.
-7. Commit only after those checks pass and record `repaired` evidence containing the repair branch and commit.
+7. Commit only after those checks pass and record `repaired` evidence containing the repair branch, base commit and repair commit.
 8. Remove the temporary worktree while preserving the repair branch for independent QA.
 9. On failure, record `blocked`; it never edits the protected Builder checkout.
 
@@ -71,6 +73,35 @@ and the main verification suite exposes it as:
 `verify:autobot-repair-bot`
 
 The registry marks `repair` as `verified`, while the fleet itself remains disabled and plan-only. This means the worker is ready for controlled isolated use but cannot be launched by the existing production workflow or the foundation coordinator.
+
+## Independent QA Bot
+
+The second specialist worker is implemented at the exact registered path:
+
+`builder/runner/autobot-qa.mjs`
+
+QA is deliberately independent of the Repair Bot's working tree. It consumes only `repaired` queue handoffs and requires the recorded repair branch, `repairBaseCommit` and `repairCommit`.
+
+Its contract is:
+
+1. Locate one `repaired` handoff.
+2. Verify the repair branch points to the recorded commit and that the recorded base is its direct parent.
+3. Inspect the committed diff and enforce the original failure file scope.
+4. Reconstruct the repair patch from the recorded base into a fresh detached worktree.
+5. Run `git diff --check`, `npm run build` and `npm run verify:autobot-product-change-quality` independently.
+6. Record `verified` only after every independent check passes.
+7. Record `rejected` when the repair does not survive independent verification.
+8. Remove the QA worktree without modifying the protected checkout.
+
+QA never merges or pushes automatically. It is the verification authority for the `repaired -> verified` handoff, while the fleet remains disabled and plan-only.
+
+Its verifier is:
+
+`scripts/autobot/verify-autobot-qa.mjs`
+
+and the main verification suite exposes it as:
+
+`verify:autobot-qa`
 
 ## Coordinator
 
@@ -102,7 +133,7 @@ The registry currently describes:
 
 - `builder` — proven protected product builder
 - `repair` — verified isolated failure-analysis and repair worker
-- `qa` — planned independent product verifier
+- `qa` — verified independent product verifier
 - `reviewer` — planned adversarial product reviewer
 - `self-improvement` — planned AutoBot-system improvement worker
 
@@ -118,7 +149,7 @@ Activation is intentionally staged:
 
 1. Prove the registry and queue primitives, including durable failure transitions.
 2. Prove isolated repair-worker execution without touching the protected builder.
-3. Add independent QA/handoff contracts.
+3. Prove independent QA/handoff contracts.
 4. Add coordinator scheduling only after worker contracts are verified.
 5. Add controlled parallel workers with conflict isolation.
 6. Add measured self-improvement for recurring failures.
