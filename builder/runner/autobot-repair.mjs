@@ -104,7 +104,7 @@ function runRepair(record,files){
     const touched=Array.from(new Set([...changed,...status.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean)]));
     const unauthorized=touched.filter(file=>!files.includes(file));
     if(unauthorized.length)fail(`repair modified files outside declared failure scope: ${unauthorized.join(', ')}`);
-    execFileSync('git',['diff','--check'],{cwd:worktree,stdio:'inherit'});
+    execFileSync('git',['diff','HEAD','--check'],{cwd:worktree,stdio:'inherit'});
     const install=spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(180_000,timeoutMs)});
     if(install.error||install.status!==0)fail(`isolated npm install failed with ${install.status??'error'}`);
     const build=spawnSync('npm',['run','build'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(120_000,timeoutMs)});
@@ -112,6 +112,9 @@ function runRepair(record,files){
     const quality=spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(120_000,timeoutMs)});
     if(quality.error||quality.status!==0)fail(`isolated product-quality verification failed with ${quality.status??'error'}`);
     git(['add','--',...files],worktree);
+    const staged=git(['diff','--cached','--name-only'],worktree).split(/\r?\n/).filter(Boolean);
+    if(staged.some(file=>!files.includes(file)))fail(`repair staged files outside declared failure scope: ${staged.filter(file=>!files.includes(file)).join(', ')}`);
+    if(!staged.length)fail('Repair Bot produced no staged product changes');
     git(['commit','-m',`fix(autobot): repair failure ${record.id}`],worktree);
     const commit=git(['rev-parse','HEAD'],worktree);
     transitionFailure(record.id,'repaired',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit,repairCommit:commit,resolution:'isolated repair passed diff, dependency install, build and product-quality verification; awaiting independent QA.'});
