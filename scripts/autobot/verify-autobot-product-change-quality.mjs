@@ -8,7 +8,7 @@ const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/rend
 function changedPaths(){const output=execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'});return output.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);}
 function read(path){return fs.readFileSync(`${root}/${path}`,'utf8');}
 function assert(condition,message){if(!condition)throw new Error(message);}
-function richMedia(){return Array.from({length:8},(_,index)=>({id:`rich-${index}`,type:index%2?'video/mp4':'image/jpeg',name:['wide mountain establishing','rider approaching road','motorcycle cornering action','cockpit detail close-up','mountain landscape journey','bike accelerating speed','sunset motorcycle reveal','hero motorcycle showcase'][index],duration:index%2?4:0,width:1920,height:1080,score:75+index}));}
+function richMedia(){return Array.from({length:12},(_,index)=>({id:`rich-${index}`,type:index%2?'video/mp4':'image/jpeg',name:['wide mountain establishing','rider approaching road','motorcycle cornering action','cockpit detail close-up','mountain landscape journey','bike accelerating speed','sunset motorcycle reveal','hero motorcycle showcase','roadside landscape detail','rider departure movement','mountain road action','final motorcycle hero'][index],duration:index%2?4:0,width:1920,height:1080,score:75+index}));}
 function sparseMedia(count){return Array.from({length:count},(_,index)=>({id:`sparse-${index}`,type:'image/jpeg',name:index===0?'single hero motorcycle':'detail motorcycle',width:1920,height:1080,score:80-index}));}
 
 const changed=changedPaths();
@@ -25,11 +25,10 @@ if(storyIntegrationRequested){
   assert(typeof buildDirectorStory==='function','director story guard failed: canonical buildDirectorStory export is not callable');
   const one=buildDirectorStory(sparseMedia(1),{creativePrompt:'cinematic reveal',targetDuration:15});
   const two=buildDirectorStory(sparseMedia(2),{creativePrompt:'cinematic reveal',targetDuration:15});
-  const rich=buildDirectorStory(richMedia(),{creativePrompt:'cinematic motorcycle journey with reveal and action',targetDuration:15});
+  const rich=buildDirectorStory(richMedia(),{creativePrompt:'cinematic motorcycle journey with reveal and action',targetDuration:30});
   assert(one.length===1,`story scaling guard failed: one source produced ${one.length} beats`);
   assert(two.length===2,`story scaling guard failed: two sources produced ${two.length} beats`);
-  assert(rich.length>=5,`story scaling guard failed: rich media produced only ${rich.length} story beats`);
-  assert(rich.length<=8,`story scaling guard failed: produced ${rich.length} beats from 8 media items`);
+  assert(rich.length===12,`story scaling guard failed: 12 available sources at 30s produced ${rich.length} story beats`);
   assert(new Set(rich.map(item=>item.mediaIndex)).size===rich.length,'story scaling guard failed: duplicate media indices');
   assert(rich.every(item=>item.directorStoryRole&&Number.isFinite(Number(item.directorStoryScore))),'story evidence guard failed: every selected beat lacks auditable role/score evidence');
   storyLength=rich.length;

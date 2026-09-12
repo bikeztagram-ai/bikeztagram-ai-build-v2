@@ -67,7 +67,7 @@ const checks=[
  ['workflow keeps production verification',workflow.includes('verify:autobot-production-gate')],
  ['production gate includes product quality guard',productionGate.includes("['autobot-product-change-quality', 'npm', ['run', 'verify:autobot-product-change-quality']]")],
  ['product quality verifier exists',fs.existsSync(productQualityVerifierPath)],
- ['product quality verifier tests rich story scaling',productQualityVerifier.includes('story.length>=5')&&productQualityVerifier.includes('Array.from({length:8')],
+ ['product quality verifier tests dynamic rich story scaling',productQualityVerifier.includes('rich.length===12')&&productQualityVerifier.includes('Array.from({length:12')&&productQualityVerifier.includes('targetDuration:30')],
  ['product quality verifier tests production consumption',productQualityVerifier.includes('buildDirectorStory')&&productQualityVerifier.includes('storyBeats\\.map')],
  ['product quality verifier rejects dead continuity intelligence',productQualityVerifier.includes('scoreDirectorContinuity')&&productQualityVerifier.includes('dead-intelligence guard failed')],
  ['npm exposes product quality verifier',packageDocument.scripts?.['verify:autobot-product-change-quality']==='node scripts/autobot/verify-autobot-product-change-quality.mjs'],
