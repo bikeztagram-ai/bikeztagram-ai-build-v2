@@ -103,6 +103,24 @@ and the main verification suite exposes it as:
 
 `verify:autobot-qa`
 
+## Adversarial Reviewer Bot
+
+The third specialist worker is implemented at the exact registered path:
+
+`builder/runner/autobot-reviewer.mjs`
+
+The Reviewer does not edit the candidate. It independently inspects a specific base/candidate commit pair, reconstructs that candidate in a disposable worktree, checks the actual diff and runs the build. It challenges product-quality failure modes that are particularly relevant to Bikeztagram, including fixed story templates, evidence-free selection and duration-blind planning.
+
+Its verifier is:
+
+`scripts/autobot/verify-autobot-reviewer.mjs`
+
+and the main verification suite exposes it as:
+
+`verify:autobot-reviewer`
+
+The Reviewer produces an auditable `pass`, `needs-repair` or `reject` disposition and never merges or pushes. It remains an isolated specialist until the fleet coordinator is separately activated.
+
 ## Coordinator
 
 The V1 coordinator is:
@@ -119,7 +137,7 @@ and writes:
 
 `builder/working/autobot-fleet-plan.json`
 
-It may identify that a repair is required, that the proven builder has resumable work, or that the builder is ready. It must not launch another worker in this foundation stage.
+It may identify that a repair is required, that a repaired handoff requires QA, that the proven builder has resumable work, or that the builder is ready. It must not launch another worker in this foundation stage.
 
 ## Fleet Registry
 
@@ -134,7 +152,7 @@ The registry currently describes:
 - `builder` — proven protected product builder
 - `repair` — verified isolated failure-analysis and repair worker
 - `qa` — verified independent product verifier
-- `reviewer` — planned adversarial product reviewer
+- `reviewer` — verified adversarial product reviewer
 - `self-improvement` — planned AutoBot-system improvement worker
 
 ### Discoverability contract
@@ -150,9 +168,10 @@ Activation is intentionally staged:
 1. Prove the registry and queue primitives, including durable failure transitions.
 2. Prove isolated repair-worker execution without touching the protected builder.
 3. Prove independent QA/handoff contracts.
-4. Add coordinator scheduling only after worker contracts are verified.
-5. Add controlled parallel workers with conflict isolation.
-6. Add measured self-improvement for recurring failures.
-7. Only then consider continuous autonomous orchestration.
+4. Prove adversarial Reviewer execution and review evidence.
+5. Add coordinator scheduling only after worker contracts are verified.
+6. Add controlled parallel workers with conflict isolation.
+7. Add measured self-improvement for recurring failures.
+8. Only then consider continuous autonomous orchestration.
 
 No stage may weaken existing production gates, safety rules, rollback, audit or protected workflow controls merely to make the fleet appear successful.
