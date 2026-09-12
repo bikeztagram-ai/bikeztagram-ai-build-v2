@@ -37,7 +37,7 @@ try{
   const selectedFallbackMarker='}else if(selectedMoments.length){';
   if(!planner.includes(storyFallbackMarker)){
     if(!planner.includes(selectedFallbackMarker))throw new Error('selectedMoments fallback structural anchor not found; refusing blind edit.');
-    const replacement=`${storyFallbackMarker}cuts=storyBeats.map((moment,index)=>makeCut(moment,index,storyBeats.length,analysis,{...options,targetDuration},mode);}`;
+    const replacement=`${storyFallbackMarker}cuts=storyBeats.map((moment,index)=>makeCut(moment,index,storyBeats.length,analysis,{...options,targetDuration},mode));}`;
     planner=planner.replace(selectedFallbackMarker,`${replacement}else if(selectedMoments.length){`);
   }
   if(planner.indexOf(storyFallbackMarker)>planner.indexOf(selectedFallbackMarker))throw new Error('director story fallback must run before the generic selectedMoments fallback; refusing to leave dead story intelligence.');
