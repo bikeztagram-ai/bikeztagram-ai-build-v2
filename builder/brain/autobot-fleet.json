@@ -8,6 +8,8 @@
     "mode": "plan-only",
     "coordinator": "builder/runner/autobot-coordinator.mjs",
     "recoveryRunner": "builder/runner/autobot-fleet-recovery.mjs",
+    "recoveryWorkflow": ".github/workflows/autobot-fleet-recovery.yml",
+    "recoveryDocumentation": "builder/brain/autobot-fleet-controlled-recovery.md",
     "failureQueue": "builder/working/autobot-failure-queue.jsonl",
     "sharedEvidence": "builder/working/autobot-fleet-plan.json",
     "specialistHandoff": "builder/working/autobot-specialist-handoff.json",
@@ -17,6 +19,12 @@
     "requireIsolatedWorker": true,
     "requireVerificationBeforeHandoff": true,
     "requireHumanReviewBeforeProtectedIntegration": true
+  },
+  "activationGate": {
+    "requiredEnabled": true,
+    "requiredMode": "active",
+    "protectedIntegration": false,
+    "operatorControl": "The fleet must remain disabled and plan-only until the foundation validation contracts pass and a separate explicit activation change is reviewed."
   },
   "bots": [
     {"id":"builder","role":"protected-product-builder","entrypoint":"builder/runner/aider-feature-brain.mjs","status":"proven","owns":["objective-scoped product implementation"],"protected":true},
@@ -37,6 +45,7 @@
     "The coordinator must never invent a worker, path or protocol that is absent from this registry.",
     "Specialist Builders must use the shared isolated runner, explicit bot id, explicit objective and exact registry-owned file scope.",
     "Specialist Builder changes must produce an explicit base/candidate commit pair for downstream Reviewer and QA handoff.",
-    "The recovery runner may orchestrate Repair, QA and Reviewer only after the explicit fleet activation gate is enabled."
+    "The recovery runner may orchestrate Repair, QA and Reviewer only after the explicit fleet activation gate is enabled.",
+    "The controlled recovery workflow must use the registered recovery runner and must never bypass the explicit enabled:true plus coordination.mode:'active' gate."
   ]
 }

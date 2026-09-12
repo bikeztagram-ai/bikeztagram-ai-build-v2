@@ -1,0 +1,118 @@
+name: 🛡️ BIKEZTAGRAM AUTOBOT — CONTROLLED RECOVERY
+
+on:
+  workflow_dispatch:
+    inputs:
+      builder_run_id:
+        description: 'Builder workflow run ID whose failure artifact should be recovered'
+        required: true
+        type: string
+      failure_id:
+        description: 'Optional Failure Queue id; otherwise the first open failure is used'
+        required: false
+        default: ''
+        type: string
+  workflow_run:
+    workflows:
+      - '🏍️ BIKEZTAGRAM AUTOBOT — PROVEN'
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: autobot-fleet-controlled-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout protected recovery code
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Resolve Builder run id
+        env:
+          DISPATCH_RUN_ID: ${{ inputs.builder_run_id }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            run_id="$EVENT_RUN_ID"
+          else
+            run_id="$DISPATCH_RUN_ID"
+          fi
+          case "$run_id" in
+            ''|*[!0-9]*) echo 'Builder run id must be numeric.'; exit 1;;
+          esac
+          echo "BUILDER_RUN_ID=$run_id" >> "$GITHUB_ENV"
+          echo "[autobot] recovery evidence source run: $run_id"
+
+      - name: Download Builder failure evidence
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.BUILDER_RUN_ID }}
+          name: autobot-builder-failure-${{ env.BUILDER_RUN_ID }}
+          path: .
+
+      - name: Validate recovery activation gate
+        id: gate
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const registry=JSON.parse(fs.readFileSync('builder/brain/autobot-fleet.json','utf8'));
+          const active=registry.enabled===true && registry.coordination?.mode==='active';
+          console.log(JSON.stringify({enabled:registry.enabled,mode:registry.coordination?.mode,active}));
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,`active=${active}\n`);
+          if(!active){
+            console.log('[autobot] controlled recovery is installed but remains BLOCKED by the explicit fleet activation gate.');
+          }
+          NODE
+
+      - name: Verify fleet recovery contract
+        if: steps.gate.outputs.active == 'true'
+        run: npm run verify:autobot-fleet-recovery
+
+      - name: Run controlled fleet recovery
+        if: steps.gate.outputs.active == 'true'
+        env:
+          FAILURE_ID: ${{ inputs.failure_id }}
+        run: |
+          set -euo pipefail
+          if [ -n "$FAILURE_ID" ]; then
+            node builder/runner/autobot-fleet-recovery.mjs recover "$FAILURE_ID"
+          else
+            node builder/runner/autobot-fleet-recovery.mjs recover
+          fi
+
+      - name: Upload recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-fleet-recovery-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            builder/working/autobot-fleet-recovery.json
+            builder/working/autobot-failure-queue.jsonl
+            builder/working/autobot-review.json
