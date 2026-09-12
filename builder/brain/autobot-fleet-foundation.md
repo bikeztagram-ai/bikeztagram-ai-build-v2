@@ -40,9 +40,37 @@ with terminal/blocked outcomes:
 
 `rejected` or `blocked`.
 
-This gives future workers a durable sequence: claim a failure, perform isolated repair work, record the repair result, then let independent verification decide whether the failure can be closed.
+Illegal backwards or skipped transitions are rejected by the queue contract. This prevents a worker from falsely marking a failure verified without going through the repair and verification handoff stages.
 
-The queue records evidence only. It does not modify product code and it does not activate repair workers.
+## Repair Bot
+
+The first specialist worker is now implemented at the exact registered path:
+
+`builder/runner/autobot-repair.mjs`
+
+Its contract is intentionally isolated:
+
+1. Claim one `open` failure from the durable queue.
+2. Validate the failure's declared file scope and reject unsafe/protected paths.
+3. Create a disposable git worktree and `autobot-repair/<failure-id>` branch from the protected checkout's current `HEAD`.
+4. Ask Aider to diagnose and repair only the declared failure files.
+5. Check the isolated diff and reject any out-of-scope modification.
+6. Run `npm run build` and `npm run verify:autobot-product-change-quality` in the isolated worktree.
+7. Commit only after those checks pass and record `repaired` evidence containing the repair branch and commit.
+8. Remove the temporary worktree while preserving the repair branch for independent QA.
+9. On failure, record `blocked`; it never edits the protected Builder checkout.
+
+The Repair Bot never merges or pushes automatically. It cannot modify the protected Builder runner, feature-objective registry, production workflow, package/dependency manifests or environment files through its declared repair scope.
+
+Its verifier is:
+
+`scripts/autobot/verify-autobot-repair-bot.mjs`
+
+and the main verification suite exposes it as:
+
+`verify:autobot-repair-bot`
+
+The registry marks `repair` as `verified`, while the fleet itself remains disabled and plan-only. This means the worker is ready for controlled isolated use but cannot be launched by the existing production workflow or the foundation coordinator.
 
 ## Coordinator
 
@@ -73,7 +101,7 @@ Every bot must have an exact id, role, entrypoint and lifecycle status. Planned 
 The registry currently describes:
 
 - `builder` — proven protected product builder
-- `repair` — planned failure-analysis and repair worker
+- `repair` — verified isolated failure-analysis and repair worker
 - `qa` — planned independent product verifier
 - `reviewer` — planned adversarial product reviewer
 - `self-improvement` — planned AutoBot-system improvement worker
