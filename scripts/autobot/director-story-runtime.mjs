@@ -12,7 +12,7 @@ const insertion=`
 export function buildDirectorStory(mediaItems=[],{creativePrompt='',targetDuration=15}={}){
  const items=Array.isArray(mediaItems)?mediaItems:[];if(!items.length)return[];
  const prompt=lower(creativePrompt);const action=/action|fast|race|speed|chase|energetic|adventure|movement/.test(prompt);const reveal=/reveal|launch|unveil|showcase|introduction|trailer|hero/.test(prompt);const emotional=/emotional|beautiful|romantic|nostalgic|heartfelt|calm/.test(prompt);
- const duration=Math.max(1,Number(targetDuration)||15);const desiredCount=items.length<=2?items.length:Math.min(items.length,clamp(Math.round(duration/2.5),3,8));
+ const duration=Math.max(1,Number(targetDuration)||15);const desiredCount=items.length<=2?items.length:Math.min(items.length,Math.max(3,Math.round(duration/2.5)));
  const middleRoles=[];if(reveal)middleRoles.push('reveal');if(action)middleRoles.push('action');if(emotional)middleRoles.push('emotional-beat');const neutralRoles=['build','detail','approach'];let neutralIndex=0;while(middleRoles.length<desiredCount-2){middleRoles.push(neutralRoles[neutralIndex%neutralRoles.length]);neutralIndex+=1;}
  const roles=desiredCount===1?['hero-ending']:['hook',...middleRoles.slice(0,Math.max(0,desiredCount-2)),'hero-ending'];
  const chosen=[];const usedSubjects=new Set();const usedFamilies=new Set();
