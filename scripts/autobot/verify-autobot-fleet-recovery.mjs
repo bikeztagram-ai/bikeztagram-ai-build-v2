@@ -2,6 +2,7 @@
 /** Verify Builder failure -> Repair -> QA -> Reviewer orchestration contracts. */
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 const root=process.cwd();
 const runnerPath='builder/runner/autobot-fleet-recovery.mjs';
@@ -23,6 +24,7 @@ function registered(id,entrypoint){
   assert(worker.protected!==true,`Fleet recovery worker ${id} must not be protected.`);
   assert(worker.entrypoint===entrypoint,`Fleet registry ${id} entrypoint must remain the exact production path.`);
   assert(fs.existsSync(path.join(root,entrypoint)),`Registered ${id} entrypoint must exist at ${entrypoint}.`);
+  return worker;
 }
 assert(registry.coordination?.recoveryRunner===runnerPath,'Fleet registry must expose the exact recovery runner path.');
 assert(registry.coordination?.recoveryWorkflow===workflowPath,'Fleet registry must expose the exact controlled recovery workflow path.');
@@ -30,9 +32,13 @@ assert(registry.coordination?.recoveryDocumentation===documentationPath,'Fleet r
 assert(fs.existsSync(path.join(root,runnerPath)),'Fleet recovery runner must exist at the registered path.');
 assert(fs.existsSync(path.join(root,workflowPath)),'Controlled recovery workflow must exist at the registered path.');
 assert(fs.existsSync(path.join(root,documentationPath)),'Controlled recovery documentation must exist at the registered path.');
-registered('repair','builder/runner/autobot-repair.mjs');
-registered('qa','builder/runner/autobot-qa.mjs');
-registered('reviewer','builder/runner/autobot-reviewer.mjs');
+const repairWorker=registered('repair','builder/runner/autobot-repair.mjs');
+const qaWorker=registered('qa','builder/runner/autobot-qa.mjs');
+const reviewerWorker=registered('reviewer','builder/runner/autobot-reviewer.mjs');
+const importedRecoveryWorkers=await Promise.all([repairWorker,qaWorker,reviewerWorker].map(async worker=>({worker,module:await import(pathToFileURL(path.join(root,worker.entrypoint)).href)})));
+assert(typeof importedRecoveryWorkers.find(item=>item.worker.id==='repair')?.module.repairOne==='function','Registered Repair Bot entrypoint must export repairOne.');
+assert(typeof importedRecoveryWorkers.find(item=>item.worker.id==='qa')?.module.qaOne==='function','Registered QA Bot entrypoint must export qaOne.');
+assert(typeof importedRecoveryWorkers.find(item=>item.worker.id==='reviewer')?.module.reviewOne==='function','Registered Reviewer Bot entrypoint must export reviewOne.');
 assert(runner.includes("./autobot-failure-queue.mjs"),'Fleet recovery must use the authoritative failure queue module.');
 assert(runner.includes('function registeredWorker(registry,id)'),'Fleet recovery must discover workers through the authoritative fleet registry.');
 assert(runner.includes("const {worker:repairWorker,module:repairModule}=await loadWorker(registry,'repair')"),'Fleet recovery must discover the registered Repair Bot by id through the registry loader.');
@@ -74,4 +80,4 @@ assert(registry.activationGate?.protectedIntegration===false,'Registry activatio
 assert(registry.enabled===false&&registry.coordination?.mode==='plan-only','Fleet recovery foundation must remain disabled and plan-only until separately activated.');
 const smoke=spawnSync(process.execPath,['scripts/autobot/test-autobot-failure-capture.mjs'],{cwd:root,encoding:'utf8'});
 assert(smoke.status===0,`Failure capture smoke test failed: ${smoke.stderr||smoke.stdout||'unknown error'}`);
-console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,recoveryActivationBlocked:true}));
+console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,registeredWorkerExports:true,recoveryActivationBlocked:true}));
