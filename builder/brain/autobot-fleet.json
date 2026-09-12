@@ -26,8 +26,8 @@
     {
       "id": "repair",
       "role": "failure-analysis-and-repair",
-      "entrypoint": "future:builder/runner/autobot-repair.mjs",
-      "status": "planned",
+      "entrypoint": "builder/runner/autobot-repair.mjs",
+      "status": "verified",
       "owns": ["failure diagnosis", "repair proposals", "verified isolated fixes"],
       "protected": false
     },
