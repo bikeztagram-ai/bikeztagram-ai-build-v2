@@ -21,9 +21,9 @@ assert(runner.includes('bot.specialistBuilder'),'Specialist Builder must require
 assert(runner.includes("bot.entrypoint!=='builder/runner/autobot-specialist-builder.mjs'"),'Specialist Builder must verify its exact registered entrypoint.');
 assert(runner.includes('ownsFiles'),'Specialist Builder must use an exact registry-declared ownsFiles scope.');
 assert(runner.includes('out-of-scope files'),'Specialist Builder must reject out-of-scope modifications.');
-assert(runner.includes("git',['worktree','add','-b',branch,worktree,base]"),'Specialist Builder must work in a disposable isolated worktree.');
-assert(runner.includes("git',['worktree','remove','--force',worktree]"),'Specialist Builder must remove its disposable worktree.');
-assert(runner.includes("git(['diff','HEAD','--check'],worktree)"),'Specialist Builder must run diff validation before handoff.');
+assert(runner.includes("run('git',['worktree','add','-b',branch,worktree,base],root)"),'Specialist Builder must work in a disposable isolated worktree.');
+assert(runner.includes("run('git',['worktree','remove','--force',worktree],root)"),'Specialist Builder must remove its disposable worktree.');
+assert(runner.includes("run('git',['diff','HEAD','--check'],worktree)"),'Specialist Builder must run diff validation before handoff.');
 assert(runner.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'Specialist Builder must install dependencies inside its isolated worktree.');
 assert(runner.includes("AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality'"),'Specialist Builder must expose the exact product-quality verification command contract.');
 assert(runner.includes("run('sh',['-lc',productQuality],worktree)"),'Specialist Builder must execute its declared product-quality verification command.');
@@ -35,4 +35,4 @@ const specialists=registry.bots.filter(bot=>bot.specialistBuilder===true); asser
 const expectedScopes={'director-builder':['src/director.js','src/aiEditPlanner.js'],'timeline-builder':['src/executableTimeline.js','src/editorialRhythm.js','src/renderer.js']};
 for(const bot of specialists){assert(bot.entrypoint===runnerPath,`Specialist Builder ${bot.id} must use the exact shared runner path.`);assert(bot.status==='verified',`Specialist Builder ${bot.id} must be registry-marked verified.`);assert(bot.protected===false,`Specialist Builder ${bot.id} must remain unprotected.`);assert(JSON.stringify(bot.ownsFiles)===JSON.stringify(expectedScopes[bot.id]),`Specialist Builder ${bot.id} ownsFiles scope changed without updating its contract.`);for(const file of bot.ownsFiles)assert(fs.existsSync(path.join(root,file)),`Specialist Builder ${bot.id} owns missing product file: ${file}`);}
 assert(suite.includes("'verify:autobot-specialist-builder'"),'Main verification suite must discover verify:autobot-specialist-builder.'); assert(packageJson.scripts?.['verify:autobot-specialist-builder']==='node scripts/autobot/verify-autobot-specialist-builder.mjs','package.json must expose the exact specialist Builder verifier command.');
-console.log(JSON.stringify({ok:true,runner:runnerPath,specialistBuilders:specialists.map(bot=>({id:bot.id,role:bot.role,ownsFiles:bot.ownsFiles})),activationBlocked:registry.enabled!==true||registry.coordination?.mode!=='active'}));
+console.log(JSON.stringify({ok:true,runner:runnerPath,specialistBuilders:specialists.map(bot=>({id:bot.id,role:bot.role,ownsFiles:bot.ownsFiles})),activationBlocked:registry.enabled!==true||registry.coordination?.mode!=='active',commandContractValidation:'implementation-aligned'}));
