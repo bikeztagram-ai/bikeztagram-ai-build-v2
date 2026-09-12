@@ -63,7 +63,7 @@ assert(read(specialistHandoffVerifierPath).includes('verify:autobot-specialist-h
 assert(read(specialistHandoffVerifierPath).includes('writeSpecialistHandoff')&&read(specialistHandoffVerifierPath).includes('candidateCommit'),'specialist handoff verifier must cover producer and candidate commit wiring');
 assert(coordinator.includes("const specialistBotId=String(process.env.AUTOBOT_SPECIALIST_BOT_ID||'').trim()"),'Coordinator must discover the exact specialist bot id contract');
 assert(coordinator.includes("const specialistObjective=String(process.env.AUTOBOT_SPECIALIST_OBJECTIVE||'').trim()"),'Coordinator must discover the exact specialist objective contract');
-assert(coordinator.includes("kind:'specialist-builder-required'"),'Coordinator must expose a specialist Builder handoff decision');
+assert(coordinator.includes("decision('specialist-builder-required'"),'Coordinator must expose a specialist Builder handoff decision');
 assert(coordinator.includes("objective:specialistObjective,ownsFiles:Array.isArray(specialist.ownsFiles)?specialist.ownsFiles:[]"),'Coordinator must persist the exact specialist objective and registry ownership scope');
 assert(coordinator.includes("contract:'AUTOBOT_SPECIALIST_BOT_ID + AUTOBOT_SPECIALIST_OBJECTIVE'"),'Coordinator must publish the exact specialist handoff contract wording');
 assert(coordinator.includes("const specialist=worker(registry,specialistBotId)"),'Coordinator must resolve specialist workers from the authoritative registry');
