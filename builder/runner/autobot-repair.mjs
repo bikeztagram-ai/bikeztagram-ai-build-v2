@@ -98,12 +98,15 @@ function runRepair(record,files){
     const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only','--message',promptFor(record,files),...files];
     const result=spawnSync('aider',args,{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:timeoutMs});
     if(result.error||result.status!==0)fail(`Aider repair failed with ${result.error?.code||result.status||'process error'}`);
-    const status=git(['status','--short'],worktree);
-    if(!status)fail('Repair Bot produced no repository changes');
-    const changed=status.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);
-    const unauthorized=changed.filter(file=>!files.includes(file));
+    const status=git(['status','--short','--untracked-files=no'],worktree);
+    const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).filter(Boolean);
+    if(!status&&!changed.length)fail('Repair Bot produced no repository changes');
+    const touched=Array.from(new Set([...changed,...status.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean)]));
+    const unauthorized=touched.filter(file=>!files.includes(file));
     if(unauthorized.length)fail(`repair modified files outside declared failure scope: ${unauthorized.join(', ')}`);
     execFileSync('git',['diff','--check'],{cwd:worktree,stdio:'inherit'});
+    const install=spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(180_000,timeoutMs)});
+    if(install.error||install.status!==0)fail(`isolated npm install failed with ${install.status??'error'}`);
     const build=spawnSync('npm',['run','build'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(120_000,timeoutMs)});
     if(build.error||build.status!==0)fail(`isolated npm run build failed with ${build.status??'error'}`);
     const quality=spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(120_000,timeoutMs)});
@@ -111,7 +114,7 @@ function runRepair(record,files){
     git(['add','--',...files],worktree);
     git(['commit','-m',`fix(autobot): repair failure ${record.id}`],worktree);
     const commit=git(['rev-parse','HEAD'],worktree);
-    transitionFailure(record.id,'repaired',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit,repairCommit:commit,resolution:'isolated repair passed diff, build and product-quality verification; awaiting independent QA.'});
+    transitionFailure(record.id,'repaired',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit,repairCommit:commit,resolution:'isolated repair passed diff, dependency install, build and product-quality verification; awaiting independent QA.'});
     repaired=true;
     return {ok:true,failureId:record.id,branch,baseCommit:baseCommit,commit};
   }finally{
