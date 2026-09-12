@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "status": "foundation-only",
+  "enabled": false,
+  "purpose": "Define the future AutoBot fleet without changing or replacing the proven single-builder workflow until the fleet foundation is independently verified.",
+  "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving the protected proven builder and truthful verification.",
+  "coordination": {
+    "mode": "plan-only",
+    "coordinator": "builder/runner/autobot-coordinator.mjs",
+    "recoveryRunner": "builder/runner/autobot-fleet-recovery.mjs",
+    "failureQueue": "builder/working/autobot-failure-queue.jsonl",
+    "sharedEvidence": "builder/working/autobot-fleet-plan.json",
+    "specialistHandoff": "builder/working/autobot-specialist-handoff.json",
+    "specialistHandoffContract": "builder/runner/autobot-specialist-handoff.mjs",
+    "specialistHandoffVerifier": "scripts/autobot/verify-autobot-specialist-handoff.mjs",
+    "maxConcurrentWorkers": 1,
+    "requireIsolatedWorker": true,
+    "requireVerificationBeforeHandoff": true,
+    "requireHumanReviewBeforeProtectedIntegration": true
+  },
+  "bots": [
+    {"id":"builder","role":"protected-product-builder","entrypoint":"builder/runner/aider-feature-brain.mjs","status":"proven","owns":["objective-scoped product implementation"],"protected":true},
+    {"id":"director-builder","role":"specialist-cinematic-director-builder","entrypoint":"builder/runner/autobot-specialist-builder.mjs","status":"verified","owns":["creative direction","story construction","shot selection","director runtime"],"ownsFiles":["src/director.js","src/aiEditPlanner.js"],"specialistBuilder":true,"protected":false},
+    {"id":"timeline-builder","role":"specialist-executable-timeline-builder","entrypoint":"builder/runner/autobot-specialist-builder.mjs","status":"verified","owns":["timeline execution","editorial rhythm","cut timing","transition and motion execution"],"ownsFiles":["src/executableTimeline.js","src/editorialRhythm.js","src/renderer.js"],"specialistBuilder":true,"protected":false},
+    {"id":"repair","role":"failure-analysis-and-repair","entrypoint":"builder/runner/autobot-repair.mjs","status":"verified","owns":["failure diagnosis","repair proposals","verified isolated fixes"],"protected":false},
+    {"id":"qa","role":"independent-product-verifier","entrypoint":"builder/runner/autobot-qa.mjs","status":"verified","owns":["regression checks","product-quality review","handoff evidence"],"protected":false},
+    {"id":"reviewer","role":"adversarial-product-reviewer","entrypoint":"builder/runner/autobot-reviewer.mjs","status":"verified","owns":["product-gap review","quality challenge","anti-churn review"],"protected":false},
+    {"id":"self-improvement","role":"autobot-system-improvement","entrypoint":"builder/runner/autobot-self-improvement.mjs","status":"verified","owns":["failure pattern analysis","brain/task/contract improvements","measured self-improvement"],"protected":false}
+  ],
+  "handoffRules": [
+    "Workers must write structured evidence before handing work to another worker.",
+    "A failure belongs in the failure queue when the current worker cannot safely complete or verify its task.",
+    "Repair work must be isolated from the protected builder until independently verified.",
+    "No worker may weaken a validator, safety rule, protected workflow or production gate merely to turn a failure into a pass.",
+    "Every new bot, entrypoint, path, protocol name and handoff contract must be registered here and covered by the fleet verifier before activation.",
+    "Removed or renamed bots and entrypoints must be removed from this registry and all active discovery paths at the same time.",
+    "The coordinator must never invent a worker, path or protocol that is absent from this registry.",
+    "Specialist Builders must use the shared isolated runner, explicit bot id, explicit objective and exact registry-owned file scope.",
+    "Specialist Builder changes must produce an explicit base/candidate commit pair for downstream Reviewer and QA handoff.",
+    "The recovery runner may orchestrate Repair, QA and Reviewer only after the explicit fleet activation gate is enabled."
+  ]
+}

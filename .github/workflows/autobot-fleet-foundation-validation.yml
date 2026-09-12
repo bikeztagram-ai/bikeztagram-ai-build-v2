@@ -6,11 +6,22 @@ on:
       ref:
         description: 'Foundation branch or commit to validate'
         required: true
-        default: 'autobot-fleet-foundation-v4'
+        default: 'autobot-fleet-orchestration-v1'
         type: string
+  push:
+    branches:
+      - autobot-fleet-orchestration-v1
+
+concurrency:
+  group: autobot-fleet-foundation-validation
+  cancel-in-progress: false
 
 permissions:
   contents: read
+
+env:
+  AUTOBOT_FAILURE_QUEUE_PATH: builder/working/autobot-failure-queue.jsonl
+  AUTOBOT_SPECIALIST_HANDOFF_PATH: builder/working/autobot-specialist-handoff.json
 
 jobs:
   validate-foundation:
@@ -20,7 +31,7 @@ jobs:
       - name: Checkout selected foundation revision
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref }}
           fetch-depth: 0
 
       - name: Install dependencies
@@ -30,6 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           npm run verify:autobot-fleet-foundation
+          npm run verify:autobot-fleet-recovery
           npm run verify:autobot-repair-bot
           npm run verify:autobot-qa
           npm run verify:autobot-reviewer
@@ -49,12 +61,13 @@ jobs:
       - name: Verify production build remains healthy
         run: npm run build
 
-      - name: Confirm proven workflow does not activate fleet workers
+      - name: Confirm foundation workflow does not activate workers
         run: |
           set -euo pipefail
           workflow='.github/workflows/autonomous-builder-v2-fast.yml'
           for forbidden in \
             builder/runner/autobot-coordinator.mjs \
+            builder/runner/autobot-fleet-recovery.mjs \
             builder/runner/autobot-repair.mjs \
             builder/runner/autobot-qa.mjs \
             builder/runner/autobot-reviewer.mjs \
@@ -65,4 +78,4 @@ jobs:
               exit 1
             fi
           done
-          echo '[autobot] fleet foundation validation complete; proven Builder remains the only active production worker.'
+          echo '[autobot] fleet foundation and recovery contracts validated; proven Builder remains the only active production worker.'

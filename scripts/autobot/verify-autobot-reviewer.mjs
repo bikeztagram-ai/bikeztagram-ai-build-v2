@@ -1,0 +1,30 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+const root=process.cwd();
+const reviewerFile='builder/runner/autobot-reviewer.mjs';
+const registryFile='builder/brain/autobot-fleet.json';
+const docFile='builder/brain/autobot-fleet-foundation.md';
+const reviewer=fs.readFileSync(path.join(root,reviewerFile),'utf8');
+const registry=JSON.parse(fs.readFileSync(path.join(root,registryFile),'utf8'));
+const doc=fs.readFileSync(path.join(root,docFile),'utf8');
+function assert(condition,message){if(!condition)throw new Error(message);}
+assert(reviewer.includes("from './autobot-failure-queue.mjs'"),'Reviewer must use the authoritative failure queue.');
+assert(reviewer.includes('autobot-reviewer'),'Reviewer identity marker missing.');
+assert(reviewer.includes("const base=String(process.env.AUTOBOT_REVIEW_BASE_COMMIT||'').trim();"),'Reviewer must discover the exact base commit environment variable.');
+assert(reviewer.includes("const candidate=String(process.env.AUTOBOT_REVIEW_COMMIT||'').trim();"),'Reviewer must discover the exact candidate commit environment variable.');
+assert(reviewer.includes('function validCommit(value)=>')===false,'Reviewer must not contain malformed validation syntax.');
+assert(reviewer.includes('validCommit(base)||!validCommit(candidate)'),'Reviewer must validate both commits.');
+assert(reviewer.includes("git(['diff','--name-only',`${base}..${candidate}`])"),'Reviewer must inspect the exact candidate diff.');
+assert(reviewer.includes('fixed-story-template')&&reviewer.includes('missing-evidence-selection')&&reviewer.includes('missing-duration-input'),'Reviewer must challenge known cinematic failure modes.');
+assert(reviewer.includes("automaticMerge:false")&&reviewer.includes("automaticPush:false"),'Reviewer must never merge or push.');
+assert(reviewer.includes("appendFailure({source:'autobot-reviewer'"),'Reviewer must hand needs-repair findings to the authoritative queue.');
+assert(reviewer.includes('failureId')&&reviewer.includes('repairHint'),'Reviewer evidence must retain repair handoff metadata.');
+assert(reviewer.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'Reviewer must install dependencies inside the isolated candidate worktree.');
+assert(reviewer.includes("run('npm',['run','build'],tempDir)"),'Reviewer must independently build the candidate.');
+const bot=registry.bots.find(item=>item.id==='reviewer');
+assert(bot?.entrypoint===reviewerFile&&bot?.status==='verified'&&bot?.protected===false,'registry Reviewer contract must exactly match implementation.');
+assert(doc.includes('Adversarial Reviewer Bot'),'foundation documentation must describe the Reviewer.');
+execFileSync(process.execPath,['--check',reviewerFile],{cwd:root,stdio:'inherit'});
+console.log(JSON.stringify({ok:true,reviewerEntrypoint:reviewerFile,contract:['AUTOBOT_REVIEW_BASE_COMMIT','AUTOBOT_REVIEW_COMMIT'],dispositions:['pass','needs-repair','reject'],isolatedDependencyInstall:true,automaticMerge:false,automaticPush:false}));
