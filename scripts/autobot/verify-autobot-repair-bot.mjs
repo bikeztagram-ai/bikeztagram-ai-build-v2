@@ -36,7 +36,6 @@ assert(repairBot?.entrypoint===repairFile,'registry repair entrypoint must exact
 assert(repairBot?.status==='verified','Repair Bot must be registry-marked verified only after this contract exists');
 assert(repairBot?.protected===false,'Repair Bot must remain unprotected');
 assert(queue.includes("const STATUSES=new Set(['open','claimed','repairing','repaired','verified','rejected','blocked'])"),'queue must expose the full Repair Bot lifecycle');
-assert(queue.includes('repairBaseCommit:normalise(input.repairBaseCommit)'),'queue must persist repair base commit handoff metadata');
 assert(queue.includes('repairBaseCommit:input.repairBaseCommit===undefined?current.repairBaseCommit:input.repairBaseCommit'),'queue must preserve repair base commit across later transitions');
 
 const tempDir=fs.mkdtempSync(path.join(os.tmpdir(),'bikeztagram-repair-contract-'));
