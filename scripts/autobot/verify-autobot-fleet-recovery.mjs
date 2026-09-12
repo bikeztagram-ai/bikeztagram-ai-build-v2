@@ -2,6 +2,7 @@
 /** Verify Builder failure -> Repair -> QA -> Reviewer orchestration contracts. */
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 const root=process.cwd();
 const runnerPath='builder/runner/autobot-fleet-recovery.mjs';
 const runner=fs.readFileSync(path.join(root,runnerPath),'utf8');
@@ -14,8 +15,8 @@ function assert(condition,message){if(!condition)throw new Error(message);}
 assert(registry.coordination?.recoveryRunner===runnerPath,'Fleet registry must expose the exact recovery runner path.');
 assert(fs.existsSync(path.join(root,runnerPath)),'Fleet recovery runner must exist at the registered path.');
 assert(runner.includes("./autobot-failure-queue.mjs"),'Fleet recovery must use the authoritative failure queue module.');
-assert(runner.includes("./autobot-repair.mjs"),'Fleet recovery must call the registered Repair Bot.');
-assert(runner.includes("./autobot-qa.mjs"),'Fleet recovery must call the registered QA Bot.');
+assert(runner.includes("await import('./autobot-repair.mjs')"),'Fleet recovery must discover the registered Repair Bot only when recovery is activated.');
+assert(runner.includes("await import('./autobot-qa.mjs')"),'Fleet recovery must discover the registered QA Bot only when recovery is activated.');
 assert(runner.includes('builder/runner/autobot-reviewer.mjs'),'Fleet recovery must hand repaired candidates to the registered Reviewer.');
 assert(runner.includes('AUTOBOT_REVIEW_BASE_COMMIT')&&runner.includes('AUTOBOT_REVIEW_COMMIT'),'Reviewer handoff must use the explicit commit contract.');
 assert(runner.includes('repairOne')&&runner.includes('qaOne'),'Fleet recovery must invoke Repair and QA through their exported worker contracts.');
@@ -32,4 +33,6 @@ assert(production.includes('autobot-fleet-recovery.mjs capture'),'Proven Builder
 assert(!production.includes('autobot-fleet-recovery.mjs recover'),'Proven Builder workflow must not activate fleet recovery orchestration.');
 assert(production.includes('actions/upload-artifact@v4'),'Builder failure evidence must be persisted as a workflow artifact for a future recovery handoff.');
 assert(registry.enabled===false&&registry.coordination?.mode==='plan-only','Fleet recovery foundation must remain disabled and plan-only until separately activated.');
-console.log(JSON.stringify({ok:true,runner:runnerPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,recoveryActivationBlocked:true}));
+const smoke=spawnSync(process.execPath,['scripts/autobot/test-autobot-failure-capture.mjs'],{cwd:root,encoding:'utf8'});
+assert(smoke.status===0,`Failure capture smoke test failed: ${smoke.stderr||smoke.stdout||'unknown error'}`);
+console.log(JSON.stringify({ok:true,runner:runnerPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,captureSmokeTest:true,recoveryActivationBlocked:true}));
