@@ -15,6 +15,7 @@ const root=process.cwd();
 const queuePath=process.env.AUTOBOT_FAILURE_QUEUE_PATH||path.join(root,'builder','working','autobot-failure-queue.jsonl');
 const SCHEMA_VERSION=1;
 const STATUSES=new Set(['open','claimed','repairing','repaired','verified','rejected','blocked']);
+const ALLOWED_TRANSITIONS={open:new Set(['claimed','rejected','blocked']),claimed:new Set(['repairing','rejected','blocked']),repairing:new Set(['repaired','blocked']),repaired:new Set(['verified','rejected','blocked']),verified:new Set(),rejected:new Set(),blocked:new Set()};
 
 function ensureParent(){fs.mkdirSync(path.dirname(queuePath),{recursive:true});}
 function normalise(value){return value===undefined?null:value;}
@@ -61,6 +62,7 @@ export function transitionFailure(id,status,input={}){
   if(!STATUSES.has(status))throw new Error(`unsupported failure status: ${status}`);
   const current=readFailures().find(record=>record.id===id);
   if(!current)throw new Error(`failure not found: ${id}`);
+  if(!ALLOWED_TRANSITIONS[current.status]?.has(status))throw new Error(`invalid failure transition: ${current.status} -> ${status}`);
   return appendRecord({...current,status,updatedAt:new Date().toISOString(),transitionedBy:input.transitionedBy||'unknown',handoffTo:normalise(input.handoffTo),repairBranch:normalise(input.repairBranch),repairCommit:normalise(input.repairCommit),resolution:normalise(input.resolution)});
 }
 
