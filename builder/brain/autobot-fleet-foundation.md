@@ -30,7 +30,7 @@ Every specialist Builder receives:
 - `AUTOBOT_SPECIALIST_OBJECTIVE` — explicit task objective
 - `AUTOBOT_SPECIALIST_BUILDER_ENABLED` — explicit execution gate
 
-The runner resolves the bot from the authoritative registry and uses its exact `ownsFiles` scope. It refuses unknown/unverified/protected bots, unsafe paths and out-of-scope modifications. Each run starts from the protected checkout `HEAD`, creates a disposable `autobot-specialist/<bot-id>-<timestamp>` worktree/branch, runs Aider without auto-commit, checks the isolated diff, runs `git diff --check` and `npm run build`, then creates a candidate commit only after verification. It removes the disposable worktree and never merges or pushes.
+The runner resolves the bot from the authoritative registry and uses its exact `ownsFiles` scope. It refuses unknown/unverified/protected bots, unsafe paths and out-of-scope modifications. Each run starts from the protected checkout `HEAD`, creates a disposable `autobot-specialist/<bot-id>-<timestamp>` worktree/branch, runs Aider without auto-commit, checks the isolated diff, runs `git diff --check`, installs dependencies with `npm install --no-audit --no-fund --no-package-lock`, then runs `npm run build` and the configurable product-quality check before creating a candidate commit. It removes the disposable worktree and never merges or pushes.
 
 ### Director Builder
 
@@ -121,7 +121,7 @@ The default evidence path is:
 
 A failure record contains a stable schema version, source/run/objective/task identifiers, stage, error, expected/actual information when available, affected files, attempted actions, evidence references, retryability and a repair hint when one exists.
 
-The queue is append-only. A repair or QA worker must never rewrite historical failure evidence. State transitions are represented by a new record with the same failure id.
+The queue is append-only. A repair or QA worker must never rewrite historical failure evidence. State transitions are represented by a new record with the same failure id, and existing handoff metadata such as `repairBranch`, `repairBaseCommit` and `repairCommit` is preserved unless a transition explicitly replaces it.
 
 The supported lifecycle is:
 
@@ -141,7 +141,7 @@ The Repair Bot is implemented at:
 
 `builder/runner/autobot-repair.mjs`
 
-It claims one open failure, validates file scope, creates an isolated worktree, repairs only declared failure files, checks the isolated diff, runs build and product-quality verification, commits only after checks pass, records the repair base/candidate commits and preserves the repair branch for independent QA. It never merges or pushes and cannot modify protected infrastructure through its declared scope.
+It claims one open failure, validates file scope, creates an isolated worktree, repairs only declared failure files, checks the isolated diff, installs dependencies in that worktree, runs build and product-quality verification, commits only after checks pass, records the repair base/candidate commits and preserves the repair branch for independent QA. It never merges or pushes and cannot modify protected infrastructure through its declared scope.
 
 Verifier:
 
@@ -157,7 +157,7 @@ The QA worker is implemented at:
 
 `builder/runner/autobot-qa.mjs`
 
-It consumes only `repaired` handoffs, verifies the repair branch and recorded commit ancestry, reconstructs the patch in a fresh detached worktree, checks diff scope, runs `git diff --check`, build and product-quality verification, then records `verified` or `rejected`. It never merges or pushes.
+It consumes only `repaired` handoffs, verifies the repair branch and recorded commit ancestry, reconstructs the patch in a fresh detached worktree, checks diff scope, installs dependencies, runs `git diff --check`, build and product-quality verification, then records `verified` or `rejected`. It never merges or pushes.
 
 Verifier:
 
@@ -173,7 +173,7 @@ The Reviewer is implemented at:
 
 `builder/runner/autobot-reviewer.mjs`
 
-It does not edit the candidate. It independently inspects an explicit base/candidate commit pair in a disposable worktree, checks the real diff and build, and challenges known Bikeztagram product-quality failure modes such as fixed story templates, evidence-free selection and duration-blind planning.
+It does not edit the candidate. It independently inspects an explicit base/candidate commit pair in a disposable worktree, checks the real diff and build, installing dependencies inside that worktree first, and challenges known Bikeztagram product-quality failure modes such as fixed story templates, evidence-free selection and duration-blind planning.
 
 The explicit Coordinator -> Reviewer handoff contract is:
 
@@ -203,7 +203,7 @@ The Self-Improvement worker is implemented at:
 
 `builder/runner/autobot-self-improvement.mjs`
 
-It is deliberately **analysis-only**. It consumes the durable failure queue, AutoBot telemetry, resumable Builder state and available Reviewer evidence, groups recurring failure signatures, classifies likely failure layers, ranks evidence-backed proposals and writes:
+It is deliberately **analysis-only**. It consumes the durable failure queue, AutoBot telemetry, the same resumable Builder state used by the protected Builder (`builder/working/aider-feature-brain-state.json`, configurable via `AUTOBOT_STATE_PATH`) and available Reviewer evidence, groups recurring failure signatures, classifies likely failure layers, ranks evidence-backed proposals and writes:
 
 `builder/working/autobot-self-improvement.json`
 
@@ -227,7 +227,7 @@ The Coordinator is:
 
 `builder/runner/autobot-coordinator.mjs`
 
-It remains **plan-only**. It reads the registry, durable failure queue and resumable Builder state and writes:
+It remains **plan-only**. It reads the registry, durable failure queue and resumable Builder state (`builder/working/aider-feature-brain-state.json`) and writes:
 
 `builder/working/autobot-fleet-plan.json`
 
