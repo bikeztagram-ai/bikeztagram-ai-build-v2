@@ -9,6 +9,7 @@ const root=process.cwd();
 const registryPath='builder/brain/autobot-fleet.json';
 const packagePath='package.json';
 const workflowPath='.github/workflows/autonomous-builder-v2-fast.yml';
+const validationWorkflowPath='.github/workflows/autobot-fleet-foundation-validation.yml';
 const docPath='builder/brain/autobot-fleet-foundation.md';
 const coordinatorPath='builder/runner/autobot-coordinator.mjs';
 const queuePath='builder/runner/autobot-failure-queue.mjs';
@@ -27,7 +28,7 @@ const qaVerifierPath='scripts/autobot/verify-autobot-qa.mjs';
 const reviewerVerifierPath='scripts/autobot/verify-autobot-reviewer.mjs';
 function read(file){return fs.readFileSync(path.join(root,file),'utf8');}
 function assert(condition,message){if(!condition)throw new Error(message);}
-const registry=JSON.parse(read(registryPath)); const pkg=JSON.parse(read(packagePath)); const workflow=read(workflowPath); const doc=read(docPath); const coordinator=read(coordinatorPath); const queue=read(queuePath); const reviewer=read(reviewerPath); const specialist=read(specialistPath); const specialistHandoff=read(specialistHandoffPath);
+const registry=JSON.parse(read(registryPath)); const pkg=JSON.parse(read(packagePath)); const workflow=read(workflowPath); const validationWorkflow=read(validationWorkflowPath); const doc=read(docPath); const coordinator=read(coordinatorPath); const queue=read(queuePath); const reviewer=read(reviewerPath); const specialist=read(specialistPath); const specialistHandoff=read(specialistHandoffPath);
 assert(registry.schemaVersion===1,'fleet registry schema must be v1');
 assert(registry.enabled===false,'fleet foundation must remain disabled until separately verified');
 assert(registry.coordination?.mode==='plan-only','fleet foundation must remain plan-only');
@@ -37,6 +38,7 @@ assert(registry.coordination?.sharedEvidence==='builder/working/autobot-fleet-pl
 assert(registry.coordination?.specialistHandoff==='builder/working/autobot-specialist-handoff.json','registry specialist handoff output path must exactly match the durable handoff path');
 assert(registry.coordination?.specialistHandoffContract===specialistHandoffPath,'registry specialist handoff contract path must exactly match implementation');
 assert(registry.coordination?.specialistHandoffVerifier===specialistHandoffVerifierPath,'registry specialist handoff verifier path must exactly match verifier');
+assert(registry.coordination?.maxConcurrentWorkers===1,'fleet foundation must remain single-worker until controlled parallelism is separately verified');
 assert(registry.coordination?.requireIsolatedWorker===true,'isolated worker requirement missing');
 assert(registry.coordination?.requireVerificationBeforeHandoff===true,'verification-before-handoff requirement missing');
 const builder=registry.bots.find(bot=>bot.id==='builder');
@@ -77,8 +79,13 @@ assert(queue.includes("const STATUSES=new Set(['open','claimed','repairing','rep
 assert(read(selfImprovementVerifierPath).includes('AUTOBOT_FAILURE_QUEUE_PATH')&&read(selfImprovementVerifierPath).includes('requiresHumanReview'),'Self-Improvement verifier must cover exact evidence contracts and human review');
 assert(doc.includes('Specialist Builder Fleet')&&doc.includes('Director Builder')&&doc.includes('Timeline Builder'),'foundation documentation must describe specialist Builders');
 assert(doc.includes('AUTOBOT_SPECIALIST_BOT_ID')&&doc.includes('AUTOBOT_SPECIALIST_OBJECTIVE')&&doc.includes('AUTOBOT_SPECIALIST_BUILDER_ENABLED'),'foundation documentation must contain exact specialist discovery wording');
-assert(doc.includes('must be registered here and covered by the fleet verifier'),'registry discoverability rule must remain documented');
+assert(doc.includes('builder/runner/autobot-specialist-handoff.mjs')&&doc.includes('builder/working/autobot-specialist-handoff.json'),'foundation documentation must describe the specialist handoff paths');
+assert(doc.includes(validationWorkflowPath),'foundation documentation must point to the dedicated validation workflow');
+assert(validationWorkflow.includes('workflow_dispatch')&&validationWorkflow.includes('npm run verify:autobot-fleet-foundation'),'dedicated validation workflow must be manually runnable and invoke the fleet verifier');
+assert(validationWorkflow.includes('node builder/runner/autobot-coordinator.mjs'),'dedicated validation workflow must exercise the plan-only Coordinator');
+assert(validationWorkflow.includes('p.activationBlocked!==true')&&validationWorkflow.includes('p.enabled!==false')&&validationWorkflow.includes("p.mode!=='plan-only'"),'dedicated validation workflow must prove the fleet remains disabled and plan-only');
 for(const forbidden of [coordinatorPath,repairPath,qaPath,reviewerPath,selfImprovementPath,specialistPath])assert(!workflow.includes(forbidden),`production workflow must not activate new AutoBot worker: ${forbidden}`);
+for(const forbidden of [repairPath,qaPath,reviewerPath,selfImprovementPath,specialistPath])assert(!validationWorkflow.includes(`run node ${forbidden}`),`foundation validation workflow must not execute an autonomous worker: ${forbidden}`);
 
 const queueTestDir=fs.mkdtempSync(path.join(os.tmpdir(),'autobot-fleet-queue-test-'));
 const queueTestPath=path.join(queueTestDir,'failure-queue.jsonl');
@@ -89,4 +96,4 @@ try{
 }finally{fs.rmSync(queueTestDir,{recursive:true,force:true});}
 
 for(const file of [coordinatorPath,queuePath,repairPath,qaPath,reviewerPath,specialistPath,specialistHandoffPath,selfImprovementPath,repairVerifierPath,qaVerifierPath,reviewerVerifierPath,reviewerHandoffPath,specialistVerifierPath,specialistHandoffVerifierPath,selfImprovementVerifierPath])execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,enabled:registry.enabled,mode:registry.coordination.mode,protectedBuilder:builder.entrypoint,specialistBuilders:specialists.map(bot=>({id:bot.id,entrypoint:bot.entrypoint,ownsFiles:bot.ownsFiles})),specialistHandoff:{output:registry.coordination.specialistHandoff,contract:registry.coordination.specialistHandoffContract,verifier:registry.coordination.specialistHandoffVerifier},workflowActivation:false,failureQueueBehavioralTest:true,contracts:Object.keys(scriptContracts)}));
+console.log(JSON.stringify({ok:true,enabled:registry.enabled,mode:registry.coordination.mode,protectedBuilder:builder.entrypoint,specialistBuilders:specialists.map(bot=>({id:bot.id,entrypoint:bot.entrypoint,ownsFiles:bot.ownsFiles})),specialistHandoff:{output:registry.coordination.specialistHandoff,contract:registry.coordination.specialistHandoffContract,verifier:registry.coordination.specialistHandoffVerifier},validationWorkflow:validationWorkflowPath,workflowActivation:false,failureQueueBehavioralTest:true,contracts:Object.keys(scriptContracts)}));
