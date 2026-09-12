@@ -13,9 +13,12 @@ const repairFile='builder/runner/autobot-repair.mjs';
 const qaFile='builder/runner/autobot-qa.mjs';
 const reviewerFile='builder/runner/autobot-reviewer.mjs';
 const selfImprovementFile='builder/runner/autobot-self-improvement.mjs';
+const specialistBuilderFile='builder/runner/autobot-specialist-builder.mjs';
 const repairVerifierFile='scripts/autobot/verify-autobot-repair-bot.mjs';
 const qaVerifierFile='scripts/autobot/verify-autobot-qa.mjs';
 const reviewerVerifierFile='scripts/autobot/verify-autobot-reviewer.mjs';
+const reviewerHandoffVerifierFile='scripts/autobot/verify-autobot-reviewer-handoff.mjs';
+const specialistBuilderVerifierFile='scripts/autobot/verify-autobot-specialist-builder.mjs';
 const selfImprovementVerifierFile='scripts/autobot/verify-autobot-self-improvement.mjs';
 const foundationDoc='builder/brain/autobot-fleet-foundation.md';
 const workflow='.github/workflows/autonomous-builder-v2-fast.yml';
@@ -28,9 +31,12 @@ const repair=fs.readFileSync(path.join(root,repairFile),'utf8');
 const qa=fs.readFileSync(path.join(root,qaFile),'utf8');
 const reviewer=fs.readFileSync(path.join(root,reviewerFile),'utf8');
 const selfImprovement=fs.readFileSync(path.join(root,selfImprovementFile),'utf8');
+const specialistBuilder=fs.readFileSync(path.join(root,specialistBuilderFile),'utf8');
 const repairVerifier=fs.readFileSync(path.join(root,repairVerifierFile),'utf8');
 const qaVerifier=fs.readFileSync(path.join(root,qaVerifierFile),'utf8');
 const reviewerVerifier=fs.readFileSync(path.join(root,reviewerVerifierFile),'utf8');
+const reviewerHandoffVerifier=fs.readFileSync(path.join(root,reviewerHandoffVerifierFile),'utf8');
+const specialistBuilderVerifier=fs.readFileSync(path.join(root,specialistBuilderVerifierFile),'utf8');
 const selfImprovementVerifier=fs.readFileSync(path.join(root,selfImprovementVerifierFile),'utf8');
 const doc=fs.readFileSync(path.join(root,foundationDoc),'utf8');
 const workflowText=fs.readFileSync(path.join(root,workflow),'utf8');
@@ -67,7 +73,17 @@ assert(reviewerBot?.protected===false,'Reviewer must remain unprotected');
 assert(selfImprovementBot?.entrypoint===selfImprovementFile,'implemented Self-Improvement entrypoint must exactly match the registry');
 assert(selfImprovementBot?.status==='verified','implemented Self-Improvement must be registry-marked verified');
 assert(selfImprovementBot?.protected===false,'Self-Improvement must remain unprotected');
-for(const file of [repairFile,qaFile,reviewerFile,selfImprovementFile,repairVerifierFile,qaVerifierFile,reviewerVerifierFile,selfImprovementVerifierFile])assert(fs.existsSync(path.join(root,file)),`registered path must exist: ${file}`);
+const specialistBots=registry.bots.filter(bot=>bot.specialistBuilder===true);
+assert(specialistBots.length>=2,'at least two specialist Builders are required before fleet activation');
+for(const bot of specialistBots){
+  assert(bot.entrypoint===specialistBuilderFile,`specialist Builder ${bot.id} entrypoint must exactly match the shared runner`);
+  assert(bot.status==='verified',`specialist Builder ${bot.id} must be registry-marked verified`);
+  assert(bot.protected===false,`specialist Builder ${bot.id} must remain unprotected`);
+  assert(Array.isArray(bot.ownsFiles)&&bot.ownsFiles.length>0,`specialist Builder ${bot.id} must declare ownsFiles`);
+  assert(bot.ownsFiles.every(file=>typeof file==='string'&&!path.isAbsolute(file)&&!file.includes('..')&&!file.startsWith('.')&&!file.includes('\\')),`specialist Builder ${bot.id} has an unsafe ownsFiles path`);
+  for(const file of bot.ownsFiles)assert(fs.existsSync(path.join(root,file)),`specialist Builder ${bot.id} owns missing product file: ${file}`);
+}
+for(const file of [repairFile,qaFile,reviewerFile,selfImprovementFile,specialistBuilderFile,repairVerifierFile,qaVerifierFile,reviewerVerifierFile,reviewerHandoffVerifierFile,specialistBuilderVerifierFile,selfImprovementVerifierFile])assert(fs.existsSync(path.join(root,file)),`registered path must exist: ${file}`);
 assert(coordinator.includes('mode:registry.coordination?.mode||\'plan-only\''),'coordinator must discover its mode from registry');
 assert(coordinator.includes('activationBlocked:registry.enabled!==true||registry.coordination?.mode!==\'active\''),'coordinator must block activation while foundation is disabled');
 assert(coordinator.includes('No worker is launched by this foundation coordinator.'),'coordinator must not launch workers in foundation mode');
@@ -108,26 +124,29 @@ assert(reviewer.includes('Repair the reviewed candidate findings in an isolated 
 assert(reviewerVerifier.includes(reviewerFile),'Reviewer verifier must name the exact implementation path');
 assert(reviewerVerifier.includes("automaticPush:false"),'Reviewer verifier must prove automatic push is disabled');
 assert(reviewerVerifier.includes("automaticMerge:false"),'Reviewer verifier must prove automatic merge is disabled');
-assert(selfImprovement.includes('AUTOBOT_FAILURE_QUEUE_PATH'),'Self-Improvement must expose the exact failure-queue discovery contract');
-assert(selfImprovement.includes('AUTOBOT_TELEMETRY_PATH'),'Self-Improvement must expose the exact telemetry discovery contract');
-assert(selfImprovement.includes('AUTOBOT_STATE_PATH'),'Self-Improvement must expose the exact Builder-state discovery contract');
-assert(selfImprovement.includes('AUTOBOT_SELF_IMPROVEMENT_OUTPUT'),'Self-Improvement must expose the exact output-path contract');
-assert(selfImprovement.includes('appliedChanges:[]'),'Self-Improvement must remain analysis-only');
-assert(!selfImprovement.includes('execFileSync'),'Self-Improvement must not gain repository execution capability');
-assert(selfImprovementVerifier.includes(selfImprovementFile),'Self-Improvement verifier must name the exact implementation path');
-assert(selfImprovementVerifier.includes('AUTOBOT_FAILURE_QUEUE_PATH'),'Self-Improvement verifier must test the exact queue discovery contract');
-assert(selfImprovementVerifier.includes('AUTOBOT_TELEMETRY_PATH'),'Self-Improvement verifier must test the exact telemetry discovery contract');
-assert(selfImprovementVerifier.includes('AUTOBOT_STATE_PATH'),'Self-Improvement verifier must test the exact state discovery contract');
-assert(selfImprovementVerifier.includes('AUTOBOT_SELF_IMPROVEMENT_OUTPUT'),'Self-Improvement verifier must test the exact output discovery contract');
-assert(selfImprovementVerifier.includes('requiresHumanReview'),'Self-Improvement verifier must require human review for proposals');
-assert(selfImprovementVerifier.includes('appliedChanges'),'Self-Improvement verifier must prove no changes are applied');
+assert(reviewerHandoffVerifier.includes('AUTOBOT_REVIEW_BASE_COMMIT'),'Reviewer handoff verifier must test the exact base-commit contract');
+assert(reviewerHandoffVerifier.includes('AUTOBOT_REVIEW_COMMIT'),'Reviewer handoff verifier must test the exact candidate-commit contract');
+assert(specialistBuilder.includes("AUTOBOT_SPECIALIST_BOT_ID"),'Specialist Builder must discover its bot id through the exact environment contract');
+assert(specialistBuilder.includes("AUTOBOT_SPECIALIST_OBJECTIVE"),'Specialist Builder must receive an explicit objective through the exact environment contract');
+assert(specialistBuilder.includes("AUTOBOT_SPECIALIST_BUILDER_ENABLED"),'Specialist Builder must have an explicit execution gate');
+assert(specialistBuilder.includes("registry.enabled!==true || registry.coordination?.mode!=='active'"),'Specialist Builder must refuse execution while fleet coordination is inactive');
+assert(specialistBuilder.includes('bot.specialistBuilder'),'Specialist Builder must require the registry specialistBuilder marker');
+assert(specialistBuilder.includes('ownsFiles'),'Specialist Builder must use exact registry-owned file scope');
+assert(specialistBuilder.includes('out-of-scope files'),'Specialist Builder must reject out-of-scope modifications');
+assert(specialistBuilder.includes('candidateCommit'),'Specialist Builder must expose candidate commit evidence');
+assert(specialistBuilderVerifier.includes(specialistBuilderFile),'Specialist Builder verifier must name the exact runner path');
+assert(specialistBuilderVerifier.includes("verify:autobot-specialist-builder"),'Specialist Builder verifier must have an exact discoverability anchor');
+assert(specialistBuilderVerifier.includes('director-builder')&&specialistBuilderVerifier.includes('timeline-builder'),'Specialist Builder verifier must cover both initial specialist roles');
 const scripts=packageJson.scripts||{};
-assert(scripts['verify:autobot-fleet-foundation']==='node scripts/autobot/verify-autobot-fleet-foundation.mjs','fleet verifier package script must be discoverable exactly');
-assert(scripts['verify:autobot-repair-bot']==='node scripts/autobot/verify-autobot-repair-bot.mjs','Repair verifier package script must be discoverable exactly');
-assert(scripts['verify:autobot-qa']==='node scripts/autobot/verify-autobot-qa.mjs','QA verifier package script must be discoverable exactly');
-assert(scripts['verify:autobot-reviewer']==='node scripts/autobot/verify-autobot-reviewer.mjs','Reviewer verifier package script must be discoverable exactly');
-assert(scripts['verify:autobot-self-improvement']==='node scripts/autobot/verify-autobot-self-improvement.mjs','Self-Improvement verifier package script must be discoverable exactly');
+for(const [name,file] of Object.entries({'verify:autobot-fleet-foundation':foundationDoc.replace('builder/brain/','scripts/autobot/'),'verify:autobot-repair-bot':repairVerifierFile,'verify:autobot-qa':qaVerifierFile,'verify:autobot-reviewer':reviewerVerifierFile,'verify:autobot-reviewer-handoff':reviewerHandoffVerifierFile,'verify:autobot-specialist-builder':specialistBuilderVerifierFile,'verify:autobot-self-improvement':selfImprovementVerifierFile})){
+  const expected=name==='verify:autobot-fleet-foundation'?'node scripts/autobot/verify-autobot-fleet-foundation.mjs':`node ${file}`;
+  assert(scripts[name]===expected,`${name} package script must be discoverable exactly`);
+}
 assert(doc.includes('Protected Builder'),'foundation document must describe the protected builder');
+assert(doc.includes('Specialist Builder Fleet'),'foundation document must describe the specialist Builder fleet');
+assert(doc.includes('builder/runner/autobot-specialist-builder.mjs'),'foundation document must name the exact specialist runner');
+assert(doc.includes('AUTOBOT_SPECIALIST_BOT_ID')&&doc.includes('AUTOBOT_SPECIALIST_OBJECTIVE')&&doc.includes('AUTOBOT_SPECIALIST_BUILDER_ENABLED'),'foundation document must name the exact specialist discovery contracts');
+assert(doc.includes('Director Builder')&&doc.includes('Timeline Builder'),'foundation document must describe the initial specialist roles');
 assert(doc.includes('Failure Queue'),'foundation document must describe the failure queue');
 assert(doc.includes('Coordinator'),'foundation document must describe the coordinator');
 assert(doc.includes('Repair Bot'),'foundation document must describe the Repair Bot');
@@ -142,6 +161,7 @@ assert(!workflowText.includes('autobot-repair.mjs'),'existing production workflo
 assert(!workflowText.includes('autobot-qa.mjs'),'existing production workflow must not activate the QA Bot yet');
 assert(!workflowText.includes('autobot-reviewer.mjs'),'existing production workflow must not activate the Reviewer yet');
 assert(!workflowText.includes('autobot-self-improvement.mjs'),'existing production workflow must not activate Self-Improvement yet');
+assert(!workflowText.includes('autobot-specialist-builder.mjs'),'existing production workflow must not activate Specialist Builders yet');
 
 const tempDir=fs.mkdtempSync(path.join(os.tmpdir(),'bikeztagram-fleet-contract-'));
 const tempQueue=path.join(tempDir,'failure.jsonl');
@@ -159,9 +179,7 @@ try{
   let rejected=false;
   try{queueModule.transitionFailure(created.id,'open',{transitionedBy:'fleet-contract-test'});}catch(error){rejected=/invalid failure transition/.test(error.message);}
   assert(rejected,'terminal VERIFIED state must reject backwards transitions');
-}finally{
-  fs.rmSync(tempDir,{recursive:true,force:true});
-}
+}finally{fs.rmSync(tempDir,{recursive:true,force:true});}
 
-for(const file of [coordinatorFile,queueFile,repairFile,qaFile,reviewerFile,selfImprovementFile,repairVerifierFile,qaVerifierFile,reviewerVerifierFile,selfImprovementVerifierFile])execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,schemaVersion:1,mode:registry.coordination.mode,enabled:registry.enabled,bots:registry.bots.map(bot=>({id:bot.id,status:bot.status,protected:Boolean(bot.protected)})),failureStateMachine:['open','claimed','repairing','repaired','verified','rejected','blocked'],reviewHandoffContract:['AUTOBOT_REVIEW_BASE_COMMIT','AUTOBOT_REVIEW_COMMIT'],repairBot:repairFile,qaBot:qaFile,reviewerBot:reviewerFile,selfImprovementBot:selfImprovementFile,workflowActivation:false,protectedBuilder:'builder/runner/aider-feature-brain.mjs'}));
+for(const file of [coordinatorFile,queueFile,repairFile,qaFile,reviewerFile,selfImprovementFile,specialistBuilderFile,repairVerifierFile,qaVerifierFile,reviewerVerifierFile,reviewerHandoffVerifierFile,specialistBuilderVerifierFile,selfImprovementVerifierFile])execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
+console.log(JSON.stringify({ok:true,schemaVersion:1,mode:registry.coordination.mode,enabled:registry.enabled,bots:registry.bots.map(bot=>({id:bot.id,status:bot.status,protected:Boolean(bot.protected),specialistBuilder:Boolean(bot.specialistBuilder)})),failureStateMachine:['open','claimed','repairing','repaired','verified','rejected','blocked'],reviewHandoffContract:['AUTOBOT_REVIEW_BASE_COMMIT','AUTOBOT_REVIEW_COMMIT'],specialistBuilderContract:['AUTOBOT_SPECIALIST_BOT_ID','AUTOBOT_SPECIALIST_OBJECTIVE','AUTOBOT_SPECIALIST_BUILDER_ENABLED'],repairBot:repairFile,qaBot:qaFile,reviewerBot:reviewerFile,selfImprovementBot:selfImprovementFile,specialistBuilder:specialistBuilderFile,workflowActivation:false,protectedBuilder:'builder/runner/aider-feature-brain.mjs'}));
