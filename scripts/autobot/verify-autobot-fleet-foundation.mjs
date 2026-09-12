@@ -53,7 +53,7 @@ assert(specialist.includes('AUTOBOT_SPECIALIST_BOT_ID')&&specialist.includes('AU
 assert(specialist.includes("registry.enabled!==true || registry.coordination?.mode!=='active'"),'specialist Builder must refuse execution while fleet is inactive');
 assert(specialist.includes('bot.specialistBuilder')&&specialist.includes('ownsFiles')&&specialist.includes('candidateCommit'),'specialist Builder registry scope/candidate handoff wiring missing');
 assert(specialist.includes("AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality'"),'specialist Builder must expose the exact product-quality verification command contract');
-assert(specialist.includes("git',['diff','HEAD','--name-only']"),'specialist Builder must inspect staged and unstaged changes from HEAD');
+assert(specialist.includes("git(['diff','HEAD','--name-only']"),'specialist Builder must inspect staged and unstaged changes from HEAD');
 assert(specialist.includes("git(['status','--porcelain']"),'specialist Builder must inspect untracked/staged working-tree changes');
 assert(specialist.includes("writeSpecialistHandoff({")&&specialist.includes("status:'verified-candidate'"),'specialist Builder must emit the validated specialist handoff');
 assert(specialistHandoff.includes("SPECIALIST_HANDOFF_SCHEMA='autobot-specialist-handoff-v1'"),'specialist handoff schema must remain v1');
