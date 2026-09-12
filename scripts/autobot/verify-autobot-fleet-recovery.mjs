@@ -16,16 +16,34 @@ const production=fs.readFileSync(path.join(root,'.github/workflows/autonomous-bu
 const recoveryWorkflow=fs.readFileSync(path.join(root,workflowPath),'utf8');
 const documentation=fs.readFileSync(path.join(root,documentationPath),'utf8');
 function assert(condition,message){if(!condition)throw new Error(message);}
+function registered(id,entrypoint){
+  const worker=(registry.bots||[]).find(item=>item.id===id);
+  assert(worker,`Fleet registry must register the ${id} worker.`);
+  assert(worker.status==='verified',`Fleet registry ${id} worker must remain verified.`);
+  assert(worker.protected!==true,`Fleet recovery worker ${id} must not be protected.`);
+  assert(worker.entrypoint===entrypoint,`Fleet registry ${id} entrypoint must remain the exact production path.`);
+  assert(fs.existsSync(path.join(root,entrypoint)),`Registered ${id} entrypoint must exist at ${entrypoint}.`);
+}
 assert(registry.coordination?.recoveryRunner===runnerPath,'Fleet registry must expose the exact recovery runner path.');
 assert(registry.coordination?.recoveryWorkflow===workflowPath,'Fleet registry must expose the exact controlled recovery workflow path.');
 assert(registry.coordination?.recoveryDocumentation===documentationPath,'Fleet registry must expose the exact controlled recovery documentation path.');
 assert(fs.existsSync(path.join(root,runnerPath)),'Fleet recovery runner must exist at the registered path.');
 assert(fs.existsSync(path.join(root,workflowPath)),'Controlled recovery workflow must exist at the registered path.');
 assert(fs.existsSync(path.join(root,documentationPath)),'Controlled recovery documentation must exist at the registered path.');
+registered('repair','builder/runner/autobot-repair.mjs');
+registered('qa','builder/runner/autobot-qa.mjs');
+registered('reviewer','builder/runner/autobot-reviewer.mjs');
 assert(runner.includes("./autobot-failure-queue.mjs"),'Fleet recovery must use the authoritative failure queue module.');
-assert(runner.includes("await import('./autobot-repair.mjs')"),'Fleet recovery must discover the registered Repair Bot only when recovery is activated.');
-assert(runner.includes("await import('./autobot-qa.mjs')"),'Fleet recovery must discover the registered QA Bot only when recovery is activated.');
-assert(runner.includes('builder/runner/autobot-reviewer.mjs'),'Fleet recovery must hand repaired candidates to the registered Reviewer.');
+assert(runner.includes('function registeredWorker(registry,id)'),'Fleet recovery must discover workers through the authoritative fleet registry.');
+assert(runner.includes("registeredWorker(registry,'repair')"),'Fleet recovery must discover the registered Repair Bot by id.');
+assert(runner.includes("registeredWorker(registry,'qa')"),'Fleet recovery must discover the registered QA Bot by id.');
+assert(runner.includes("registeredWorker(registry,'reviewer')"),'Fleet recovery must discover the registered Reviewer Bot by id.');
+assert(runner.includes('pathToFileURL'),'Fleet recovery must resolve registered worker entrypoints to exact filesystem modules.');
+assert(runner.includes('worker.entrypoint'),'Fleet recovery must execute the exact entrypoint recorded in the registry.');
+assert(runner.includes('await import(pathToFileURL'),'Fleet recovery must lazy-load the registered worker module only after activation.');
+assert(!runner.includes("await import('./autobot-repair.mjs')"),'Fleet recovery must not hard-code Repair discovery outside the registry contract.');
+assert(!runner.includes("await import('./autobot-qa.mjs')"),'Fleet recovery must not hard-code QA discovery outside the registry contract.');
+assert(runner.includes('builder/runner/autobot-reviewer.mjs'),'Reviewer production path must remain registered as the known exact entrypoint.');
 assert(runner.includes('AUTOBOT_REVIEW_BASE_COMMIT')&&runner.includes('AUTOBOT_REVIEW_COMMIT'),'Reviewer handoff must use the explicit commit contract.');
 assert(runner.includes('repairOne')&&runner.includes('qaOne'),'Fleet recovery must invoke Repair and QA through their exported worker contracts.');
 assert(runner.includes('protectedIntegration:false'),'Recovery must stop before protected integration.');
@@ -56,4 +74,4 @@ assert(registry.activationGate?.protectedIntegration===false,'Registry activatio
 assert(registry.enabled===false&&registry.coordination?.mode==='plan-only','Fleet recovery foundation must remain disabled and plan-only until separately activated.');
 const smoke=spawnSync(process.execPath,['scripts/autobot/test-autobot-failure-capture.mjs'],{cwd:root,encoding:'utf8'});
 assert(smoke.status===0,`Failure capture smoke test failed: ${smoke.stderr||smoke.stdout||'unknown error'}`);
-console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,recoveryActivationBlocked:true}));
+console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,recoveryActivationBlocked:true}));
