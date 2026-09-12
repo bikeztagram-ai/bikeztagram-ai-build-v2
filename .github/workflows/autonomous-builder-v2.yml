@@ -102,6 +102,7 @@ jobs:
           node scripts/autobot/verify-autobot-continuous-loop.mjs
           node scripts/autobot/verify-autobot-segment-chain.mjs
           node scripts/autobot/verify-autobot-live-telemetry.mjs
+          node scripts/autobot/verify-autobot-brain-registry.mjs
           node builder/quality/autobot-ready.mjs
       - name: Run sustained deterministic builder and local AI brain with live telemetry
         run: node builder/runner/run-with-live-telemetry.mjs
@@ -183,6 +184,7 @@ jobs:
           node scripts/autobot/verify-autobot-continuous-loop.mjs
           node scripts/autobot/verify-autobot-segment-chain.mjs
           node scripts/autobot/verify-autobot-live-telemetry.mjs
+          node scripts/autobot/verify-autobot-brain-registry.mjs
           node builder/quality/autobot-ready.mjs
       - name: Resume sustained deterministic builder and local AI brain with live telemetry
         run: node builder/runner/run-with-live-telemetry.mjs
