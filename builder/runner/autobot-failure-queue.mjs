@@ -63,7 +63,7 @@ export function transitionFailure(id,status,input={}){
   const current=readFailures().find(record=>record.id===id);
   if(!current)throw new Error(`failure not found: ${id}`);
   if(!ALLOWED_TRANSITIONS[current.status]?.has(status))throw new Error(`invalid failure transition: ${current.status} -> ${status}`);
-  return appendRecord({...current,status,updatedAt:new Date().toISOString(),transitionedBy:input.transitionedBy||'unknown',handoffTo:normalise(input.handoffTo),repairBranch:normalise(input.repairBranch),repairBaseCommit:normalise(input.repairBaseCommit),repairCommit:normalise(input.repairCommit),resolution:normalise(input.resolution)});
+  return appendRecord({...current,status,updatedAt:new Date().toISOString(),transitionedBy:input.transitionedBy||'unknown',handoffTo:input.handoffTo===undefined?current.handoffTo:input.handoffTo,repairBranch:input.repairBranch===undefined?current.repairBranch:input.repairBranch,repairBaseCommit:input.repairBaseCommit===undefined?current.repairBaseCommit:input.repairBaseCommit,repairCommit:input.repairCommit===undefined?current.repairCommit:input.repairCommit,resolution:input.resolution===undefined?current.resolution:input.resolution});
 }
 
 export function queueSummary(){
