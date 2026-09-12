@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const root=process.cwd();
-const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/renderer.js','src/editorialRhythm.js','src/executableTimeline.js']);
+const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/renderer.js','src/editorialRhythm.js','src/executableTimeline.js','src/captionPlanner.js']);
 function changedPaths(){const output=execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'});return output.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);}
 function read(path){return fs.readFileSync(`${root}/${path}`,'utf8');}
 function assert(condition,message){if(!condition)throw new Error(message);}
