@@ -15,46 +15,11 @@
     "requireHumanReviewBeforeProtectedIntegration": true
   },
   "bots": [
-    {
-      "id": "builder",
-      "role": "protected-product-builder",
-      "entrypoint": "builder/runner/aider-feature-brain.mjs",
-      "status": "proven",
-      "owns": ["objective-scoped product implementation"],
-      "protected": true
-    },
-    {
-      "id": "repair",
-      "role": "failure-analysis-and-repair",
-      "entrypoint": "builder/runner/autobot-repair.mjs",
-      "status": "verified",
-      "owns": ["failure diagnosis", "repair proposals", "verified isolated fixes"],
-      "protected": false
-    },
-    {
-      "id": "qa",
-      "role": "independent-product-verifier",
-      "entrypoint": "builder/runner/autobot-qa.mjs",
-      "status": "verified",
-      "owns": ["regression checks", "product-quality review", "handoff evidence"],
-      "protected": false
-    },
-    {
-      "id": "reviewer",
-      "role": "adversarial-product-reviewer",
-      "entrypoint": "future:builder/runner/autobot-reviewer.mjs",
-      "status": "planned",
-      "owns": ["product-gap review", "quality challenge", "anti-churn review"],
-      "protected": false
-    },
-    {
-      "id": "self-improvement",
-      "role": "autobot-system-improvement",
-      "entrypoint": "future:builder/runner/autobot-self-improvement.mjs",
-      "status": "planned",
-      "owns": ["failure pattern analysis", "brain/task/contract improvements", "measured self-improvement"],
-      "protected": false
-    }
+    {"id":"builder","role":"protected-product-builder","entrypoint":"builder/runner/aider-feature-brain.mjs","status":"proven","owns":["objective-scoped product implementation"],"protected":true},
+    {"id":"repair","role":"failure-analysis-and-repair","entrypoint":"builder/runner/autobot-repair.mjs","status":"verified","owns":["failure diagnosis","repair proposals","verified isolated fixes"],"protected":false},
+    {"id":"qa","role":"independent-product-verifier","entrypoint":"builder/runner/autobot-qa.mjs","status":"verified","owns":["regression checks","product-quality review","handoff evidence"],"protected":false},
+    {"id":"reviewer","role":"adversarial-product-reviewer","entrypoint":"builder/runner/autobot-reviewer.mjs","status":"verified","owns":["product-gap review","quality challenge","anti-churn review"],"protected":false},
+    {"id":"self-improvement","role":"autobot-system-improvement","entrypoint":"future:builder/runner/autobot-self-improvement.mjs","status":"planned","owns":["failure pattern analysis","brain/task/contract improvements","measured self-improvement"],"protected":false}
   ],
   "handoffRules": [
     "Workers must write structured evidence before handing work to another worker.",
