@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "objectives": [
     {
       "id": "cinematic-quality",
@@ -27,8 +27,33 @@
       ]
     },
     {
-      "id": "timeline-nle",
+      "id": "director-intelligence",
       "priority": 99,
+      "title": "Build deterministic director story intelligence",
+      "dependsOn": ["cinematic-quality"],
+      "files": ["src/director.js", "src/aiEditPlanner.js"],
+      "acceptance": [
+        "story count scales with useful media and target duration",
+        "story roles reflect creative intent without becoming a fixed template",
+        "quality-aware shot choice and subject diversity are preserved",
+        "story beats are consumed by the production edit planner",
+        "auditable story evidence survives into the edit plan",
+        "single-source, small-library and rich-media inputs remain usable",
+        "npm run build passes",
+        "behaviour is verified rather than only export presence",
+        "after the first successful implementation perform an adversarial review and fix any regression or dead/unwired logic found"
+      ],
+      "constraints": [
+        "preserve existing director selection, critique and renderer contracts",
+        "never invent media",
+        "do not modify protected infrastructure",
+        "do not reintroduce Gemini",
+        "do not impose an arbitrary story-count ceiling"
+      ]
+    },
+    {
+      "id": "timeline-nle",
+      "priority": 98,
       "title": "Strengthen the universal executable timeline",
       "dependsOn": ["cinematic-quality"],
       "files": ["src/executableTimeline.js", "src/editorialRhythm.js", "src/director.js"],
@@ -49,7 +74,7 @@
     },
     {
       "id": "audio-intelligence",
-      "priority": 98,
+      "priority": 97,
       "title": "Improve music arrangement and audio synchronisation",
       "dependsOn": ["timeline-nle"],
       "files": ["src/musicProvider.js", "src/musicArrangementRuntime.js", "src/aiAudioAnalysis.js"],
@@ -70,7 +95,7 @@
     },
     {
       "id": "generation-runtime",
-      "priority": 97,
+      "priority": 96,
       "title": "Strengthen real AI generation runtime and provider handoff",
       "dependsOn": [],
       "files": ["src/universalRenderRuntime.js", "src/aiVideoProvider.js", "src/promptOnlyVideoBatch.js"],
@@ -93,7 +118,7 @@
     },
     {
       "id": "universal-creative-understanding",
-      "priority": 96,
+      "priority": 95,
       "title": "Improve universal creative brief understanding and continuity",
       "dependsOn": ["cinematic-quality"],
       "files": ["src/creativeIntentCompiler.js", "src/universalCreativeEngine.js", "src/creativeBriefModel.js"],
