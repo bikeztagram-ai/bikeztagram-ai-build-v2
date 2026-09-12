@@ -41,7 +41,7 @@ const qaWorker=registered('qa','builder/runner/autobot-qa.mjs');
 const reviewerWorker=registered('reviewer','builder/runner/autobot-reviewer.mjs');
 assert(repair.includes('export async function repairOne')||repair.includes('export function repairOne'),'Registered Repair Bot entrypoint must export repairOne.');
 assert(qa.includes('export async function qaOne')||qa.includes('export function qaOne'),'Registered QA Bot entrypoint must export qaOne.');
-assert(reviewer.includes('export async function reviewOne')||reviewer.includes('export function reviewOne'),'Registered Reviewer Bot entrypoint must export reviewOne.');
+assert(reviewer.includes('AUTOBOT_REVIEW_BASE_COMMIT')&&reviewer.includes('AUTOBOT_REVIEW_COMMIT'),'Registered Reviewer Bot entrypoint must expose the documented commit-pair runtime contract.');
 assert(runner.includes("./autobot-failure-queue.mjs"),'Fleet recovery must use the authoritative failure queue module.');
 assert(runner.includes('function registeredWorker(registry,id)'),'Fleet recovery must discover workers through the authoritative fleet registry.');
 assert(runner.includes("const {worker:repairWorker,module:repairModule}=await loadWorker(registry,'repair')"),'Fleet recovery must discover the registered Repair Bot by id through the registry loader.');
