@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Verify the AutoBot fleet foundation and every registered discovery contract. */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -67,5 +68,14 @@ assert(doc.includes('Specialist Builder Fleet')&&doc.includes('Director Builder'
 assert(doc.includes('AUTOBOT_SPECIALIST_BOT_ID')&&doc.includes('AUTOBOT_SPECIALIST_OBJECTIVE')&&doc.includes('AUTOBOT_SPECIALIST_BUILDER_ENABLED'),'foundation documentation must contain exact specialist discovery wording');
 assert(doc.includes('must be registered here and covered by the fleet verifier'),'registry discoverability rule must remain documented');
 for(const forbidden of [coordinatorPath,repairPath,qaPath,reviewerPath,selfImprovementPath,specialistPath])assert(!workflow.includes(forbidden),`production workflow must not activate new AutoBot worker: ${forbidden}`);
+
+const queueTestDir=fs.mkdtempSync(path.join(os.tmpdir(),'autobot-fleet-queue-test-'));
+const queueTestPath=path.join(queueTestDir,'failure-queue.jsonl');
+try{
+  const env={...process.env,AUTOBOT_FAILURE_QUEUE_PATH:queueTestPath};
+  const script=`import {appendFailure,transitionFailure,readFailures} from './builder/runner/autobot-failure-queue.mjs'; const f=appendFailure({source:'fleet-verifier',runId:'synthetic',stage:'verification',error:'synthetic failure',files:['src/director.js'],retryable:true}); transitionFailure(f.id,'claimed',{transitionedBy:'fleet-verifier'}); transitionFailure(f.id,'repairing',{transitionedBy:'fleet-verifier'}); transitionFailure(f.id,'repaired',{transitionedBy:'fleet-verifier',repairBaseCommit:'1111111111111111111111111111111111111111',repairCommit:'2222222222222222222222222222222222222222'}); transitionFailure(f.id,'verified',{transitionedBy:'fleet-verifier'}); let rejected=false; try{transitionFailure(f.id,'open',{transitionedBy:'fleet-verifier'});}catch{rejected=true;} if(!rejected)throw new Error('failure queue accepted an illegal backward transition'); const r=readFailures()[0]; if(r.status!=='verified'||r.repairBaseCommit!=='1111111111111111111111111111111111111111'||r.repairCommit!=='2222222222222222222222222222222222222222')throw new Error('failure queue lost terminal repair evidence');`;
+  execFileSync(process.execPath,['--input-type=module','-e',script],{cwd:root,env,stdio:'inherit'});
+}finally{fs.rmSync(queueTestDir,{recursive:true,force:true});}
+
 for(const file of [coordinatorPath,queuePath,repairPath,qaPath,reviewerPath,specialistPath,selfImprovementPath,repairVerifierPath,qaVerifierPath,reviewerVerifierPath,reviewerHandoffPath,specialistVerifierPath,selfImprovementVerifierPath])execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,enabled:registry.enabled,mode:registry.coordination.mode,protectedBuilder:builder.entrypoint,specialistBuilders:specialists.map(bot=>({id:bot.id,entrypoint:bot.entrypoint,ownsFiles:bot.ownsFiles})),workflowActivation:false,contracts:Object.keys(scriptContracts)}));
+console.log(JSON.stringify({ok:true,enabled:registry.enabled,mode:registry.coordination.mode,protectedBuilder:builder.entrypoint,specialistBuilders:specialists.map(bot=>({id:bot.id,entrypoint:bot.entrypoint,ownsFiles:bot.ownsFiles})),workflowActivation:false,failureQueueBehavioralTest:true,contracts:Object.keys(scriptContracts)}));
