@@ -16,6 +16,7 @@ const reviewer=fs.readFileSync(path.join(root,'builder','runner','autobot-review
 const production=fs.readFileSync(path.join(root,'.github/workflows/autonomous-builder-v2-fast.yml'),'utf8');
 const recoveryWorkflow=fs.readFileSync(path.join(root,workflowPath),'utf8');
 const documentation=fs.readFileSync(path.join(root,documentationPath),'utf8');
+const packageJson=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 function assert(condition,message){if(!condition)throw new Error(message);}
 function registered(id,entrypoint){
   const worker=(registry.bots||[]).find(item=>item.id===id);
@@ -78,6 +79,9 @@ assert(documentation.includes('protectedIntegration:false'),'Controlled recovery
 assert(registry.activationGate?.requiredEnabled===true&&registry.activationGate?.requiredMode==='active','Registry must declare the exact activation gate contract.');
 assert(registry.activationGate?.protectedIntegration===false,'Registry activation gate must preserve the protected-integration boundary.');
 assert(registry.enabled===false&&registry.coordination?.mode==='plan-only','Fleet recovery foundation must remain disabled and plan-only until separately activated.');
+assert(packageJson.scripts?.['test:autobot-recovery-gate']==='node scripts/autobot/test-autobot-recovery-gate.mjs','Recovery gate smoke test must be registered in package scripts.');
 const smoke=spawnSync(process.execPath,['scripts/autobot/test-autobot-failure-capture.mjs'],{cwd:root,encoding:'utf8'});
 assert(smoke.status===0,`Failure capture smoke test failed: ${smoke.stderr||smoke.stdout||'unknown error'}`);
-console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,registeredWorkerExports:true,recoveryActivationBlocked:true}));
+const gate=spawnSync(process.execPath,['scripts/autobot/test-autobot-recovery-gate.mjs'],{cwd:root,encoding:'utf8'});
+assert(gate.status===0,`Recovery gate smoke test failed: ${gate.stderr||gate.stdout||'unknown error'}`);
+console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,registeredWorkerExports:true,recoveryGateSmokeTest:true,recoveryActivationBlocked:true}));
