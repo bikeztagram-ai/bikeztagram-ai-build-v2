@@ -23,7 +23,7 @@ try{
   write('builder/brain/task-library.json',JSON.stringify({tasks:[{id:'smoke-task',files:['src/test-fixture.js'],implementation:['update fixture']}]}));
   write('builder/working/deterministic-autobot.json',JSON.stringify({schemaVersion:1,status:'blocked',currentTask:'smoke-task',blockedTask:'smoke-task',objectiveId:'smoke-objective',error:'synthetic Builder failure for capture smoke test'}));
   write('builder/working/deterministic-autobot-evidence.json',JSON.stringify({units:[{id:'smoke-unit',status:'failed'}]}));
-  fs.mkdirSync(path.join(tempRoot,'builder','working'),{recursive:true});
+  fs.mkdirSync(path.join(tempRoot,'builder','runner'),{recursive:true});
   fs.copyFileSync(path.join(repoRoot,'builder/runner/autobot-fleet-recovery.mjs'),path.join(tempRoot,'builder/runner/autobot-fleet-recovery.mjs'));
   fs.copyFileSync(path.join(repoRoot,'builder/runner/autobot-failure-queue.mjs'),path.join(tempRoot,'builder/runner/autobot-failure-queue.mjs'));
   run('git',['add','.']);
