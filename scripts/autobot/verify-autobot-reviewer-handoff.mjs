@@ -16,7 +16,7 @@ assert(coordinator.includes("const reviewBaseCommit=String(process.env.AUTOBOT_R
 assert(coordinator.includes("const reviewCommit=String(process.env.AUTOBOT_REVIEW_COMMIT||'').trim();"),'Coordinator must read AUTOBOT_REVIEW_COMMIT exactly.');
 assert(coordinator.includes('function validCommit(value){return /^[0-9a-f]{40}$/i.test(value);}'),'Coordinator must validate both review commits as full hexadecimal SHAs.');
 assert(coordinator.includes('validCommit(reviewBaseCommit)&&validCommit(reviewCommit)'),'Reviewer routing must require both validated commits.');
-assert(coordinator.includes("kind:'reviewer-required'"),'Coordinator must expose a reviewer-required decision.');
+assert(coordinator.includes("decision('reviewer-required'"),'Coordinator must expose a reviewer-required decision.');
 assert(coordinator.includes('baseCommit:reviewBaseCommit,candidateCommit:reviewCommit'),'Coordinator must hand both commits into the reviewer decision.');
 assert(coordinator.includes('reviewCandidate:{baseCommit:validCommit(reviewBaseCommit)?reviewBaseCommit:null,candidateCommit:validCommit(reviewCommit)?reviewCommit:null'),'Coordinator plan must persist the validated review-candidate evidence.');
 assert(!coordinator.includes('state.lastRunCommit'),'Coordinator must not depend on the removed undocumented state.lastRunCommit field.');
