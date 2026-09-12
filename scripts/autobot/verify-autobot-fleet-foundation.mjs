@@ -18,6 +18,8 @@ const reviewerPath='builder/runner/autobot-reviewer.mjs';
 const reviewerHandoffPath='scripts/autobot/verify-autobot-reviewer-handoff.mjs';
 const specialistPath='builder/runner/autobot-specialist-builder.mjs';
 const specialistVerifierPath='scripts/autobot/verify-autobot-specialist-builder.mjs';
+const specialistHandoffPath='builder/runner/autobot-specialist-handoff.mjs';
+const specialistHandoffVerifierPath='scripts/autobot/verify-autobot-specialist-handoff.mjs';
 const selfImprovementPath='builder/runner/autobot-self-improvement.mjs';
 const selfImprovementVerifierPath='scripts/autobot/verify-autobot-self-improvement.mjs';
 const repairVerifierPath='scripts/autobot/verify-autobot-repair-bot.mjs';
@@ -25,13 +27,16 @@ const qaVerifierPath='scripts/autobot/verify-autobot-qa.mjs';
 const reviewerVerifierPath='scripts/autobot/verify-autobot-reviewer.mjs';
 function read(file){return fs.readFileSync(path.join(root,file),'utf8');}
 function assert(condition,message){if(!condition)throw new Error(message);}
-const registry=JSON.parse(read(registryPath)); const pkg=JSON.parse(read(packagePath)); const workflow=read(workflowPath); const doc=read(docPath); const coordinator=read(coordinatorPath); const queue=read(queuePath); const reviewer=read(reviewerPath); const specialist=read(specialistPath);
+const registry=JSON.parse(read(registryPath)); const pkg=JSON.parse(read(packagePath)); const workflow=read(workflowPath); const doc=read(docPath); const coordinator=read(coordinatorPath); const queue=read(queuePath); const reviewer=read(reviewerPath); const specialist=read(specialistPath); const specialistHandoff=read(specialistHandoffPath);
 assert(registry.schemaVersion===1,'fleet registry schema must be v1');
 assert(registry.enabled===false,'fleet foundation must remain disabled until separately verified');
 assert(registry.coordination?.mode==='plan-only','fleet foundation must remain plan-only');
 assert(registry.coordination?.coordinator===coordinatorPath,'registry coordinator path must exactly match implementation');
 assert(registry.coordination?.failureQueue==='builder/working/autobot-failure-queue.jsonl','registry failure queue path must exactly match durable evidence path');
 assert(registry.coordination?.sharedEvidence==='builder/working/autobot-fleet-plan.json','registry shared evidence path must exactly match coordinator output path');
+assert(registry.coordination?.specialistHandoff==='builder/working/autobot-specialist-handoff.json','registry specialist handoff output path must exactly match the durable handoff path');
+assert(registry.coordination?.specialistHandoffContract===specialistHandoffPath,'registry specialist handoff contract path must exactly match implementation');
+assert(registry.coordination?.specialistHandoffVerifier===specialistHandoffVerifierPath,'registry specialist handoff verifier path must exactly match verifier');
 assert(registry.coordination?.requireIsolatedWorker===true,'isolated worker requirement missing');
 assert(registry.coordination?.requireVerificationBeforeHandoff===true,'verification-before-handoff requirement missing');
 const builder=registry.bots.find(bot=>bot.id==='builder');
@@ -48,6 +53,12 @@ assert(specialist.includes('bot.specialistBuilder')&&specialist.includes('ownsFi
 assert(specialist.includes("AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality'"),'specialist Builder must expose the exact product-quality verification command contract');
 assert(specialist.includes("git',['diff','HEAD','--name-only']"),'specialist Builder must inspect staged and unstaged changes from HEAD');
 assert(specialist.includes("git(['status','--porcelain']"),'specialist Builder must inspect untracked/staged working-tree changes');
+assert(specialist.includes("writeSpecialistHandoff({")&&specialist.includes("status:'verified-candidate'"),'specialist Builder must emit the validated specialist handoff');
+assert(specialistHandoff.includes("SPECIALIST_HANDOFF_SCHEMA='autobot-specialist-handoff-v1'"),'specialist handoff schema must remain v1');
+assert(specialistHandoff.includes("DEFAULT_SPECIALIST_HANDOFF_PATH='builder/working/autobot-specialist-handoff.json'"),'specialist handoff default output path must remain exact');
+assert(specialistHandoff.includes("downstream?.reviewContract==='AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT'"),'specialist handoff must validate the exact downstream Reviewer contract');
+assert(read(specialistHandoffVerifierPath).includes('verify:autobot-specialist-handoff'),'specialist handoff verifier must expose its exact package discoverability anchor');
+assert(read(specialistHandoffVerifierPath).includes('writeSpecialistHandoff')&&read(specialistHandoffVerifierPath).includes('candidateCommit'),'specialist handoff verifier must cover producer and candidate commit wiring');
 assert(coordinator.includes("const specialistBotId=String(process.env.AUTOBOT_SPECIALIST_BOT_ID||'').trim()"),'Coordinator must discover the exact specialist bot id contract');
 assert(coordinator.includes("const specialistObjective=String(process.env.AUTOBOT_SPECIALIST_OBJECTIVE||'').trim()"),'Coordinator must discover the exact specialist objective contract');
 assert(coordinator.includes("kind:'specialist-builder-required'"),'Coordinator must expose a specialist Builder handoff decision');
@@ -55,7 +66,7 @@ assert(coordinator.includes("objective:specialistObjective,ownsFiles:Array.isArr
 assert(coordinator.includes("contract:'AUTOBOT_SPECIALIST_BOT_ID + AUTOBOT_SPECIALIST_OBJECTIVE'"),'Coordinator must publish the exact specialist handoff contract wording');
 assert(coordinator.includes("const specialist=worker(registry,specialistBotId)"),'Coordinator must resolve specialist workers from the authoritative registry');
 const scripts=pkg.scripts||{};
-const scriptContracts={'verify:autobot-fleet-foundation':'node scripts/autobot/verify-autobot-fleet-foundation.mjs','verify:autobot-repair-bot':`node ${repairVerifierPath}`,'verify:autobot-qa':`node ${qaVerifierPath}`,'verify:autobot-reviewer':`node ${reviewerVerifierPath}`,'verify:autobot-reviewer-handoff':`node ${reviewerHandoffPath}`,'verify:autobot-specialist-builder':`node ${specialistVerifierPath}`,'verify:autobot-self-improvement':`node ${selfImprovementVerifierPath}`};
+const scriptContracts={'verify:autobot-fleet-foundation':'node scripts/autobot/verify-autobot-fleet-foundation.mjs','verify:autobot-repair-bot':`node ${repairVerifierPath}`,'verify:autobot-qa':`node ${qaVerifierPath}`,'verify:autobot-reviewer':`node ${reviewerVerifierPath}`,'verify:autobot-reviewer-handoff':`node ${reviewerHandoffPath}`,'verify:autobot-specialist-builder':`node ${specialistVerifierPath}`,'verify:autobot-specialist-handoff':`node ${specialistHandoffVerifierPath}`,'verify:autobot-self-improvement':`node ${selfImprovementVerifierPath}`};
 for(const [name,expected] of Object.entries(scriptContracts))assert(scripts[name]===expected,`${name} package discoverability contract is wrong`);
 assert(read(specialistVerifierPath).includes("'verify:autobot-specialist-builder'"),'specialist verifier must discover its exact package/main-suite anchor');
 assert(read(specialistVerifierPath).includes('director-builder')&&read(specialistVerifierPath).includes('timeline-builder'),'specialist verifier must cover both registered specialist roles');
@@ -77,5 +88,5 @@ try{
   execFileSync(process.execPath,['--input-type=module','-e',script],{cwd:root,env,stdio:'inherit'});
 }finally{fs.rmSync(queueTestDir,{recursive:true,force:true});}
 
-for(const file of [coordinatorPath,queuePath,repairPath,qaPath,reviewerPath,specialistPath,selfImprovementPath,repairVerifierPath,qaVerifierPath,reviewerVerifierPath,reviewerHandoffPath,specialistVerifierPath,selfImprovementVerifierPath])execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,enabled:registry.enabled,mode:registry.coordination.mode,protectedBuilder:builder.entrypoint,specialistBuilders:specialists.map(bot=>({id:bot.id,entrypoint:bot.entrypoint,ownsFiles:bot.ownsFiles})),workflowActivation:false,failureQueueBehavioralTest:true,contracts:Object.keys(scriptContracts)}));
+for(const file of [coordinatorPath,queuePath,repairPath,qaPath,reviewerPath,specialistPath,specialistHandoffPath,selfImprovementPath,repairVerifierPath,qaVerifierPath,reviewerVerifierPath,reviewerHandoffPath,specialistVerifierPath,specialistHandoffVerifierPath,selfImprovementVerifierPath])execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
+console.log(JSON.stringify({ok:true,enabled:registry.enabled,mode:registry.coordination.mode,protectedBuilder:builder.entrypoint,specialistBuilders:specialists.map(bot=>({id:bot.id,entrypoint:bot.entrypoint,ownsFiles:bot.ownsFiles})),specialistHandoff:{output:registry.coordination.specialistHandoff,contract:registry.coordination.specialistHandoffContract,verifier:registry.coordination.specialistHandoffVerifier},workflowActivation:false,failureQueueBehavioralTest:true,contracts:Object.keys(scriptContracts)}));
