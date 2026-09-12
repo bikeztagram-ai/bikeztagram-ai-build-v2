@@ -70,7 +70,7 @@ export function queueSummary(){
   const records=readFailures();
   const byStatus={};
   for(const record of records)byStatus[record.status]=(byStatus[record.status]||0)+1;
-  return {schemaVersion:SCHEMA_VERSION,path:path.relative(root,queuePath),records:records.length,byStatus,open:records.filter(r=>r.status==='open')};
+  return {schemaVersion:SCHEMA_VERSION,path:path.relative(root,queuePath),records:records.length,byStatus,open:records.filter(r=>r.status==='open'),repaired:records.filter(r=>r.status==='repaired')};
 }
 
 if(import.meta.url===`file://${process.argv[1]}`){
