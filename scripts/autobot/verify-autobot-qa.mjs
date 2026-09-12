@@ -14,6 +14,7 @@ const queue=fs.readFileSync(path.join(root,queueFile),'utf8');
 const registry=JSON.parse(fs.readFileSync(path.join(root,registryFile),'utf8'));
 const doc=fs.readFileSync(path.join(root,docFile),'utf8');
 function assert(condition,message){if(!condition)throw new Error(message);}
+const npmRun=(script)=>new RegExp(`spawnSync\\(\\s*['\"]npm['\"]\\s*,\\s*\\[\\s*['\"]run['\"]\\s*,\\s*['\"]${script}['\"]\\s*\\]`).test(qa);
 assert(qa.includes('AutoBot QA Bot'),'QA identity marker missing');
 assert(qa.includes("from './autobot-failure-queue.mjs'"),'QA must discover the exact durable queue runner path');
 assert(qa.includes("readFailures({status:'repaired'})"),'QA must consume only REPAIRED handoffs');
@@ -26,8 +27,8 @@ assert(qa.includes("git(['diff','--name-only',`${base}..${commit}`])"),'QA must 
 assert(qa.includes("const unauthorized=changed.filter(file=>!record.files.includes(file))"),'QA must enforce the original failure scope');
 assert(qa.includes("git diff --check")||qa.includes("['diff','--check']"),'QA must verify reconstructed patch integrity');
 assert(qa.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'QA must install dependencies inside the isolated worktree');
-assert(qa.includes("spawnSync('npm',['run','build']"),'QA must verify the reconstructed build through the implemented npm invocation contract');
-assert(qa.includes("spawnSync('npm',['run','verify:autobot-product-change-quality']"),'QA must run product-quality verification through the implemented npm invocation contract');
+assert(npmRun('build'),'QA must verify the reconstructed build through the implemented npm invocation contract');
+assert(npmRun('verify:autobot-product-change-quality'),'QA must run product-quality verification through the implemented npm invocation contract');
 assert(!qa.includes("git(['merge'"),'QA must not merge repairs');
 assert(!qa.includes("git(['push'"),'QA must not push repairs');
 assert(doc.includes('independent QA'),'fleet documentation must describe independent QA');
@@ -39,4 +40,4 @@ assert(queue.includes("repaired:new Set(['verified','rejected','blocked'])"),'qu
 assert(queue.includes('repairBaseCommit:input.repairBaseCommit===undefined?current.repairBaseCommit:input.repairBaseCommit'),'queue must preserve the repair base for QA');
 execFileSync(process.execPath,['--check',qaFile],{cwd:root,stdio:'inherit'});
 execFileSync(process.execPath,['--check',queueFile],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,qaEntrypoint:qaFile,consumes:'repaired',successTransition:'verified',failureTransition:'rejected',isolatedWorktree:true,isolatedDependencyInstall:true,automaticPush:false,automaticMerge:false,independentBuild:true,productQualityGuard:true}));
+console.log(JSON.stringify({ok:true,qaEntrypoint:qaFile,consumes:'repaired',successTransition:'verified',failureTransition:'rejected',isolatedWorktree:true,isolatedDependencyInstall:true,automaticPush:false,automaticMerge:false,independentBuild:true,productQualityGuard:true,commandContractValidation:'whitespace-safe'}));
