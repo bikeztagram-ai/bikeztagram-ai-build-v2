@@ -34,6 +34,10 @@ function validateHandoff(record){
 }
 function worktreeFor(id){return path.join(qaRoot,id);}
 function cleanup(worktree){try{git(['worktree','remove','--force',worktree]);}catch{}}
+function assertAncestor(base,commit){
+  try{execFileSync('git',['merge-base','--is-ancestor',base,commit],{cwd:root,stdio:'ignore'});}
+  catch{fail('recorded repair base is not an ancestor of the repair commit');}
+}
 function runQA(record){
   validateHandoff(record);
   const worktree=worktreeFor(record.id);
@@ -44,7 +48,7 @@ function runQA(record){
     const commit=git(['rev-parse',record.repairCommit]);
     const branchCommit=git(['rev-parse',record.repairBranch]);
     if(commit!==branchCommit)fail(`repair branch ${record.repairBranch} does not point to recorded repair commit`);
-    if(!git(['merge-base','--is-ancestor',base,commit]))fail('recorded repair base is not an ancestor of the repair commit');
+    assertAncestor(base,commit);
     const parents=git(['rev-list','--parents','-n','1',commit]).split(/\s+/).slice(1);
     if(parents.length!==1||parents[0]!==base)fail('repair commit must be exactly one focused commit on the recorded base');
     const changed=git(['diff','--name-only',`${base}..${commit}`]).split(/\r?\n/).filter(Boolean);
