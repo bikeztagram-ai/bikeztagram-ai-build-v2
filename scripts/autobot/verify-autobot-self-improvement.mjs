@@ -26,7 +26,7 @@ assert(bot.includes('AUTOBOT_STATE_PATH'),'builder state input path must be expl
 assert(bot.includes('AUTOBOT_SELF_IMPROVEMENT_MAX_PATTERNS'),'pattern limit must be explicitly configurable');
 assert(bot.includes('autobot-failure-queue.jsonl'),'bot must consume the durable failure queue');
 assert(bot.includes('autobot-live-telemetry.log'),'bot must consume live telemetry evidence');
-assert(bot.includes('autobot-state.json'),'bot must inspect resumable builder state when present');
+assert(bot.includes('aider-feature-brain-state.json'),'bot must consume the same resumable Builder state used by the protected Builder');
 assert(bot.includes('autobot-self-improvement-v1'),'stable output schema must be declared');
 assert(bot.includes('requiresHumanReview:true'),'every proposal must require human review');
 assert(bot.includes('appliedChanges:[]'),'bot must declare that it applies no changes');
@@ -42,7 +42,7 @@ const tempDir=fs.mkdtempSync(path.join(os.tmpdir(),'bikeztagram-self-improvement
 try{
   const queue=path.join(tempDir,'autobot-failure-queue.jsonl');
   const telemetry=path.join(tempDir,'autobot-live-telemetry.log');
-  const state=path.join(tempDir,'autobot-state.json');
+  const state=path.join(tempDir,'aider-feature-brain-state.json');
   const output=path.join(tempDir,'result.json');
   fs.writeFileSync(queue,[
     JSON.stringify({id:'f1',status:'blocked',stage:'verification',error:'syntax failure',files:['src/aiEditPlanner.js']}),
@@ -65,4 +65,4 @@ try{
   assert(Array.isArray(evidence.appliedChanges)&&evidence.appliedChanges.length===0,'bot must apply no changes');
 }finally{fs.rmSync(tempDir,{recursive:true,force:true});}
 execFileSync(process.execPath,['--check',botFile],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,schema:'autobot-self-improvement-v1',analysisOnly:true,entrypoint:botFile,evidence:outputFile,workflowActivation:false}));
+console.log(JSON.stringify({ok:true,schema:'autobot-self-improvement-v1',analysisOnly:true,entrypoint:botFile,evidence:outputFile,builderState:'builder/working/aider-feature-brain-state.json',workflowActivation:false}));
