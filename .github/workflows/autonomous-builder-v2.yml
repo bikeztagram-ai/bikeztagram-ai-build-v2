@@ -93,15 +93,18 @@ jobs:
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/local-brain.mjs
+          node --check builder/runner/autobot-telemetry.mjs
+          node --check builder/runner/run-with-live-telemetry.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node scripts/autobot/verify-autobot-safety-contract-v3.mjs
           node scripts/autobot/verify-autobot-continuous-loop.mjs
           node scripts/autobot/verify-autobot-segment-chain.mjs
+          node scripts/autobot/verify-autobot-live-telemetry.mjs
           node builder/quality/autobot-ready.mjs
-      - name: Run sustained deterministic builder and local AI brain
-        run: node builder/runner/long-run-executor.mjs
+      - name: Run sustained deterministic builder and local AI brain with live telemetry
+        run: node builder/runner/run-with-live-telemetry.mjs
       - name: Production verification
         if: success()
         run: |
@@ -112,6 +115,16 @@ jobs:
       - name: Persist continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
+      - name: Persist AutoBot run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-run-evidence-segment-1-${{ github.run_id }}
+          path: |
+            builder/working/*.json
+            builder/working/autobot-live-telemetry.log
+          if-no-files-found: warn
+          retention-days: 14
       - name: Publish segment 1 checkpoint
         id: publish
         if: success()
@@ -161,20 +174,18 @@ jobs:
           node --check builder/runner/deterministic-executor.mjs
           node --check builder/runner/long-run-executor.mjs
           node --check builder/runner/local-brain.mjs
+          node --check builder/runner/autobot-telemetry.mjs
+          node --check builder/runner/run-with-live-telemetry.mjs
           node scripts/autobot/verify-deterministic-executor.mjs
           node scripts/autobot/verify-autobot-safety-contract.mjs
           node scripts/autobot/verify-autobot-safety-contract-v2.mjs
           node scripts/autobot/verify-autobot-safety-contract-v3.mjs
           node scripts/autobot/verify-autobot-continuous-loop.mjs
           node scripts/autobot/verify-autobot-segment-chain.mjs
+          node scripts/autobot/verify-autobot-live-telemetry.mjs
           node builder/quality/autobot-ready.mjs
-      - name: Resume sustained deterministic builder and local AI brain
-        run: |
-          set -euo pipefail
-          budget="$BUILDER_MAX_MINUTES"
-          if [ "$budget" -gt 360 ]; then budget=360; fi
-          export BUILDER_MAX_MINUTES="$budget"
-          node builder/runner/long-run-executor.mjs
+      - name: Resume sustained deterministic builder and local AI brain with live telemetry
+        run: node builder/runner/run-with-live-telemetry.mjs
       - name: Production verification
         if: success()
         run: |
@@ -185,6 +196,16 @@ jobs:
       - name: Persist final continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
+      - name: Persist AutoBot run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-run-evidence-segment-2-${{ github.run_id }}
+          path: |
+            builder/working/*.json
+            builder/working/autobot-live-telemetry.log
+          if-no-files-found: warn
+          retention-days: 14
       - name: Publish segment 2 checkpoint
         id: publish
         if: success()
