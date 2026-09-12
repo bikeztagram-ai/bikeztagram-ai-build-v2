@@ -30,6 +30,18 @@ The default evidence path is:
 
 A failure record contains a stable schema version, source/run/objective/task identifiers, stage, error, expected/actual information when available, affected files, attempted actions, evidence references, retryability and a repair hint when one exists.
 
+The queue is append-only. A repair or QA worker must never rewrite historical failure evidence. State transitions are represented by a new record with the same failure id.
+
+The supported lifecycle is:
+
+`open -> claimed -> repairing -> repaired -> verified`
+
+with terminal/blocked outcomes:
+
+`rejected` or `blocked`.
+
+This gives future workers a durable sequence: claim a failure, perform isolated repair work, record the repair result, then let independent verification decide whether the failure can be closed.
+
 The queue records evidence only. It does not modify product code and it does not activate repair workers.
 
 ## Coordinator
@@ -76,7 +88,7 @@ A removed or renamed item must not remain discoverable through stale active word
 
 Activation is intentionally staged:
 
-1. Prove the registry and queue primitives.
+1. Prove the registry and queue primitives, including durable failure transitions.
 2. Prove isolated repair-worker execution without touching the protected builder.
 3. Add independent QA/handoff contracts.
 4. Add coordinator scheduling only after worker contracts are verified.
