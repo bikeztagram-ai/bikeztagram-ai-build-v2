@@ -7,7 +7,6 @@ import { execFileSync } from 'node:child_process';
 
 const root=process.cwd();
 const botFile='builder/runner/autobot-self-improvement.mjs';
-const verifierFile='scripts/autobot/verify-autobot-self-improvement.mjs';
 const outputFile='builder/working/autobot-self-improvement.json';
 const registryFile='builder/brain/autobot-fleet.json';
 const docFile='builder/brain/autobot-fleet-foundation.md';
@@ -21,6 +20,9 @@ assert(fs.existsSync(path.join(root,botFile)),'registered Self-Improvement Bot p
 assert(registry.bots.some(b=>b.id==='self-improvement'&&b.status==='verified'&&b.entrypoint===botFile&&b.protected===false),'registry must exactly discover verified Self-Improvement Bot');
 assert(bot.includes('analysisOnly:true'),'Self-Improvement Bot must be analysis-only');
 assert(bot.includes('AUTOBOT_SELF_IMPROVEMENT_OUTPUT'),'output path must be explicitly configurable');
+assert(bot.includes('AUTOBOT_FAILURE_QUEUE_PATH'),'failure queue input path must be explicitly configurable');
+assert(bot.includes('AUTOBOT_TELEMETRY_PATH'),'telemetry input path must be explicitly configurable');
+assert(bot.includes('AUTOBOT_STATE_PATH'),'builder state input path must be explicitly configurable');
 assert(bot.includes('AUTOBOT_SELF_IMPROVEMENT_MAX_PATTERNS'),'pattern limit must be explicitly configurable');
 assert(bot.includes('autobot-failure-queue.jsonl'),'bot must consume the durable failure queue');
 assert(bot.includes('autobot-live-telemetry.log'),'bot must consume live telemetry evidence');
@@ -50,12 +52,14 @@ try{
   fs.writeFileSync(telemetry,JSON.stringify({schema:'autobot-live-telemetry-v1',event:'heartbeat',noProgress:1})+'\n');
   fs.writeFileSync(state,JSON.stringify({resumable:true}));
   const runner=path.join(root,botFile);
-  const result=execFileSync(process.execPath,[runner],{cwd:root,env:{...process.env,AUTOBOT_SELF_IMPROVEMENT_OUTPUT:output,AUTOBOT_FAILURE_QUEUE_PATH:queue,AUTOBOT_SELF_IMPROVEMENT_MAX_PATTERNS:'5'},encoding:'utf8'});
+  const result=execFileSync(process.execPath,[runner],{cwd:root,env:{...process.env,AUTOBOT_SELF_IMPROVEMENT_OUTPUT:output,AUTOBOT_FAILURE_QUEUE_PATH:queue,AUTOBOT_TELEMETRY_PATH:telemetry,AUTOBOT_STATE_PATH:state,AUTOBOT_SELF_IMPROVEMENT_MAX_PATTERNS:'5'},encoding:'utf8'});
   assert(/"analysisOnly":true/.test(result),'bot must report analysis-only execution');
   const evidence=JSON.parse(fs.readFileSync(output,'utf8'));
   assert(evidence.schema==='autobot-self-improvement-v1','output schema must match contract');
   assert(evidence.analysisOnly===true,'output must remain analysis-only');
   assert(evidence.summary.failureRecords===3,'synthetic failure records must be consumed');
+  assert(evidence.summary.resumableBuilder===true,'synthetic resumable builder state must be consumed');
+  assert(evidence.summary.telemetry.events===1,'synthetic telemetry must be consumed');
   assert(evidence.patterns.some(p=>p.recurrence==='repeated'),'recurring failure evidence must be detected');
   assert(evidence.proposals.every(p=>p.requiresHumanReview===true),'all proposals must require human review');
   assert(Array.isArray(evidence.appliedChanges)&&evidence.appliedChanges.length===0,'bot must apply no changes');
