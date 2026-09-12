@@ -147,9 +147,16 @@ Its intended flow is:
 
 `Builder failure evidence -> Failure Queue -> Repair Bot -> QA Bot -> Reviewer Bot`
 
-The recovery runner can capture a durable Builder failure from `builder/working/deterministic-autobot.json` and the failing task's declared file scope, then invoke the existing isolated Repair Bot, independent QA and explicit base/candidate Reviewer handoff. It never merges or pushes the candidate and reports `protectedIntegration:false` until a separate human-reviewed integration stage is introduced.
+The runner has two deliberately separate operations:
 
-The recovery runner is **behind the same explicit fleet activation gate** as the specialist workers: the registry must be `enabled:true` with `coordination.mode:'active'`. The current foundation remains disabled and plan-only.
+- `capture` — records durable Builder failure evidence while the fleet remains disabled.
+- `recover` — runs Repair -> QA -> Reviewer only when the explicit fleet activation gate is enabled.
+
+The production Builder workflow is connected to the `capture` operation on failure and uploads the deterministic checkpoint, evidence and queue record as a workflow artifact. It does **not** invoke `recover` and therefore cannot silently activate the fleet.
+
+The recovery runner can capture a durable Builder failure from `builder/working/deterministic-autobot.json` and the failing task's declared file scope, then, after activation, invoke the existing isolated Repair Bot, independent QA and explicit base/candidate Reviewer handoff. It never merges or pushes the candidate and reports `protectedIntegration:false` until a separate human-reviewed integration stage is introduced.
+
+The recovery operation is **behind the same explicit fleet activation gate** as the specialist workers: the registry must be `enabled:true` with `coordination.mode:'active'`. The current foundation remains disabled and plan-only.
 
 Verifier:
 
@@ -159,7 +166,7 @@ Package command:
 
 `verify:autobot-fleet-recovery`
 
-This verifier proves that the new runner is discoverable, calls the authoritative Repair/QA/Reviewer implementations, preserves the explicit commit handoff wording and remains blocked while the foundation is inactive.
+This verifier proves that the new runner is discoverable, the Builder failure capture is connected, the authoritative Repair/QA/Reviewer implementations are used, the explicit commit handoff wording is preserved, and recovery remains blocked while the foundation is inactive.
 
 ## Repair Bot
 
