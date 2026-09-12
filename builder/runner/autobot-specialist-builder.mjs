@@ -6,8 +6,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { execFileSync } from 'node:child_process';
+import { spawnSync, execFileSync } from 'node:child_process';
 
 const root=process.cwd();
 const registryPath=path.join(root,'builder/brain/autobot-fleet.json');
@@ -59,13 +58,14 @@ try{
   ].join('\\n');
   const aider=String(process.env.AIDER_BIN||'aider').trim();
   run(aider,['--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--map-tokens=768','--subtree-only','--message',prompt,...files],worktree);
-  const changed=git(['diff','--name-only'],worktree).split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
-  const staged=git(['status','--short'],worktree).split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
-  const all=Array.from(new Set([...changed,...staged.map(line=>line.slice(3))]));
-  if(all.some(file=>!files.includes(file))) fail(`Specialist Builder modified out-of-scope files: ${all.filter(file=>!files.includes(file)).join(', ')}`);
-  run('git',['diff','--check'],worktree);
+  const all=git(['status','--porcelain'],worktree).split(/\\r?\\n/).map(line=>line.trim()).filter(Boolean).map(line=>line.slice(3));
+  const changed=git(['diff','HEAD','--name-only'],worktree).split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
+  const touched=Array.from(new Set([...changed,...all]));
+  if(touched.some(file=>!files.includes(file))) fail(`Specialist Builder modified out-of-scope files: ${touched.filter(file=>!files.includes(file)).join(', ')}`);
+  run('git',['diff','HEAD','--check'],worktree);
   run('npm',['run','build'],worktree);
-  for(const file of files) run('git',['diff','--',file],worktree);
+  const productQuality=String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality').trim();
+  run('sh',['-lc',productQuality],worktree);
   git(['add','--',...files],worktree);
   const stagedDiff=git(['diff','--cached','--name-only'],worktree).split(/\\r?\\n/).map(s=>s.trim()).filter(Boolean);
   if(stagedDiff.some(file=>!files.includes(file))) fail('Staged specialist diff escaped declared scope.');
@@ -74,7 +74,7 @@ try{
   run('git',['commit','-m',commitMessage],worktree);
   const candidate=git(['rev-parse','HEAD'],worktree);
   keepBranch=true;
-  console.log(JSON.stringify({ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:stagedDiff,activationBlocked:false}));
+  console.log(JSON.stringify({schemaVersion:1,ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:stagedDiff,productQualityCheck:productQuality,activationBlocked:false}));
 }finally{
   try{run('git',['worktree','remove','--force',worktree],root);}catch{}
   if(!keepBranch){try{run('git',['branch','-D',branch],root);}catch{}}
