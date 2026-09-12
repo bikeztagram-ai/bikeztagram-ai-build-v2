@@ -22,7 +22,7 @@ for (const { name, command } of entries) {
   if (result.status !== 0) failures.push(name);
 }
 
-const autobotChecks = ['verify:autobot-live-telemetry', 'verify:autobot-brain-registry', 'verify:autobot-fleet-foundation', 'verify:autobot-repair-bot', 'verify:autobot-qa', 'verify:autobot-reviewer', 'verify:autobot-self-improvement'];
+const autobotChecks = ['verify:autobot-live-telemetry', 'verify:autobot-brain-registry', 'verify:autobot-fleet-foundation', 'verify:autobot-repair-bot', 'verify:autobot-qa', 'verify:autobot-reviewer', 'verify:autobot-reviewer-handoff', 'verify:autobot-specialist-builder', 'verify:autobot-self-improvement'];
 for (const name of autobotChecks) {
   const command = pkg.scripts[name];
   if (!command) {

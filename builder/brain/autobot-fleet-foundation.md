@@ -6,7 +6,7 @@ This is the first protected step toward a multi-agent Bikeztagram development sy
 
 The long-term system is:
 
-`Bikeztagram North Star -> Coordinator -> specialist worker -> verification -> handoff -> next worker -> repair/self-improvement when required -> repeat`
+`Bikeztagram North Star -> Coordinator -> specialist Builder -> Reviewer -> Repair/QA when required -> Self-Improvement -> next specialist Builder -> repeat`
 
 ## Protected Builder
 
@@ -15,6 +15,75 @@ The existing proven feature worker remains:
 `builder/runner/aider-feature-brain.mjs`
 
 It remains the production builder until a future migration proves that another worker can safely replace or complement it. The fleet foundation must never silently alter its scope, rollback, verification, or production gates.
+
+## Specialist Builder Fleet
+
+The fleet now has a shared isolated Builder runner:
+
+`builder/runner/autobot-specialist-builder.mjs`
+
+The runner is deliberately blocked unless **both** the fleet registry is `enabled: true` with `coordination.mode: active` and `AUTOBOT_SPECIALIST_BUILDER_ENABLED=true`. This keeps the current foundation plan-only while making the specialist execution contract concrete and testable.
+
+Every specialist Builder receives:
+
+- `AUTOBOT_SPECIALIST_BOT_ID` — exact registry bot id
+- `AUTOBOT_SPECIALIST_OBJECTIVE` — explicit task objective
+- `AUTOBOT_SPECIALIST_BUILDER_ENABLED` — explicit execution gate
+
+The runner resolves the bot from the authoritative registry and uses its exact `ownsFiles` scope. It refuses unknown/unverified/protected bots, unsafe paths and out-of-scope modifications. Each run starts from the protected checkout `HEAD`, creates a disposable `autobot-specialist/<bot-id>-<timestamp>` worktree/branch, runs Aider without auto-commit, checks the isolated diff, runs `git diff --check` and `npm run build`, then creates a candidate commit only after verification. It removes the disposable worktree and never merges or pushes.
+
+### Director Builder
+
+Registry id:
+
+`director-builder`
+
+Role:
+
+`specialist-cinematic-director-builder`
+
+Owns:
+
+- creative direction
+- story construction
+- shot selection
+- director runtime
+
+Exact product scope:
+
+`src/director.js`
+`src/directorPlan.js`
+`src/directorSelection.js`
+`src/directorRhythm.js`
+`src/directorRenderRuntime.js`
+`src/aiEditPlanner.js`
+
+### Timeline Builder
+
+Registry id:
+
+`timeline-builder`
+
+Role:
+
+`specialist-executable-timeline-builder`
+
+Owns:
+
+- timeline execution
+- editorial rhythm
+- cut timing
+- transition and motion execution
+
+Exact product scope:
+
+`src/executableTimeline.js`
+`src/timelineDirector.js`
+`src/editorialRhythm.js`
+`src/beatAwareTimeline.js`
+`src/renderTiming.js`
+
+These are complementary specialist Builders rather than competing copies of the protected Builder. Their scopes are intentionally narrow enough to permit future isolated parallelism without allowing two workers to silently edit the same product surface.
 
 ## Failure Queue
 
@@ -40,124 +109,107 @@ with terminal/blocked outcomes:
 
 `rejected` or `blocked`.
 
-Illegal backwards or skipped transitions are rejected by the queue contract. This prevents a worker from falsely marking a failure verified without going through the repair and verification handoff stages.
+Illegal backwards or skipped transitions are rejected by the queue contract.
 
-The `repaired` handoff also records the exact `repairBaseCommit` and `repairCommit`, allowing independent QA to reconstruct the repair without trusting the Repair Bot's working tree.
+The `repaired` handoff records exact `repairBaseCommit` and `repairCommit`, allowing independent QA to reconstruct the repair without trusting the Repair Bot's working tree.
 
 ## Repair Bot
 
-The first specialist worker is implemented at the exact registered path:
+The Repair Bot is implemented at:
 
 `builder/runner/autobot-repair.mjs`
 
-Its contract is intentionally isolated:
+It claims one open failure, validates file scope, creates an isolated worktree, repairs only declared failure files, checks the isolated diff, runs build and product-quality verification, commits only after checks pass, records the repair base/candidate commits and preserves the repair branch for independent QA. It never merges or pushes and cannot modify protected infrastructure through its declared scope.
 
-1. Claim one `open` failure from the durable queue.
-2. Validate the failure's declared file scope and reject unsafe/protected paths.
-3. Create a disposable git worktree and `autobot-repair/<failure-id>` branch from the protected checkout's current `HEAD`.
-4. Ask Aider to diagnose and repair only the declared failure files.
-5. Check the isolated diff and reject any out-of-scope modification.
-6. Run `npm run build` and `npm run verify:autobot-product-change-quality` in the isolated worktree.
-7. Commit only after those checks pass and record `repaired` evidence containing the repair branch, base commit and repair commit.
-8. Remove the temporary worktree while preserving the repair branch for independent QA.
-9. On failure, record `blocked`; it never edits the protected Builder checkout.
-
-The Repair Bot never merges or pushes automatically. It cannot modify the protected Builder runner, feature-objective registry, production workflow, package/dependency manifests or environment files through its declared repair scope.
-
-Its verifier is:
+Verifier:
 
 `scripts/autobot/verify-autobot-repair-bot.mjs`
 
-and the main verification suite exposes it as:
+Package command:
 
 `verify:autobot-repair-bot`
 
 ## Independent QA Bot
 
-The second specialist worker is implemented at the exact registered path:
+The QA worker is implemented at:
 
 `builder/runner/autobot-qa.mjs`
 
-QA is deliberately independent of the Repair Bot's working tree. It consumes only `repaired` queue handoffs and requires the recorded repair branch, `repairBaseCommit` and `repairCommit`.
+It consumes only `repaired` handoffs, verifies the repair branch and recorded commit ancestry, reconstructs the patch in a fresh detached worktree, checks diff scope, runs `git diff --check`, build and product-quality verification, then records `verified` or `rejected`. It never merges or pushes.
 
-Its contract is:
-
-1. Locate one `repaired` handoff.
-2. Verify the repair branch points to the recorded commit and that the recorded base is its direct parent.
-3. Inspect the committed diff and enforce the original failure file scope.
-4. Reconstruct the repair patch from the recorded base into a fresh detached worktree.
-5. Run `git diff --check`, `npm run build` and `npm run verify:autobot-product-change-quality` independently.
-6. Record `verified` only after every independent check passes.
-7. Record `rejected` when the repair does not survive independent verification.
-8. Remove the QA worktree without modifying the protected checkout.
-
-QA never merges or pushes automatically. It is the verification authority for the `repaired -> verified` handoff, while the fleet remains disabled and plan-only.
-
-Its verifier is:
+Verifier:
 
 `scripts/autobot/verify-autobot-qa.mjs`
 
-and the main verification suite exposes it as:
+Package command:
 
 `verify:autobot-qa`
 
 ## Adversarial Reviewer Bot
 
-The third specialist worker is implemented at the exact registered path:
+The Reviewer is implemented at:
 
 `builder/runner/autobot-reviewer.mjs`
 
-The Reviewer does not edit the candidate. It independently inspects a specific base/candidate commit pair, reconstructs that candidate in a disposable worktree, checks the actual diff and runs the build. It challenges product-quality failure modes that are particularly relevant to Bikeztagram, including fixed story templates, evidence-free selection and duration-blind planning.
+It does not edit the candidate. It independently inspects an explicit base/candidate commit pair in a disposable worktree, checks the real diff and build, and challenges known Bikeztagram product-quality failure modes such as fixed story templates, evidence-free selection and duration-blind planning.
 
-Its verifier is:
+The explicit Coordinator -> Reviewer handoff contract is:
+
+- `AUTOBOT_REVIEW_BASE_COMMIT`
+- `AUTOBOT_REVIEW_COMMIT`
+
+Both must be full 40-character hexadecimal commit SHAs. The Coordinator must not infer reviewer state from undocumented Builder state such as `state.lastRunCommit`. The plan persists the validated pair as `reviewCandidate.baseCommit` and `reviewCandidate.candidateCommit`.
+
+Verifier:
 
 `scripts/autobot/verify-autobot-reviewer.mjs`
 
-and the main verification suite exposes it as:
+Handoff verifier:
+
+`scripts/autobot/verify-autobot-reviewer-handoff.mjs`
+
+Package commands:
 
 `verify:autobot-reviewer`
+`verify:autobot-reviewer-handoff`
 
-The Reviewer produces an auditable `pass`, `needs-repair` or `reject` disposition and never merges or pushes. It remains an isolated specialist until the fleet coordinator is separately activated.
+The Reviewer produces an auditable `pass`, `needs-repair` or `reject` disposition and never merges or pushes. A `needs-repair` disposition enters the authoritative failure queue for isolated Repair Bot handling.
 
 ## Self-Improvement Bot
 
-The fourth specialist worker is implemented at the exact registered path:
+The Self-Improvement worker is implemented at:
 
 `builder/runner/autobot-self-improvement.mjs`
 
-It is deliberately **analysis-only** in V1. It consumes the durable failure queue, live AutoBot telemetry, resumable Builder state when present, and available Reviewer evidence. It groups recurring failure signatures, classifies likely failure layers (brain, contract, verification, runner or task), ranks evidence-backed proposals and writes them to:
+It is deliberately **analysis-only**. It consumes the durable failure queue, AutoBot telemetry, resumable Builder state and available Reviewer evidence, groups recurring failure signatures, classifies likely failure layers, ranks evidence-backed proposals and writes:
 
 `builder/working/autobot-self-improvement.json`
 
-The output schema is `autobot-self-improvement-v1`. Every proposal records evidence, confidence, expected impact and `requiresHumanReview: true`. The worker records `appliedChanges: []` and has no repository-write, merge or push capability. Protected Builder/workflow/objective-registry paths are explicitly declared and cannot be changed by this worker.
+Output schema:
 
-Its verifier is:
+`autobot-self-improvement-v1`
+
+Every proposal records evidence, confidence, expected impact and `requiresHumanReview: true`. `appliedChanges` remains empty and the worker has no repository-write, merge or push capability.
+
+Verifier:
 
 `scripts/autobot/verify-autobot-self-improvement.mjs`
 
-and the main verification suite exposes it as:
+Package command:
 
 `verify:autobot-self-improvement`
 
-This is the first safe self-improvement stage: it learns from failures without being allowed to rewrite the system that judges it.
-
 ## Coordinator
 
-The V1 coordinator is:
+The Coordinator is:
 
 `builder/runner/autobot-coordinator.mjs`
 
-It is deliberately **plan-only**. It reads:
-
-- `builder/brain/autobot-fleet.json`
-- `builder/working/autobot-failure-queue.jsonl`
-- `builder/working/aider-feature-brain-state.json`
-
-and writes:
+It remains **plan-only**. It reads the registry, durable failure queue and resumable Builder state and writes:
 
 `builder/working/autobot-fleet-plan.json`
 
-It may identify that a repair is required, that a repaired handoff requires QA, that the proven builder has resumable work, or that the builder is ready. It must not launch another worker in this foundation stage.
+It may route repaired work to QA, open failures to Repair, resumable work to the protected Builder, or a validated explicit commit pair to Reviewer. It does not launch workers while the foundation is disabled.
 
 ## Fleet Registry
 
@@ -165,15 +217,7 @@ The authoritative registry is:
 
 `builder/brain/autobot-fleet.json`
 
-Every bot must have an exact id, role, entrypoint and lifecycle status. Planned workers use `future:` entrypoints until their implementation actually exists.
-
-The registry currently describes:
-
-- `builder` — proven protected product builder
-- `repair` — verified isolated failure-analysis and repair worker
-- `qa` — verified independent product verifier
-- `reviewer` — verified adversarial product reviewer
-- `self-improvement` — verified analysis-only AutoBot-system improvement worker
+Every bot has an exact id, role, entrypoint, lifecycle status and declared ownership. Specialist Builders additionally have exact `ownsFiles` scope and `specialistBuilder: true`.
 
 ### Discoverability contract
 
@@ -183,16 +227,14 @@ A removed or renamed item must not remain discoverable through stale active word
 
 ## Safe activation path
 
-Activation is intentionally staged:
-
-1. Prove the registry and queue primitives, including durable failure transitions.
-2. Prove isolated repair-worker execution without touching the protected builder.
-3. Prove independent QA/handoff contracts.
-4. Prove adversarial Reviewer execution and review evidence.
-5. Prove analysis-only Self-Improvement and its evidence contract.
-6. Add coordinator scheduling only after worker contracts are verified.
-7. Add controlled parallel workers with conflict isolation.
-8. Allow measured self-improvement proposals to feed a human-reviewed improvement lane.
+1. Prove registry and queue primitives.
+2. Prove isolated Repair and independent QA.
+3. Prove adversarial Reviewer and explicit commit handoff.
+4. Prove analysis-only Self-Improvement evidence.
+5. Prove Specialist Builder isolation, scope enforcement and candidate handoff.
+6. Add coordinator scheduling only after every worker contract is independently verified.
+7. Add controlled parallelism only where `ownsFiles` scopes do not conflict and isolation is guaranteed.
+8. Allow measured self-improvement proposals through a human-reviewed improvement lane.
 9. Only then consider continuous autonomous orchestration.
 
-No stage may weaken existing production gates, safety rules, rollback, audit or protected workflow controls merely to make the fleet appear successful.
+No stage may weaken production gates, safety, rollback, audit or protected workflow controls merely to make the fleet appear successful.
