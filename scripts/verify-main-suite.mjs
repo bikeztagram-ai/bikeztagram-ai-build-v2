@@ -13,8 +13,8 @@ const entries = Object.entries(pkg.scripts)
 
 const failures = [];
 for (const { name, command } of entries) {
-  console.log(`\\n=== ${name} ===`);
-  const result = spawnSync(command.replace(/^node\\s+/, 'node ').trim(), {
+  console.log(`\n=== ${name} ===`);
+  const result = spawnSync(command.replace(/^node\s+/, 'node ').trim(), {
     shell: true,
     stdio: 'inherit',
     env: process.env
@@ -22,7 +22,23 @@ for (const { name, command } of entries) {
   if (result.status !== 0) failures.push(name);
 }
 
-console.log(`\\nVerification audit complete: ${entries.length} checks run, ${failures.length} failed.`);
+const autobotChecks = ['verify:autobot-live-telemetry', 'verify:autobot-brain-registry'];
+for (const name of autobotChecks) {
+  const command = pkg.scripts[name];
+  if (!command) {
+    failures.push(name);
+    continue;
+  }
+  console.log(`\n=== ${name} ===`);
+  const result = spawnSync(command.replace(/^node\s+/, 'node ').trim(), {
+    shell: true,
+    stdio: 'inherit',
+    env: process.env
+  });
+  if (result.status !== 0) failures.push(name);
+}
+
+console.log(`\nVerification audit complete: ${entries.length + autobotChecks.length} checks run, ${failures.length} failed.`);
 if (failures.length) {
   console.error(`Failed checks: ${failures.join(', ')}`);
   process.exit(1);
