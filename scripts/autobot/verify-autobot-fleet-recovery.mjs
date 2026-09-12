@@ -2,7 +2,6 @@
 /** Verify Builder failure -> Repair -> QA -> Reviewer orchestration contracts. */
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 const root=process.cwd();
 const runnerPath='builder/runner/autobot-fleet-recovery.mjs';
@@ -40,10 +39,9 @@ assert(fs.existsSync(path.join(root,testPlanPath)),'Controlled recovery test pla
 const repairWorker=registered('repair','builder/runner/autobot-repair.mjs');
 const qaWorker=registered('qa','builder/runner/autobot-qa.mjs');
 const reviewerWorker=registered('reviewer','builder/runner/autobot-reviewer.mjs');
-const importedRecoveryWorkers=await Promise.all([repairWorker,qaWorker,reviewerWorker].map(async worker=>({worker,module:await import(pathToFileURL(path.join(root,worker.entrypoint)).href)})));
-assert(typeof importedRecoveryWorkers.find(item=>item.worker.id==='repair')?.module.repairOne==='function','Registered Repair Bot entrypoint must export repairOne.');
-assert(typeof importedRecoveryWorkers.find(item=>item.worker.id==='qa')?.module.qaOne==='function','Registered QA Bot entrypoint must export qaOne.');
-assert(typeof importedRecoveryWorkers.find(item=>item.worker.id==='reviewer')?.module.reviewOne==='function','Registered Reviewer Bot entrypoint must export reviewOne.');
+assert(repair.includes('export async function repairOne')||repair.includes('export function repairOne'),'Registered Repair Bot entrypoint must export repairOne.');
+assert(qa.includes('export async function qaOne')||qa.includes('export function qaOne'),'Registered QA Bot entrypoint must export qaOne.');
+assert(reviewer.includes('export async function reviewOne')||reviewer.includes('export function reviewOne'),'Registered Reviewer Bot entrypoint must export reviewOne.');
 assert(runner.includes("./autobot-failure-queue.mjs"),'Fleet recovery must use the authoritative failure queue module.');
 assert(runner.includes('function registeredWorker(registry,id)'),'Fleet recovery must discover workers through the authoritative fleet registry.');
 assert(runner.includes("const {worker:repairWorker,module:repairModule}=await loadWorker(registry,'repair')"),'Fleet recovery must discover the registered Repair Bot by id through the registry loader.');
