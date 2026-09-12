@@ -8,6 +8,7 @@ const root=process.cwd();
 const runnerPath='builder/runner/autobot-fleet-recovery.mjs';
 const workflowPath='.github/workflows/autobot-fleet-recovery.yml';
 const documentationPath='builder/brain/autobot-fleet-controlled-recovery.md';
+const testPlanPath='builder/brain/autobot-recovery-test-plan.md';
 const runner=fs.readFileSync(path.join(root,runnerPath),'utf8');
 const registry=JSON.parse(fs.readFileSync(path.join(root,'builder','brain','autobot-fleet.json'),'utf8'));
 const repair=fs.readFileSync(path.join(root,'builder','runner','autobot-repair.mjs'),'utf8');
@@ -16,6 +17,7 @@ const reviewer=fs.readFileSync(path.join(root,'builder','runner','autobot-review
 const production=fs.readFileSync(path.join(root,'.github/workflows/autonomous-builder-v2-fast.yml'),'utf8');
 const recoveryWorkflow=fs.readFileSync(path.join(root,workflowPath),'utf8');
 const documentation=fs.readFileSync(path.join(root,documentationPath),'utf8');
+const testPlan=fs.readFileSync(path.join(root,testPlanPath),'utf8');
 const packageJson=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 function assert(condition,message){if(!condition)throw new Error(message);}
 function registered(id,entrypoint){
@@ -30,9 +32,11 @@ function registered(id,entrypoint){
 assert(registry.coordination?.recoveryRunner===runnerPath,'Fleet registry must expose the exact recovery runner path.');
 assert(registry.coordination?.recoveryWorkflow===workflowPath,'Fleet registry must expose the exact controlled recovery workflow path.');
 assert(registry.coordination?.recoveryDocumentation===documentationPath,'Fleet registry must expose the exact controlled recovery documentation path.');
+assert(registry.coordination?.recoveryTestPlan===testPlanPath,'Fleet registry must expose the exact controlled recovery test-plan path.');
 assert(fs.existsSync(path.join(root,runnerPath)),'Fleet recovery runner must exist at the registered path.');
 assert(fs.existsSync(path.join(root,workflowPath)),'Controlled recovery workflow must exist at the registered path.');
 assert(fs.existsSync(path.join(root,documentationPath)),'Controlled recovery documentation must exist at the registered path.');
+assert(fs.existsSync(path.join(root,testPlanPath)),'Controlled recovery test plan must exist at the registered path.');
 const repairWorker=registered('repair','builder/runner/autobot-repair.mjs');
 const qaWorker=registered('qa','builder/runner/autobot-qa.mjs');
 const reviewerWorker=registered('reviewer','builder/runner/autobot-reviewer.mjs');
@@ -76,6 +80,9 @@ assert(recoveryWorkflow.includes('actions/upload-artifact@v4'),'Controlled recov
 assert(documentation.includes(workflowPath)&&documentation.includes(runnerPath),'Controlled recovery documentation must name the exact workflow and runner paths.');
 assert(documentation.includes('enabled: true')&&documentation.includes('coordination.mode: active'),'Controlled recovery documentation must state the exact activation values.');
 assert(documentation.includes('protectedIntegration:false'),'Controlled recovery documentation must preserve the protected integration boundary.');
+assert(testPlan.includes('Builder failure evidence')&&testPlan.includes('Failure Queue')&&testPlan.includes('Repair Bot')&&testPlan.includes('QA Bot')&&testPlan.includes('Reviewer Bot'),'Recovery test plan must describe the complete controlled handoff chain.');
+assert(testPlan.includes('enabled:false')&&testPlan.includes("coordination.mode:'plan-only'"),'Recovery test plan must preserve the current dormant activation values.');
+assert(testPlan.includes('protectedIntegration:false'),'Recovery test plan must preserve the protected integration boundary.');
 assert(registry.activationGate?.requiredEnabled===true&&registry.activationGate?.requiredMode==='active','Registry must declare the exact activation gate contract.');
 assert(registry.activationGate?.protectedIntegration===false,'Registry activation gate must preserve the protected-integration boundary.');
 assert(registry.enabled===false&&registry.coordination?.mode==='plan-only','Fleet recovery foundation must remain disabled and plan-only until separately activated.');
@@ -84,4 +91,4 @@ const smoke=spawnSync(process.execPath,['scripts/autobot/test-autobot-failure-ca
 assert(smoke.status===0,`Failure capture smoke test failed: ${smoke.stderr||smoke.stdout||'unknown error'}`);
 const gate=spawnSync(process.execPath,['scripts/autobot/test-autobot-recovery-gate.mjs'],{cwd:root,encoding:'utf8'});
 assert(gate.status===0,`Recovery gate smoke test failed: ${gate.stderr||gate.stdout||'unknown error'}`);
-console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,registeredWorkerExports:true,recoveryGateSmokeTest:true,recoveryActivationBlocked:true}));
+console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,testPlan:testPlanPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,registeredWorkerExports:true,recoveryGateSmokeTest:true,recoveryActivationBlocked:true}));
