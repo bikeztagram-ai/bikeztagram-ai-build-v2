@@ -41,15 +41,7 @@ jobs:
           echo "ref=experiment/autobot-free-evolution"
           echo "sha=$(git rev-parse HEAD)"
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-          node - <<'NODE'
-          const fs = require('fs');
-          const p = JSON.parse(fs.readFileSync('builder/runner/autobot-evolution-policy.json', 'utf8'));
-          if (p.mode !== 'self-evolution-only') throw new Error(`unexpected mode: ${p.mode}`);
-          if (p.productWorkLocked !== true) throw new Error('productWorkLocked is not true');
-          if (!Array.isArray(p.hardRules) || !p.hardRules.includes('never auto-commit')) throw new Error('missing no-auto-commit hard rule');
-          if (!Array.isArray(p.hardRules) || !p.hardRules.includes('never modify Bikeztagram product code while self-evolution-only mode is active')) throw new Error('missing product-lock hard rule');
-          console.log(JSON.stringify({ mode: p.mode, productWorkLocked: p.productWorkLocked, hardRules: p.hardRules.length }));
-          NODE
+          node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('builder/runner/autobot-evolution-policy.json','utf8')); if(p.mode!=='self-evolution-only') throw new Error('unexpected mode: '+p.mode); if(p.productWorkLocked!==true) throw new Error('productWorkLocked is not true'); if(!Array.isArray(p.hardRules)||!p.hardRules.includes('never auto-commit')) throw new Error('missing no-auto-commit hard rule'); if(!Array.isArray(p.hardRules)||!p.hardRules.includes('never modify Bikeztagram product code while self-evolution-only mode is active')) throw new Error('missing product-lock hard rule'); console.log(JSON.stringify({mode:p.mode,productWorkLocked:p.productWorkLocked,hardRules:p.hardRules.length}));"
           test -f builder/runner/free-local-self-evolution.mjs
           test -z "$(git status --porcelain)"
 
@@ -57,10 +49,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
-      - name: Install project dependencies
-        run: npm ci --ignore-scripts
+      - name: Install project dependencies without changing repository state
+        run: npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+
+      - name: Verify dependency install did not dirty the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(git status --porcelain)"
+          if [ -n "$status" ]; then
+            echo "$status"
+            echo 'Dependency installation changed the checkout.'
+            exit 1
+          fi
 
       - name: Validate baseline before model work
         run: |
@@ -119,6 +121,17 @@ jobs:
           printf '%s\n' "$OUTPUT"
           printf '%s' "$OUTPUT" | grep -q 'READY'
 
+      - name: Verify checkout is still clean before model edit
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(git status --porcelain)"
+          if [ -n "$status" ]; then
+            echo "$status"
+            echo 'Pre-edit checkout is dirty.'
+            exit 1
+          fi
+
       - name: Run one bounded free self-evolution attempt
         shell: bash
         env:
@@ -137,6 +150,7 @@ jobs:
             15m) WINDOW=14m ;;
             30m) WINDOW=29m ;;
             1h) WINDOW=59m ;;
+            *) echo 'Invalid duration'; exit 1 ;;
           esac
           timeout "$WINDOW" node builder/runner/free-local-self-evolution.mjs
 
@@ -151,18 +165,17 @@ jobs:
           git diff --stat
           echo '--- changed files ---'
           git diff --name-only
-          if git diff --name-only | grep -Ev '^(builder/runner/(aider-feature-brain|ollama-performance-proxy|self-improvement-planner)\.mjs)$'; then
-            echo 'Unexpected file changed'
-            exit 1
+          changed="$(git diff --name-only)"
+          if [ -n "$changed" ]; then
+            while IFS= read -r file; do
+              case "$file" in
+                builder/runner/aider-feature-brain.mjs|builder/runner/ollama-performance-proxy.mjs|builder/runner/self-improvement-planner.mjs) ;;
+                *) echo "Unexpected file changed: $file"; exit 1 ;;
+              esac
+            done <<< "$changed"
           fi
           if [ -f builder/working/free-local-self-evolution-result.json ]; then
-            node - <<'NODE'
-            const fs = require('fs');
-            const p = JSON.parse(fs.readFileSync('builder/working/free-local-self-evolution-result.json', 'utf8'));
-            if (p.verified !== true || p.provider !== 'local-only' || p.hostedApiRequired !== false) process.exit(1);
-            if (!Array.isArray(p.changedPaths) || p.changedPaths.length < 1) process.exit(1);
-            console.log(JSON.stringify(p, null, 2));
-            NODE
+            node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('builder/working/free-local-self-evolution-result.json','utf8')); if(p.verified!==true||p.provider!=='local-only'||p.hostedApiRequired!==false) throw new Error('accepted result failed local-only verification'); if(!Array.isArray(p.changedPaths)||p.changedPaths.length<1) throw new Error('accepted result has no changedPaths'); console.log(JSON.stringify(p,null,2));"
           else
             echo 'No accepted-candidate result was produced; preserving the model-run failure as the job failure.'
           fi
@@ -170,6 +183,7 @@ jobs:
           git diff -- builder/runner/aider-feature-brain.mjs builder/runner/ollama-performance-proxy.mjs builder/runner/self-improvement-planner.mjs > builder/working/free-local-evolution-evidence/candidate.patch || true
           git status --porcelain=v1 > builder/working/free-local-evolution-evidence/status.txt || true
           git rev-parse HEAD > builder/working/free-local-evolution-evidence/execution-sha.txt
+          if [ -f builder/working/free-local-self-evolution-result.json ]; then cp builder/working/free-local-self-evolution-result.json builder/working/free-local-evolution-evidence/result.json; fi
 
       - name: Upload evidence
         if: always()
