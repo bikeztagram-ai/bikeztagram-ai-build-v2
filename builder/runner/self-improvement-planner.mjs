@@ -25,27 +25,39 @@ export function buildSelfImprovementBrief(learning=readJson(learningPath)){
   const totalOutcomes=failures.length+successes.length;
   const successRate=totalOutcomes?Number((successes.length/totalOutcomes).toFixed(3)):null;
   const latestFailure=failures.at(-1)||null;
-  const timeoutCount=(failures.filter(x=>String(x.category||x.code||'').toLowerCase()==='timeout').length);
+  const timeoutCount=failures.filter(x=>String(x.category||x.code||'').toLowerCase()==='timeout').length;
+  const noProgressCount=failures.filter(x=>String(x.category||x.code||'').toLowerCase()==='no-progress').length;
+  const verifiedSuccesses=successes.length;
+  const plateau=failures.length>=3&&verifiedSuccesses===0;
   let recommendedNextAction='Make one small deterministic improvement, verify it independently, and record the result.';
-  if(timeoutCount>0){
-    recommendedNextAction='Prioritize bounded execution: cap model attempts, reserve time for verification, stop waiting on a stalled attempt, and retry only within the remaining budget.';
+  let decision='improve';
+  if(plateau){
+    decision='investigate';
+    recommendedNextAction='Treat the repeated zero-success run as a pipeline failure: target the execution loop itself, make one small change that reduces model scope or wasted inference, then require a real diff plus boundary verification and build before claiming progress.';
+  }else if(timeoutCount>0){
+    recommendedNextAction='Prioritize bounded execution: target the model invocation, reduce unnecessary repository context, reserve time for verification, stop waiting on a stalled attempt, and retry only within the remaining budget.';
+  }else if(noProgressCount>0){
+    recommendedNextAction='Prioritize conversion from reasoning to editing: give the next pass one concrete focus file and require an actual allowed-file diff before verification can succeed.';
   }else if(focus){
     recommendedNextAction=`Prioritize the recurring ${focus.category} failure before attempting broader improvements.`;
   }else if(!successes.length){
+    decision='investigate';
     recommendedNextAction='Establish a measurable first success with a small bounded change before broadening scope.';
   }
   return {
-    schemaVersion:2,
+    schemaVersion:3,
     observedFailures:failures.length,
     observedSuccesses:successes.length,
     successRate,
+    decision,
+    plateau,
     recurringFailures,
     highestPriorityLearning:focus?`Investigate recurring ${focus.category} failures (${focus.count} observations).`:'No recurring failure pattern yet; improve observability and verification before broadening scope.',
     recommendedNextAction,
-    latestFailure:latestFailure?{category:latestFailure.category,message:latestFailure.message,pass:latestFailure.pass}:null,
-    efficiencySignals:{timeoutFailures:timeoutCount,noProgressFailures:failures.filter(x=>x.category==='no-progress').length,verifiedSuccesses:successes.length},
-    recentFailures:failures.map(item=>({objective:item.objective,pass:item.pass,category:item.category,message:item.message})),
-    recentSuccesses:successes.map(item=>({objective:item.objective,pass:item.pass,changedPaths:item.changedPaths||[]})),
+    latestFailure:latestFailure?{category:latestFailure.category,message:latestFailure.message,pass:latestFailure.pass,focusFile:latestFailure.focusFile||null}:null,
+    efficiencySignals:{timeoutFailures:timeoutCount,noProgressFailures:noProgressCount,verifiedSuccesses},
+    recentFailures:failures.map(item=>({objective:item.objective,pass:item.pass,focusFile:item.focusFile||null,category:item.category,message:item.message})),
+    recentSuccesses:successes.map(item=>({objective:item.objective,pass:item.pass,focusFile:item.focusFile||null,changedPaths:item.changedPaths||[]})),
     rules:[
       'Treat repeated verification failures as evidence that the feature-engineering loop needs a guard or better feedback, not as permission to weaken verification.',
       'Treat timeouts as execution-budget failures: shorten or bound the next attempt rather than waiting indefinitely.',
