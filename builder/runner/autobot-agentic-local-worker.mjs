@@ -53,7 +53,12 @@ function main(){
   try{
     const add=git('worktree','add','--detach',worktree,baseSha);
     if(add.status!==0) throw new Error(`failed to create isolated worktree: ${add.stderr||add.stdout}`);
-    const args=['-m',model,'-y','--exit-immediately','-l','0','-c','mini.yaml',`-c`,`agent.step_limit=${maxSteps}`,'-c',`agent.wall_time_limit_seconds=${wallSeconds}`,'-c','model.model_kwargs.api_base='+apiBase,'-c','model.model_kwargs.api_key=local-only','-c','model.model_kwargs.custom_llm_provider=openai','-t',taskText(),'-o',trajectory];
+    const venvPython=path.join(path.dirname(mini),'python');
+    const configProbe=spawnSync(venvPython,['-c','import minisweagent, pathlib; print(pathlib.Path(minisweagent.__file__).parent / "config" / "mini_textbased.yaml"'],{cwd:worktree,encoding:'utf8'});
+    if(configProbe.status!==0||!configProbe.stdout.trim()) throw new Error(`failed to locate mini-SWE-agent text config: ${configProbe.stderr||configProbe.stdout}`);
+    const textConfig=configProbe.stdout.trim();
+    if(!fs.existsSync(textConfig)) throw new Error(`mini-SWE-agent text config not found: ${textConfig}`);
+    const args=['-m',model,'-y','--exit-immediately','-l','0','-c',textConfig,'-c',`agent.step_limit=${maxSteps}`,'-c',`agent.wall_time_limit_seconds=${wallSeconds}`,'-c','model.model_kwargs.api_base='+apiBase,'-c','model.model_kwargs.api_key=local-only','-c','model.model_kwargs.custom_llm_provider=openai','-t',taskText(),'-o',trajectory];
     const result=spawnSync(mini,args,{cwd:worktree,encoding:'utf8',timeout:(wallSeconds+90)*1000,maxBuffer:20*1024*1024,env:{...process.env,MSWEA_CONFIGURED:'1',MSWEA_COST_TRACKING:'ignore_errors'}});
     workerExit=result.status;
     workerOutput=`${result.stdout||''}\n${result.stderr||''}`.slice(-30000);
