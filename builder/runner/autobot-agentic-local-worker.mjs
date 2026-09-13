@@ -16,7 +16,7 @@ const root = process.cwd();
 const target = process.env.AUTOBOT_LOCAL_TARGET || 'builder/runner/aider-feature-brain.mjs';
 const allowed = new Set((process.env.AUTOBOT_ALLOWED_PATHS || target).split(',').map(s => s.trim()).filter(Boolean));
 const mini = process.env.MINI_SWE_AGENT_BIN || 'mini';
-const model = process.env.AUTOBOT_AGENT_MODEL || 'openai/local-qwen-coder';
+const model = process.env.AUTOBOT_AGENT_MODEL || 'local-qwen-coder';
 const apiBase = process.env.AUTOBOT_AGENT_API_BASE || 'http://127.0.0.1:8080/v1';
 const maxSteps = Number(process.env.AUTOBOT_AGENT_MAX_STEPS || 8);
 const wallSeconds = Number(process.env.AUTOBOT_AGENT_WALL_SECONDS || 480);
@@ -63,6 +63,7 @@ function main() {
 
   const baseSha = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
   const worktree = fs.mkdtempSync(path.join(os.tmpdir(), 'bikeztagram-autobot-worker-'));
+  const trajectory = path.join(os.tmpdir(), `bikeztagram-autobot-trajectory-${process.pid}.json`);
   let workerExit = null;
   let workerOutput = '';
   try {
@@ -81,7 +82,7 @@ function main() {
       '-c', 'model.model_kwargs.api_key=local-only',
       '-c', 'model.model_kwargs.custom_llm_provider=openai',
       '-t', taskText(),
-      '-o', path.join(worktree, 'autobot-agent-trajectory.json'),
+      '-o', trajectory,
     ];
     const result = spawnSync(mini, args, {
       cwd: worktree,
@@ -128,9 +129,11 @@ function main() {
       verified: false,
       provider: 'local-only',
       hostedApiRequired: false,
+      trajectoryPath: trajectory,
       workerOutputTail: workerOutput,
       at: new Date().toISOString(),
     };
+    fs.mkdirSync(path.join(root, 'builder', 'working'), { recursive: true });
     fs.writeFileSync(path.join(root, 'builder', 'working', 'autobot-agentic-local-result.json'), JSON.stringify(evidence, null, 2) + '\n');
     console.log(JSON.stringify(evidence, null, 2));
   } catch (error) {
@@ -138,6 +141,7 @@ function main() {
     throw error;
   } finally {
     spawnSync('git', ['worktree', 'remove', '--force', worktree], { cwd: root, stdio: 'ignore' });
+    try { fs.rmSync(trajectory, { force: true }); } catch {}
   }
 }
 
