@@ -110,10 +110,14 @@ jobs:
           LOCAL_QWEN_MODEL: /home/runner/.cache/bikeztagram-qwen25-coder-7b/qwen2.5-coder-7b-instruct-q4_k_m.gguf
         run: |
           set -euo pipefail
-          OUTPUT="$($LLAMA_CLI -m "$LOCAL_QWEN_MODEL" -c 1024 -n 12 -t 4 --simple-io --no-display-prompt -p 'Return exactly READY and nothing else.' 2>/tmp/autobot-model-smoke.err || true)"
+          if ! OUTPUT="$(timeout 90s "$LLAMA_CLI" -m "$LOCAL_QWEN_MODEL" -c 1024 -n 12 -t 4 --simple-io --no-display-prompt -p 'Return exactly READY and nothing else.' 2>/tmp/autobot-model-smoke.err)"; then
+            cat /tmp/autobot-model-smoke.err >&2 || true
+            echo 'Local model smoke test failed or timed out.'
+            exit 1
+          fi
           cat /tmp/autobot-model-smoke.err >&2 || true
-          test -n "$(printf '%s' "$OUTPUT" | tr -d '[:space:]')"
           printf '%s\n' "$OUTPUT"
+          printf '%s' "$OUTPUT" | grep -q 'READY'
 
       - name: Run one bounded free self-evolution attempt
         shell: bash
