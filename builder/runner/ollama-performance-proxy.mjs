@@ -4,8 +4,10 @@
  * Keeps the source feature brain unchanged while applying conservative
  * inference limits that are appropriate for GitHub-hosted CPU/GPU runners.
  *
- * The proxy also owns an upstream deadline so a stalled Ollama request cannot
+ * The proxy owns an upstream deadline so a stalled Ollama request cannot
  * consume an entire AutoBot feature slice without returning a useful failure.
+ * The deadline is deliberately longer than the observed CPU inference window;
+ * Aider remains responsible for the per-attempt budget.
  */
 import http from 'node:http';
 
@@ -15,7 +17,7 @@ const maxContext = Number(process.env.LOCAL_AI_PROXY_NUM_CTX || 4096);
 const maxPredict = Number(process.env.LOCAL_AI_PROXY_NUM_PREDICT || 900);
 const upstreamTimeoutSeconds = Math.max(
   30,
-  Number.parseInt(process.env.LOCAL_AI_PROXY_UPSTREAM_TIMEOUT_SECONDS || '240', 10),
+  Number.parseInt(process.env.LOCAL_AI_PROXY_UPSTREAM_TIMEOUT_SECONDS || '1200', 10),
 );
 
 function clampBody(body) {
@@ -50,9 +52,7 @@ const server = http.createServer(async (req, res) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), upstreamTimeoutSeconds * 1000);
 
-  console.error(
-    `[autobot] Ollama proxy request started; upstream deadline=${upstreamTimeoutSeconds}s`,
-  );
+  console.error(`[autobot] Ollama proxy request started; upstream deadline=${upstreamTimeoutSeconds}s`);
 
   try {
     const body = clampBody(Buffer.concat(chunks).toString('utf8'));
