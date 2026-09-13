@@ -1,0 +1,175 @@
+name: 🧠 AutoBot Self-Evolution — OpenHands Experiment
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Maximum experiment duration'
+        required: false
+        default: '15m'
+        type: choice
+        options: ['15m','30m','1h']
+      model:
+        description: 'OpenHands model (LiteLLM provider/model name)'
+        required: false
+        default: 'openai/gpt-5.5'
+        type: string
+
+concurrency:
+  group: autobot-openhands-self-evolution
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AUTOBOT_FEATURE_FOCUS: self-improvement-only
+  AUTOBOT_SELF_EVOLUTION_REF: experiment/autobot-openhands-engine
+  AUTOBOT_MIN_SELF_EVOLUTION_SHA: 2af5489d6026e2cd89c9b7df1cbeef2b002c1669
+  LLM_MODEL: ${{ inputs.model }}
+  OPENHANDS_LLM_TIMEOUT: 300
+  OPENHANDS_MAX_OUTPUT_TOKENS: 4096
+
+jobs:
+  openhands-self-evolution:
+    name: OpenHands self-evolution (product work locked)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - name: Checkout experimental AutoBot ref
+        uses: actions/checkout@v5
+        with:
+          ref: experiment/autobot-openhands-engine
+          fetch-depth: 0
+
+      - name: Prove locked experimental execution
+        run: |
+          set -euo pipefail
+          test "$AUTOBOT_FEATURE_FOCUS" = 'self-improvement-only'
+          test "$AUTOBOT_SELF_EVOLUTION_REF" = 'experiment/autobot-openhands-engine'
+          test "$(git branch --show-current)" = 'experiment/autobot-openhands-engine'
+          git merge-base --is-ancestor "$AUTOBOT_MIN_SELF_EVOLUTION_SHA" HEAD
+          grep -q '"mode": "self-evolution-only"' builder/runner/autobot-evolution-policy.json
+          grep -q '"productWorkLocked": true' builder/runner/autobot-evolution-policy.json
+          grep -q '"kind": "self-improvement"' builder/brain/feature-objectives.json
+          echo "[autobot] EXECUTION SHA: $(git rev-parse HEAD)"
+          echo "[autobot] ENGINE: OpenHands SDK"
+          echo "[autobot] MODEL: $LLM_MODEL"
+          echo '[autobot] LOCK VERIFIED: SELF-EVOLUTION ONLY'
+          echo '[autobot] PRODUCT WORK: LOCKED'
+
+      - name: Install Python and uv
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install OpenHands SDK
+        run: |
+          set -euo pipefail
+          uv pip install --system 'openhands-sdk==1.46.0' 'openhands-tools==1.46.0'
+
+      - name: Check required LLM configuration
+        env:
+          LLM_API_KEY: ${{ secrets.OPENHANDS_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.OPENHANDS_LLM_BASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$LLM_API_KEY" ]; then
+            echo 'OPENHANDS_LLM_API_KEY is not configured. Add it before running this experiment.'
+            exit 1
+          fi
+          if [ -n "$LLM_BASE_URL" ]; then
+            echo '[autobot] Custom LLM base URL configured.'
+          else
+            echo '[autobot] Using direct provider endpoint.'
+          fi
+
+      - name: Validate runner before agent execution
+        run: |
+          set -euo pipefail
+          python -m py_compile builder/runner/openhands-self-evolution.py
+          node --check builder/runner/aider-feature-brain.mjs
+          node --check builder/runner/self-improvement-planner.mjs
+          node --check builder/runner/long-run-executor.mjs
+          node --check builder/runner/ollama-performance-proxy.mjs
+          npm install --no-audit --no-fund --no-package-lock
+          npm run verify:autobot-objective-paths
+          node scripts/autobot/verify-self-evolution-runtime.mjs
+          node scripts/autobot/verify-self-improvement-boundary.mjs
+          node scripts/autobot/verify-autobot-safety-contract-v2.mjs
+          npm run build
+
+      - name: Snapshot protected tree
+        run: |
+          set -euo pipefail
+          git status --short > /tmp/autobot-before-status.txt
+          git diff --binary > /tmp/autobot-before.diff
+          git ls-files -s > /tmp/autobot-before-index.txt
+
+      - name: Run OpenHands self-evolution agent
+        env:
+          LLM_API_KEY: ${{ secrets.OPENHANDS_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ secrets.OPENHANDS_LLM_BASE_URL }}
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 10m python builder/runner/openhands-self-evolution.py 2>&1 | tee /tmp/openhands-self-evolution.log
+
+      - name: Verify scope and engineering result
+        if: always()
+        run: |
+          set -euo pipefail
+          echo '--- OpenHands result ---'
+          cat builder/working/openhands-self-evolution-result.json 2>/dev/null || true
+          echo '--- Git status ---'
+          git status --short
+          echo '--- Diff stat ---'
+          git diff --stat
+          echo '--- Changed tracked paths ---'
+          git diff --name-only
+          changed=$(git diff --name-only)
+          if [ -n "$changed" ]; then
+            while IFS= read -r path; do
+              case "$path" in
+                builder/runner/aider-feature-brain.mjs|builder/runner/ollama-performance-proxy.mjs|builder/runner/self-improvement-planner.mjs) ;;
+                *) echo "OUT-OF-SCOPE CHANGE: $path"; exit 1 ;;
+              esac
+            done <<< "$changed"
+          fi
+          node scripts/autobot/verify-self-improvement-boundary.mjs
+          npm run build
+
+      - name: Roll back any invalid or unsafe agent changes
+        if: failure()
+        run: |
+          set +e
+          git restore --worktree --staged -- .
+          git clean -fd -- builder/runner/aider-feature-brain.mjs builder/runner/ollama-performance-proxy.mjs builder/runner/self-improvement-planner.mjs builder/working
+          echo '[autobot] Invalid agent result rolled back.'
+
+      - name: Capture experiment evidence
+        if: always()
+        run: |
+          mkdir -p autobot-openhands-evidence
+          git status --short > autobot-openhands-evidence/git-status.txt || true
+          git diff --binary > autobot-openhands-evidence/openhands.patch || true
+          git diff --stat > autobot-openhands-evidence/diff-stat.txt || true
+          git diff --name-only > autobot-openhands-evidence/changed-files.txt || true
+          git rev-parse HEAD > autobot-openhands-evidence/execution-sha.txt || true
+          printf 'engine=openhands-sdk\nmodel=%s\n' "$LLM_MODEL" > autobot-openhands-evidence/execution-contract.txt
+          cp builder/working/openhands-self-evolution-result.json autobot-openhands-evidence/result.json 2>/dev/null || true
+          cp builder/working/aider-feature-brain-learning.json autobot-openhands-evidence/learning.json 2>/dev/null || true
+          cp /tmp/openhands-self-evolution.log autobot-openhands-evidence/agent.log 2>/dev/null || true
+
+      - name: Upload OpenHands evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-openhands-self-evolution-${{ github.run_id }}
+          path: autobot-openhands-evidence/
+          if-no-files-found: ignore
+          retention-days: 14
