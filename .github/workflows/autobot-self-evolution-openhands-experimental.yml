@@ -12,7 +12,7 @@ on:
       model:
         description: 'OpenHands model (LiteLLM provider/model name)'
         required: false
-        default: 'openai/gpt-5.5'
+        default: 'openai/gpt-5.6'
         type: string
 
 concurrency:
