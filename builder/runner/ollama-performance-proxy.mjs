@@ -3,6 +3,9 @@
  * Hosted-runner performance proxy for the local coding brain.
  * Keeps the source feature brain unchanged while applying conservative
  * inference limits that are appropriate for GitHub-hosted CPU/GPU runners.
+ *
+ * The proxy also owns an upstream deadline so a stalled Ollama request cannot
+ * consume an entire AutoBot feature slice without returning a useful failure.
  */
 import http from 'node:http';
 
@@ -10,6 +13,10 @@ const listenPort = Number(process.env.OLLAMA_PROXY_PORT || 11435);
 const upstream = process.env.OLLAMA_UPSTREAM || 'http://127.0.0.1:11434';
 const maxContext = Number(process.env.LOCAL_AI_PROXY_NUM_CTX || 4096);
 const maxPredict = Number(process.env.LOCAL_AI_PROXY_NUM_PREDICT || 900);
+const upstreamTimeoutSeconds = Math.max(
+  30,
+  Number.parseInt(process.env.LOCAL_AI_PROXY_UPSTREAM_TIMEOUT_SECONDS || '240', 10),
+);
 
 function clampBody(body) {
   const request = JSON.parse(body);
@@ -40,6 +47,12 @@ const server = http.createServer(async (req, res) => {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const started = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), upstreamTimeoutSeconds * 1000);
+
+  console.error(
+    `[autobot] Ollama proxy request started; upstream deadline=${upstreamTimeoutSeconds}s`,
+  );
 
   try {
     const body = clampBody(Buffer.concat(chunks).toString('utf8'));
@@ -47,6 +60,7 @@ const server = http.createServer(async (req, res) => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body,
+      signal: controller.signal,
     });
     const text = await response.text();
     console.error(`[autobot] Ollama proxy ${response.status} in ${((Date.now() - started) / 1000).toFixed(1)}s`);
@@ -55,12 +69,19 @@ const server = http.createServer(async (req, res) => {
     });
     res.end(text);
   } catch (error) {
-    console.error(`[autobot] Ollama proxy failure after ${((Date.now() - started) / 1000).toFixed(1)}s: ${error.message}`);
+    const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+    const timedOut = error?.name === 'AbortError';
+    const message = timedOut
+      ? `upstream timeout after ${upstreamTimeoutSeconds}s`
+      : error.message;
+    console.error(`[autobot] Ollama proxy failure after ${elapsed}s: ${message}`);
     res.writeHead(502, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ error: `ollama proxy: ${error.message}` }));
+    res.end(JSON.stringify({ error: `ollama proxy: ${message}` }));
+  } finally {
+    clearTimeout(timeout);
   }
 });
 
 server.listen(listenPort, '127.0.0.1', () => {
-  console.log(`[autobot] Ollama performance proxy listening on 127.0.0.1:${listenPort}; num_ctx<=${maxContext}; num_predict<=${maxPredict}`);
+  console.log(`[autobot] Ollama performance proxy listening on 127.0.0.1:${listenPort}; num_ctx<=${maxContext}; num_predict<=${maxPredict}; upstream_timeout=${upstreamTimeoutSeconds}s`);
 });
