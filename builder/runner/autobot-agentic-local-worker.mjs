@@ -54,7 +54,7 @@ function main(){
     const add=git('worktree','add','--detach',worktree,baseSha);
     if(add.status!==0) throw new Error(`failed to create isolated worktree: ${add.stderr||add.stdout}`);
     const venvPython=path.join(path.dirname(mini),'python');
-    const configProbe=spawnSync(venvPython,['-c','import minisweagent, pathlib; print(pathlib.Path(minisweagent.__file__).parent / "config" / "mini_textbased.yaml"'],{cwd:worktree,encoding:'utf8'});
+    const configProbe=spawnSync(venvPython,['-c','import minisweagent, pathlib; print(pathlib.Path(minisweagent.__file__).parent / "config" / "mini_textbased.yaml")'],{cwd:worktree,encoding:'utf8'});
     if(configProbe.status!==0||!configProbe.stdout.trim()) throw new Error(`failed to locate mini-SWE-agent text config: ${configProbe.stderr||configProbe.stdout}`);
     const textConfig=configProbe.stdout.trim();
     if(!fs.existsSync(textConfig)) throw new Error(`mini-SWE-agent text config not found: ${textConfig}`);
