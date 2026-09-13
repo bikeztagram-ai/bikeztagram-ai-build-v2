@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Free local AutoBot self-evolution engine.
- * Uses a locally downloaded open model through llama.cpp. No hosted model API,
+ * Uses a locally downloaded open coding model through llama.cpp. No hosted model API,
  * no API key, no paid provider, no commit/push/PR operations.
  */
 import fs from 'node:fs';
@@ -34,7 +34,7 @@ function learningSnapshot() {
   return files.map(file => {
     const full = path.join(root, file);
     if (!fs.existsSync(full)) return `${file}: unavailable`;
-    try { return `${file}: ${JSON.stringify(JSON.parse(fs.readFileSync(full, 'utf8'))).slice(-9000)}`; }
+    try { return `${file}: ${JSON.stringify(JSON.parse(fs.readFileSync(full, 'utf8'))).slice(-6000)}`; }
     catch { return `${file}: unreadable`; }
   }).join('\n');
 }
@@ -127,14 +127,18 @@ Return exactly one unified diff beginning with "diff --git".
 <|im_start|>assistant
 `;
 
+  const context = Number(process.env.LOCAL_QWEN_CONTEXT || 6144);
+  const output = Number(process.env.LOCAL_QWEN_OUTPUT || 700);
+  const threads = Number(process.env.LOCAL_QWEN_THREADS || 4);
   const result = run(llama, [
     '-m', model,
-    '-c', process.env.LOCAL_QWEN_CONTEXT || '8192',
-    '-n', process.env.LOCAL_QWEN_OUTPUT || '900',
+    '-c', String(context),
+    '-n', String(output),
+    '-t', String(threads),
     '--temp', '0.1', '--top-p', '0.9', '--seed', '42',
     '--simple-io', '--no-display-prompt',
     '-p', `${prompt}\n\nCURRENT FILE:\n${source}`,
-  ], { timeout: Number(process.env.LOCAL_QWEN_TIMEOUT_MS || 600000), maxBuffer: 8 * 1024 * 1024 });
+  ], { timeout: Number(process.env.LOCAL_QWEN_TIMEOUT_MS || 480000), maxBuffer: 8 * 1024 * 1024 });
 
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`llama-cli exited with ${result.status}: ${(result.stderr || '').slice(-1000)}`);
@@ -154,6 +158,7 @@ Return exactly one unified diff beginning with "diff --git".
   const finalDiff = exec('git', ['diff', '--', ...[...allowed]]);
   const evidence = {
     engine: 'free-local-qwen-llama.cpp', model, target,
+    context, outputTokens: output, threads,
     changedPaths: trackedPaths().filter(file => !before.includes(file)),
     diffBytes: Buffer.byteLength(finalDiff), verified: true,
     provider: 'local-only', hostedApiRequired: false, at: new Date().toISOString(),
