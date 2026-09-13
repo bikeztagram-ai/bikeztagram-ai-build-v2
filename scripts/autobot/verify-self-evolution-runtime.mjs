@@ -51,7 +51,7 @@ assert.match(planner,/timeoutFailures/);
 assert.match(workflow,/LOCAL_AI_MODEL: qwen2\.5-coder:7b/);
 assert.match(workflow,/AUTOBOT_AIDER_MODEL: ollama_chat\/qwen2\.5-coder:7b/);
 assert.doesNotMatch(workflow,/inputs\.local_model/,'self-evolution model must not be user-overridable');
-assert.match(workflow,/AUTOBOT_AIDER_CALL_TIMEOUT_MS: 900000/);
+assert.match(workflow,/AUTOBOT_AIDER_CALL_TIMEOUT_MS: 300000/);
 assert.match(workflow,/AUTOBOT_VERIFICATION_RESERVE_MS: 90000/);
 assert.match(workflow,/AUTOBOT_FEATURE_PASSES_PER_SLICE=3/);
 assert.match(workflow,/LOCAL_AI_PROXY_NUM_CTX=8192/);
