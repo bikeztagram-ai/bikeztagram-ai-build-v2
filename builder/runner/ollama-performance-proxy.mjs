@@ -15,8 +15,10 @@ const listenPort = Number(process.env.OLLAMA_PROXY_PORT || 11435);
 const upstream = process.env.OLLAMA_UPSTREAM || 'http://127.0.0.1:11434';
 // These defaults must match the hosted-runner contract because the proxy is
 // started before later GITHUB_ENV exports become visible to child processes.
-const maxContext = Number(process.env.LOCAL_AI_PROXY_NUM_CTX || 8192);
-const maxPredict = Number(process.env.LOCAL_AI_PROXY_NUM_PREDICT || 1500);
+const maxContext = Number(process.env.LOCAL_AI_PROXY_NUM_CTX || 6144);
+// Self-evolution edits are deliberately small; a lower output ceiling prevents
+// the 7B model from spending most of a bounded attempt generating prose.
+const maxPredict = Number(process.env.LOCAL_AI_PROXY_NUM_PREDICT || 768);
 const upstreamTimeoutSeconds = Math.max(
   30,
   Number.parseInt(process.env.LOCAL_AI_PROXY_UPSTREAM_TIMEOUT_SECONDS || '1200', 10),
