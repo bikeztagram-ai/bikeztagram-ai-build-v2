@@ -64,3 +64,17 @@ export function describeCaptionPlan(result){
   if(!result?.captionCount)return 'No verified speech captions detected.';
   return `📝 Speech captions: ${result.appliedCount}/${result.captionCount} verified cues attached to the edit.`;
 }
+
+export function filterCaptionCues(cues=[],options={}){
+ const minimum=Number.isFinite(Number(options.minimumConfidence))?Number(options.minimumConfidence):.55;
+ const maxChars=Number.isFinite(Number(options.maxChars))?Number(options.maxChars):72;
+ return (Array.isArray(cues)?cues:[]).filter(c=>Number(c?.confidence??1)>=minimum).map(c=>({...c,text:String(c?.text||'').trim().slice(0,maxChars)})).filter(c=>c.text);
+}
+
+export function normaliseCaptionTiming(cues=[]){
+ return (Array.isArray(cues)?cues:[]).map(c=>{
+  const start=Math.max(0,Number(c?.start??c?.startTime)||0);
+  const end=Math.max(start+.05,Number(c?.end??c?.endTime)||start+.8);
+  return {...c,start:Number(start.toFixed(3)),end:Number(end.toFixed(3)),duration:Number((end-start).toFixed(3))};
+ });
+}
