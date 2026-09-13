@@ -40,12 +40,14 @@ function trackedChanges(cwd = root) {
 }
 
 function readLearningEvidence() {
+  const maxCharsPerFile = 1400;
   return learningFiles.map(file => {
     const full = path.join(root, file);
     if (!fs.existsSync(full)) return `${file}: unavailable`;
     try {
       const text = fs.readFileSync(full, 'utf8');
-      return `${file}: ${text.slice(-5000)}`;
+      const compact = text.slice(-maxCharsPerFile).replace(/\s+/g, ' ').trim();
+      return `${file}: ${compact}`;
     } catch {
       return `${file}: unreadable`;
     }
@@ -55,12 +57,12 @@ function readLearningEvidence() {
 function readTarget() {
   const full = path.join(root, target);
   if (!fs.existsSync(full)) throw new Error(`target does not exist: ${target}`);
-  return fs.readFileSync(full, 'utf8').slice(0, 18000);
+  return fs.readFileSync(full, 'utf8').slice(0, 12000);
 }
 
 function taskPrompt(extra = '') {
   const targetText = readTarget();
-  return `You are the LOCAL REPAIR MODEL for the Bikeztagram AI autonomous engineering system.\n\nSELF-EVOLUTION ONLY. Do not modify the Bikeztagram product.\n\nYour job is deliberately tiny: inspect ONE allowed AutoBot engineering file and propose ONE small, useful repair directly justified by the observed failure evidence. Do not redesign the system. Do not make speculative improvements.\n\nALLOWED FILE: ${target}\n\nOBSERVED FAILURE EVIDENCE:\n${readLearningEvidence()}\n\nTARGET FILE CONTENT:\n--- BEGIN FILE ---\n${targetText}\n--- END FILE ---\n\nHARD RULES:\n- Only change ${target}.\n- Do not change product code, workflows, package files, validators, policy, safety gates, secrets, or git configuration.\n- Do not weaken any safety, verification, rollback, provider, or self-evolution-only gate.\n- Make the smallest concrete improvement supported by the evidence.\n- Preserve existing behaviour except where the repair is required.\n- Do not invent test results.\n- Return ONLY a standard unified git diff for ${target}; no prose, no markdown fences, no explanation.\n- The diff must be directly applicable with git apply --check.\n${extra}`;
+  return `You are the LOCAL REPAIR MODEL for the Bikeztagram AI autonomous engineering system.\n\nSELF-EVOLUTION ONLY. Do not modify the Bikeztagram product.\n\nYour job is deliberately tiny: inspect ONE allowed AutoBot engineering file and propose ONE small, useful repair directly justified by the observed failure evidence. Do not redesign the system. Do not make speculative improvements.\n\nALLOWED FILE: ${target}\n\nTARGET FILE CONTENT:\n--- BEGIN FILE ---\n${targetText}\n--- END FILE ---\n\nOBSERVED FAILURE EVIDENCE:\n${readLearningEvidence()}\n\nHARD RULES:\n- Only change ${target}.\n- Do not change product code, workflows, package files, validators, policy, safety gates, secrets, or git configuration.\n- Do not weaken any safety, verification, rollback, provider, or self-evolution-only gate.\n- Make the smallest concrete improvement supported by the evidence.\n- Preserve existing behaviour except where the repair is required.\n- Do not invent test results.\n- Return ONLY a standard unified git diff for ${target}; no prose, no markdown fences, no explanation.\n- The diff must be directly applicable with git apply --check.\n${extra}`;
 }
 
 function extractDiff(text) {
