@@ -1,29 +1,105 @@
 {
-  "objectiveId": null,
-  "completed": [],
+  "objectiveId": "quality-wave-003",
+  "completed": [
+    "quality-wave-003:quality-wave-motion-contract",
+    "quality-wave-003:quality-wave-transition-contract",
+    "quality-wave-003:quality-wave-plan-evidence",
+    "quality-wave-003:quality-wave-replenish-next"
+  ],
   "verifiedThisRun": [],
-  "totalUnits": 0,
-  "status": "idle",
+  "noOpVerifiedThisRun": [
+    "quality-wave-003:quality-wave-motion-contract",
+    "quality-wave-003:quality-wave-transition-contract",
+    "quality-wave-003:quality-wave-plan-evidence",
+    "quality-wave-003:quality-wave-replenish-next"
+  ],
+  "totalUnits": 4,
+  "status": "objective-complete",
   "currentTask": null,
-  "files": [],
+  "files": [
+    {
+      "status": "M",
+      "path": "uilder/brain/priority-policy.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/brain/roadmap.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/brain/task-library.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/monitor/live-state.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot-evidence.json"
+    },
+    {
+      "status": "M",
+      "path": "builder/working/deterministic-autobot.json"
+    },
+    {
+      "status": "M",
+      "path": "src/aiEditPlanner.js"
+    },
+    {
+      "status": "M",
+      "path": "src/director.js"
+    },
+    {
+      "status": "M",
+      "path": "src/timelineDirector.js"
+    },
+    {
+      "status": "??",
+      "path": "builder/brain/self-improvement-ledger.json"
+    },
+    {
+      "status": "??",
+      "path": "builder/brain/self-improvement-report.json"
+    },
+    {
+      "status": "??",
+      "path": "src/editQuality.js"
+    }
+  ],
   "history": {
     "tasks": [
+      "builder-self-improvement:self-improvement-analysis",
+      "builder-self-improvement:self-improvement-policy",
+      "builder-self-improvement:self-improvement-replenish-backlog",
       "cinematic-quality:cinematic-shot-motion-contract",
       "mobile-pwa:pwa-versioned-cache-contract",
       "project-persistence:persistence-audit-and-contract",
       "project-persistence:persistence-runtime",
       "provider-resilience:provider-failure-classification",
+      "quality-wave-002:quality-wave-002:quality-wave-motion-contract",
+      "quality-wave-002:quality-wave-002:quality-wave-plan-evidence",
+      "quality-wave-002:quality-wave-002:quality-wave-replenish-next",
+      "quality-wave-002:quality-wave-002:quality-wave-transition-contract",
+      "quality-wave-003:quality-wave-003:quality-wave-motion-contract",
+      "quality-wave-003:quality-wave-003:quality-wave-plan-evidence",
+      "quality-wave-003:quality-wave-003:quality-wave-replenish-next",
+      "quality-wave-003:quality-wave-003:quality-wave-transition-contract",
       "social-export:export-duration-guard",
       "social-export:export-profile-metadata",
       "social-export:export-profiles-and-validation"
     ],
     "objectives": [
+      "builder-self-improvement",
       "cinematic-quality",
+      "director-intelligence",
       "mobile-pwa",
       "project-persistence",
       "provider-resilience",
+      "quality-wave-002",
+      "quality-wave-003",
       "social-export"
     ]
   },
-  "updatedAt": "2026-08-27T20:45:04.912Z"
+  "lastVerifiedTask": "quality-wave-003:quality-wave-replenish-next",
+  "updatedAt": "2026-09-13T10:24:31.752Z"
 }

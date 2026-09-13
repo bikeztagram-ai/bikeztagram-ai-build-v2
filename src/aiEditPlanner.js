@@ -2,6 +2,7 @@ import { refineCinematicTimeline } from './timelineDirector.js';
 import { critiqueAndImproveTimeline, describeCritique } from './editCritic.js';
 import { normalizeUniversalAnalysis, isLikelyAction, isLikelyReveal } from './universalMediaModel.js';
 import { selectDirectorMoments } from './directorSelection.js';
+import { scoreEditQuality } from './editQuality.js';
 import { analyseDirectorRhythm } from './directorRhythm.js';
 import { resolveCreativeDuration } from './creativeDuration.js';
 import { evaluateCinematicOutput } from './cinematicQualityEvaluator.js';
