@@ -37,11 +37,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXPECTED_SHA="af9249ef817e70c54f44c25b4e3ed480e976dfcc"
+          EXPECTED_SHA="c37572844430a322bce0bc038c714069d9a77392"
           echo "ref=experiment/autobot-free-evolution"
           echo "sha=$(git rev-parse HEAD)"
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-          node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('builder/runner/autobot-evolution-policy.json','utf8')); if(p.productWorkLocked!==true || p.selfImprovementOnly!==true) process.exit(1); console.log(p)"
+          node - <<'NODE'
+          const fs = require('fs');
+          const p = JSON.parse(fs.readFileSync('builder/runner/autobot-evolution-policy.json', 'utf8'));
+          if (p.mode !== 'self-evolution-only') throw new Error(`unexpected mode: ${p.mode}`);
+          if (p.productWorkLocked !== true) throw new Error('productWorkLocked is not true');
+          if (!Array.isArray(p.hardRules) || !p.hardRules.includes('never auto-commit')) throw new Error('missing no-auto-commit hard rule');
+          if (!Array.isArray(p.hardRules) || !p.hardRules.includes('never modify Bikeztagram product code while self-evolution-only mode is active')) throw new Error('missing product-lock hard rule');
+          console.log(JSON.stringify({ mode: p.mode, productWorkLocked: p.productWorkLocked, hardRules: p.hardRules.length }));
+          NODE
+          test -f builder/runner/free-local-self-evolution.mjs
           test -z "$(git status --porcelain)"
 
       - name: Setup Node
@@ -76,23 +85,35 @@ jobs:
           test -x ~/.cache/bikeztagram-llama/llama-cli
           ~/.cache/bikeztagram-llama/llama-cli --version || true
 
-      - name: Cache local Qwen3 model
+      - name: Cache local Qwen2.5 Coder model
         uses: actions/cache@v4
         with:
-          path: ~/.cache/bikeztagram-qwen3-14b
-          key: bikeztagram-qwen3-14b-q4km-v1
+          path: ~/.cache/bikeztagram-qwen25-coder-7b
+          key: bikeztagram-qwen25-coder-7b-q4km-v1
 
-      - name: Download local Qwen3 model if needed
+      - name: Download local Qwen2.5 Coder model if needed
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p ~/.cache/bikeztagram-qwen3-14b
-          MODEL="$HOME/.cache/bikeztagram-qwen3-14b/Qwen3-14B-Q4_K_M.gguf"
+          mkdir -p ~/.cache/bikeztagram-qwen25-coder-7b
+          MODEL="$HOME/.cache/bikeztagram-qwen25-coder-7b/qwen2.5-coder-7b-instruct-q4_k_m.gguf"
           if [ ! -s "$MODEL" ]; then
-            curl -L --fail --retry 3 'https://huggingface.co/tensorblock/Qwen_Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf?download=true' -o "$MODEL"
+            curl -L --fail --retry 3 'https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q4_k_m.gguf?download=true' -o "$MODEL"
           fi
           test -s "$MODEL"
           sha256sum "$MODEL"
+
+      - name: Smoke-test local model before evolution
+        shell: bash
+        env:
+          LLAMA_CLI: /home/runner/.cache/bikeztagram-llama/llama-cli
+          LOCAL_QWEN_MODEL: /home/runner/.cache/bikeztagram-qwen25-coder-7b/qwen2.5-coder-7b-instruct-q4_k_m.gguf
+        run: |
+          set -euo pipefail
+          OUTPUT="$($LLAMA_CLI -m "$LOCAL_QWEN_MODEL" -c 1024 -n 12 -t 4 --simple-io --no-display-prompt -p 'Return exactly READY and nothing else.' 2>/tmp/autobot-model-smoke.err || true)"
+          cat /tmp/autobot-model-smoke.err >&2 || true
+          test -n "$(printf '%s' "$OUTPUT" | tr -d '[:space:]')"
+          printf '%s\n' "$OUTPUT"
 
       - name: Run one bounded free self-evolution attempt
         shell: bash
@@ -101,10 +122,11 @@ jobs:
           AUTOBOT_SELF_EVOLUTION_REF: experiment/autobot-free-evolution
           AUTOBOT_LOCAL_TARGET: ${{ inputs.target }}
           LLAMA_CLI: /home/runner/.cache/bikeztagram-llama/llama-cli
-          LOCAL_QWEN_MODEL: /home/runner/.cache/bikeztagram-qwen3-14b/Qwen3-14B-Q4_K_M.gguf
-          LOCAL_QWEN_CONTEXT: 8192
-          LOCAL_QWEN_OUTPUT: 900
-          LOCAL_QWEN_TIMEOUT_MS: 600000
+          LOCAL_QWEN_MODEL: /home/runner/.cache/bikeztagram-qwen25-coder-7b/qwen2.5-coder-7b-instruct-q4_k_m.gguf
+          LOCAL_QWEN_CONTEXT: 6144
+          LOCAL_QWEN_OUTPUT: 700
+          LOCAL_QWEN_THREADS: 4
+          LOCAL_QWEN_TIMEOUT_MS: 480000
         run: |
           set -euo pipefail
           case '${{ inputs.duration }}' in
@@ -128,6 +150,17 @@ jobs:
           if git diff --name-only | grep -Ev '^(builder/runner/(aider-feature-brain|ollama-performance-proxy|self-improvement-planner)\.mjs)$'; then
             echo 'Unexpected file changed'
             exit 1
+          fi
+          if [ -f builder/working/free-local-self-evolution-result.json ]; then
+            node - <<'NODE'
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('builder/working/free-local-self-evolution-result.json', 'utf8'));
+            if (p.verified !== true || p.provider !== 'local-only' || p.hostedApiRequired !== false) process.exit(1);
+            if (!Array.isArray(p.changedPaths) || p.changedPaths.length < 1) process.exit(1);
+            console.log(JSON.stringify(p, null, 2));
+            NODE
+          else
+            echo 'No accepted-candidate result was produced; preserving the model-run failure as the job failure.'
           fi
           mkdir -p builder/working/free-local-evolution-evidence
           git diff -- builder/runner/aider-feature-brain.mjs builder/runner/ollama-performance-proxy.mjs builder/runner/self-improvement-planner.mjs > builder/working/free-local-evolution-evidence/candidate.patch || true
