@@ -55,21 +55,23 @@ function readLearningEvidence() {
 function readTarget() {
   const full = path.join(root, target);
   if (!fs.existsSync(full)) throw new Error(`target does not exist: ${target}`);
-  return fs.readFileSync(full, 'utf8').slice(0, 24000);
+  return fs.readFileSync(full, 'utf8').slice(0, 18000);
 }
 
 function taskPrompt(extra = '') {
   const targetText = readTarget();
-  return `You are the LOCAL REPAIR MODEL for the Bikeztagram AI autonomous engineering system.\n\nSELF-EVOLUTION ONLY. Do not modify the Bikeztagram product.\n\nYour job is deliberately tiny: inspect ONE allowed AutoBot engineering file and propose ONE small, useful repair directly justified by the observed failure evidence. Do not redesign the system. Do not make speculative improvements.\n\nALLOWED FILE: ${target}\n\nOBSERVED FAILURE EVIDENCE:\n${readLearningEvidence()}\n\nTARGET FILE CONTENT:\n--- BEGIN FILE ---\n${targetText}\n--- END FILE ---\n\nHARD RULES:\n- Only change ${target}.\n- Do not change product code, workflows, package files, validators, policy, safety gates, secrets, or git configuration.\n- Do not weaken any safety, verification, rollback, provider, or self-evolution-only gate.\n- Make the smallest concrete improvement supported by the evidence.\n- Preserve existing behaviour except where the repair is required.\n- Do not invent test results.\n- Return ONLY a standard unified git diff for ${target}; no prose, no markdown fences, no explanation.\n- The diff must be directly applicable with `git apply --check`.\n${extra}`;
+  return `You are the LOCAL REPAIR MODEL for the Bikeztagram AI autonomous engineering system.\n\nSELF-EVOLUTION ONLY. Do not modify the Bikeztagram product.\n\nYour job is deliberately tiny: inspect ONE allowed AutoBot engineering file and propose ONE small, useful repair directly justified by the observed failure evidence. Do not redesign the system. Do not make speculative improvements.\n\nALLOWED FILE: ${target}\n\nOBSERVED FAILURE EVIDENCE:\n${readLearningEvidence()}\n\nTARGET FILE CONTENT:\n--- BEGIN FILE ---\n${targetText}\n--- END FILE ---\n\nHARD RULES:\n- Only change ${target}.\n- Do not change product code, workflows, package files, validators, policy, safety gates, secrets, or git configuration.\n- Do not weaken any safety, verification, rollback, provider, or self-evolution-only gate.\n- Make the smallest concrete improvement supported by the evidence.\n- Preserve existing behaviour except where the repair is required.\n- Do not invent test results.\n- Return ONLY a standard unified git diff for ${target}; no prose, no markdown fences, no explanation.\n- The diff must be directly applicable with git apply --check.\n${extra}`;
 }
 
 function extractDiff(text) {
   const cleaned = String(text || '').trim();
   const fenced = cleaned.match(/```(?:diff|patch)?\s*\n([\s\S]*?)\n```/i);
-  const candidate = fenced ? fenced[1].trim() : cleaned;
-  const start = candidate.indexOf('diff --git ');
-  if (start < 0) return '';
-  return candidate.slice(start).trim() + '\n';
+  const candidate = (fenced ? fenced[1] : cleaned).trim();
+  const gitStart = candidate.indexOf('diff --git ');
+  if (gitStart >= 0) return candidate.slice(gitStart).trim() + '\n';
+  const unifiedStart = candidate.search(/^--- a\//m);
+  if (unifiedStart >= 0) return candidate.slice(unifiedStart).trim() + '\n';
+  return '';
 }
 
 async function askModel(prompt) {
@@ -104,27 +106,35 @@ async function askModel(prompt) {
 function validatePatch(patchPath) {
   const check = git('apply', '--check', patchPath);
   if (check.status !== 0) return check.stderr || check.stdout || 'git apply --check failed';
-  const changed = run('git', ['diff', '--name-only', '--no-index', '/dev/null', patchPath]);
-  void changed;
   return '';
+}
+
+function rollbackCandidate(initial) {
+  for (const file of trackedChanges().filter(file => !initial.has(file))) {
+    spawnSync('git', ['restore', '--', file], { cwd: root, stdio: 'ignore' });
+    spawnSync('git', ['clean', '-fd', '--', file], { cwd: root, stdio: 'ignore' });
+  }
 }
 
 async function main() {
   if (!allowed.has(target)) throw new Error(`target is not in allowed scope: ${target}`);
   const initial = trackedChanges();
   if (initial.length) throw new Error(`real checkout is dirty before worker: ${initial.join(', ')}`);
+  const initialSet = new Set(initial);
   const baseSha = run('git', ['rev-parse', 'HEAD']).stdout.trim();
   const patch = path.join(root, 'builder', 'working', 'autobot-agentic-local-candidate.patch');
   fs.mkdirSync(path.dirname(patch), { recursive: true });
 
   let raw = await askModel(taskPrompt());
   let diff = extractDiff(raw);
+  let correctionAttempted = false;
   fs.writeFileSync(path.join(root, 'builder', 'working', 'autobot-agentic-local-model-output.txt'), raw);
   if (!diff) throw new Error(`model did not return a unified diff:\n${raw.slice(-8000)}`);
   fs.writeFileSync(patch, diff);
 
   let validationError = validatePatch(patch);
   if (validationError) {
+    correctionAttempted = true;
     raw = await askModel(taskPrompt(`\nA previous proposed diff failed validation with this exact error:\n${validationError}\nCorrect the diff and return ONLY the replacement unified diff.`));
     diff = extractDiff(raw);
     if (!diff) throw new Error(`correction model did not return a unified diff:\n${raw.slice(-8000)}`);
@@ -133,35 +143,40 @@ async function main() {
     if (validationError) throw new Error(`candidate patch failed validation after correction: ${validationError}`);
   }
 
-  const apply = git('apply', '--whitespace=error', patch);
-  if (apply.status !== 0) throw new Error(`candidate patch failed to apply: ${apply.stderr || apply.stdout}`);
+  try {
+    const apply = git('apply', '--whitespace=error', patch);
+    if (apply.status !== 0) throw new Error(`candidate patch failed to apply: ${apply.stderr || apply.stdout}`);
 
-  const changed = trackedChanges();
-  const violations = changed.filter(file => !allowed.has(file));
-  if (violations.length) throw new Error(`applied candidate escaped scope: ${violations.join(', ')}`);
-  if (!changed.includes(target)) throw new Error('candidate produced no change to the allowed target');
+    const changed = trackedChanges();
+    const violations = changed.filter(file => !allowed.has(file));
+    if (violations.length) throw new Error(`applied candidate escaped scope: ${violations.join(', ')}`);
+    if (!changed.includes(target)) throw new Error('candidate produced no change to the allowed target');
 
-  const syntax = run('node', ['--check', target]);
-  if (syntax.status !== 0) throw new Error(`candidate failed syntax check: ${syntax.stderr || syntax.stdout}`);
+    const syntax = run('node', ['--check', target]);
+    if (syntax.status !== 0) throw new Error(`candidate failed syntax check: ${syntax.stderr || syntax.stdout}`);
 
-  const evidence = {
-    engine: 'targeted-local-repair',
-    model,
-    apiBase,
-    target,
-    allowedPaths: [...allowed],
-    baseSha,
-    changedPaths: changed,
-    maxOutputTokens,
-    requestTimeoutMs,
-    correctionAttempted: Boolean(validationError === '' && raw),
-    verified: false,
-    provider: 'local-only',
-    hostedApiRequired: false,
-    at: new Date().toISOString()
-  };
-  fs.writeFileSync(path.join(root, 'builder', 'working', 'autobot-agentic-local-result.json'), JSON.stringify(evidence, null, 2) + '\n');
-  console.log(JSON.stringify(evidence, null, 2));
+    const evidence = {
+      engine: 'targeted-local-repair',
+      model,
+      apiBase,
+      target,
+      allowedPaths: [...allowed],
+      baseSha,
+      changedPaths: changed,
+      maxOutputTokens,
+      requestTimeoutMs,
+      correctionAttempted,
+      verified: false,
+      provider: 'local-only',
+      hostedApiRequired: false,
+      at: new Date().toISOString()
+    };
+    fs.writeFileSync(path.join(root, 'builder', 'working', 'autobot-agentic-local-result.json'), JSON.stringify(evidence, null, 2) + '\n');
+    console.log(JSON.stringify(evidence, null, 2));
+  } catch (error) {
+    rollbackCandidate(initialSet);
+    throw error;
+  }
 }
 
 main().catch(error => {
