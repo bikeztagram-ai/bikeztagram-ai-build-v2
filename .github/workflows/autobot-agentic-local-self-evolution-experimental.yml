@@ -1,0 +1,200 @@
+name: AutoBot Targeted Local Self-Evolution (Experimental)
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Maximum repair window'
+        required: true
+        default: '10m'
+        type: choice
+        options: ['10m', '20m', '30m']
+      target:
+        description: 'Self-evolution target'
+        required: true
+        default: 'builder/runner/ollama-performance-proxy.mjs'
+        type: choice
+        options:
+          - builder/runner/ollama-performance-proxy.mjs
+          - builder/runner/aider-feature-brain.mjs
+          - builder/runner/self-improvement-planner.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-local-self-evolution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact experiment branch
+        uses: actions/checkout@v4
+        with:
+          ref: experiment/autobot-agentic-fleet-local
+          fetch-depth: 0
+
+      - name: Verify self-evolution lock and existing contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run verify:autobot-self-improvement
+          grep -q '"mode": "self-evolution-only"' .github/workflows/autobot-self-evolution.yml
+          grep -q '"productWorkLocked": true' .github/workflows/autobot-self-evolution.yml
+          test -z "$(git status --porcelain)"
+          echo '[autobot] SELF-EVOLUTION ONLY LOCK VERIFIED'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install project dependencies without changing repository state
+        run: npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+
+      - name: Check repair worker syntax
+        run: node --check builder/runner/autobot-agentic-local-worker.mjs
+
+      - name: Cache llama.cpp CPU server
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bikeztagram-llama-agent
+          key: bikeztagram-llama-agent-b10917-ubuntu-x64
+
+      - name: Install llama.cpp CPU server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/bikeztagram-llama-agent
+          if [ ! -x ~/.cache/bikeztagram-llama-agent/llama-server ]; then
+            curl -L --fail --retry 3 https://github.com/ggml-org/llama.cpp/releases/download/b10917/llama-b10917-bin-ubuntu-x64.tar.gz -o /tmp/llama-agent.tar.gz
+            tar -xzf /tmp/llama-agent.tar.gz -C ~/.cache/bikeztagram-llama-agent --strip-components=1
+          fi
+          test -x ~/.cache/bikeztagram-llama-agent/llama-server
+          ~/.cache/bikeztagram-llama-agent/llama-server --version
+
+      - name: Cache Qwen2.5-Coder 3B local model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bikeztagram-qwen25-coder-3b
+          key: bikeztagram-qwen25-coder-3b-q4km-v1
+
+      - name: Download Qwen2.5-Coder 3B if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/bikeztagram-qwen25-coder-3b
+          MODEL="$HOME/.cache/bikeztagram-qwen25-coder-3b/qwen2.5-coder-3b-instruct-q4_k_m.gguf"
+          if [ ! -s "$MODEL" ]; then
+            curl -L --fail --retry 3 'https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf?download=true' -o "$MODEL"
+          fi
+          test -s "$MODEL"
+          test "$(head -c 4 "$MODEL")" = "GGUF"
+          test "$(stat -c '%s' "$MODEL")" -gt 1800000000
+          sha256sum "$MODEL"
+
+      - name: Start local model server and wait for health
+        shell: bash
+        env:
+          LLAMA_SERVER: /home/runner/.cache/bikeztagram-llama-agent/llama-server
+          LOCAL_MODEL: /home/runner/.cache/bikeztagram-qwen25-coder-3b/qwen2.5-coder-3b-instruct-q4_k_m.gguf
+        run: |
+          set -euo pipefail
+          nohup "$LLAMA_SERVER" \
+            -m "$LOCAL_MODEL" \
+            --alias local-qwen-coder-3b \
+            --host 127.0.0.1 \
+            --port 8080 \
+            -c 8192 \
+            -t 4 \
+            -ngl 0 \
+            --parallel 1 \
+            > /tmp/autobot-llama-server.log 2>&1 &
+          echo $! > /tmp/autobot-llama-server.pid
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:8080/health >/tmp/autobot-health.json 2>/dev/null; then
+              cat /tmp/autobot-health.json
+              curl -fsS http://127.0.0.1:8080/v1/models
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/autobot-llama-server.log
+          exit 1
+
+      - name: Verify local chat endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --max-time 120 http://127.0.0.1:8080/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -d '{"model":"local-qwen-coder-3b","messages":[{"role":"user","content":"Reply with exactly READY."}],"max_tokens":8,"temperature":0}' \
+            | tee /tmp/autobot-local-chat.json
+          grep -q READY /tmp/autobot-local-chat.json
+
+      - name: Run one bounded targeted repair attempt
+        shell: bash
+        env:
+          AUTOBOT_LOCAL_TARGET: ${{ inputs.target }}
+          AUTOBOT_ALLOWED_PATHS: ${{ inputs.target }}
+          AUTOBOT_AGENT_MODEL: local-qwen-coder-3b
+          AUTOBOT_AGENT_API_BASE: http://127.0.0.1:8080/v1
+          AUTOBOT_AGENT_MAX_OUTPUT_TOKENS: 900
+          AUTOBOT_AGENT_REQUEST_TIMEOUT_MS: 180000
+        run: |
+          set -euo pipefail
+          case '${{ inputs.duration }}' in
+            10m) WINDOW=9m ;;
+            20m) WINDOW=19m ;;
+            30m) WINDOW=29m ;;
+            *) echo 'Invalid duration'; exit 1 ;;
+          esac
+          timeout --kill-after=30s "$WINDOW" node builder/runner/autobot-agentic-local-worker.mjs
+
+      - name: Run external safety and build gates on candidate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '--- changed paths ---'
+          git status --short
+          changed="$(git diff --name-only)"
+          if [ -n "$changed" ]; then
+            while IFS= read -r file; do
+              case "$file" in
+                builder/runner/aider-feature-brain.mjs|builder/runner/ollama-performance-proxy.mjs|builder/runner/self-improvement-planner.mjs) ;;
+                *) echo "Unexpected changed path: $file"; exit 1 ;;
+              esac
+            done <<< "$changed"
+            git diff --check
+            npm run verify:autobot-self-improvement-boundary
+            npm run build
+          else
+            echo 'No candidate diff to verify.'
+          fi
+
+      - name: Capture repair evidence
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p builder/working/autobot-agentic-local-evidence
+          cp /tmp/autobot-llama-server.log builder/working/autobot-agentic-local-evidence/llama-server.log 2>/dev/null || true
+          cp /tmp/autobot-local-chat.json builder/working/autobot-agentic-local-evidence/local-chat.json 2>/dev/null || true
+          cp builder/working/autobot-agentic-local-result.json builder/working/autobot-agentic-local-evidence/result.json 2>/dev/null || true
+          cp builder/working/autobot-agentic-local-model-output.txt builder/working/autobot-agentic-local-evidence/model-output.txt 2>/dev/null || true
+          git diff -- builder/runner/aider-feature-brain.mjs builder/runner/ollama-performance-proxy.mjs builder/runner/self-improvement-planner.mjs > builder/working/autobot-agentic-local-evidence/candidate.patch || true
+          git status --porcelain=v1 > builder/working/autobot-agentic-local-evidence/status.txt || true
+          git rev-parse HEAD > builder/working/autobot-agentic-local-evidence/execution-sha.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-agentic-local-${{ github.run_id }}
+          path: builder/working/autobot-agentic-local-evidence
+          if-no-files-found: warn
