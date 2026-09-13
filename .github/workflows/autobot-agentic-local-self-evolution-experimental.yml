@@ -1,10 +1,10 @@
-name: AutoBot Agentic Local Self-Evolution (Experimental)
+name: AutoBot Targeted Local Self-Evolution (Experimental)
 
 on:
   workflow_dispatch:
     inputs:
       duration:
-        description: 'Maximum agent window'
+        description: 'Maximum repair window'
         required: true
         default: '10m'
         type: choice
@@ -12,18 +12,18 @@ on:
       target:
         description: 'Self-evolution target'
         required: true
-        default: 'builder/runner/aider-feature-brain.mjs'
+        default: 'builder/runner/ollama-performance-proxy.mjs'
         type: choice
         options:
-          - builder/runner/aider-feature-brain.mjs
           - builder/runner/ollama-performance-proxy.mjs
+          - builder/runner/aider-feature-brain.mjs
           - builder/runner/self-improvement-planner.mjs
 
 permissions:
   contents: read
 
 jobs:
-  agentic-local-self-evolution:
+  targeted-local-self-evolution:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -56,16 +56,7 @@ jobs:
       - name: Install project dependencies without changing repository state
         run: npm install --ignore-scripts --no-audit --no-fund --package-lock=false
 
-      - name: Install mini-SWE-agent
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m venv "$RUNNER_TEMP/miniswea-venv"
-          "$RUNNER_TEMP/miniswea-venv/bin/pip" install --disable-pip-version-check --no-input 'mini-swe-agent>=2,<3'
-          "$RUNNER_TEMP/miniswea-venv/bin/mini" --help >/dev/null
-          echo "MINI_SWE_AGENT_BIN=$RUNNER_TEMP/miniswea-venv/bin/mini" >> "$GITHUB_ENV"
-
-      - name: Check agent worker syntax
+      - name: Check repair worker syntax
         run: node --check builder/runner/autobot-agentic-local-worker.mjs
 
       - name: Cache llama.cpp CPU server
@@ -86,45 +77,45 @@ jobs:
           test -x ~/.cache/bikeztagram-llama-agent/llama-server
           ~/.cache/bikeztagram-llama-agent/llama-server --version
 
-      - name: Cache Qwen2.5-Coder 1.5B local model
+      - name: Cache Qwen2.5-Coder 3B local model
         uses: actions/cache@v4
         with:
-          path: ~/.cache/bikeztagram-qwen25-coder-1.5b
-          key: bikeztagram-qwen25-coder-1.5b-q4km-v1
+          path: ~/.cache/bikeztagram-qwen25-coder-3b
+          key: bikeztagram-qwen25-coder-3b-q4km-v1
 
-      - name: Download Qwen2.5-Coder 1.5B if needed
+      - name: Download Qwen2.5-Coder 3B if needed
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p ~/.cache/bikeztagram-qwen25-coder-1.5b
-          MODEL="$HOME/.cache/bikeztagram-qwen25-coder-1.5b/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+          mkdir -p ~/.cache/bikeztagram-qwen25-coder-3b
+          MODEL="$HOME/.cache/bikeztagram-qwen25-coder-3b/qwen2.5-coder-3b-instruct-q4_k_m.gguf"
           if [ ! -s "$MODEL" ]; then
-            curl -L --fail --retry 3 'https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf?download=true' -o "$MODEL"
+            curl -L --fail --retry 3 'https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q4_k_m.gguf?download=true' -o "$MODEL"
           fi
           test -s "$MODEL"
           test "$(head -c 4 "$MODEL")" = "GGUF"
-          test "$(stat -c '%s' "$MODEL")" -gt 900000000
+          test "$(stat -c '%s' "$MODEL")" -gt 1800000000
           sha256sum "$MODEL"
 
       - name: Start local model server and wait for health
         shell: bash
         env:
           LLAMA_SERVER: /home/runner/.cache/bikeztagram-llama-agent/llama-server
-          LOCAL_MODEL: /home/runner/.cache/bikeztagram-qwen25-coder-1.5b/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf
+          LOCAL_MODEL: /home/runner/.cache/bikeztagram-qwen25-coder-3b/qwen2.5-coder-3b-instruct-q4_k_m.gguf
         run: |
           set -euo pipefail
           nohup "$LLAMA_SERVER" \
             -m "$LOCAL_MODEL" \
-            --alias local-qwen-coder \
+            --alias local-qwen-coder-3b \
             --host 127.0.0.1 \
             --port 8080 \
-            -c 12288 \
-            -t 2 \
+            -c 8192 \
+            -t 4 \
             -ngl 0 \
             --parallel 1 \
             > /tmp/autobot-llama-server.log 2>&1 &
           echo $! > /tmp/autobot-llama-server.pid
-          for i in $(seq 1 90); do
+          for i in $(seq 1 120); do
             if curl -fsS http://127.0.0.1:8080/health >/tmp/autobot-health.json 2>/dev/null; then
               cat /tmp/autobot-health.json
               curl -fsS http://127.0.0.1:8080/v1/models
@@ -139,21 +130,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --max-time 90 http://127.0.0.1:8080/v1/chat/completions \
+          curl --fail --max-time 120 http://127.0.0.1:8080/v1/chat/completions \
             -H 'Content-Type: application/json' \
-            -d '{"model":"local-qwen-coder","messages":[{"role":"user","content":"Reply with exactly READY."}],"max_tokens":8,"temperature":0}' \
+            -d '{"model":"local-qwen-coder-3b","messages":[{"role":"user","content":"Reply with exactly READY."}],"max_tokens":8,"temperature":0}' \
             | tee /tmp/autobot-local-chat.json
           grep -q READY /tmp/autobot-local-chat.json
 
-      - name: Run one bounded agentic self-evolution attempt
+      - name: Run one bounded targeted repair attempt
         shell: bash
         env:
           AUTOBOT_LOCAL_TARGET: ${{ inputs.target }}
           AUTOBOT_ALLOWED_PATHS: ${{ inputs.target }}
-          AUTOBOT_AGENT_MODEL: local-qwen-coder
+          AUTOBOT_AGENT_MODEL: local-qwen-coder-3b
           AUTOBOT_AGENT_API_BASE: http://127.0.0.1:8080/v1
-          AUTOBOT_AGENT_MAX_STEPS: 8
-          AUTOBOT_AGENT_WALL_SECONDS: 480
+          AUTOBOT_AGENT_MAX_OUTPUT_TOKENS: 900
+          AUTOBOT_AGENT_REQUEST_TIMEOUT_MS: 180000
         run: |
           set -euo pipefail
           case '${{ inputs.duration }}' in
@@ -186,7 +177,7 @@ jobs:
             echo 'No candidate diff to verify.'
           fi
 
-      - name: Capture agent evidence
+      - name: Capture repair evidence
         if: always()
         shell: bash
         run: |
@@ -195,6 +186,7 @@ jobs:
           cp /tmp/autobot-llama-server.log builder/working/autobot-agentic-local-evidence/llama-server.log 2>/dev/null || true
           cp /tmp/autobot-local-chat.json builder/working/autobot-agentic-local-evidence/local-chat.json 2>/dev/null || true
           cp builder/working/autobot-agentic-local-result.json builder/working/autobot-agentic-local-evidence/result.json 2>/dev/null || true
+          cp builder/working/autobot-agentic-local-model-output.txt builder/working/autobot-agentic-local-evidence/model-output.txt 2>/dev/null || true
           git diff -- builder/runner/aider-feature-brain.mjs builder/runner/ollama-performance-proxy.mjs builder/runner/self-improvement-planner.mjs > builder/working/autobot-agentic-local-evidence/candidate.patch || true
           git status --porcelain=v1 > builder/working/autobot-agentic-local-evidence/status.txt || true
           git rev-parse HEAD > builder/working/autobot-agentic-local-evidence/execution-sha.txt
