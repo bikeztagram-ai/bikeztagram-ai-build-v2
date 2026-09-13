@@ -118,17 +118,20 @@ jobs:
           nproc
           "$LLAMA_CLI" --version
           echo '--- model smoke ---'
-          if OUTPUT="$(timeout --kill-after=15s 120s "$LLAMA_CLI" -m "$LOCAL_QWEN_MODEL" -c 512 -n 8 -t 4 -ngl 0 --simple-io --no-display-prompt -p 'Return exactly READY and nothing else.' 2>/tmp/autobot-model-smoke.err)"; then
-            :
-          else
-            status=$?
-            cat /tmp/autobot-model-smoke.err >&2 || true
-            echo "Local model smoke test failed (status=$status)."
-            exit 1
-          fi
+          set +e
+          timeout --kill-after=10s 90s "$LLAMA_CLI" \
+            -m "$LOCAL_QWEN_MODEL" \
+            -c 256 -n 1 -t 1 -tb 1 \
+            --cpu-range 0-0 --cpu-strict 1 --poll 0 \
+            -ngl 0 --simple-io --no-display-prompt \
+            -p 'Return exactly READY and nothing else.' \
+            2>/tmp/autobot-model-smoke.err | tee /tmp/autobot-model-smoke.out
+          status=${PIPESTATUS[0]}
+          set -e
           cat /tmp/autobot-model-smoke.err >&2 || true
-          printf '%s\n' "$OUTPUT"
-          printf '%s' "$OUTPUT" | grep -q 'READY'
+          echo "Local model smoke exit status=$status"
+          test "$status" -eq 0
+          grep -q 'READY' /tmp/autobot-model-smoke.out
 
       - name: Verify checkout is still clean before model edit
         shell: bash
@@ -147,7 +150,7 @@ jobs:
           LOCAL_QWEN_MODEL: /home/runner/.cache/bikeztagram-qwen25-coder-3b/qwen2.5-coder-3b-instruct-q4_k_m.gguf
           LOCAL_QWEN_CONTEXT: 4096
           LOCAL_QWEN_OUTPUT: 700
-          LOCAL_QWEN_THREADS: 4
+          LOCAL_QWEN_THREADS: 2
           LOCAL_QWEN_TIMEOUT_MS: 480000
         run: |
           set -euo pipefail
