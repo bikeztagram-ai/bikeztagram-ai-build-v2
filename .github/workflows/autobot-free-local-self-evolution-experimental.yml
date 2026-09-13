@@ -58,11 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           status="$(git status --porcelain)"
-          if [ -n "$status" ]; then
-            echo "$status"
-            echo 'Dependency installation changed the checkout.'
-            exit 1
-          fi
+          if [ -n "$status" ]; then echo "$status"; echo 'Dependency installation changed the checkout.'; exit 1; fi
 
       - name: Validate baseline before model work
         run: |
@@ -73,7 +69,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/bikeztagram-llama
-          key: bikeztagram-llama-b10869-ubuntu-x64
+          key: bikeztagram-llama-b10917-ubuntu-x64
 
       - name: Install llama.cpp CPU binary
         shell: bash
@@ -81,17 +77,17 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.cache/bikeztagram-llama
           if [ ! -x ~/.cache/bikeztagram-llama/llama-cli ]; then
-            curl -L --fail --retry 3 https://github.com/ggml-org/llama.cpp/releases/download/b10869/llama-b10869-bin-ubuntu-x64.tar.gz -o /tmp/llama.tar.gz
+            curl -L --fail --retry 3 https://github.com/ggml-org/llama.cpp/releases/download/b10917/llama-b10917-bin-ubuntu-x64.tar.gz -o /tmp/llama.tar.gz
             tar -xzf /tmp/llama.tar.gz -C ~/.cache/bikeztagram-llama --strip-components=1
           fi
           test -x ~/.cache/bikeztagram-llama/llama-cli
-          ~/.cache/bikeztagram-llama/llama-cli --version || true
+          ~/.cache/bikeztagram-llama/llama-cli --version
 
       - name: Cache local Qwen2.5 Coder model
         uses: actions/cache@v4
         with:
           path: ~/.cache/bikeztagram-qwen25-coder-7b
-          key: bikeztagram-qwen25-coder-7b-q4km-v1
+          key: bikeztagram-qwen25-coder-7b-q4km-v2
 
       - name: Download local Qwen2.5 Coder model if needed
         shell: bash
@@ -103,6 +99,10 @@ jobs:
             curl -L --fail --retry 3 'https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q4_k_m.gguf?download=true' -o "$MODEL"
           fi
           test -s "$MODEL"
+          test "$(head -c 4 "$MODEL")" = "GGUF"
+          size=$(stat -c '%s' "$MODEL")
+          test "$size" -gt 4000000000
+          echo "model_bytes=$size"
           sha256sum "$MODEL"
 
       - name: Smoke-test local model before evolution
@@ -112,9 +112,16 @@ jobs:
           LOCAL_QWEN_MODEL: /home/runner/.cache/bikeztagram-qwen25-coder-7b/qwen2.5-coder-7b-instruct-q4_k_m.gguf
         run: |
           set -euo pipefail
-          if ! OUTPUT="$(timeout 90s "$LLAMA_CLI" -m "$LOCAL_QWEN_MODEL" -c 1024 -n 12 -t 4 --simple-io --no-display-prompt -p 'Return exactly READY and nothing else.' 2>/tmp/autobot-model-smoke.err)"; then
+          echo '--- runner memory ---'
+          free -h
+          echo '--- runner cpu ---'
+          nproc
+          "$LLAMA_CLI" --version
+          echo '--- model smoke ---'
+          if ! OUTPUT="$(timeout --kill-after=15s 120s "$LLAMA_CLI" -m "$LOCAL_QWEN_MODEL" -c 512 -n 8 -t 4 -ngl 0 --simple-io --no-display-prompt -p 'Return exactly READY and nothing else.' 2>/tmp/autobot-model-smoke.err)"; then
+            status=$?
             cat /tmp/autobot-model-smoke.err >&2 || true
-            echo 'Local model smoke test failed or timed out.'
+            echo "Local model smoke test failed (status=$status)."
             exit 1
           fi
           cat /tmp/autobot-model-smoke.err >&2 || true
@@ -126,11 +133,7 @@ jobs:
         run: |
           set -euo pipefail
           status="$(git status --porcelain)"
-          if [ -n "$status" ]; then
-            echo "$status"
-            echo 'Pre-edit checkout is dirty.'
-            exit 1
-          fi
+          if [ -n "$status" ]; then echo "$status"; echo 'Pre-edit checkout is dirty.'; exit 1; fi
 
       - name: Run one bounded free self-evolution attempt
         shell: bash
@@ -140,7 +143,7 @@ jobs:
           AUTOBOT_LOCAL_TARGET: ${{ inputs.target }}
           LLAMA_CLI: /home/runner/.cache/bikeztagram-llama/llama-cli
           LOCAL_QWEN_MODEL: /home/runner/.cache/bikeztagram-qwen25-coder-7b/qwen2.5-coder-7b-instruct-q4_k_m.gguf
-          LOCAL_QWEN_CONTEXT: 6144
+          LOCAL_QWEN_CONTEXT: 4096
           LOCAL_QWEN_OUTPUT: 700
           LOCAL_QWEN_THREADS: 4
           LOCAL_QWEN_TIMEOUT_MS: 480000
@@ -152,7 +155,7 @@ jobs:
             1h) WINDOW=59m ;;
             *) echo 'Invalid duration'; exit 1 ;;
           esac
-          timeout "$WINDOW" node builder/runner/free-local-self-evolution.mjs
+          timeout --kill-after=30s "$WINDOW" node builder/runner/free-local-self-evolution.mjs
 
       - name: Verify accepted candidate and capture evidence
         if: always()
