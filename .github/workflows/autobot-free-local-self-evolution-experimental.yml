@@ -1,0 +1,142 @@
+name: AutoBot Free Local Self-Evolution (Experimental)
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Maximum evolution window'
+        required: true
+        default: '15m'
+        type: choice
+        options: ['15m', '30m', '1h']
+      target:
+        description: 'Self-improvement target'
+        required: true
+        default: 'builder/runner/aider-feature-brain.mjs'
+        type: choice
+        options:
+          - builder/runner/aider-feature-brain.mjs
+          - builder/runner/ollama-performance-proxy.mjs
+          - builder/runner/self-improvement-planner.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  free-local-evolution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - name: Checkout exact experiment ref
+        uses: actions/checkout@v4
+        with:
+          ref: experiment/autobot-free-evolution
+          fetch-depth: 0
+
+      - name: Verify experiment identity and lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ref=$(git branch --show-current)"
+          echo "sha=$(git rev-parse HEAD)"
+          test "$(git branch --show-current)" = "experiment/autobot-free-evolution"
+          node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('builder/runner/autobot-evolution-policy.json','utf8')); if(p.productWorkLocked!==true || p.selfImprovementOnly!==true) process.exit(1); console.log(p)"
+          git status --short
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Validate baseline before model work
+        run: |
+          npm run verify:autobot-self-improvement-boundary
+          npm run build
+
+      - name: Cache llama.cpp
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bikeztagram-llama
+          key: bikeztagram-llama-b10869-ubuntu-x64
+
+      - name: Install llama.cpp CPU binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/bikeztagram-llama
+          if [ ! -x ~/.cache/bikeztagram-llama/llama-cli ]; then
+            curl -L --fail --retry 3 https://github.com/ggml-org/llama.cpp/releases/download/b10869/llama-b10869-bin-ubuntu-x64.tar.gz -o /tmp/llama.tar.gz
+            tar -xzf /tmp/llama.tar.gz -C ~/.cache/bikeztagram-llama --strip-components=1
+          fi
+          test -x ~/.cache/bikeztagram-llama/llama-cli
+          ~/.cache/bikeztagram-llama/llama-cli --version || true
+
+      - name: Cache local Qwen3 model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bikeztagram-qwen3-14b
+          key: bikeztagram-qwen3-14b-q4km-v1
+
+      - name: Download local Qwen3 model if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/bikeztagram-qwen3-14b
+          MODEL="$HOME/.cache/bikeztagram-qwen3-14b/Qwen3-14B-Q4_K_M.gguf"
+          if [ ! -s "$MODEL" ]; then
+            curl -L --fail --retry 3 'https://huggingface.co/tensorblock/Qwen_Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf?download=true' -o "$MODEL"
+          fi
+          test -s "$MODEL"
+          sha256sum "$MODEL"
+
+      - name: Run one bounded free self-evolution attempt
+        shell: bash
+        env:
+          AUTOBOT_FEATURE_FOCUS: self-improvement-only
+          AUTOBOT_SELF_EVOLUTION_REF: experiment/autobot-free-evolution
+          AUTOBOT_LOCAL_TARGET: ${{ inputs.target }}
+          LLAMA_CLI: /home/runner/.cache/bikeztagram-llama/llama-cli
+          LOCAL_QWEN_MODEL: /home/runner/.cache/bikeztagram-qwen3-14b/Qwen3-14B-Q4_K_M.gguf
+          LOCAL_QWEN_CONTEXT: 8192
+          LOCAL_QWEN_OUTPUT: 900
+          LOCAL_QWEN_TIMEOUT_MS: 600000
+        run: |
+          set -euo pipefail
+          case '${{ inputs.duration }}' in
+            15m) WINDOW=14m ;;
+            30m) WINDOW=29m ;;
+            1h) WINDOW=59m ;;
+          esac
+          timeout "$WINDOW" node builder/runner/free-local-self-evolution.mjs
+
+      - name: Verify accepted candidate and capture evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '--- worktree ---'
+          git status --short
+          echo '--- diff stat ---'
+          git diff --stat
+          echo '--- changed files ---'
+          git diff --name-only
+          if git diff --name-only | grep -Ev '^(builder/runner/(aider-feature-brain|ollama-performance-proxy|self-improvement-planner)\.mjs)$'; then
+            echo 'Unexpected file changed'
+            exit 1
+          fi
+          mkdir -p builder/working/free-local-evolution-evidence
+          git diff -- builder/runner/aider-feature-brain.mjs builder/runner/ollama-performance-proxy.mjs builder/runner/self-improvement-planner.mjs > builder/working/free-local-evolution-evidence/candidate.patch || true
+          git status --porcelain=v1 > builder/working/free-local-evolution-evidence/status.txt || true
+          git rev-parse HEAD > builder/working/free-local-evolution-evidence/execution-sha.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-free-local-evolution-${{ github.run_id }}
+          path: builder/working/free-local-evolution-evidence
+          if-no-files-found: warn
