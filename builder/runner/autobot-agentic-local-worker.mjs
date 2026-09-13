@@ -108,6 +108,16 @@ async function askModel(prompt) {
 function validatePatch(patchPath) {
   const check = git('apply', '--check', patchPath);
   if (check.status !== 0) return check.stderr || check.stdout || 'git apply --check failed';
+  const stats = git('apply', '--numstat', patchPath);
+  if (stats.status !== 0) return stats.stderr || stats.stdout || 'git apply --numstat failed';
+  const hasEffectiveChange = stats.stdout.split(/\r?\n/).some(line => {
+    const fields = line.trim().split(/\s+/);
+    if (fields.length < 3) return false;
+    const added = Number(fields[0]);
+    const deleted = Number(fields[1]);
+    return Number.isFinite(added) && Number.isFinite(deleted) && added + deleted > 0;
+  });
+  if (!hasEffectiveChange) return 'candidate patch contains no effective line changes';
   return '';
 }
 
