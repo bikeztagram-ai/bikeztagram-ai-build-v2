@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-13T03:55:20.354Z",
+  "sourceRunId": "34722291973",
+  "objectiveId": "cinematic-quality",
+  "metrics": {
+    "units": 1,
+    "changedUnits": 1,
+    "noOpUnits": 0,
+    "failures": 0,
+    "elapsedMinutes": 23470.279,
+    "changedRatio": 1,
+    "noOpRatio": 0,
+    "failureKinds": []
+  },
+  "failureSignatures": [],
+  "recommendations": [
+    "Keep protected runner/workflow paths outside product-task scope.",
+    "Prefer substantive production changes over marker-only verification."
+  ]
+}
