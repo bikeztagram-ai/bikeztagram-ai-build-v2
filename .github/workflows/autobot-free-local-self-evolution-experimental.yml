@@ -37,11 +37,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "ref=$(git branch --show-current)"
+          EXPECTED_SHA="af9249ef817e70c54f44c25b4e3ed480e976dfcc"
+          echo "ref=experiment/autobot-free-evolution"
           echo "sha=$(git rev-parse HEAD)"
-          test "$(git branch --show-current)" = "experiment/autobot-free-evolution"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('builder/runner/autobot-evolution-policy.json','utf8')); if(p.productWorkLocked!==true || p.selfImprovementOnly!==true) process.exit(1); console.log(p)"
-          git status --short
+          test -z "$(git status --porcelain)"
 
       - name: Setup Node
         uses: actions/setup-node@v4
