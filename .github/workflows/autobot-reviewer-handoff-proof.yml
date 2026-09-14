@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      REVIEW_BASE: cd338376d9cefb31965618db8f80e4d1d4ec1f6a
-      REPAIR_COMMIT: 64d1a3188373f5f675d75c9d6b417e85ac3866a6
+      REVIEW_BASE: ddfb99c6bdfc187c5b22547c6f130ebc6669ee49
+      REPAIR_COMMIT: 0da5254f1163466138ada04fbbdf363bc79e1b13
     steps:
       - name: Checkout proof branch
         uses: actions/checkout@v5
@@ -53,8 +53,8 @@ jobs:
           const fs=require('fs');
           const r=JSON.parse(fs.readFileSync('builder/working/autobot-review.json','utf8'));
           if(r.status!=='pass') throw new Error(`Reviewer did not pass: ${r.status}`);
-          if(r.baseCommit!=='cd338376d9cefb31965618db8f80e4d1d4ec1f6a') throw new Error('Reviewer base mismatch');
-          if(r.candidateCommit!=='64d1a3188373f5f675d75c9d6b417e85ac3866a6') throw new Error('Reviewer candidate mismatch');
+          if(r.baseCommit!=='ddfb99c6bdfc187c5b22547c6f130ebc6669ee49') throw new Error('Reviewer base mismatch');
+          if(r.candidateCommit!=='0da5254f1163466138ada04fbbdf363bc79e1b13') throw new Error('Reviewer candidate mismatch');
           if(r.automaticMerge!==false || r.automaticPush!==false) throw new Error('Reviewer must prohibit automatic integration');
           if((r.findings||[]).some(f=>f.severity==='critical'||f.severity==='high')) throw new Error('Reviewer contains critical/high findings');
           console.log('REVIEWER PROOF: PASS');
@@ -72,9 +72,9 @@ jobs:
             schemaVersion:1,
             status:'verified-candidate',
             protectedIntegration:false,
-            failureId:'46bae3d61455892c1a1a707b',
-            repair:{commit:'64d1a3188373f5f675d75c9d6b417e85ac3866a6'},
-            qa:{ok:true,baseCommit:'cd338376d9cefb31965618db8f80e4d1d4ec1f6a',repairCommit:'64d1a3188373f5f675d75c9d6b417e85ac3866a6'},
+            failureId:'7b3c4525681f90bf6974fe5b',
+            repair:{commit:'0da5254f1163466138ada04fbbdf363bc79e1b13'},
+            qa:{ok:true,baseCommit:'ddfb99c6bdfc187c5b22547c6f130ebc6669ee49',repairCommit:'0da5254f1163466138ada04fbbdf363bc79e1b13'},
             review:{status:'pass'}
           };
           fs.mkdirSync('builder/working',{recursive:true});
@@ -86,7 +86,7 @@ jobs:
           const m=JSON.parse(fs.readFileSync('builder/working/autobot-verified-candidate.json','utf8'));
           if(m.status!=='integration-eligible'||m.eligible!==true) throw new Error('Handoff is not integration-eligible');
           if(m.protectedIntegration!==false||m.automaticMerge!==false||m.automaticPush!==false) throw new Error('Handoff weakened integration protection');
-          if(m.baseCommit!=='cd338376d9cefb31965618db8f80e4d1d4ec1f6a'||m.candidateCommit!=='64d1a3188373f5f675d75c9d6b417e85ac3866a6') throw new Error('Handoff commit pair mismatch');
+          if(m.baseCommit!=='ddfb99c6bdfc187c5b22547c6f130ebc6669ee49'||m.candidateCommit!=='0da5254f1163466138ada04fbbdf363bc79e1b13') throw new Error('Handoff commit pair mismatch');
           console.log('VERIFIED-CANDIDATE HANDOFF PROOF: PASS');
           console.log(JSON.stringify(m,null,2));
           NODE
