@@ -138,6 +138,25 @@ jobs:
             node builder/runner/autobot-fleet-recovery.mjs recover
           fi
 
+      - name: Materialise repair patch for integration handoff
+        if: steps.gate.outputs.active == 'true'
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const {execFileSync}=require('node:child_process');
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-fleet-recovery.json','utf8'));
+          if(state.status!=='verified-candidate') throw new Error(`Cannot materialise an unverified candidate: ${state.status||'missing'}`);
+          const base=state.qa?.baseCommit;
+          const repair=state.qa?.repairCommit;
+          if(!/^[0-9a-f]{40}$/i.test(base)||!/^[0-9a-f]{40}$/i.test(repair)) throw new Error('Verified candidate is missing exact QA commit pair.');
+          const patch=execFileSync('git',['diff','--binary',`${base}..${repair}`],{encoding:'utf8'});
+          if(!patch.trim()) throw new Error('Verified Repair Bot commit contains no patch.');
+          fs.writeFileSync('builder/working/autobot-repair-candidate.patch',patch);
+          fs.writeFileSync('builder/working/autobot-repair-base-commit.txt',`${base}\n`);
+          fs.writeFileSync('builder/working/autobot-repair-commit.txt',`${repair}\n`);
+          NODE
+
       - name: Create verified-candidate handoff
         if: steps.gate.outputs.active == 'true'
         run: node builder/runner/autobot-verified-candidate-handoff.mjs
@@ -153,4 +172,8 @@ jobs:
             builder/working/autobot-failure-queue.jsonl
             builder/working/autobot-review.json
             builder/working/autobot-verified-candidate.json
+            builder/working/autobot-builder-candidate.patch
             builder/working/autobot-builder-candidate-base-sha.txt
+            builder/working/autobot-repair-candidate.patch
+            builder/working/autobot-repair-base-commit.txt
+            builder/working/autobot-repair-commit.txt
