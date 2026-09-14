@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   real-product-repair:
@@ -179,6 +179,16 @@ jobs:
           },null,2));
           NODE
           grep -q '"status":"verified"' builder/working/autobot-failure-queue.jsonl
+
+      - name: Publish verified Repair Bot commit as durable checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPAIR_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('builder/working/repair-proof-result.json','utf8')).commit")"
+          test -n "$REPAIR_COMMIT"
+          git show --no-patch --format='%H' "$REPAIR_COMMIT" | grep -qx "$REPAIR_COMMIT"
+          git push origin "$REPAIR_COMMIT:refs/heads/checkpoint/repair-bot-runtime-proof-2026-09-14"
+          echo "Published only the already QA-verified, behaviour-verified Repair Bot commit: $REPAIR_COMMIT"
 
       - name: Upload repair proof evidence
         if: always()
