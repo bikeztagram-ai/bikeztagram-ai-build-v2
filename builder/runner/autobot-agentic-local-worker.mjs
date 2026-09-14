@@ -114,14 +114,13 @@ function validateReplacement(replacementPath) {
   if (diff.status !== 1) return diff.stderr || diff.stdout || 'failed to generate candidate diff';
 
   const lines = diff.stdout.split(/\r?\n/);
-  const diffHeader = `diff --git a/${target} b/${target}`;
-  const oldHeader = `--- a/${target}`;
-  const newHeader = `+++ b/${target}`;
-  for (let i = 0; i < lines.length; i += 1) {
-    if (lines[i].startsWith('diff --git ')) lines[i] = diffHeader;
-    else if (lines[i].startsWith('--- ')) lines[i] = oldHeader;
-    else if (lines[i].startsWith('+++ ')) lines[i] = newHeader;
-  }
+  const diffHeaderIndex = lines.findIndex(line => line.startsWith('diff --git '));
+  const oldHeaderIndex = lines.findIndex(line => line.startsWith('--- '));
+  const newHeaderIndex = lines.findIndex((line, index) => index > oldHeaderIndex && line.startsWith('+++ '));
+  if (diffHeaderIndex < 0 || oldHeaderIndex < 0 || newHeaderIndex < 0) return 'controller could not locate generated diff headers';
+  lines[diffHeaderIndex] = `diff --git a/${target} b/${target}`;
+  lines[oldHeaderIndex] = `--- a/${target}`;
+  lines[newHeaderIndex] = `+++ b/${target}`;
   const patch = `${lines.join('\n').trim()}\n`;
   return { patch };
 }
