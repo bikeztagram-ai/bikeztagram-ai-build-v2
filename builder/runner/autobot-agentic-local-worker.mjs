@@ -18,7 +18,7 @@ const target = process.env.AUTOBOT_LOCAL_TARGET || 'builder/runner/ollama-perfor
 const allowed = new Set((process.env.AUTOBOT_ALLOWED_PATHS || target).split(',').map(s => s.trim()).filter(Boolean));
 const model = process.env.AUTOBOT_AGENT_MODEL || 'local-qwen-coder-3b';
 const apiBase = process.env.AUTOBOT_AGENT_API_BASE || 'http://127.0.0.1:8080/v1';
-const maxOutputTokens = Number(process.env.AUTOBOT_AGENT_MAX_OUTPUT_TOKENS || 900);
+const maxOutputTokens = Number(process.env.AUTOBOT_AGENT_MAX_OUTPUT_TOKENS || 1400);
 const requestTimeoutMs = Number(process.env.AUTOBOT_AGENT_REQUEST_TIMEOUT_MS || 180000);
 const learningFiles = [
   'builder/working/aider-feature-brain-learning.json',
@@ -68,7 +68,7 @@ function readTarget() {
 
 function taskPrompt(extra = '') {
   const targetText = readTarget();
-  return `You are the LOCAL REPAIR MODEL for the Bikeztagram AI autonomous engineering system.\n\nSELF-EVOLUTION ONLY. Do not modify the Bikeztagram product.\n\nYour job is deliberately tiny: inspect ONE allowed AutoBot engineering file and produce ONE small, useful repair directly justified by the observed failure evidence. Do not redesign the system. Do not make speculative improvements.\n\nALLOWED FILE: ${target}\n\nTARGET FILE CONTENT:\n--- BEGIN FILE ---\n${targetText}\n--- END FILE ---\n\nOBSERVED FAILURE EVIDENCE:\n${readLearningEvidence()}\n\nHARD RULES:\n- Only change ${target}.\n- Do not change product code, workflows, package files, validators, policy, safety gates, secrets, or git configuration.\n- Do not weaken any safety, verification, rollback, provider, or self-evolution-only gate.\n- Make the smallest concrete improvement supported by the evidence.\n- Preserve existing behaviour except where the repair is required.\n- Do not invent test results.\n- Return ONLY the complete contents of ${target}.\n- Do NOT return a diff, patch, markdown fences, explanation, or prose.\n- Preserve the file's shebang and valid source syntax.\n${extra}`;
+  return `You are the LOCAL REPAIR MODEL for the Bikeztagram AI autonomous engineering system.\n\nSELF-EVOLUTION ONLY. Do not modify the Bikeztagram product.\n\nYour job is deliberately tiny: inspect ONE allowed AutoBot engineering file and produce ONE small, useful repair directly justified by the observed failure evidence. Do not redesign the system. Do not make speculative improvements.\n\nALLOWED FILE: ${target}\n\nTARGET FILE CONTENT:\n--- BEGIN FILE ---\n${targetText}\n--- END FILE ---\n\nOBSERVED FAILURE EVIDENCE:\n${readLearningEvidence()}\n\nREPAIR DIRECTION:\nThe evidence repeatedly reports upstream/local-model request timeouts. If the target contains an upstream request without a bounded abort/deadline, make one small reliability repair that prevents that request from hanging indefinitely. Prefer a standard AbortController/fetch timeout or equivalent minimal bounded-request handling. Keep the existing API and behaviour otherwise. If that specific repair is already present, make the smallest other concrete reliability improvement directly supported by the evidence.\n\nHARD RULES:\n- Only change ${target}.\n- You MUST make a concrete source-code change; returning the original file unchanged is not a valid answer.\n- Do not change product code, workflows, package files, validators, policy, safety gates, secrets, or git configuration.\n- Do not weaken any safety, verification, rollback, provider, or self-evolution-only gate.\n- Make the smallest concrete improvement supported by the evidence.\n- Preserve existing behaviour except where the repair is required.\n- Do not invent test results.\n- Return ONLY the complete contents of ${target}.\n- Do NOT return a diff, patch, markdown fences, explanation, or prose.\n- Preserve the file's shebang and valid source syntax.\n${extra}`;
 }
 
 function extractReplacement(text) {
@@ -160,7 +160,7 @@ async function main() {
     let validation = validateReplacement(replacementPath);
     if (typeof validation === 'string') {
       correctionAttempted = true;
-      raw = await askModel(taskPrompt(`\nA previous complete-file candidate failed validation with this exact error:\n${validation}\nCorrect the source and return ONLY the complete replacement file.`));
+      raw = await askModel(taskPrompt(`\nA previous candidate failed validation with this exact error:\n${validation}\nThis is a hard failure: you MUST return a changed version of the source, not the original unchanged file. Make the concrete timeout/reliability repair described above, then return ONLY the complete replacement file.`));
       replacement = extractReplacement(raw);
       if (!replacement) throw new Error(`correction model did not return a complete target file:\n${raw.slice(-8000)}`);
       fs.writeFileSync(replacementPath, replacement);
