@@ -65,15 +65,48 @@ jobs:
           echo "BUILDER_RUN_ID=$run_id" >> "$GITHUB_ENV"
           echo "[autobot] recovery evidence source run: $run_id"
 
-      - name: Download Builder failure evidence
+      - name: Download all Builder failure artifacts
         uses: actions/download-artifact@v5
         continue-on-error: true
         with:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ env.BUILDER_RUN_ID }}
-          name: autobot-builder-failure-${{ env.BUILDER_RUN_ID }}
-          path: .
+          path: .autobot-builder-artifacts
+
+      - name: Restore Builder candidate for Repair Bot
+        id: candidate
+        run: |
+          set -euo pipefail
+          patch="$(find .autobot-builder-artifacts -type f -name autobot-builder-candidate.patch -print -quit)"
+          base="$(find .autobot-builder-artifacts -type f -name autobot-builder-candidate-base-sha.txt -print -quit)"
+          queue="$(find .autobot-builder-artifacts -type f -name autobot-failure-queue.jsonl -print -quit)"
+          state="$(find .autobot-builder-artifacts -type f -name deterministic-autobot.json -print -quit)"
+          evidence="$(find .autobot-builder-artifacts -type f -name deterministic-autobot-evidence.json -print -quit)"
+          test -n "$patch" || { echo 'No Builder candidate patch was captured; refusing to repair main without the actual candidate.'; exit 1; }
+          test -n "$base" || { echo 'No Builder candidate base SHA was captured.'; exit 1; }
+          cp "$patch" builder/working/autobot-builder-candidate.patch
+          cp "$base" builder/working/autobot-builder-candidate-base-sha.txt
+          [ -n "$queue" ] && cp "$queue" builder/working/autobot-failure-queue.jsonl || true
+          [ -n "$state" ] && cp "$state" builder/working/deterministic-autobot.json || true
+          [ -n "$evidence" ] && cp "$evidence" builder/working/deterministic-autobot-evidence.json || true
+          candidate_base="$(cat builder/working/autobot-builder-candidate-base-sha.txt)"
+          git rev-parse --verify "$candidate_base^{commit}" >/dev/null
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$candidate_base")"
+          git apply --check builder/working/autobot-builder-candidate.patch
+          git apply --whitespace=nowarn builder/working/autobot-builder-candidate.patch
+          git diff --check
+          if [ -z "$(git diff --name-only)" ]; then
+            echo 'Builder candidate patch produced no changes.'
+            exit 1
+          fi
+          git config user.name 'Bikeztagram AutoBot Recovery'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- ':!builder/working'
+          git commit -m "chore(autobot): restore Builder candidate for repair" 
+          candidate_commit="$(git rev-parse HEAD)"
+          echo "AUTOBOT_REPAIR_BASE_COMMIT=$candidate_commit" >> "$GITHUB_ENV"
+          echo "Builder candidate restored at local commit $candidate_commit"
 
       - name: Validate recovery activation gate
         id: gate
@@ -85,9 +118,7 @@ jobs:
           const active=registry.enabled===true && registry.coordination?.mode==='active';
           console.log(JSON.stringify({enabled:registry.enabled,mode:registry.coordination?.mode,active}));
           fs.appendFileSync(process.env.GITHUB_OUTPUT,`active=${active}\n`);
-          if(!active){
-            console.log('[autobot] controlled recovery is installed but remains BLOCKED by the explicit fleet activation gate.');
-          }
+          if(!active) console.log('[autobot] controlled recovery is installed but remains BLOCKED by the explicit fleet activation gate.');
           NODE
 
       - name: Verify fleet recovery contract
@@ -98,6 +129,7 @@ jobs:
         if: steps.gate.outputs.active == 'true'
         env:
           FAILURE_ID: ${{ inputs.failure_id }}
+          AUTOBOT_REPAIR_BASE_COMMIT: ${{ env.AUTOBOT_REPAIR_BASE_COMMIT }}
         run: |
           set -euo pipefail
           if [ -n "$FAILURE_ID" ]; then
@@ -116,3 +148,4 @@ jobs:
             builder/working/autobot-fleet-recovery.json
             builder/working/autobot-failure-queue.jsonl
             builder/working/autobot-review.json
+            builder/working/autobot-builder-candidate-base-sha.txt
