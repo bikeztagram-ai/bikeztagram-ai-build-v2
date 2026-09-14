@@ -139,10 +139,10 @@ jobs:
           if(!result.commit) throw new Error('Repair Bot result has no repair commit SHA');
           const {execFileSync}=require('child_process');
           const text=execFileSync('git',['show',`${result.commit}:src/aiEditPlanner.js`],{encoding:'utf8'});
-          const good='function clamp(value,min,max){return Math.max(min,Math.min(max,value));}';
-          const bad='function clamp(value,min,max){return Math.max(min,Math.max(max,value));}';
-          if(!text.includes(good)) throw new Error('Repair Bot commit does not contain the expected repaired clamp implementation');
-          if(text.includes(bad)) throw new Error('Repair Bot commit still contains the deliberate broken clamp implementation');
+          const repairedClamp=/function\s+clamp\s*\(\s*value\s*,\s*min\s*,\s*max\s*\)\s*\{\s*return\s+Math\.max\s*\(\s*min\s*,\s*Math\.min\s*\(\s*max\s*,\s*value\s*\)\s*\)\s*;\s*\}/;
+          const brokenClamp=/function\s+clamp\s*\(\s*value\s*,\s*min\s*,\s*max\s*\)\s*\{\s*return\s+Math\.max\s*\(\s*min\s*,\s*Math\.max\s*\(\s*max\s*,\s*value\s*\)\s*\)\s*;\s*\}/;
+          if(!repairedClamp.test(text)) throw new Error('Repair Bot commit does not contain the expected repaired clamp implementation');
+          if(brokenClamp.test(text)) throw new Error('Repair Bot commit still contains the deliberate broken clamp implementation');
           console.log(`REAL PRODUCT REPAIR PROOF: Repair Bot commit ${result.commit} contains the restored clamp implementation.`);
           NODE
           grep -q '"status":"verified"' builder/working/autobot-failure-queue.jsonl
