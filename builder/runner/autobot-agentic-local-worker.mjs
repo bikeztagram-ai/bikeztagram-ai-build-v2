@@ -114,11 +114,13 @@ async function behavior(candidate) {
     const started = Date.now();
     let r;
     try {
-      r = await fetch('http://127.0.0.1:' + proxyPort + '/api/chat', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'test',messages:[{role:'user',content:'test'}]}),signal:AbortSignal.timeout(4000)});
+      // The target's intended deadline is ~10s. Give the controller enough time
+      // to exercise that deadline while still bounding a broken candidate.
+      r = await fetch('http://127.0.0.1:' + proxyPort + '/api/chat', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'test',messages:[{role:'user',content:'test'}]}),signal:AbortSignal.timeout(13000)});
     } catch (e) { return 'target runtime POST /api/chat failed or hung: ' + e.message + '; process output: ' + output.slice(-3000); }
     const elapsed = Date.now() - started;
     if (r.status !== 502) return 'target runtime expected 502 from hanging upstream but received ' + r.status + ' after ' + elapsed + 'ms; process output: ' + output.slice(-3000);
-    if (elapsed > 3000) return 'target runtime timeout was too slow: ' + elapsed + 'ms';
+    if (elapsed > 12500) return 'target runtime timeout was too slow: ' + elapsed + 'ms';
     try {
       const h = await fetch('http://127.0.0.1:' + proxyPort + '/health', {signal:AbortSignal.timeout(500)});
       if (!h.ok || (await h.text()).trim() !== 'ok') return 'target runtime became unhealthy after upstream timeout; process output: ' + output.slice(-3000);
