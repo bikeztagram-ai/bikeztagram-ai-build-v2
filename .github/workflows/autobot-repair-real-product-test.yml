@@ -87,6 +87,7 @@ jobs:
         env:
           AUTOBOT_AIDER_MODEL: ollama_chat/qwen2.5-coder:7b
           AUTOBOT_REPAIR_TIMEOUT_MS: '1200000'
+          AUTOBOT_REPAIR_MAX_CHANGED_LINES: '20'
         run: |
           set -euo pipefail
           node builder/runner/autobot-repair.mjs repair | tee builder/working/repair-proof-result.json
@@ -112,16 +113,18 @@ jobs:
           set -euo pipefail
           node builder/runner/autobot-qa.mjs qa | tee builder/working/repair-proof-qa.json
 
-      - name: Prove repaired product behaviour
+      - name: Prove repaired product behaviour from Repair Bot commit
         shell: bash
         run: |
           set -euo pipefail
           node - <<'NODE'
           const fs=require('fs');
-          const text=fs.readFileSync('src/aiEditPlanner.js','utf8');
+          const result=JSON.parse(fs.readFileSync('builder/working/repair-proof-result.json','utf8'));
+          const {execFileSync}=require('child_process');
+          const repaired=execFileSync('git',['show',`${result.commit}:src/aiEditPlanner.js`],{encoding:'utf8'});
           const good='function clamp(value,min,max){return Math.max(min,Math.min(max,value));}';
-          if(!text.includes(good)) throw new Error('The repaired product file does not contain the expected clamp implementation');
-          console.log('REAL PRODUCT REPAIR PROOF: clamp implementation restored.');
+          if(!repaired.includes(good)) throw new Error('Repair Bot commit does not contain the expected clamp implementation');
+          console.log(`REAL PRODUCT REPAIR PROOF: ${result.commit} restores the clamp implementation.`);
           NODE
           grep -q '"status":"verified"' builder/working/autobot-failure-queue.jsonl
 
