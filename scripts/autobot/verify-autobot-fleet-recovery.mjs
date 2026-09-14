@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-/** Verify Builder failure -> Repair -> QA -> Reviewer orchestration contracts. */
+/** Verify Builder failure -> Repair -> QA -> Reviewer -> verified-candidate handoff contracts. */
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 const root=process.cwd();
 const runnerPath='builder/runner/autobot-fleet-recovery.mjs';
+const handoffPath='builder/runner/autobot-verified-candidate-handoff.mjs';
 const workflowPath='.github/workflows/autobot-fleet-recovery.yml';
 const documentationPath='builder/brain/autobot-fleet-controlled-recovery.md';
 const runner=fs.readFileSync(path.join(root,runnerPath),'utf8');
+const handoff=fs.readFileSync(path.join(root,handoffPath),'utf8');
 const registry=JSON.parse(fs.readFileSync(path.join(root,'builder','brain','autobot-fleet.json'),'utf8'));
 const repair=fs.readFileSync(path.join(root,'builder','runner','autobot-repair.mjs'),'utf8');
 const qa=fs.readFileSync(path.join(root,'builder','runner','autobot-qa.mjs'),'utf8');
@@ -28,6 +30,7 @@ assert(registry.coordination?.recoveryRunner===runnerPath,'Fleet registry must e
 assert(registry.coordination?.recoveryWorkflow===workflowPath,'Fleet registry must expose the exact controlled recovery workflow path.');
 assert(registry.coordination?.recoveryDocumentation===documentationPath,'Fleet registry must expose the exact controlled recovery documentation path.');
 assert(fs.existsSync(path.join(root,runnerPath)),'Fleet recovery runner must exist at the registered path.');
+assert(fs.existsSync(path.join(root,handoffPath)),'Verified candidate handoff runner must exist at the registered path.');
 assert(fs.existsSync(path.join(root,workflowPath)),'Controlled recovery workflow must exist at the registered path.');
 assert(fs.existsSync(path.join(root,documentationPath)),'Controlled recovery documentation must exist at the registered path.');
 registered('repair','builder/runner/autobot-repair.mjs');
@@ -55,6 +58,13 @@ assert(runner.includes('checkpoint?.error'),'Builder failure capture must requir
 assert(repair.includes('repairBaseCommit')&&repair.includes('repairCommit'),'Repair Bot must produce durable repair commit evidence.');
 assert(qa.includes("transitionFailure(record.id,'verified'"),'QA Bot must own the repaired-to-verified transition.');
 assert(reviewer.includes('AUTOBOT_REVIEW_BASE_COMMIT')&&reviewer.includes('AUTOBOT_REVIEW_COMMIT'),'Reviewer must consume the explicit candidate handoff.');
+assert(handoff.includes("state.status!=='verified-candidate'"),'Verified handoff must require the recovery runner to report verified-candidate.');
+assert(handoff.includes("state.review?.status!=='pass'"),'Verified handoff must require an explicit Reviewer pass.');
+assert(handoff.includes('state.qa?.ok!==true'),'Verified handoff must require an explicit QA success.');
+assert(handoff.includes('review.candidateCommit!==repair'),'Verified handoff must bind Reviewer evidence to the exact QA repair commit.');
+assert(handoff.includes('review.baseCommit!==base'),'Verified handoff must bind Reviewer evidence to the exact QA base commit.');
+assert(handoff.includes('automaticMerge:false')&&handoff.includes('automaticPush:false'),'Verified handoff must prohibit automatic merge and push.');
+assert(handoff.includes("status:'integration-eligible'"),'Verified handoff must emit an explicit integration-eligible status.');
 assert(production.includes('autobot-fleet-recovery.mjs capture'),'Proven Builder workflow must capture durable failure evidence through the registered recovery runner.');
 assert(!production.includes('autobot-fleet-recovery.mjs recover'),'Proven Builder workflow must not activate fleet recovery orchestration.');
 assert(production.includes('actions/upload-artifact@v4'),'Builder failure evidence must be persisted as a workflow artifact for a future recovery handoff.');
@@ -67,6 +77,8 @@ assert(recoveryWorkflow.includes('autobot-builder-candidate.patch')&&recoveryWor
 assert(recoveryWorkflow.includes("registry.enabled===true && registry.coordination?.mode==='active'"),'Controlled recovery workflow must enforce the exact fleet activation gate before execution.');
 assert(recoveryWorkflow.includes("steps.gate.outputs.active == 'true'"),'Controlled recovery execution must be conditional on the explicit activation gate.');
 assert(recoveryWorkflow.includes('node builder/runner/autobot-fleet-recovery.mjs recover'),'Controlled recovery workflow must invoke the registered recovery runner, not duplicate worker logic.');
+assert(recoveryWorkflow.includes('node builder/runner/autobot-verified-candidate-handoff.mjs'),'Controlled recovery workflow must emit the verified-candidate handoff only after active recovery.');
+assert(recoveryWorkflow.includes('autobot-verified-candidate.json'),'Controlled recovery must persist the verified-candidate handoff artifact.');
 assert(recoveryWorkflow.includes('actions/upload-artifact@v4'),'Controlled recovery must persist its durable recovery evidence.');
 assert(documentation.includes(workflowPath)&&documentation.includes(runnerPath),'Controlled recovery documentation must name the exact workflow and runner paths.');
 assert(documentation.includes('enabled: true')&&documentation.includes('coordination.mode: active'),'Controlled recovery documentation must state the exact activation values.');
@@ -76,4 +88,4 @@ assert(registry.activationGate?.protectedIntegration===false,'Registry activatio
 assert(registry.enabled===false&&registry.coordination?.mode==='plan-only','Fleet recovery foundation must remain disabled and plan-only until separately activated.');
 const smoke=spawnSync(process.execPath,['scripts/autobot/test-autobot-failure-capture.mjs'],{cwd:root,encoding:'utf8'});
 assert(smoke.status===0,`Failure capture smoke test failed: ${smoke.stderr||smoke.stdout||'unknown error'}`);
-console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],candidateHandoffConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,recoveryActivationBlocked:true}));
+console.log(JSON.stringify({ok:true,runner:runnerPath,handoff:handoffPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot','verified-candidate handoff'],candidateHandoffConnected:true,reviewAndQaBindingEnforced:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,recoveryActivationBlocked:true,protectedIntegrationBlocked:true}));
