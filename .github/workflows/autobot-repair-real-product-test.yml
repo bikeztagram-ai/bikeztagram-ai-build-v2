@@ -135,15 +135,48 @@ jobs:
           set -euo pipefail
           node - <<'NODE'
           const fs=require('fs');
-          const result=JSON.parse(fs.readFileSync('builder/working/repair-proof-result.json','utf8'));
-          if(!result.commit) throw new Error('Repair Bot result has no repair commit SHA');
           const {execFileSync}=require('child_process');
-          const text=execFileSync('git',['show',`${result.commit}:src/aiEditPlanner.js`],{encoding:'utf8'});
-          const repairedClamp=/function\s+clamp\s*\(\s*value\s*,\s*min\s*,\s*max\s*\)\s*\{\s*return\s+Math\.max\s*\(\s*min\s*,\s*Math\.min\s*\(\s*max\s*,\s*value\s*\)\s*\)\s*;\s*\}/;
-          const brokenClamp=/function\s+clamp\s*\(\s*value\s*,\s*min\s*,\s*max\s*\)\s*\{\s*return\s+Math\.max\s*\(\s*min\s*,\s*Math\.max\s*\(\s*max\s*,\s*value\s*\)\s*\)\s*;\s*\}/;
-          if(!repairedClamp.test(text)) throw new Error('Repair Bot commit does not contain the expected repaired clamp implementation');
-          if(brokenClamp.test(text)) throw new Error('Repair Bot commit still contains the deliberate broken clamp implementation');
-          console.log(`REAL PRODUCT REPAIR PROOF: Repair Bot commit ${result.commit} contains the restored clamp implementation.`);
+          const result=JSON.parse(fs.readFileSync('builder/working/repair-proof-result.json','utf8'));
+          if(!result.commit || !result.baseCommit) throw new Error('Repair Bot result is missing base/repair commit SHAs');
+
+          function extractClamp(text,label){
+            const match=text.match(/function\s+clamp\s*\([^)]*\)\s*\{[^}]*\}/s);
+            if(!match) throw new Error(`Could not locate clamp function in ${label} commit`);
+            try{
+              return new Function(`${match[0]}; return clamp;`)();
+            }catch(error){
+              throw new Error(`Could not execute clamp function from ${label} commit: ${error.message}`);
+            }
+          }
+
+          const baseText=execFileSync('git',['show',`${result.baseCommit}:src/aiEditPlanner.js`],{encoding:'utf8'});
+          const repairedText=execFileSync('git',['show',`${result.commit}:src/aiEditPlanner.js`],{encoding:'utf8'});
+          const baseClamp=extractClamp(baseText,'Builder candidate');
+          const repairedClamp=extractClamp(repairedText,'Repair Bot');
+
+          const cases=[
+            [5,0,10,5],
+            [-5,0,10,0],
+            [15,0,10,10],
+            [1.25,0.5,2.5,1.25]
+          ];
+          const repairedResults=cases.map(([value,min,max,expected])=>{
+            const actual=repairedClamp(value,min,max);
+            if(actual!==expected) throw new Error(`Repair Bot clamp failed: clamp(${value},${min},${max}) returned ${actual}; expected ${expected}`);
+            return {value,min,max,expected,actual};
+          });
+
+          const baseUpper=baseClamp(15,0,10);
+          if(baseUpper===10) throw new Error('Controlled Builder candidate was not actually defective: upper-bound case already passed');
+
+          console.log(JSON.stringify({
+            proof:'REAL PRODUCT REPAIR BEHAVIOUR VERIFIED',
+            baseCommit:result.baseCommit,
+            repairCommit:result.commit,
+            defectiveCandidateUpperBoundResult:baseUpper,
+            repairedCases:repairedResults,
+            statement:'Repair Bot commit changes the real product clamp behaviour from the deliberate defective candidate to the required inclusive min/max behaviour.'
+          },null,2));
           NODE
           grep -q '"status":"verified"' builder/working/autobot-failure-queue.jsonl
 
