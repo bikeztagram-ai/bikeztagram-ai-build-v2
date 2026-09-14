@@ -155,51 +155,51 @@ jobs:
           case '${{ inputs.target }}' in
             builder/runner/ollama-performance-proxy.mjs)
               node --input-type=module <<'NODE'
-              import { spawn } from 'node:child_process';
-              const port = 19636 + Math.floor(Math.random() * 1000);
-              const child = spawn(process.execPath, ['builder/runner/ollama-performance-proxy.mjs'], {
-                env: { ...process.env, OLLAMA_PROXY_PORT: String(port), OLLAMA_UPSTREAM: 'http://127.0.0.1:9' },
-                stdio: ['ignore', 'pipe', 'pipe']
-              });
-              let output = '';
-              child.stdout.on('data', chunk => { output += chunk.toString(); });
-              child.stderr.on('data', chunk => { output += chunk.toString(); });
-              const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-              const stop = async () => {
-                if (child.exitCode === null) child.kill('SIGTERM');
-                await sleep(300);
-                if (child.exitCode === null) child.kill('SIGKILL');
-              };
-              try {
-                let healthy = false;
-                for (let i = 0; i < 50; i += 1) {
-                  if (child.exitCode !== null) break;
-                  try {
-                    const response = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(200) });
-                    if (response.ok && (await response.text()).trim() === 'ok') { healthy = true; break; }
-                  } catch {}
-                  await sleep(100);
-                }
-                if (!healthy) throw new Error(`proxy failed health check: ${output.slice(-3000)}`);
-                let response;
-                try {
-                  response = await fetch(`http://127.0.0.1:${port}/api/chat`, {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify({ model: 'test', messages: [{ role: 'user', content: 'test' }] }),
-                    signal: AbortSignal.timeout(3000)
-                  });
-                } catch (error) {
-                  throw new Error(`proxy POST /api/chat failed or hung: ${error.message}; ${output.slice(-3000)}`);
-                }
-                if (response.status !== 502) throw new Error(`expected 502 from unreachable upstream, got ${response.status}; ${output.slice(-3000)}`);
-                const healthAfter = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(500) });
-                if (!healthAfter.ok || (await healthAfter.text()).trim() !== 'ok') throw new Error(`proxy unhealthy after upstream failure; ${output.slice(-3000)}`);
-                console.log('[autobot] target behavioral gate PASSED: health + 502 upstream failure + post-failure health');
-              } finally {
-                await stop();
-              }
-              NODE
+import { spawn } from 'node:child_process';
+const port = 19636 + Math.floor(Math.random() * 1000);
+const child = spawn(process.execPath, ['builder/runner/ollama-performance-proxy.mjs'], {
+  env: { ...process.env, OLLAMA_PROXY_PORT: String(port), OLLAMA_UPSTREAM: 'http://127.0.0.1:9' },
+  stdio: ['ignore', 'pipe', 'pipe']
+});
+let output = '';
+child.stdout.on('data', chunk => { output += chunk.toString(); });
+child.stderr.on('data', chunk => { output += chunk.toString(); });
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const stop = async () => {
+  if (child.exitCode === null) child.kill('SIGTERM');
+  await sleep(300);
+  if (child.exitCode === null) child.kill('SIGKILL');
+};
+try {
+  let healthy = false;
+  for (let i = 0; i < 50; i += 1) {
+    if (child.exitCode !== null) break;
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(200) });
+      if (response.ok && (await response.text()).trim() === 'ok') { healthy = true; break; }
+    } catch {}
+    await sleep(100);
+  }
+  if (!healthy) throw new Error(`proxy failed health check: ${output.slice(-3000)}`);
+  let response;
+  try {
+    response = await fetch(`http://127.0.0.1:${port}/api/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'test', messages: [{ role: 'user', content: 'test' }] }),
+      signal: AbortSignal.timeout(3000)
+    });
+  } catch (error) {
+    throw new Error(`proxy POST /api/chat failed or hung: ${error.message}; ${output.slice(-3000)}`);
+  }
+  if (response.status !== 502) throw new Error(`expected 502 from unreachable upstream, got ${response.status}; ${output.slice(-3000)}`);
+  const healthAfter = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(500) });
+  if (!healthAfter.ok || (await healthAfter.text()).trim() !== 'ok') throw new Error(`proxy unhealthy after upstream failure; ${output.slice(-3000)}`);
+  console.log('[autobot] target behavioral gate PASSED: health + 502 upstream failure + post-failure health');
+} finally {
+  await stop();
+}
+NODE
               ;;
             *)
               node --check '${{ inputs.target }}'
