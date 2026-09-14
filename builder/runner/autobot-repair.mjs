@@ -98,8 +98,9 @@ function runRepair(record,files){
   try{
     transitionFailure(record.id,'repairing',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit});
     const focused=files.length===1&&record.expected&&record.actual&&record.repairHint;
-    const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only','--message',promptFor(record,files),...files];
-    if(focused)args.push('--no-git');
+    const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only'];
+    if(focused)args.push('--edit-format=diff','--no-git');
+    args.push('--message',promptFor(record,files),...files);
     const result=spawnSync('aider',args,{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:timeoutMs});
     if(result.error||result.status!==0)fail(`Aider repair failed with ${result.error?.code||result.status||'process error'}`);
     const status=git(['status','--short','--untracked-files=no'],worktree);
