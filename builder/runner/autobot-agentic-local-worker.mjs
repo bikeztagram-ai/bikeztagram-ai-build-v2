@@ -47,7 +47,7 @@ function prompt(extra = '') {
     'ALLOWED FILE: ' + target,
     'TARGET FILE:\n--- BEGIN FILE ---\n' + targetText() + '\n--- END FILE ---',
     'FAILURE EVIDENCE:\n' + learning(),
-    'REPAIR DIRECTION: historical evidence reports upstream/local-model request timeouts. If the target has an upstream fetch without a bounded abort/deadline, add one minimal bounded-request repair. Prefer the standard global AbortController with fetch. Preserve the existing API and behavior otherwise.',
+    'REPAIR DIRECTION: historical evidence reports upstream/local-model request timeouts. For this proxy target, add a REAL bounded upstream fetch deadline of about 10 seconds using a standard global AbortController and a timer that calls controller.abort(). The abort timer must be cleared after the upstream response/body has been fully consumed, and the timeout must be safely scoped for the catch path. Do not merely pass a controller signal without ever calling abort().',
     'HARD RULES:',
     '- Only change ' + target + '.',
     '- Make a concrete source-code change; unchanged output is invalid.',
@@ -90,8 +90,14 @@ async function ask(text) {
 }
 async function behavior(candidate) {
   if (target !== 'builder/runner/ollama-performance-proxy.mjs') return null;
-  const port = 18436 + Math.floor(Math.random() * 2000);
-  const child = spawn(process.execPath, [candidate], {cwd:root, env:{...process.env,OLLAMA_PROXY_PORT:String(port),OLLAMA_UPSTREAM:'http://127.0.0.1:9'}, stdio:['ignore','pipe','pipe']});
+  const proxyPort = 18436 + Math.floor(Math.random() * 1000);
+  const upstreamPort = proxyPort + 1000;
+  const upstream = requireHangingUpstream(upstreamPort);
+  await new Promise((resolve, reject) => {
+    upstream.once('error', reject);
+    upstream.listen(upstreamPort, '127.0.0.1', resolve);
+  });
+  const child = spawn(process.execPath, [candidate], {cwd:root, env:{...process.env,OLLAMA_PROXY_PORT:String(proxyPort),OLLAMA_UPSTREAM:'http://127.0.0.1:' + upstreamPort}, stdio:['ignore','pipe','pipe']});
   let output = '';
   child.stdout.on('data', x => { output += x.toString(); });
   child.stderr.on('data', x => { output += x.toString(); });
@@ -101,32 +107,42 @@ async function behavior(candidate) {
     for (let i=0;i<50;i++) {
       if (child.exitCode !== null) break;
       try {
-        const r = await fetch('http://127.0.0.1:' + port + '/health', {signal:AbortSignal.timeout(300)});
+        const r = await fetch('http://127.0.0.1:' + proxyPort + '/health', {signal:AbortSignal.timeout(300)});
         if (r.ok && (await r.text()).trim() === 'ok') { healthy = true; break; }
       } catch {}
       await new Promise(resolve => setTimeout(resolve,100));
     }
     if (!healthy) return 'target runtime health check failed; process output: ' + output.slice(-3000);
+    const started = Date.now();
     let r;
     try {
-      r = await fetch('http://127.0.0.1:' + port + '/api/chat', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'test',messages:[{role:'user',content:'test'}]}),signal:AbortSignal.timeout(3000)});
+      r = await fetch('http://127.0.0.1:' + proxyPort + '/api/chat', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:'test',messages:[{role:'user',content:'test'}]}),signal:AbortSignal.timeout(4000)});
     } catch (e) { return 'target runtime POST /api/chat failed or hung: ' + e.message + '; process output: ' + output.slice(-3000); }
-    if (r.status !== 502) return 'target runtime expected 502 from unreachable upstream but received ' + r.status + '; process output: ' + output.slice(-3000);
+    const elapsed = Date.now() - started;
+    if (r.status !== 502) return 'target runtime expected 502 from hanging upstream but received ' + r.status + ' after ' + elapsed + 'ms; process output: ' + output.slice(-3000);
+    if (elapsed > 3000) return 'target runtime timeout was too slow: ' + elapsed + 'ms; expected a bounded upstream timeout around 10 seconds but the test requires a response within 3000ms for this candidate gate';
     try {
-      const h = await fetch('http://127.0.0.1:' + port + '/health', {signal:AbortSignal.timeout(500)});
-      if (!h.ok || (await h.text()).trim() !== 'ok') return 'target runtime became unhealthy after upstream failure; process output: ' + output.slice(-3000);
-    } catch (e) { return 'target runtime health check failed after upstream failure: ' + e.message; }
+      const h = await fetch('http://127.0.0.1:' + proxyPort + '/health', {signal:AbortSignal.timeout(500)});
+      if (!h.ok || (await h.text()).trim() !== 'ok') return 'target runtime became unhealthy after upstream timeout; process output: ' + output.slice(-3000);
+    } catch (e) { return 'target runtime health check failed after upstream timeout: ' + e.message; }
     return null;
   } finally {
     stop();
     await new Promise(resolve => { if (child.exitCode !== null) return resolve(); child.once('exit', resolve); setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); resolve(); }, 1000); });
+    upstream.close();
   }
+}
+function requireHangingUpstream(port) {
+  const http = require('node:http');
+  return http.createServer((req, res) => { if (req.url === '/api/chat') return; res.writeHead(404); res.end(); });
 }
 async function validate(candidate) {
   const syntax = run('node', ['--check', candidate]);
   if (syntax.status !== 0) return syntax.stderr || syntax.stdout || 'candidate syntax check failed';
   const badImport = fs.readFileSync(candidate,'utf8').match(/(?:from\s+['"]node:abort-controller['"]|require\(['"]node:abort-controller['"]\))/);
   if (badImport) return 'candidate imports node:abort-controller; Node.js 22 provides AbortController globally. Remove that import and use the global AbortController.';
+  const source = fs.readFileSync(candidate, 'utf8');
+  if (target === 'builder/runner/ollama-performance-proxy.mjs' && !source.includes('controller.abort()')) return 'candidate does not actually abort the upstream request; add a timer that calls controller.abort()';
   const b = await behavior(candidate);
   if (b) return b;
   const original = path.join(root,target);
@@ -181,7 +197,7 @@ async function main() {
       const violations=changed.filter(x=>!allowed.has(x)); if(violations.length) throw new Error('applied candidate escaped scope: '+violations.join(', '));
       if(changed.length !== 1 || !changed.includes(target)) throw new Error('candidate changed paths outside the single allowed target');
       const finalSyntax=run('node',['--check',target]); if(finalSyntax.status!==0) throw new Error(finalSyntax.stderr||finalSyntax.stdout||'candidate failed final syntax check');
-      const evidence={engine:'targeted-local-repair',protocol:'complete-file-replacement-controller-diff',model,apiBase,target,allowedPaths:[...allowed],baseSha,changedPaths:changed,maxOutputTokens,requestTimeoutMs,maxRepairAttempts,correctionAttempts,behavioralGate:target==='builder/runner/ollama-performance-proxy.mjs'?'health+unreachable-upstream-502+post-failure-health':'syntax-only',verified:true,provider:'local-only',hostedApiRequired:false,at:new Date().toISOString()};
+      const evidence={engine:'targeted-local-repair',protocol:'complete-file-replacement-controller-diff',model,apiBase,target,allowedPaths:[...allowed],baseSha,changedPaths:changed,maxOutputTokens,requestTimeoutMs,maxRepairAttempts,correctionAttempts,behavioralGate:target==='builder/runner/ollama-performance-proxy.mjs'?'health+hanging-upstream-bounded-timeout-502+post-timeout-health':'syntax-only',verified:true,provider:'local-only',hostedApiRequired:false,at:new Date().toISOString()};
       fs.writeFileSync(path.join(root,'builder/working/autobot-agentic-local-result.json'),JSON.stringify(evidence,null,2)+'\n');
       console.log(JSON.stringify(evidence,null,2));
       return;
