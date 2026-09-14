@@ -58,10 +58,12 @@ assert(reviewer.includes('AUTOBOT_REVIEW_BASE_COMMIT')&&reviewer.includes('AUTOB
 assert(production.includes('autobot-fleet-recovery.mjs capture'),'Proven Builder workflow must capture durable failure evidence through the registered recovery runner.');
 assert(!production.includes('autobot-fleet-recovery.mjs recover'),'Proven Builder workflow must not activate fleet recovery orchestration.');
 assert(production.includes('actions/upload-artifact@v4'),'Builder failure evidence must be persisted as a workflow artifact for a future recovery handoff.');
+assert(production.includes('autobot-builder-candidate.patch')&&production.includes('autobot-builder-candidate-base-sha.txt'),'Proven Builder workflow must persist the actual product candidate patch and exact base SHA for Repair Bot.');
 assert(recoveryWorkflow.includes("workflow_run:")&&recoveryWorkflow.includes("'🏍️ BIKEZTAGRAM AUTOBOT — PROVEN'"),'Controlled recovery workflow must receive failed proven Builder runs.');
 assert(recoveryWorkflow.includes('workflow_dispatch:'),'Controlled recovery workflow must also support explicit operator-triggered recovery.');
-assert(recoveryWorkflow.includes('actions/download-artifact@v5'),'Controlled recovery must consume the registered Builder failure artifact.');
-assert(recoveryWorkflow.includes('autobot-builder-failure-${{ env.BUILDER_RUN_ID }}'),'Controlled recovery must use the exact Builder failure artifact naming contract.');
+assert(recoveryWorkflow.includes('actions/download-artifact@v5'),'Controlled recovery must consume the registered Builder failure artifacts.');
+assert(recoveryWorkflow.includes('Download all Builder failure artifacts'),'Controlled recovery must download the complete Builder failure artifact set so the candidate patch is available.');
+assert(recoveryWorkflow.includes('autobot-builder-candidate.patch')&&recoveryWorkflow.includes('autobot-builder-candidate-base-sha.txt'),'Controlled recovery must require and restore the actual Builder candidate before Repair Bot execution.');
 assert(recoveryWorkflow.includes("registry.enabled===true && registry.coordination?.mode==='active'"),'Controlled recovery workflow must enforce the exact fleet activation gate before execution.');
 assert(recoveryWorkflow.includes("steps.gate.outputs.active == 'true'"),'Controlled recovery execution must be conditional on the explicit activation gate.');
 assert(recoveryWorkflow.includes('node builder/runner/autobot-fleet-recovery.mjs recover'),'Controlled recovery workflow must invoke the registered recovery runner, not duplicate worker logic.');
@@ -74,4 +76,4 @@ assert(registry.activationGate?.protectedIntegration===false,'Registry activatio
 assert(registry.enabled===false&&registry.coordination?.mode==='plan-only','Fleet recovery foundation must remain disabled and plan-only until separately activated.');
 const smoke=spawnSync(process.execPath,['scripts/autobot/test-autobot-failure-capture.mjs'],{cwd:root,encoding:'utf8'});
 assert(smoke.status===0,`Failure capture smoke test failed: ${smoke.stderr||smoke.stdout||'unknown error'}`);
-console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],captureConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,recoveryActivationBlocked:true}));
+console.log(JSON.stringify({ok:true,runner:runnerPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot'],candidateHandoffConnected:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,recoveryActivationBlocked:true}));
