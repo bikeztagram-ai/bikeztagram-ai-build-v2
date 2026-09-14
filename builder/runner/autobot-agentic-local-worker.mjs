@@ -2,14 +2,14 @@
 /**
  * Targeted local AutoBot repair worker.
  *
- * The earlier mini-SWE-agent experiment proved that the local model/server
- * worked, but the 1.5B model could not reliably complete a multi-step shell
- * agent loop before the window expired. This worker deliberately removes that
- * overhead: the model receives one tightly-scoped target plus the failure
- * evidence and proposes one unified diff. The controller validates, optionally
- * asks for one correction, then applies only the allowed file.
+ * The local model is deliberately used for the smallest reliable job: produce
+ * a complete replacement for ONE allowed AutoBot engineering file. The
+ * controller, not the model, generates the git diff. This removes unified-diff
+ * formatting from the model's responsibilities while preserving strict
+ * validation, scope, syntax and rollback gates.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -62,18 +62,17 @@ function readTarget() {
 
 function taskPrompt(extra = '') {
   const targetText = readTarget();
-  return `You are the LOCAL REPAIR MODEL for the Bikeztagram AI autonomous engineering system.\n\nSELF-EVOLUTION ONLY. Do not modify the Bikeztagram product.\n\nYour job is deliberately tiny: inspect ONE allowed AutoBot engineering file and propose ONE small, useful repair directly justified by the observed failure evidence. Do not redesign the system. Do not make speculative improvements.\n\nALLOWED FILE: ${target}\n\nTARGET FILE CONTENT:\n--- BEGIN FILE ---\n${targetText}\n--- END FILE ---\n\nOBSERVED FAILURE EVIDENCE:\n${readLearningEvidence()}\n\nHARD RULES:\n- Only change ${target}.\n- Do not change product code, workflows, package files, validators, policy, safety gates, secrets, or git configuration.\n- Do not weaken any safety, verification, rollback, provider, or self-evolution-only gate.\n- Make the smallest concrete improvement supported by the evidence.\n- Preserve existing behaviour except where the repair is required.\n- Do not invent test results.\n- Return ONLY a standard unified git diff for ${target}; no prose, no markdown fences, no explanation.\n- The diff must be directly applicable with git apply --check.\n${extra}`;
+  return `You are the LOCAL REPAIR MODEL for the Bikeztagram AI autonomous engineering system.\n\nSELF-EVOLUTION ONLY. Do not modify the Bikeztagram product.\n\nYour job is deliberately tiny: inspect ONE allowed AutoBot engineering file and produce ONE small, useful repair directly justified by the observed failure evidence. Do not redesign the system. Do not make speculative improvements.\n\nALLOWED FILE: ${target}\n\nTARGET FILE CONTENT:\n--- BEGIN FILE ---\n${targetText}\n--- END FILE ---\n\nOBSERVED FAILURE EVIDENCE:\n${readLearningEvidence()}\n\nHARD RULES:\n- Only change ${target}.\n- Do not change product code, workflows, package files, validators, policy, safety gates, secrets, or git configuration.\n- Do not weaken any safety, verification, rollback, provider, or self-evolution-only gate.\n- Make the smallest concrete improvement supported by the evidence.\n- Preserve existing behaviour except where the repair is required.\n- Do not invent test results.\n- Return ONLY the complete contents of ${target}.\n- Do NOT return a diff, patch, markdown fences, explanation, or prose.\n- Preserve the file's shebang and valid source syntax.\n${extra}`;
 }
 
-function extractDiff(text) {
+function extractReplacement(text) {
   const cleaned = String(text || '').trim();
-  const fenced = cleaned.match(/```(?:diff|patch)?\s*\n([\s\S]*?)\n```/i);
-  const candidate = (fenced ? fenced[1] : cleaned).trim();
-  const gitStart = candidate.indexOf('diff --git ');
-  if (gitStart >= 0) return candidate.slice(gitStart).trim() + '\n';
-  const unifiedStart = candidate.search(/^--- a\//m);
-  if (unifiedStart >= 0) return candidate.slice(unifiedStart).trim() + '\n';
-  return '';
+  const fenced = cleaned.match(/```(?:javascript|js|mjs)?\s*\n([\s\S]*?)\n```/i);
+  let candidate = (fenced ? fenced[1] : cleaned).trim();
+  const shebang = candidate.indexOf('#!/usr/bin/env node');
+  if (shebang > 0) candidate = candidate.slice(shebang).trim();
+  if (!candidate.startsWith('#!/usr/bin/env node')) return '';
+  return `${candidate}\n`;
 }
 
 async function askModel(prompt) {
@@ -86,7 +85,7 @@ async function askModel(prompt) {
       body: JSON.stringify({
         model,
         messages: [
-          { role: 'system', content: 'You are a conservative software repair model. Output only a valid unified git diff.' },
+          { role: 'system', content: 'You are a conservative software repair model. Output only the complete contents of the requested source file.' },
           { role: 'user', content: prompt }
         ],
         temperature: 0,
@@ -105,20 +104,26 @@ async function askModel(prompt) {
   }
 }
 
-function validatePatch(patchPath) {
-  const check = git('apply', '--check', patchPath);
-  if (check.status !== 0) return check.stderr || check.stdout || 'git apply --check failed';
-  const stats = git('apply', '--numstat', patchPath);
-  if (stats.status !== 0) return stats.stderr || stats.stdout || 'git apply --numstat failed';
-  const hasEffectiveChange = stats.stdout.split(/\r?\n/).some(line => {
-    const fields = line.trim().split(/\s+/);
-    if (fields.length < 3) return false;
-    const added = Number(fields[0]);
-    const deleted = Number(fields[1]);
-    return Number.isFinite(added) && Number.isFinite(deleted) && added + deleted > 0;
-  });
-  if (!hasEffectiveChange) return 'candidate patch contains no effective line changes';
-  return '';
+function validateReplacement(replacementPath) {
+  const syntax = run('node', ['--check', replacementPath]);
+  if (syntax.status !== 0) return syntax.stderr || syntax.stdout || 'candidate replacement failed syntax check';
+
+  const targetPath = path.join(root, target);
+  const diff = run('git', ['diff', '--no-index', '--unified=3', '--', targetPath, replacementPath]);
+  if (diff.status === 0) return 'candidate replacement contains no effective line changes';
+  if (diff.status !== 1) return diff.stderr || diff.stdout || 'failed to generate candidate diff';
+
+  const lines = diff.stdout.split(/\r?\n/);
+  const diffHeader = `diff --git a/${target} b/${target}`;
+  const oldHeader = `--- a/${target}`;
+  const newHeader = `+++ b/${target}`;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (lines[i].startsWith('diff --git ')) lines[i] = diffHeader;
+    else if (lines[i].startsWith('--- ')) lines[i] = oldHeader;
+    else if (lines[i].startsWith('+++ ')) lines[i] = newHeader;
+  }
+  const patch = `${lines.join('\n').trim()}\n`;
+  return { patch };
 }
 
 function rollbackCandidate(initial) {
@@ -134,29 +139,42 @@ async function main() {
   if (initial.length) throw new Error(`real checkout is dirty before worker: ${initial.join(', ')}`);
   const initialSet = new Set(initial);
   const baseSha = run('git', ['rev-parse', 'HEAD']).stdout.trim();
-  const patch = path.join(root, 'builder', 'working', 'autobot-agentic-local-candidate.patch');
-  fs.mkdirSync(path.dirname(patch), { recursive: true });
-
-  let raw = await askModel(taskPrompt());
-  let diff = extractDiff(raw);
-  let correctionAttempted = false;
-  fs.writeFileSync(path.join(root, 'builder', 'working', 'autobot-agentic-local-model-output.txt'), raw);
-  if (!diff) throw new Error(`model did not return a unified diff:\n${raw.slice(-8000)}`);
-  fs.writeFileSync(patch, diff);
-
-  let validationError = validatePatch(patch);
-  if (validationError) {
-    correctionAttempted = true;
-    raw = await askModel(taskPrompt(`\nA previous proposed diff failed validation with this exact error:\n${validationError}\nCorrect the diff and return ONLY the replacement unified diff.`));
-    diff = extractDiff(raw);
-    if (!diff) throw new Error(`correction model did not return a unified diff:\n${raw.slice(-8000)}`);
-    fs.writeFileSync(patch, diff);
-    validationError = validatePatch(patch);
-    if (validationError) throw new Error(`candidate patch failed validation after correction: ${validationError}`);
-  }
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autobot-local-'));
+  const replacementPath = path.join(tempDir, path.basename(target));
+  const patchPath = path.join(root, 'builder', 'working', 'autobot-agentic-local-candidate.patch');
+  fs.mkdirSync(path.dirname(patchPath), { recursive: true });
 
   try {
-    const apply = git('apply', '--whitespace=error', patch);
+    let raw = await askModel(taskPrompt());
+    let replacement = extractReplacement(raw);
+    let correctionAttempted = false;
+    fs.writeFileSync(path.join(root, 'builder', 'working', 'autobot-agentic-local-model-output.txt'), raw);
+    if (!replacement) throw new Error(`model did not return a complete target file:\n${raw.slice(-8000)}`);
+    fs.writeFileSync(replacementPath, replacement);
+
+    let validation = validateReplacement(replacementPath);
+    if (typeof validation === 'string') {
+      correctionAttempted = true;
+      raw = await askModel(taskPrompt(`\nA previous complete-file candidate failed validation with this exact error:\n${validation}\nCorrect the source and return ONLY the complete replacement file.`));
+      replacement = extractReplacement(raw);
+      if (!replacement) throw new Error(`correction model did not return a complete target file:\n${raw.slice(-8000)}`);
+      fs.writeFileSync(replacementPath, replacement);
+      validation = validateReplacement(replacementPath);
+      if (typeof validation === 'string') throw new Error(`candidate replacement failed validation after correction: ${validation}`);
+    }
+
+    fs.writeFileSync(patchPath, validation.patch);
+    const applyCheck = git('apply', '--check', patchPath);
+    if (applyCheck.status !== 0) throw new Error(`controller-generated patch failed validation: ${applyCheck.stderr || applyCheck.stdout}`);
+    const stats = git('apply', '--numstat', patchPath);
+    if (stats.status !== 0) throw new Error(`controller-generated patch stats failed: ${stats.stderr || stats.stdout}`);
+    const effective = stats.stdout.split(/\r?\n/).some(line => {
+      const fields = line.trim().split(/\s+/);
+      return fields.length >= 3 && Number(fields[0]) + Number(fields[1]) > 0;
+    });
+    if (!effective) throw new Error('controller-generated patch contains no effective line changes');
+
+    const apply = git('apply', '--whitespace=error', patchPath);
     if (apply.status !== 0) throw new Error(`candidate patch failed to apply: ${apply.stderr || apply.stdout}`);
 
     const changed = trackedChanges();
@@ -169,6 +187,7 @@ async function main() {
 
     const evidence = {
       engine: 'targeted-local-repair',
+      protocol: 'complete-file-replacement-controller-diff',
       model,
       apiBase,
       target,
@@ -185,9 +204,8 @@ async function main() {
     };
     fs.writeFileSync(path.join(root, 'builder', 'working', 'autobot-agentic-local-result.json'), JSON.stringify(evidence, null, 2) + '\n');
     console.log(JSON.stringify(evidence, null, 2));
-  } catch (error) {
-    rollbackCandidate(initialSet);
-    throw error;
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
