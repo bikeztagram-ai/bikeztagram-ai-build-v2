@@ -20,6 +20,14 @@ jobs:
           ref: autobot/repair-pipeline-v1
           fetch-depth: 0
 
+      - name: Sync latest QA Bot from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout origin/main -- builder/runner/autobot-qa.mjs
+          grep -q "cherry-pick --no-commit" builder/runner/autobot-qa.mjs
+          echo "Real-product proof is using the latest QA reconstruction implementation from main."
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
