@@ -3,7 +3,7 @@
  * AutoBot QA Bot — independent verifier for isolated Repair Bot handoffs.
  *
  * QA consumes one REPAIRED failure, verifies the recorded repair branch/commit
- * against its recorded base, reconstructs the exact patch in a fresh worktree,
+ * against its recorded base, reconstructs the exact repair in a fresh worktree,
  * runs build and product-quality verification there, and only then records
  * VERIFIED. It never edits the protected checkout, merges, pushes, or changes
  * validators to make a repair pass.
@@ -56,12 +56,18 @@ function runQA(record){
     if(unauthorized.length)fail(`repair commit changed files outside failure scope: ${unauthorized.join(', ')}`);
     if(!changed.length)fail('repair commit contains no file changes');
     git(['worktree','add','--detach',worktree,base]);
-    const patch=git(['diff','--binary',`${base}..${commit}`]);
-    if(!patch)fail('repair commit has no reconstructable patch');
-    execFileSync('git',['apply','--whitespace=nowarn'],{cwd:worktree,input:patch,encoding:'utf8',stdio:['pipe','inherit','inherit']});
-    const qaChanged=git(['status','--short','--untracked-files=no'],worktree).split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);
+
+    // Reconstruct the recorded Repair Bot commit directly instead of applying
+    // a generated patch. The commit parent was already proven to be exactly
+    // `base`, so a no-commit cherry-pick gives QA the exact tree produced by
+    // Repair Bot while avoiding patch-context/whitespace failures.
+    const reconstruction=spawnSync('git',['cherry-pick','--no-commit',commit],{cwd:worktree,encoding:'utf8',stdio:'inherit'});
+    if(reconstruction.error||reconstruction.status!==0)fail(`QA could not reconstruct the recorded repair commit with git cherry-pick --no-commit (status ${reconstruction.status??'error'})`);
+
+    const qaChanged=git(['diff','--name-only',base],worktree).split(/\r?\n/).filter(Boolean);
     const qaUnauthorized=qaChanged.filter(file=>!record.files.includes(file));
     if(qaUnauthorized.length)fail(`QA reconstruction changed files outside failure scope: ${qaUnauthorized.join(', ')}`);
+    if(qaChanged.join('\n')!==changed.join('\n'))fail('QA reconstruction changed a different file set than the recorded repair commit');
     const diffCheck=spawnSync('git',['diff','--check'],{cwd:worktree,encoding:'utf8',stdio:'inherit'});
     if(diffCheck.error||diffCheck.status!==0)fail('QA reconstructed patch failed git diff --check');
     const install=spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(180_000,timeoutMs)});
