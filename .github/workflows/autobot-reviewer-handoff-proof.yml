@@ -1,0 +1,103 @@
+name: 🛡️ BIKEZTAGRAM AUTOBOT — REVIEWER + HANDOFF PROOF
+
+on:
+  push:
+    branches: [docs/repair-bot-proven-checkpoint]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reviewer-handoff-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      REVIEW_BASE: ddfb99c6bdfc187c5b22547c6f130ebc6669ee49
+      REPAIR_COMMIT: 0da5254f1163466138ada04fbbdf363bc79e1b13
+    steps:
+      - name: Checkout proof branch
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Verify proven Repair Bot commit exists
+        run: |
+          set -euo pipefail
+          git cat-file -e "$REVIEW_BASE^{commit}"
+          git cat-file -e "$REPAIR_COMMIT^{commit}"
+          test "$(git rev-list --parents -n 1 "$REPAIR_COMMIT" | awk '{print $2}')" = "$REVIEW_BASE"
+          echo "Exact proven Repair Bot parent/commit pair confirmed."
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Run independent Reviewer on actual Repair Bot commit
+        env:
+          AUTOBOT_REVIEW_BASE_COMMIT: ${{ env.REVIEW_BASE }}
+          AUTOBOT_REVIEW_COMMIT: ${{ env.REPAIR_COMMIT }}
+          AUTOBOT_REVIEW_OUTPUT: builder/working/autobot-review.json
+        run: |
+          set -euo pipefail
+          node builder/runner/autobot-reviewer.mjs | tee /tmp/reviewer-output.txt
+
+      - name: Assert Reviewer independently passed and cannot integrate
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs');
+          const r=JSON.parse(fs.readFileSync('builder/working/autobot-review.json','utf8'));
+          if(r.status!=='pass') throw new Error(`Reviewer did not pass: ${r.status}`);
+          if(r.baseCommit!=='ddfb99c6bdfc187c5b22547c6f130ebc6669ee49') throw new Error('Reviewer base mismatch');
+          if(r.candidateCommit!=='0da5254f1163466138ada04fbbdf363bc79e1b13') throw new Error('Reviewer candidate mismatch');
+          if(r.automaticMerge!==false || r.automaticPush!==false) throw new Error('Reviewer must prohibit automatic integration');
+          if((r.findings||[]).some(f=>f.severity==='critical'||f.severity==='high')) throw new Error('Reviewer contains critical/high findings');
+          console.log('REVIEWER PROOF: PASS');
+          console.log(JSON.stringify(r,null,2));
+          NODE
+
+      - name: Prove verified-candidate handoff gate
+        env:
+          AUTOBOT_REVIEW_OUTPUT: builder/working/autobot-review.json
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs');
+          const state={
+            schemaVersion:1,
+            status:'verified-candidate',
+            protectedIntegration:false,
+            failureId:'7b3c4525681f90bf6974fe5b',
+            repair:{commit:'0da5254f1163466138ada04fbbdf363bc79e1b13'},
+            qa:{ok:true,baseCommit:'ddfb99c6bdfc187c5b22547c6f130ebc6669ee49',repairCommit:'0da5254f1163466138ada04fbbdf363bc79e1b13'},
+            review:{status:'pass'}
+          };
+          fs.mkdirSync('builder/working',{recursive:true});
+          fs.writeFileSync('builder/working/autobot-fleet-recovery.json',JSON.stringify(state,null,2)+'\n');
+          NODE
+          node builder/runner/autobot-verified-candidate-handoff.mjs
+          node - <<'NODE'
+          const fs=require('fs');
+          const m=JSON.parse(fs.readFileSync('builder/working/autobot-verified-candidate.json','utf8'));
+          if(m.status!=='integration-eligible'||m.eligible!==true) throw new Error('Handoff is not integration-eligible');
+          if(m.protectedIntegration!==false||m.automaticMerge!==false||m.automaticPush!==false) throw new Error('Handoff weakened integration protection');
+          if(m.baseCommit!=='ddfb99c6bdfc187c5b22547c6f130ebc6669ee49'||m.candidateCommit!=='0da5254f1163466138ada04fbbdf363bc79e1b13') throw new Error('Handoff commit pair mismatch');
+          console.log('VERIFIED-CANDIDATE HANDOFF PROOF: PASS');
+          console.log(JSON.stringify(m,null,2));
+          NODE
+
+      - name: Upload proof evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-reviewer-handoff-proof-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            builder/working/autobot-review.json
+            builder/working/autobot-fleet-recovery.json
+            builder/working/autobot-verified-candidate.json
