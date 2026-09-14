@@ -101,7 +101,10 @@ function runRepair(record,files){
     const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only'];
     if(focused)args.push('--edit-format=diff','--no-git');
     args.push('--message',promptFor(record,files),...files);
-    const result=spawnSync('aider',args,{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:timeoutMs});
+    // Keep Aider's human-readable output visible, but isolate it from stdout so
+    // the Repair Bot's final JSON result remains machine-readable for runners.
+    const result=spawnSync('aider',args,{cwd:worktree,encoding:'utf8',stdio:['ignore','pipe','inherit'],timeout:timeoutMs});
+    if(result.stdout)process.stderr.write(result.stdout);
     if(result.error||result.status!==0)fail(`Aider repair failed with ${result.error?.code||result.status||'process error'}`);
     // Use Git's machine-oriented name-only output instead of slicing porcelain
     // status text. Porcelain paths can contain spaces and status prefixes, and
