@@ -147,9 +147,9 @@ jobs:
         if: failure()
         run: |
           set -euo pipefail
-          git diff --binary HEAD -- src > builder/working/autobot-builder-candidate.patch
+          git diff --binary HEAD -- src package.json public index.html vite.config.js > builder/working/autobot-builder-candidate.patch
           git rev-parse HEAD > builder/working/autobot-builder-candidate-base-sha.txt
-          git status --short -- src > builder/working/autobot-builder-candidate-status.txt
+          git status --short -- src package.json public index.html vite.config.js > builder/working/autobot-builder-candidate-status.txt
           if [ ! -s builder/working/autobot-builder-candidate.patch ]; then
             echo '[autobot] Builder failed without a product candidate diff; Repair Bot must not invent a candidate.'
           else
