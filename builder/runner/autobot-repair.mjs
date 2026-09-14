@@ -60,13 +60,14 @@ function promptFor(record,files){
     `Evidence: ${JSON.stringify(record.evidence||[])}`,
     `Attempted work: ${JSON.stringify(record.attempted||[])}`,
     `ONLY these files may be modified: ${files.join(', ')}`,
-    focused?'This is a focused product defect. Make the smallest possible source change that restores the stated expected behaviour. Do not redesign, refactor, reformat, or inspect unrelated files.':'Inspect callers, contracts and relevant tests before editing. Repair the actual root cause, not the verifier.',
+    focused?'This is a focused product defect. Make the smallest possible source change that restores the stated expected behaviour. Treat the Expected/Actual fields as an executable behaviour contract, not merely descriptive text. If the contract includes examples or boundary cases, preserve them exactly and reason through them before editing. Do not redesign, refactor, reformat, or inspect unrelated files.':'Inspect callers, contracts and relevant tests before editing. Repair the actual root cause, not the verifier.',
+    focused?'Before committing, mentally validate every stated behaviour example and boundary case against the changed implementation. A change that builds but violates the stated behaviour contract is not a valid repair.':'',
     'Preserve existing product behaviour, safety, rollback, audit, production gates and Gemini-free/provider-neutral rules.',
     'Do not weaken validators, remove tests, change protected infrastructure, add fake media, or alter unrelated files.',
     'Do not add dead helpers or metadata: any repair logic must be connected to the production decision path.',
     'Run the narrowest relevant verification and npm run build when practical.',
     'Do not merge or push. Leave the isolated checkout with a focused repair commit only.'
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 function cleanup(worktree,branch,keepBranch=false){
   try{git(['worktree','remove','--force',worktree]);}catch{}
