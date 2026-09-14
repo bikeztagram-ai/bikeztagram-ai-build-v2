@@ -61,7 +61,9 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund --package-lock=false
 
       - name: Check repair worker syntax
-        run: node --check builder/runner/autobot-agentic-local-worker.mjs
+        run: |
+          node --check builder/runner/autobot-agentic-local-worker.mjs
+          node --check builder/runner/verify-ollama-performance-proxy.mjs
 
       - name: Cache llama.cpp
         uses: actions/cache@v4
@@ -131,15 +133,23 @@ jobs:
       - name: Independent candidate gates
         if: always()
         shell: bash
+        env:
+          AUTOBOT_LOCAL_TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
           changed="$(git diff --name-only)"
-          if [ -z "$changed" ]; then echo 'No candidate diff to verify.'; exit 0; fi
+          if [ -z "$changed" ]; then
+            echo 'No candidate diff was produced. A green run without a code change is not self-improvement.'
+            exit 1
+          fi
           while IFS= read -r file; do
             case "$file" in builder/runner/aider-feature-brain.mjs|builder/runner/ollama-performance-proxy.mjs|builder/runner/self-improvement-planner.mjs) ;; *) echo "Unexpected changed path: $file"; exit 1;; esac
           done <<< "$changed"
+          test "$(printf '%s\n' "$changed" | wc -l)" -eq 1
+          test "$changed" = "$AUTOBOT_LOCAL_TARGET"
           git diff --check
           npm run verify:autobot-self-improvement
+          node builder/runner/verify-ollama-performance-proxy.mjs
           npm run build
 
       - name: Capture evidence
