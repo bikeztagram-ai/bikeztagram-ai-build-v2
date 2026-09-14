@@ -11,5 +11,17 @@
     "self-improvement": 0.2
   },
   "maxAdjustment": 1,
-  "updatedAt": "2026-09-10T00:00:00Z"
+  "updatedAt": "2026-09-14T00:28:20.447Z",
+  "sourceRunId": "34775777016",
+  "sourceSignatures": [],
+  "sourceMetrics": {
+    "units": 1,
+    "changedUnits": 1,
+    "noOpUnits": 0,
+    "failures": 0,
+    "elapsedMinutes": 24703.279,
+    "changedRatio": 1,
+    "noOpRatio": 0,
+    "failureKinds": []
+  }
 }
