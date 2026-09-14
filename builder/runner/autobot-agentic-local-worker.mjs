@@ -12,6 +12,7 @@ const model = process.env.AUTOBOT_AGENT_MODEL || 'local-qwen-coder-3b';
 const apiBase = process.env.AUTOBOT_AGENT_API_BASE || 'http://127.0.0.1:8080/v1';
 const maxOutputTokens = Number(process.env.AUTOBOT_AGENT_MAX_OUTPUT_TOKENS || 1400);
 const requestTimeoutMs = Number(process.env.AUTOBOT_AGENT_REQUEST_TIMEOUT_MS || 180000);
+const maxRepairAttempts = Number(process.env.AUTOBOT_AGENT_MAX_REPAIR_ATTEMPTS || 3);
 const learningFiles = ['builder/working/aider-feature-brain-learning.json','builder/working/aider-feature-brain-state.json'];
 
 function run(cmd, args, options = {}) { return spawnSync(cmd, args, { cwd: root, encoding: 'utf8', ...options }); }
@@ -100,7 +101,7 @@ async function behavior(candidate) {
     for (let i=0;i<50;i++) {
       if (child.exitCode !== null) break;
       try {
-        const r = await fetch('http://127.0.0.1:' + port + '/health', {signal:AbortSignal.timeout(200)});
+        const r = await fetch('http://127.0.0.1:' + port + '/health', {signal:AbortSignal.timeout(300)});
         if (r.ok && (await r.text()).trim() === 'ok') { healthy = true; break; }
       } catch {}
       await new Promise(resolve => setTimeout(resolve,100));
@@ -125,7 +126,7 @@ async function validate(candidate) {
   const syntax = run('node', ['--check', candidate]);
   if (syntax.status !== 0) return syntax.stderr || syntax.stdout || 'candidate syntax check failed';
   const badImport = fs.readFileSync(candidate,'utf8').match(/(?:from\s+['"]node:abort-controller['"]|require\(['"]node:abort-controller['"]\))/);
-  if (badImport) return 'candidate imports node:abort-controller, which is not a Node.js 22 built-in; remove that import and use the global AbortController';
+  if (badImport) return 'candidate imports node:abort-controller; Node.js 22 provides AbortController globally. Remove that import and use the global AbortController.';
   const b = await behavior(candidate);
   if (b) return b;
   const original = path.join(root,target);
@@ -155,34 +156,37 @@ async function main() {
   const candidate = path.join(tempDir,path.basename(target));
   const patchPath = path.join(root,'builder/working/autobot-agentic-local-candidate.patch');
   fs.mkdirSync(path.dirname(patchPath),{recursive:true});
+  let correctionAttempts = 0;
+  let lastFailure = '';
   try {
-    let raw = await ask(prompt());
-    let replacement = extract(raw);
-    let correctionAttempted = false;
-    fs.writeFileSync(path.join(root,'builder/working/autobot-agentic-local-model-output.txt'),raw);
-    if (!replacement) throw new Error('model did not return a complete target file');
-    fs.writeFileSync(candidate,replacement);
-    let validation = await validate(candidate);
-    if (typeof validation === 'string') {
-      correctionAttempted = true;
-      raw = await ask(prompt('\nCORRECTION REQUIRED. The previous candidate was rejected by an independent gate. Treat this exact failure as authoritative.\n\n' + validation + '\n\nReturn a corrected, changed, runnable complete file. Do not repeat the rejected construct. For Node.js 22 specifically, AbortController is global and must NOT be imported from node:abort-controller.'));
-      replacement = extract(raw);
-      if (!replacement) throw new Error('correction model did not return a complete target file');
+    for (let attempt = 1; attempt <= maxRepairAttempts; attempt += 1) {
+      const extra = lastFailure ? '\nCORRECTION ATTEMPT ' + attempt + ' OF ' + maxRepairAttempts + '. Previous candidate was rejected. Treat this exact failure as authoritative:\n' + lastFailure + '\nFix the failure and do not repeat the rejected construct.' : '';
+      const raw = await ask(prompt(extra));
+      fs.writeFileSync(path.join(root,'builder/working/autobot-agentic-local-model-output.txt'),raw);
+      const replacement = extract(raw);
+      if (!replacement) { lastFailure = 'model did not return a complete target file'; correctionAttempts += 1; continue; }
       fs.writeFileSync(candidate,replacement);
-      validation = await validate(candidate);
-      if (typeof validation === 'string') throw new Error('candidate replacement failed validation after correction: ' + validation);
+      const validation = await validate(candidate);
+      if (typeof validation === 'string') {
+        lastFailure = validation;
+        correctionAttempts += 1;
+        console.log('[autobot-targeted-local] candidate rejected on attempt ' + attempt + ': ' + validation);
+        continue;
+      }
+      fs.writeFileSync(patchPath,validation.patch);
+      for (const args of [['apply','--check',patchPath],['apply','--numstat',patchPath]]) { const r=git(...args); if(r.status!==0) throw new Error(r.stderr||r.stdout||'git validation failed'); }
+      const stats=git('apply','--numstat',patchPath); if(!stats.stdout.trim()) throw new Error('controller-generated patch contains no effective line changes');
+      const applied=git('apply','--whitespace=error',patchPath); if(applied.status!==0) throw new Error(applied.stderr||applied.stdout||'candidate patch failed to apply');
+      const changed=codeChanges();
+      const violations=changed.filter(x=>!allowed.has(x)); if(violations.length) throw new Error('applied candidate escaped scope: '+violations.join(', '));
+      if(changed.length !== 1 || !changed.includes(target)) throw new Error('candidate changed paths outside the single allowed target');
+      const finalSyntax=run('node',['--check',target]); if(finalSyntax.status!==0) throw new Error(finalSyntax.stderr||finalSyntax.stdout||'candidate failed final syntax check');
+      const evidence={engine:'targeted-local-repair',protocol:'complete-file-replacement-controller-diff',model,apiBase,target,allowedPaths:[...allowed],baseSha,changedPaths:changed,maxOutputTokens,requestTimeoutMs,maxRepairAttempts,correctionAttempts,behavioralGate:target==='builder/runner/ollama-performance-proxy.mjs'?'health+unreachable-upstream-502+post-failure-health':'syntax-only',verified:true,provider:'local-only',hostedApiRequired:false,at:new Date().toISOString()};
+      fs.writeFileSync(path.join(root,'builder/working/autobot-agentic-local-result.json'),JSON.stringify(evidence,null,2)+'\n');
+      console.log(JSON.stringify(evidence,null,2));
+      return;
     }
-    fs.writeFileSync(patchPath,validation.patch);
-    for (const args of [['apply','--check',patchPath],['apply','--numstat',patchPath]]) { const r=git(...args); if(r.status!==0) throw new Error((r.stderr||r.stdout||'git validation failed')); }
-    const stats=git('apply','--numstat',patchPath); if(!stats.stdout.trim()) throw new Error('controller-generated patch contains no effective line changes');
-    const applied=git('apply','--whitespace=error',patchPath); if(applied.status!==0) throw new Error(applied.stderr||applied.stdout||'candidate patch failed to apply');
-    const changed=codeChanges();
-    const violations=changed.filter(x=>!allowed.has(x)); if(violations.length) throw new Error('applied candidate escaped scope: '+violations.join(', '));
-    if(!changed.includes(target)) throw new Error('candidate produced no change to allowed target');
-    const finalSyntax=run('node',['--check',target]); if(finalSyntax.status!==0) throw new Error(finalSyntax.stderr||finalSyntax.stdout||'candidate failed final syntax check');
-    const evidence={engine:'targeted-local-repair',protocol:'complete-file-replacement-controller-diff',model,apiBase,target,allowedPaths:[...allowed],baseSha,changedPaths:changed,maxOutputTokens,requestTimeoutMs,correctionAttempted,behavioralGate:target==='builder/runner/ollama-performance-proxy.mjs'?'health+unreachable-upstream-502+post-failure-health':'syntax-only',verified:false,provider:'local-only',hostedApiRequired:false,at:new Date().toISOString()};
-    fs.writeFileSync(path.join(root,'builder/working/autobot-agentic-local-result.json'),JSON.stringify(evidence,null,2)+'\n');
-    console.log(JSON.stringify(evidence,null,2));
+    throw new Error('no verified candidate after ' + maxRepairAttempts + ' repair attempts; last failure: ' + lastFailure);
   } catch(e) { rollback(initial); throw e; }
   finally { fs.rmSync(tempDir,{recursive:true,force:true}); }
 }
