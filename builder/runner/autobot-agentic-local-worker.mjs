@@ -6,12 +6,12 @@
  * a complete replacement for ONE allowed AutoBot engineering file. The
  * controller, not the model, generates the git diff. This removes unified-diff
  * formatting from the model's responsibilities while preserving strict
- * validation, scope, syntax and rollback gates.
+ * validation, scope, syntax, behavioral and rollback gates.
  */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 const root = process.cwd();
 const target = process.env.AUTOBOT_LOCAL_TARGET || 'builder/runner/ollama-performance-proxy.mjs';
@@ -68,7 +68,7 @@ function readTarget() {
 
 function taskPrompt(extra = '') {
   const targetText = readTarget();
-  return `You are the LOCAL REPAIR MODEL for the Bikeztagram AI autonomous engineering system.\n\nSELF-EVOLUTION ONLY. Do not modify the Bikeztagram product.\n\nYour job is deliberately tiny: inspect ONE allowed AutoBot engineering file and produce ONE small, useful repair directly justified by the observed failure evidence. Do not redesign the system. Do not make speculative improvements.\n\nALLOWED FILE: ${target}\n\nTARGET FILE CONTENT:\n--- BEGIN FILE ---\n${targetText}\n--- END FILE ---\n\nOBSERVED FAILURE EVIDENCE:\n${readLearningEvidence()}\n\nREPAIR DIRECTION:\nThe evidence repeatedly reports upstream/local-model request timeouts. If the target contains an upstream request without a bounded abort/deadline, make one small reliability repair that prevents that request from hanging indefinitely. Prefer a standard AbortController/fetch timeout or equivalent minimal bounded-request handling. Keep the existing API and behaviour otherwise. If that specific repair is already present, make the smallest other concrete reliability improvement directly supported by the evidence.\n\nHARD RULES:\n- Only change ${target}.\n- You MUST make a concrete source-code change; returning the original file unchanged is not a valid answer.\n- Do not change product code, workflows, package files, validators, policy, safety gates, secrets, or git configuration.\n- Do not weaken any safety, verification, rollback, provider, or self-evolution-only gate.\n- Make the smallest concrete improvement supported by the evidence.\n- Preserve existing behaviour except where the repair is required.\n- Do not invent test results.\n- Return ONLY the complete contents of ${target}.\n- Do NOT return a diff, patch, markdown fences, explanation, or prose.\n- Preserve the file's shebang and valid source syntax.\n${extra}`;
+  return `You are the LOCAL REPAIR MODEL for the Bikeztagram AI autonomous engineering system.\n\nSELF-EVOLUTION ONLY. Do not modify the Bikeztagram product.\n\nYour job is deliberately tiny: inspect ONE allowed AutoBot engineering file and produce ONE small, useful repair directly justified by the observed failure evidence. Do not redesign the system. Do not make speculative improvements.\n\nALLOWED FILE: ${target}\n\nTARGET FILE CONTENT:\n--- BEGIN FILE ---\n${targetText}\n--- END FILE ---\n\nOBSERVED FAILURE EVIDENCE:\n${readLearningEvidence()}\n\nREPAIR DIRECTION:\nThe evidence repeatedly reports upstream/local-model request timeouts. If the target contains an upstream request without a bounded abort/deadline, make one small reliability repair that prevents that request from hanging indefinitely. Prefer the standard global AbortController with fetch and a bounded timeout, or an equivalent minimal bounded-request handling. Keep the existing API and behaviour otherwise.\n\nHARD RULES:\n- Only change ${target}.\n- You MUST make a concrete source-code change; returning the original file unchanged is not a valid answer.\n- Do not change product code, workflows, package files, validators, policy, safety gates, secrets, or git configuration.\n- Do not weaken any safety, verification, rollback, provider, or self-evolution-only gate.\n- Make the smallest concrete improvement supported by the evidence.\n- Preserve existing behaviour except where the repair is required.\n- Do not invent test results.\n- Return ONLY the complete contents of ${target}.\n- Do NOT return a diff, patch, markdown fences, explanation, or prose.\n- Preserve the file's shebang and valid source syntax.\n${extra}`;
 }
 
 function extractReplacement(text) {
@@ -110,9 +110,87 @@ async function askModel(prompt) {
   }
 }
 
-function validateReplacement(replacementPath) {
+async function validateProxyBehavior(replacementPath) {
+  if (target !== 'builder/runner/ollama-performance-proxy.mjs') return null;
+
+  const port = 18436 + Math.floor(Math.random() * 2000);
+  const child = spawn(process.execPath, [replacementPath], {
+    cwd: root,
+    env: {
+      ...process.env,
+      OLLAMA_PROXY_PORT: String(port),
+      OLLAMA_UPSTREAM: 'http://127.0.0.1:9'
+    },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  let output = '';
+  child.stdout.on('data', chunk => { output += chunk.toString(); });
+  child.stderr.on('data', chunk => { output += chunk.toString(); });
+
+  const stop = () => {
+    if (!child.killed) child.kill('SIGTERM');
+  };
+
+  try {
+    let healthy = false;
+    for (let i = 0; i < 50; i += 1) {
+      if (child.exitCode !== null) break;
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(200) });
+        if (response.ok && (await response.text()).trim() === 'ok') {
+          healthy = true;
+          break;
+        }
+      } catch {}
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    if (!healthy) return `target runtime health check failed; process output: ${output.slice(-3000)}`;
+
+    let response;
+    try {
+      response = await fetch(`http://127.0.0.1:${port}/api/chat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model: 'test', messages: [{ role: 'user', content: 'test' }] }),
+        signal: AbortSignal.timeout(3000)
+      });
+    } catch (error) {
+      return `target runtime POST /api/chat failed or hung: ${error.message}; process output: ${output.slice(-3000)}`;
+    }
+
+    if (response.status !== 502) {
+      return `target runtime expected 502 from unreachable upstream but received ${response.status}; process output: ${output.slice(-3000)}`;
+    }
+
+    try {
+      const healthAfter = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(500) });
+      if (!healthAfter.ok || (await healthAfter.text()).trim() !== 'ok') {
+        return `target runtime became unhealthy after upstream failure; process output: ${output.slice(-3000)}`;
+      }
+    } catch (error) {
+      return `target runtime health check failed after upstream failure: ${error.message}; process output: ${output.slice(-3000)}`;
+    }
+
+    return null;
+  } finally {
+    stop();
+    await new Promise(resolve => {
+      if (child.exitCode !== null) return resolve();
+      child.once('exit', resolve);
+      setTimeout(() => {
+        if (child.exitCode === null) child.kill('SIGKILL');
+        resolve();
+      }, 1000);
+    });
+  }
+}
+
+async function validateReplacement(replacementPath) {
   const syntax = run('node', ['--check', replacementPath]);
   if (syntax.status !== 0) return syntax.stderr || syntax.stdout || 'candidate replacement failed syntax check';
+
+  const behavior = await validateProxyBehavior(replacementPath);
+  if (behavior) return behavior;
 
   const targetPath = path.join(root, target);
   const diff = run('git', ['diff', '--no-index', '--unified=3', '--', targetPath, replacementPath]);
@@ -157,14 +235,14 @@ async function main() {
     if (!replacement) throw new Error(`model did not return a complete target file:\n${raw.slice(-8000)}`);
     fs.writeFileSync(replacementPath, replacement);
 
-    let validation = validateReplacement(replacementPath);
+    let validation = await validateReplacement(replacementPath);
     if (typeof validation === 'string') {
       correctionAttempted = true;
-      raw = await askModel(taskPrompt(`\nA previous candidate failed validation with this exact error:\n${validation}\nThis is a hard failure: you MUST return a changed version of the source, not the original unchanged file. Make the concrete timeout/reliability repair described above, then return ONLY the complete replacement file.`));
+      raw = await askModel(taskPrompt(`\nA previous candidate failed validation with this exact error:\n${validation}\nThis is a hard failure: you MUST return a changed version of the source, not the original unchanged file. Correct the concrete runtime/syntax problem while still making the timeout/reliability repair described above, then return ONLY the complete replacement file.`));
       replacement = extractReplacement(raw);
       if (!replacement) throw new Error(`correction model did not return a complete target file:\n${raw.slice(-8000)}`);
       fs.writeFileSync(replacementPath, replacement);
-      validation = validateReplacement(replacementPath);
+      validation = await validateReplacement(replacementPath);
       if (typeof validation === 'string') throw new Error(`candidate replacement failed validation after correction: ${validation}`);
     }
 
@@ -202,6 +280,7 @@ async function main() {
       maxOutputTokens,
       requestTimeoutMs,
       correctionAttempted,
+      behavioralGate: target === 'builder/runner/ollama-performance-proxy.mjs' ? 'health+unreachable-upstream-502+post-failure-health' : 'syntax-only',
       verified: false,
       provider: 'local-only',
       hostedApiRequired: false,
