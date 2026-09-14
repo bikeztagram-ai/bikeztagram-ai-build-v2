@@ -50,7 +50,7 @@ assert(runner.includes('reviewerWorker.entrypoint'),'Reviewer execution must use
 assert(runner.includes('AUTOBOT_REVIEW_BASE_COMMIT')&&runner.includes('AUTOBOT_REVIEW_COMMIT'),'Reviewer handoff must use the explicit commit contract.');
 assert(runner.includes('repairOne')&&runner.includes('qaOne'),'Fleet recovery must invoke Repair and QA through their exported worker contracts.');
 assert(runner.includes('protectedIntegration:false'),'Recovery must stop before protected integration.');
-assert(runner.includes("registry.enabled!==true||registry.coordination?.mode!=='active'"),'Recovery execution must remain behind the explicit fleet activation gate.');
+assert(/registry\.enabled\s*!==\s*true\s*\|\|\s*registry\.coordination\?\.mode\s*!==\s*['"]active['"]/.test(runner),'Recovery execution must remain behind the explicit fleet activation gate.');
 assert(runner.includes('export function captureBuilderFailure'),'Failure capture must be a separately discoverable operation.');
 assert(runner.includes("if(command==='capture')console.log(JSON.stringify(captureBuilderFailure(),null,2));"),'CLI capture must invoke the capture-only operation without entering fleet recovery.');
 assert(runner.includes('task?.files'),'Builder failure capture must derive repair scope from the failing task, not invent a file scope.');
@@ -85,7 +85,9 @@ assert(documentation.includes('enabled: true')&&documentation.includes('coordina
 assert(documentation.includes('protectedIntegration:false'),'Controlled recovery documentation must preserve the protected integration boundary.');
 assert(registry.activationGate?.requiredEnabled===true&&registry.activationGate?.requiredMode==='active','Registry must declare the exact activation gate contract.');
 assert(registry.activationGate?.protectedIntegration===false,'Registry activation gate must preserve the protected-integration boundary.');
-assert(registry.enabled===false&&registry.coordination?.mode==='plan-only','Fleet recovery foundation must remain disabled and plan-only until separately activated.');
+const live=registry.status==='fifteen-minute-live-test'&&registry.enabled===true&&registry.coordination?.mode==='active'&&registry.activationGate?.testDuration==='15m';
+const foundation=registry.enabled===false&&registry.coordination?.mode==='plan-only';
+assert(live||foundation,'Fleet recovery foundation must be either disabled/plan-only or the explicit fifteen-minute live-test state.');
 const smoke=spawnSync(process.execPath,['scripts/autobot/test-autobot-failure-capture.mjs'],{cwd:root,encoding:'utf8'});
 assert(smoke.status===0,`Failure capture smoke test failed: ${smoke.stderr||smoke.stdout||'unknown error'}`);
-console.log(JSON.stringify({ok:true,runner:runnerPath,handoff:handoffPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot','verified-candidate handoff'],candidateHandoffConnected:true,reviewAndQaBindingEnforced:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,recoveryActivationBlocked:true,protectedIntegrationBlocked:true}));
+console.log(JSON.stringify({ok:true,state:live?'fifteen-minute-live-test':'disabled-plan-only',runner:runnerPath,handoff:handoffPath,workflow:workflowPath,documentation:documentationPath,flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot','verified-candidate handoff'],candidateHandoffConnected:true,reviewAndQaBindingEnforced:true,captureSmokeTest:true,recoveryWorkflowConnected:true,registryDrivenDiscovery:true,recoveryActivationBlocked:foundation,protectedIntegrationBlocked:true}));
