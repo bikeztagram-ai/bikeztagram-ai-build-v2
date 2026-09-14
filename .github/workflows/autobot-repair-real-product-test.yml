@@ -2,9 +2,6 @@ name: 🧪 BIKEZTAGRAM AUTOBOT — REAL PRODUCT REPAIR PROOF
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: write
@@ -19,177 +16,105 @@ jobs:
         with:
           ref: autobot/repair-pipeline-v1
           fetch-depth: 0
-
       - name: Sync latest QA Bot from main
-        shell: bash
         run: |
           set -euo pipefail
           git checkout origin/main -- builder/runner/autobot-qa.mjs
           grep -q "cherry-pick --no-commit" builder/runner/autobot-qa.mjs
-          echo "Real-product proof is using the latest QA reconstruction implementation from main."
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Install repository dependencies and Aider
         run: |
           npm install --no-audit --no-fund --no-package-lock
           python -m pip install --disable-pip-version-check --no-input aider-chat
-
       - name: Install Ollama
-        shell: bash
         run: |
           set -euo pipefail
           curl -fsSL https://ollama.com/install.sh | sh
           ollama --version
-
       - name: Start local coding model
-        shell: bash
         env:
           MODEL: qwen2.5-coder:7b
         run: |
           set -euo pipefail
           nohup ollama serve >/tmp/autobot-ollama.log 2>&1 &
-          for i in $(seq 1 60); do
-            curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && break
-            sleep 2
-          done
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1 && break; sleep 2; done
           ollama pull "$MODEL"
           ollama run "$MODEL" 'Reply with exactly READY.' | tee /tmp/autobot-model-ready.txt
           grep -q READY /tmp/autobot-model-ready.txt
-
       - name: Establish deliberate Builder product candidate
-        shell: bash
         run: |
           set -euo pipefail
           git config user.name 'Bikeztagram AutoBot Repair Proof'
           git config user.email 'autobot-repair-proof@users.noreply.github.com'
           python - <<'PY'
           from pathlib import Path
-          p = Path('src/aiEditPlanner.js')
-          text = p.read_text()
-          good = 'function clamp(value,min,max){return Math.max(min,Math.min(max,value));}'
-          bad = 'function clamp(value,min,max){return Math.max(min,Math.max(max,value));}'
-          if good not in text:
-              raise SystemExit('Expected protected baseline clamp implementation was not found')
-          p.write_text(text.replace(good, bad, 1))
+          p=Path('src/aiEditPlanner.js'); text=p.read_text()
+          good='function clamp(value,min,max){return Math.max(min,Math.min(max,value));}'
+          bad='function clamp(value,min,max){return Math.max(min,Math.max(max,value));}'
+          if good not in text: raise SystemExit('Expected protected baseline clamp implementation was not found')
+          p.write_text(text.replace(good,bad,1))
           PY
           git diff --check
-          git diff -- src/aiEditPlanner.js
           git add src/aiEditPlanner.js
           git commit -m 'test(autobot): create deliberate product candidate defect'
-
       - name: Record real product failure in durable queue
-        shell: bash
         run: |
           set -euo pipefail
           node builder/runner/autobot-failure-queue.mjs append '{"source":"builder-candidate-repair-proof","stage":"product-verification","error":"aiEditPlanner clamp regression: upper-bound clamping is incorrect","expected":"clamp(value,min,max) must satisfy clamp(5,0,10)=5, clamp(-5,0,10)=0, clamp(15,0,10)=10, and clamp(1.25,0.5,2.5)=1.25","actual":"implementation uses Math.max(max,value), so values above max are not clamped","files":["src/aiEditPlanner.js"],"evidence":["deliberate product candidate regression created in isolated workflow checkout"],"attempted":["Builder candidate captured as a committed product change for this controlled proof"],"retryable":true,"repairHint":"Restore the clamp helper so it returns Math.max(min, Math.min(max, value)). The repaired implementation must pass these cases: clamp(5,0,10)=5; clamp(-5,0,10)=0; clamp(15,0,10)=10; clamp(1.25,0.5,2.5)=1.25. Do not alter unrelated product logic."}' | tee builder/working/repair-proof-failure.json
           test -s builder/working/autobot-failure-queue.jsonl
-
       - name: Run the actual Repair Bot
-        shell: bash
         env:
           AUTOBOT_AIDER_MODEL: ollama_chat/qwen2.5-coder:7b
           AUTOBOT_REPAIR_TIMEOUT_MS: '1200000'
         run: |
           set -euo pipefail
           node --input-type=module - <<'NODE'
-          import fs from 'node:fs';
-          import { repairOne } from './builder/runner/autobot-repair.mjs';
-          const result = repairOne({});
-          fs.writeFileSync('builder/working/repair-proof-result.json', JSON.stringify(result, null, 2));
-          console.log(JSON.stringify(result, null, 2));
+          import fs from 'node:fs'; import { repairOne } from './builder/runner/autobot-repair.mjs';
+          const result=repairOne({}); fs.writeFileSync('builder/working/repair-proof-result.json',JSON.stringify(result,null,2)); console.log(JSON.stringify(result,null,2));
           NODE
-
       - name: Confirm Repair Bot produced a real repair commit
-        shell: bash
         run: |
           set -euo pipefail
           test -s builder/working/repair-proof-result.json
-          node - <<'NODE'
-          const fs=require('fs');
-          const result=JSON.parse(fs.readFileSync('builder/working/repair-proof-result.json','utf8'));
-          if(result.ok!==true || !result.commit || !result.baseCommit) throw new Error('Repair Bot did not return a focused repair commit');
-          console.log(JSON.stringify(result,null,2));
-          NODE
+          node -e "const r=require('./builder/working/repair-proof-result.json'); if(r.ok!==true||!r.commit||!r.baseCommit) throw new Error('Repair Bot did not return a focused repair commit')"
           grep -q '"status":"repaired"' builder/working/autobot-failure-queue.jsonl
-
       - name: Run independent QA Bot
-        shell: bash
         env:
           AUTOBOT_QA_TIMEOUT_MS: '1200000'
         run: |
           set -euo pipefail
           node builder/runner/autobot-qa.mjs qa | tee builder/working/repair-proof-qa.json
-
       - name: Prove repaired product behaviour from Repair Bot commit
-        shell: bash
         run: |
           set -euo pipefail
           node - <<'NODE'
-          const fs=require('fs');
-          const {execFileSync}=require('child_process');
-          const result=JSON.parse(fs.readFileSync('builder/working/repair-proof-result.json','utf8'));
-          if(!result.commit || !result.baseCommit) throw new Error('Repair Bot result is missing base/repair commit SHAs');
-
-          function extractClamp(text,label){
-            const match=text.match(/function\s+clamp\s*\([^)]*\)\s*\{[^}]*\}/s);
-            if(!match) throw new Error(`Could not locate clamp function in ${label} commit`);
-            try{
-              return new Function(`${match[0]}; return clamp;`)();
-            }catch(error){
-              throw new Error(`Could not execute clamp function from ${label} commit: ${error.message}`);
-            }
-          }
-
-          const baseText=execFileSync('git',['show',`${result.baseCommit}:src/aiEditPlanner.js`],{encoding:'utf8'});
-          const repairedText=execFileSync('git',['show',`${result.commit}:src/aiEditPlanner.js`],{encoding:'utf8'});
-          const baseClamp=extractClamp(baseText,'Builder candidate');
-          const repairedClamp=extractClamp(repairedText,'Repair Bot');
-
-          const cases=[
-            [5,0,10,5],
-            [-5,0,10,0],
-            [15,0,10,10],
-            [1.25,0.5,2.5,1.25]
-          ];
-          const repairedResults=cases.map(([value,min,max,expected])=>{
-            const actual=repairedClamp(value,min,max);
-            if(actual!==expected) throw new Error(`Repair Bot clamp failed: clamp(${value},${min},${max}) returned ${actual}; expected ${expected}`);
-            return {value,min,max,expected,actual};
-          });
-
-          const baseUpper=baseClamp(15,0,10);
-          if(baseUpper===10) throw new Error('Controlled Builder candidate was not actually defective: upper-bound case already passed');
-
-          console.log(JSON.stringify({
-            proof:'REAL PRODUCT REPAIR BEHAVIOUR VERIFIED',
-            baseCommit:result.baseCommit,
-            repairCommit:result.commit,
-            defectiveCandidateUpperBoundResult:baseUpper,
-            repairedCases:repairedResults,
-            statement:'Repair Bot commit changes the real product clamp behaviour from the deliberate defective candidate to the required inclusive min/max behaviour.'
-          },null,2));
+          const fs=require('fs'),{execFileSync}=require('child_process');
+          const r=JSON.parse(fs.readFileSync('builder/working/repair-proof-result.json','utf8'));
+          function clamp(text,label){const m=text.match(/function\s+clamp\s*\([^)]*\)\s*\{[^}]*\}/s);if(!m)throw new Error(`Missing clamp in ${label}`);return new Function(`${m[0]}; return clamp;`)();}
+          const base=clamp(execFileSync('git',['show',`${r.baseCommit}:src/aiEditPlanner.js`],{encoding:'utf8'}),'Builder candidate');
+          const fixed=clamp(execFileSync('git',['show',`${r.commit}:src/aiEditPlanner.js`],{encoding:'utf8'}),'Repair Bot');
+          const cases=[[5,0,10,5],[-5,0,10,0],[15,0,10,10],[1.25,0.5,2.5,1.25]];
+          for(const [v,min,max,e] of cases){const a=fixed(v,min,max);if(a!==e)throw new Error(`Repair Bot clamp failed: ${a} !== ${e}`)}
+          if(base(15,0,10)===10)throw new Error('Controlled Builder candidate was not defective');
+          console.log(JSON.stringify({proof:'REAL PRODUCT REPAIR BEHAVIOUR VERIFIED',baseCommit:r.baseCommit,repairCommit:r.commit},null,2));
           NODE
           grep -q '"status":"verified"' builder/working/autobot-failure-queue.jsonl
-
-      - name: Publish verified Repair Bot commit as durable checkpoint
-        shell: bash
+      - name: Publish verified Repair Bot commit as unique durable checkpoint
         run: |
           set -euo pipefail
           REPAIR_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('builder/working/repair-proof-result.json','utf8')).commit")"
           test -n "$REPAIR_COMMIT"
           git show --no-patch --format='%H' "$REPAIR_COMMIT" | grep -qx "$REPAIR_COMMIT"
-          git push origin "$REPAIR_COMMIT:refs/heads/checkpoint/repair-bot-runtime-proof-2026-09-14"
+          CHECKPOINT_BRANCH="checkpoint/repair-bot-runtime-proof-${GITHUB_RUN_ID}"
+          git push origin "$REPAIR_COMMIT:refs/heads/$CHECKPOINT_BRANCH"
           echo "Published only the already QA-verified, behaviour-verified Repair Bot commit: $REPAIR_COMMIT"
-
       - name: Upload repair proof evidence
         if: always()
         uses: actions/upload-artifact@v4
