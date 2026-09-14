@@ -1,19 +1,26 @@
-name: 🛡️ AutoBot Fleet 15m Test
+name: 🛡️ AutoBot Fleet Controlled Test
 
-# Single manual entry point for the first real fleet shakedown.
-# This launcher deliberately invokes the PROVEN Builder workflow because
-# its failure artifacts are wired to the controlled Repair → QA → Reviewer
-# recovery workflow. Protected integration remains manual.
+# Single manual entry point for controlled real-fleet shakedowns.
+# This launcher invokes the PROVEN Builder because its failure artifacts are
+# wired to the controlled Repair → QA → Reviewer recovery workflow.
+# Protected integration remains manual and disabled.
 
 on:
   workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Controlled fleet-test duration'
+        required: true
+        default: '30m'
+        type: choice
+        options: ['15m','30m']
 
 permissions:
   actions: write
   contents: read
 
 concurrency:
-  group: autobot-fleet-15m-test
+  group: autobot-fleet-controlled-test
   cancel-in-progress: false
 
 jobs:
@@ -30,12 +37,13 @@ jobs:
           registry="$(gh api "$api" --jq .content | base64 --decode)"
           node -e '
             const r=JSON.parse(process.argv[1]);
-            if(r.status!=="fifteen-minute-live-test" || r.enabled!==true || r.coordination?.mode!=="active" || r.activationGate?.testDuration!=="15m" || r.activationGate?.protectedIntegration!==false) {
-              console.error("Fleet 15m activation gate is not in the exact expected live-test state.");
+            const requested=process.argv[2];
+            if(r.enabled!==true || r.coordination?.mode!=="active" || r.activationGate?.protectedIntegration!==false || !Array.isArray(r.activationGate?.allowedTestDurations) || !r.activationGate.allowedTestDurations.includes(requested)) {
+              console.error(`Fleet controlled-test gate rejected ${requested}.`);
               process.exit(1);
             }
-            console.log("Fleet 15m activation gate PASS: live test enabled, protected integration disabled.");
-          ' "$registry"
+            console.log(`Fleet controlled-test gate PASS: ${requested} authorized, protected integration disabled.`);
+          ' "$registry" '${{ inputs.duration }}'
 
       - name: Refuse duplicate Builder or recovery runs
         env:
@@ -51,7 +59,7 @@ jobs:
             exit 1
           fi
 
-      - name: Dispatch exactly 15-minute PROVEN Builder
+      - name: Dispatch authorized PROVEN Builder
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -59,7 +67,7 @@ jobs:
           gh workflow run autonomous-builder-v2-fast.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
-            -f duration='15m' \
+            -f duration='${{ inputs.duration }}' \
             -f max_units='1000' \
             -f local_model='qwen2.5-coder:7b'
-          echo 'Dispatched the PROVEN Builder with a hard 15-minute fleet-test budget.'
+          echo "Dispatched the PROVEN Builder with the authorized ${{ inputs.duration }} controlled fleet-test budget."
