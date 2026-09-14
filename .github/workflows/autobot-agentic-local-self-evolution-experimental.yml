@@ -27,10 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - name: Checkout exact experiment branch
+      - name: Checkout selected workflow branch
         uses: actions/checkout@v4
         with:
-          ref: experiment/autobot-agentic-fleet-local
+          ref: ${{ github.ref_name }}
           fetch-depth: 0
 
       - name: Verify self-evolution lock and existing contracts
@@ -104,16 +104,7 @@ jobs:
           LOCAL_MODEL: /home/runner/.cache/bikeztagram-qwen25-coder-3b/qwen2.5-coder-3b-instruct-q4_k_m.gguf
         run: |
           set -euo pipefail
-          nohup "$LLAMA_SERVER" \
-            -m "$LOCAL_MODEL" \
-            --alias local-qwen-coder-3b \
-            --host 127.0.0.1 \
-            --port 8080 \
-            -c 8192 \
-            -t 4 \
-            -ngl 0 \
-            --parallel 1 \
-            > /tmp/autobot-llama-server.log 2>&1 &
+          nohup "$LLAMA_SERVER" -m "$LOCAL_MODEL" --alias local-qwen-coder-3b --host 127.0.0.1 --port 8080 -c 8192 -t 4 -ngl 0 --parallel 1 > /tmp/autobot-llama-server.log 2>&1 &
           echo $! > /tmp/autobot-llama-server.pid
           for i in $(seq 1 120); do
             if curl -fsS http://127.0.0.1:8080/health >/tmp/autobot-health.json 2>/dev/null; then
@@ -130,10 +121,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --max-time 120 http://127.0.0.1:8080/v1/chat/completions \
-            -H 'Content-Type: application/json' \
-            -d '{"model":"local-qwen-coder-3b","messages":[{"role":"user","content":"Reply with exactly READY."}],"max_tokens":8,"temperature":0}' \
-            | tee /tmp/autobot-local-chat.json
+          curl --fail --max-time 120 http://127.0.0.1:8080/v1/chat/completions -H 'Content-Type: application/json' -d '{"model":"local-qwen-coder-3b","messages":[{"role":"user","content":"Reply with exactly READY."}],"max_tokens":8,"temperature":0}' | tee /tmp/autobot-local-chat.json
           grep -q READY /tmp/autobot-local-chat.json
 
       - name: Run one bounded targeted repair attempt
