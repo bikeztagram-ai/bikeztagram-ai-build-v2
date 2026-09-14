@@ -103,10 +103,13 @@ function runRepair(record,files){
     args.push('--message',promptFor(record,files),...files);
     const result=spawnSync('aider',args,{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:timeoutMs});
     if(result.error||result.status!==0)fail(`Aider repair failed with ${result.error?.code||result.status||'process error'}`);
-    const status=git(['status','--short','--untracked-files=no'],worktree);
-    const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).filter(Boolean);
-    if(!status&&!changed.length)fail('Repair Bot produced no repository changes');
-    const touched=Array.from(new Set([...changed,...status.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean)]));
+    // Use Git's machine-oriented name-only output instead of slicing porcelain
+    // status text. Porcelain paths can contain spaces and status prefixes, and
+    // naive slicing can corrupt a valid path (e.g. src/ -> rc/).
+    const changed=git(['diff','HEAD','--name-only','--',...files],worktree).split(/\r?\n/).filter(Boolean);
+    const untracked=git(['ls-files','--others','--exclude-standard','--',...files],worktree).split(/\r?\n/).filter(Boolean);
+    if(!changed.length&&!untracked.length)fail('Repair Bot produced no repository changes');
+    const touched=Array.from(new Set([...changed,...untracked]));
     const unauthorized=touched.filter(file=>!files.includes(file));
     if(unauthorized.length)fail(`repair modified files outside declared failure scope: ${unauthorized.join(', ')}`);
     execFileSync('git',['diff','HEAD','--check'],{cwd:worktree,stdio:'inherit'});
