@@ -143,6 +143,18 @@ jobs:
       - name: Persist continuation state
         if: always()
         run: node builder/runner/segment-state.mjs
+      - name: Capture durable Builder candidate for Repair Bot
+        if: failure()
+        run: |
+          set -euo pipefail
+          git diff --binary HEAD -- src > builder/working/autobot-builder-candidate.patch
+          git rev-parse HEAD > builder/working/autobot-builder-candidate-base-sha.txt
+          git status --short -- src > builder/working/autobot-builder-candidate-status.txt
+          if [ ! -s builder/working/autobot-builder-candidate.patch ]; then
+            echo '[autobot] Builder failed without a product candidate diff; Repair Bot must not invent a candidate.'
+          else
+            echo '[autobot] captured actual Builder product candidate for downstream Repair Bot.'
+          fi
       - name: Capture durable Builder failure for AutoBot fleet
         if: failure()
         run: |
@@ -160,6 +172,9 @@ jobs:
             builder/working/deterministic-autobot-evidence.json
             builder/working/autobot-failure-queue.jsonl
             builder/working/autobot-builder-failure-capture.json
+            builder/working/autobot-builder-candidate.patch
+            builder/working/autobot-builder-candidate-base-sha.txt
+            builder/working/autobot-builder-candidate-status.txt
       - name: Publish clean product checkpoint
         id: publish
         if: success()
