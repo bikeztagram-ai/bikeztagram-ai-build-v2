@@ -64,6 +64,7 @@ jobs:
         run: |
           node --check builder/runner/autobot-agentic-local-worker.mjs
           node --check builder/runner/verify-ollama-performance-proxy.mjs
+          node --check builder/runner/verify-ollama-performance-proxy-timeout.mjs
 
       - name: Cache llama.cpp
         uses: actions/cache@v4
@@ -150,6 +151,7 @@ jobs:
           git diff --check
           npm run verify:autobot-self-improvement
           node builder/runner/verify-ollama-performance-proxy.mjs
+          node builder/runner/verify-ollama-performance-proxy-timeout.mjs
           npm run build
 
       - name: Capture evidence
