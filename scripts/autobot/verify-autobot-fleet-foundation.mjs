@@ -33,8 +33,8 @@ for(const bot of registry.bots){assert(bot.id&&bot.role&&bot.entrypoint&&bot.sta
 for(const id of ['repair','qa','reviewer','self-improvement']){const bot=registry.bots.find((item)=>item.id===id);assert(bot?.status==='verified',`${id} registry contract must remain verified`);}
 const specialists=registry.bots.filter((bot)=>bot.specialistBuilder===true);
 assert(specialists.length>=2,'at least two specialist Builder roles are required before fleet activation');
-assert(coordinator.includes("registry.enabled!==true || registry.coordination?.mode!=='active'"),'Coordinator activation gate must remain explicit');
-assert(recovery.includes("registry.enabled!==true || registry.coordination?.mode!=='active'"),'Recovery activation gate must remain explicit');
+assert(/registry\.enabled\s*!==\s*true\s*\|\|\s*registry\.coordination\?\.mode\s*!==\s*['"]active['"]/.test(coordinator),'Coordinator activation gate must remain explicit');
+assert(/registry\.enabled\s*!==\s*true\s*\|\|\s*registry\.coordination\?\.mode\s*!==\s*['"]active['"]/.test(recovery),'Recovery activation gate must remain explicit');
 assert(recovery.includes('protectedIntegration'),'Recovery runner must enforce the protected integration boundary');
 assert(workflow.includes("options: ['15m','30m','1h','2h','3h','4h','5h','6h']"),'Builder duration options changed unexpectedly');
 assert(validation.includes('workflow_dispatch'),'foundation validation workflow must remain manually runnable');
