@@ -39,6 +39,12 @@ function trackedChanges(cwd = root) {
   return result.stdout.split(/\r?\n/).filter(Boolean).map(line => line.slice(3).trim()).filter(Boolean);
 }
 
+function trackedCodeChanges() {
+  const result = git('diff', '--name-only');
+  if (result.status !== 0) throw new Error(`git diff failed: ${result.stderr || result.stdout}`);
+  return result.stdout.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+}
+
 function readLearningEvidence() {
   const maxCharsPerFile = 1400;
   return learningFiles.map(file => {
@@ -126,9 +132,9 @@ function validateReplacement(replacementPath) {
 }
 
 function rollbackCandidate(initial) {
-  for (const file of trackedChanges().filter(file => !initial.has(file))) {
+  const current = trackedCodeChanges();
+  for (const file of current.filter(file => !initial.has(file))) {
     spawnSync('git', ['restore', '--', file], { cwd: root, stdio: 'ignore' });
-    spawnSync('git', ['clean', '-fd', '--', file], { cwd: root, stdio: 'ignore' });
   }
 }
 
@@ -176,7 +182,7 @@ async function main() {
     const apply = git('apply', '--whitespace=error', patchPath);
     if (apply.status !== 0) throw new Error(`candidate patch failed to apply: ${apply.stderr || apply.stdout}`);
 
-    const changed = trackedChanges();
+    const changed = trackedCodeChanges();
     const violations = changed.filter(file => !allowed.has(file));
     if (violations.length) throw new Error(`applied candidate escaped scope: ${violations.join(', ')}`);
     if (!changed.includes(target)) throw new Error('candidate produced no change to the allowed target');
@@ -203,6 +209,9 @@ async function main() {
     };
     fs.writeFileSync(path.join(root, 'builder', 'working', 'autobot-agentic-local-result.json'), JSON.stringify(evidence, null, 2) + '\n');
     console.log(JSON.stringify(evidence, null, 2));
+  } catch (error) {
+    rollbackCandidate(initialSet);
+    throw error;
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
