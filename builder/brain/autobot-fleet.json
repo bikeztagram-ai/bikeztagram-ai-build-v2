@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "fifteen-minute-live-test",
   "enabled": true,
-  "purpose": "Run controlled end-to-end AutoBot fleet shakedowns at explicitly authorized short durations before any longer endurance activation.",
+  "purpose": "Run the first controlled fifteen-minute end-to-end AutoBot fleet shakedown and subsequent explicitly authorized short-duration tests before any longer endurance activation.",
   "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving the protected proven builder and truthful verification.",
   "coordination": {
     "mode": "active",
