@@ -24,6 +24,7 @@ const repairRoot=process.env.AUTOBOT_REPAIR_WORKTREE_ROOT||path.join(os.tmpdir()
 const model=process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b';
 const timeoutMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_REPAIR_TIMEOUT_MS||String(30*60*1000),10));
 const maxFiles=Math.max(1,Math.min(40,Number.parseInt(process.env.AUTOBOT_REPAIR_MAX_FILES||'12',10)));
+const maxChangedLines=Math.max(4,Math.min(200,Number.parseInt(process.env.AUTOBOT_REPAIR_MAX_CHANGED_LINES||'80',10)));
 const protectedPaths=['builder/runner/aider-feature-brain.mjs','builder/brain/feature-objectives.json','.github/workflows/autonomous-builder-v2-fast.yml','package.json','package-lock.json','pnpm-lock.yaml','yarn.lock','.env','.env.local'];
 
 function git(args,cwd=root){return execFileSync('git',args,{cwd,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();}
@@ -47,6 +48,7 @@ function validateFailure(record){
 function branchFor(id){return `autobot-repair/${id}`;}
 function worktreeFor(id){return path.join(repairRoot,id);}
 function promptFor(record,files){
+  const focused=files.length===1&&record.expected&&record.actual&&record.repairHint;
   return [
     'You are the isolated Bikeztagram AI Repair Bot.',
     `Failure ID: ${record.id}`,
@@ -58,7 +60,7 @@ function promptFor(record,files){
     `Evidence: ${JSON.stringify(record.evidence||[])}`,
     `Attempted work: ${JSON.stringify(record.attempted||[])}`,
     `ONLY these files may be modified: ${files.join(', ')}`,
-    'Inspect callers, contracts and relevant tests before editing. Repair the actual root cause, not the verifier.',
+    focused?'This is a focused product defect. Make the smallest possible source change that restores the stated expected behaviour. Do not redesign, refactor, reformat, or inspect unrelated files.':'Inspect callers, contracts and relevant tests before editing. Repair the actual root cause, not the verifier.',
     'Preserve existing product behaviour, safety, rollback, audit, production gates and Gemini-free/provider-neutral rules.',
     'Do not weaken validators, remove tests, change protected infrastructure, add fake media, or alter unrelated files.',
     'Do not add dead helpers or metadata: any repair logic must be connected to the production decision path.',
@@ -95,7 +97,9 @@ function runRepair(record,files){
   let repaired=false;
   try{
     transitionFailure(record.id,'repairing',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit});
+    const focused=files.length===1&&record.expected&&record.actual&&record.repairHint;
     const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only','--message',promptFor(record,files),...files];
+    if(focused)args.push('--no-git');
     const result=spawnSync('aider',args,{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:timeoutMs});
     if(result.error||result.status!==0)fail(`Aider repair failed with ${result.error?.code||result.status||'process error'}`);
     const status=git(['status','--short','--untracked-files=no'],worktree);
@@ -105,6 +109,9 @@ function runRepair(record,files){
     const unauthorized=touched.filter(file=>!files.includes(file));
     if(unauthorized.length)fail(`repair modified files outside declared failure scope: ${unauthorized.join(', ')}`);
     execFileSync('git',['diff','HEAD','--check'],{cwd:worktree,stdio:'inherit'});
+    const diffStat=git(['diff','HEAD','--numstat','--',...files],worktree).split(/\r?\n/).filter(Boolean);
+    const changedLines=diffStat.reduce((sum,line)=>{const [added,deleted]=line.split(/\s+/);return sum+(Number.parseInt(added,10)||0)+(Number.parseInt(deleted,10)||0);},0);
+    if(focused&&changedLines>maxChangedLines)fail(`focused repair is too large (${changedLines} changed lines > ${maxChangedLines} limit)`);
     const install=spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(180_000,timeoutMs)});
     if(install.error||install.status!==0)fail(`isolated npm install failed with ${install.status??'error'}`);
     const build=spawnSync('npm',['run','build'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(120_000,timeoutMs)});
