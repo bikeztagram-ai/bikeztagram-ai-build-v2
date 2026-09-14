@@ -1,8 +1,11 @@
 name: 🤖 AutoBot Control Center
 
+# Intentionally manual-only while the fleet is being validated.
+# No scheduled Builder launches are permitted. The operator starts the
+# controlled fleet shakedown explicitly; downstream Repair/QA/Reviewer
+# recovery may run automatically only from a failed proven Builder run.
+
 on:
-  schedule:
-    - cron: '17 */2 * * *'
   workflow_dispatch:
 
 permissions:
@@ -62,28 +65,20 @@ jobs:
           printf '%s\n' "$continuous" | grep -q 'bounded deterministic slices'
           echo 'Main-branch AutoBot safety, dependency, continuation, and continuous-loop preflight PASS.'
 
-      - name: Dispatch a fresh sustained builder run
+      - name: Confirm no automatic launch
         if: steps.active.outputs.active == '0'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          gh workflow run autonomous-builder-v2.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref main \
-            -f max_units='1000' \
-            -f duration='6h' \
-            -f local_model='qwen2.5-coder:7b'
-          echo 'AutoBot V2 heartbeat dispatched a fresh sustained run.'
+          echo 'AutoBot Control Center is manual-only. It does not dispatch a Builder run.'
+          echo 'Use AutoBot Fleet 15m Test for the controlled shakedown.'
 
-      - name: Record heartbeat result
+      - name: Record control-center result
         run: |
           {
-            echo '# 🤖 AutoBot V2 heartbeat'
+            echo '# 🤖 AutoBot Control Center'
             echo
             if [[ '${{ steps.active.outputs.active }}' == '0' ]]; then
-              echo 'A fresh sustained AutoBot V2 run was dispatched after main-branch safety preflight.'
+              echo 'Manual-only control center preflight passed. No AutoBot run was launched.'
             else
-              echo 'An AutoBot V2 run was already queued/running; no duplicate was dispatched.'
+              echo 'An AutoBot V2 run was already queued/running. No action was taken.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
