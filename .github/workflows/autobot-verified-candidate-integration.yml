@@ -1,0 +1,139 @@
+name: 🛡️ BIKEZTAGRAM AUTOBOT — VERIFIED CANDIDATE INTEGRATION PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      recovery_run_id:
+        description: 'Controlled recovery workflow run ID containing a verified-candidate handoff artifact'
+        required: true
+        type: string
+      confirmation:
+        description: 'Type CREATE_PR to explicitly authorize creation of the integration PR'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: autobot-verified-candidate-integration
+  cancel-in-progress: false
+
+jobs:
+  integration-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Require explicit operator confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = 'CREATE_PR' || { echo 'Integration PR creation requires the exact explicit confirmation CREATE_PR.'; exit 1; }
+
+      - name: Checkout current main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Resolve recovery run id
+        env:
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+        run: |
+          set -euo pipefail
+          case "$RECOVERY_RUN_ID" in
+            ''|*[!0-9]*) echo 'Recovery run id must be numeric.'; exit 1;;
+          esac
+          echo "RECOVERY_RUN_ID=$RECOVERY_RUN_ID" >> "$GITHUB_ENV"
+
+      - name: Download verified recovery artifact
+        uses: actions/download-artifact@v5
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.RECOVERY_RUN_ID }}
+          name: autobot-fleet-recovery-${{ env.RECOVERY_RUN_ID }}
+          path: .autobot-verified-artifact
+
+      - name: Validate verified candidate manifest
+        id: manifest
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const {execFileSync}=require('node:child_process');
+          const path='.autobot-verified-artifact/builder/working/autobot-verified-candidate.json';
+          const manifest=JSON.parse(fs.readFileSync(path,'utf8'));
+          const sha=/^[0-9a-f]{40}$/i;
+          if(manifest.status!=='integration-eligible'||manifest.eligible!==true) throw new Error(`Candidate is not integration-eligible: ${manifest.status||'missing'}`);
+          if(manifest.automaticMerge!==false||manifest.automaticPush!==false) throw new Error('Candidate manifest does not explicitly prohibit automatic merge/push.');
+          if(!sha.test(manifest.baseCommit)||!sha.test(manifest.candidateCommit)) throw new Error('Candidate manifest has invalid commit SHAs.');
+          if(!manifest.gates||manifest.gates.repair!==true||manifest.gates.qa!==true||manifest.gates.review!==true) throw new Error('Candidate manifest is missing a complete verification chain.');
+          if(!Array.isArray(manifest.changedFiles)||!manifest.changedFiles.length) throw new Error('Candidate manifest contains no changed files.');
+          if(!fs.existsSync('.autobot-verified-artifact/builder/working/autobot-builder-candidate.patch')) throw new Error('Builder candidate patch is missing.');
+          if(!fs.existsSync('.autobot-verified-artifact/builder/working/autobot-repair-candidate.patch')) throw new Error('Verified Repair patch is missing.');
+          const main=execFileSync('git',['rev-parse','main'],{encoding:'utf8'}).trim();
+          try{execFileSync('git',['merge-base','--is-ancestor',manifest.baseCommit,main]);}
+          catch{throw new Error(`Verified candidate base ${manifest.baseCommit} is not an ancestor of current main ${main}; refusing stale integration.`);}
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,`base=${manifest.baseCommit}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,`candidate=${manifest.candidateCommit}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,`failure=${manifest.failureId}\n`);
+          NODE
+
+      - name: Reconstruct verified product candidate on current main
+        run: |
+          set -euo pipefail
+          git apply --check .autobot-verified-artifact/builder/working/autobot-builder-candidate.patch
+          git apply --whitespace=nowarn .autobot-verified-artifact/builder/working/autobot-builder-candidate.patch
+          git diff --check
+          git apply --check .autobot-verified-artifact/builder/working/autobot-repair-candidate.patch
+          git apply --whitespace=nowarn .autobot-verified-artifact/builder/working/autobot-repair-candidate.patch
+          git diff --check
+
+      - name: Re-run integration build and product-quality gate
+        run: |
+          set -euo pipefail
+          npm run build
+          npm run verify:autobot-product-change-quality
+
+      - name: Create integration candidate branch
+        id: branch
+        env:
+          FAILURE_ID: ${{ steps.manifest.outputs.failure }}
+        run: |
+          set -euo pipefail
+          branch="autobot/integrate/${FAILURE_ID}-${GITHUB_RUN_ID}"
+          git config user.name 'Bikeztagram AutoBot Integration'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$branch"
+          git add -- .
+          git diff --cached --check
+          git commit -m "feat(autobot): integrate verified candidate ${FAILURE_ID}"
+          git push --set-upstream origin "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Open draft integration PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          BASE: main
+          FAILURE_ID: ${{ steps.manifest.outputs.failure }}
+          VERIFIED_BASE: ${{ steps.manifest.outputs.base }}
+          VERIFIED_CANDIDATE: ${{ steps.manifest.outputs.candidate }}
+        run: |
+          set -euo pipefail
+          gh pr create --base "$BASE" --head "$BRANCH" --draft \
+            --title "feat(autobot): integrate verified candidate ${FAILURE_ID}" \
+            --body "## AutoBot verified candidate\n\nFailure: ${FAILURE_ID}\nVerified base: ${VERIFIED_BASE}\nVerified Repair/Reviewer candidate: ${VERIFIED_CANDIDATE}\n\nVerification chain: Builder candidate preserved → Repair → QA → Reviewer → integration build/product-quality gate.\n\nThis workflow only creates a draft integration PR. It does not merge the PR or enable auto-merge. Repository protection and human review remain authoritative."
