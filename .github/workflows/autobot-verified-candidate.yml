@@ -1,0 +1,78 @@
+name: 🏍️ BIKEZTAGRAM AUTOBOT — VERIFIED CANDIDATE HANDOFF
+
+on:
+  workflow_dispatch:
+    inputs:
+      recovery_run_id:
+        description: 'Recovery workflow run ID containing the verified candidate evidence'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout handoff verifier
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Validate recovery run id
+        env:
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+        run: |
+          set -euo pipefail
+          case "$RECOVERY_RUN_ID" in
+            ''|*[!0-9]*) echo 'Recovery run id must be numeric.'; exit 1;;
+          esac
+
+      - name: Download recovery evidence
+        uses: actions/download-artifact@v5
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.recovery_run_id }}
+          path: .autobot-recovery
+
+      - name: Verify integration eligibility
+        run: |
+          set -euo pipefail
+          mkdir -p builder/working
+          recovery="$(find .autobot-recovery -type f -name autobot-fleet-recovery.json -print -quit)"
+          review="$(find .autobot-recovery -type f -name autobot-review.json -print -quit)"
+          test -n "$recovery" || { echo 'Recovery evidence is missing.'; exit 1; }
+          test -n "$review" || { echo 'Reviewer evidence is missing.'; exit 1; }
+          cp "$recovery" builder/working/autobot-fleet-recovery.json
+          cp "$review" builder/working/autobot-review.json
+          npm run verify:autobot-verified-candidate
+
+      - name: Upload verified candidate manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-verified-candidate-${{ github.run_id }}
+          if-no-files-found: error
+          path: builder/working/autobot-verified-candidate.json
+
+      - name: Explicit integration boundary
+        run: |
+          echo 'Verified candidate handoff complete.'
+          echo 'No product files were changed by this workflow.'
+          echo 'No branch was pushed.'
+          echo 'No pull request was created.'
+          echo 'No merge was performed.'
+          echo 'Final integration remains operator-controlled until the fleet foundation is separately activated and protected integration is explicitly authorised.'
