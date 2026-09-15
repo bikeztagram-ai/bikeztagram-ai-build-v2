@@ -30,25 +30,32 @@ function read(file){return fs.readFileSync(path.join(root,file),'utf8');}
 function assert(condition,message){if(!condition)throw new Error(message);}
 const registry=JSON.parse(read(registryPath)); const pkg=JSON.parse(read(packagePath)); const workflow=read(workflowPath); const validationWorkflow=read(validationWorkflowPath); const doc=read(docPath); const coordinator=read(coordinatorPath); const queue=read(queuePath); const repair=read(repairPath); const qa=read(qaPath); const reviewer=read(reviewerPath); const specialist=read(specialistPath); const specialistHandoff=read(specialistHandoffPath); const selfImprovement=read(selfImprovementPath);
 assert(registry.schemaVersion===1,'fleet registry schema must be v1');
-const live=registry.status==='fifteen-minute-live-test'&&registry.enabled===true&&registry.coordination?.mode==='active'&&registry.activationGate?.testDuration==='15m';
+const singleLive=registry.status==='fifteen-minute-live-test'&&registry.enabled===true&&registry.coordination?.mode==='active'&&registry.activationGate?.testDuration==='15m'&&registry.coordination?.maxConcurrentWorkers===1;
+const parallelLive=registry.status==='parallel-two-worker-live-test'&&registry.enabled===true&&registry.coordination?.mode==='active'&&registry.activationGate?.testDuration==='15m'&&registry.coordination?.maxConcurrentWorkers===2;
 const foundation=registry.enabled===false&&registry.coordination?.mode==='plan-only';
-assert(live||foundation,'fleet must be either the protected plan-only foundation state or the explicitly registered fifteen-minute live-test state');
-if(live){
+assert(singleLive||parallelLive||foundation,'fleet must be protected plan-only, single-worker live-test, or explicitly registered two-worker live-test');
+if(singleLive||parallelLive){
   assert(registry.activationGate?.protectedIntegration===false,'live shakedown must keep protected integration disabled');
   assert(registry.activationGate?.requiredEnabled===true&&registry.activationGate?.requiredMode==='active','live shakedown activation gate contract changed');
-  assert(registry.coordination?.maxConcurrentWorkers===1,'live shakedown must remain single-worker');
   assert(registry.coordination?.requireIsolatedWorker===true,'isolated worker requirement missing');
   assert(registry.coordination?.requireVerificationBeforeHandoff===true,'verification-before-handoff requirement missing');
   assert(registry.coordination?.requireHumanReviewBeforeProtectedIntegration===true,'human review boundary missing');
-  assert(registry.purpose.includes('fifteen-minute end-to-end'),'live state must explicitly describe the fifteen-minute end-to-end shakedown');
+  if(singleLive) assert(registry.purpose.includes('fifteen-minute end-to-end'),'single-worker live state must explicitly describe the fifteen-minute end-to-end shakedown');
+  if(parallelLive){
+    assert(Array.isArray(registry.activationGate?.parallelWorkers)&&registry.activationGate.parallelWorkers.length===2,'parallel live state must name exactly two authorised workers');
+    assert(JSON.stringify(registry.activationGate.parallelWorkers)===JSON.stringify(['director-builder','timeline-builder']),'parallel live state contains an unauthorised worker or ordering change');
+    assert(registry.activationGate?.allowedTestDurations?.includes('15m')&&registry.activationGate?.allowedTestDurations?.includes('30m'),'parallel live state must retain the bounded 15m/30m duration policy');
+  }
 }
 assert(registry.coordination?.coordinator===coordinatorPath,'registry coordinator path must exactly match implementation');
 assert(registry.coordination?.failureQueue==='builder/working/autobot-failure-queue.jsonl','registry failure queue path must exactly match durable evidence path');
 assert(registry.coordination?.sharedEvidence==='builder/working/autobot-fleet-plan.json','registry shared evidence path must exactly match coordinator output path');
-assert(registry.coordination?.specialistHandoff==='builder/working/autobot-specialist-handoff.json','registry specialist handoff output path must exactly match the durable handoff path');
+assert(registry.coordination?.specialistHandoff==='builder/working/autobot-specialist-handoff.json','registry specialist handoff output path must exactly match durable handoff path');
 assert(registry.coordination?.specialistHandoffContract===specialistHandoffPath,'registry specialist handoff contract path must exactly match implementation');
 assert(registry.coordination?.specialistHandoffVerifier===specialistHandoffVerifierPath,'registry specialist handoff verifier path must exactly match verifier');
-assert(registry.coordination?.maxConcurrentWorkers===1,'fleet foundation must remain single-worker until controlled parallelism is separately verified');
+assert(Number.isInteger(registry.coordination?.maxConcurrentWorkers)&&registry.coordination.maxConcurrentWorkers>=1&&registry.coordination.maxConcurrentWorkers<=2,'fleet foundation worker limit must remain bounded at two until separately expanded');
+if(singleLive) assert(registry.coordination.maxConcurrentWorkers===1,'single-worker live state must remain single-worker');
+if(parallelLive) assert(registry.coordination.maxConcurrentWorkers===2,'parallel live state must remain exactly two workers');
 assert(registry.coordination?.requireIsolatedWorker===true,'isolated worker requirement missing');
 assert(registry.coordination?.requireVerificationBeforeHandoff===true,'verification-before-handoff requirement missing');
 const builder=registry.bots.find(bot=>bot.id==='builder');
@@ -64,7 +71,7 @@ assert(specialist.includes("registry.enabled!==true || registry.coordination?.mo
 assert(specialist.includes('bot.specialistBuilder')&&specialist.includes('ownsFiles')&&specialist.includes('candidateCommit'),'specialist Builder registry scope/candidate handoff wiring missing');
 assert(specialist.includes("AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality'"),'specialist Builder must expose the exact product-quality verification command contract');
 assert(specialist.includes("git(['diff','HEAD','--name-only']"),'specialist Builder must inspect tracked changes from HEAD');
-assert(specialist.includes("git(['status','--porcelain','--untracked-files=no']"),'specialist Builder must inspect tracked working-tree changes without treating installed dependencies as product changes');
+assert(specialist.includes("git(['status','--porcelain','--untracked-files=no']"),'specialist Builder must inspect tracked working-tree changes');
 assert(specialist.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'specialist Builder must install dependencies inside the isolated worktree');
 assert(specialist.includes("writeSpecialistHandoff({")&&specialist.includes("status:'verified-candidate'"),'specialist Builder must emit the validated specialist handoff');
 assert(specialistHandoff.includes("SPECIALIST_HANDOFF_SCHEMA='autobot-specialist-handoff-v1'"),'specialist handoff schema must remain v1');
@@ -91,8 +98,8 @@ assert(read(reviewerHandoffPath).includes('AUTOBOT_REVIEW_BASE_COMMIT')&&read(re
 assert(reviewer.includes('AUTOBOT_REVIEW_BASE_COMMIT')&&reviewer.includes('AUTOBOT_REVIEW_COMMIT'),'Reviewer must consume exact commit contracts');
 assert(reviewer.includes("automaticMerge:false")&&reviewer.includes("automaticPush:false"),'Reviewer must remain unable to merge or push');
 assert(queue.includes("const STATUSES=new Set(['open','claimed','repairing','repaired','verified','rejected','blocked'])")&&queue.includes('const ALLOWED_TRANSITIONS='),'failure queue state machine contract missing');
-assert(queue.includes('repairBaseCommit:input.repairBaseCommit===undefined?current.repairBaseCommit:input.repairBaseCommit'),'failure queue must preserve repair base evidence across transitions');
-assert(queue.includes('repairCommit:input.repairCommit===undefined?current.repairCommit:input.repairCommit'),'failure queue must preserve repair candidate evidence across transitions');
+assert(queue.includes('repairBaseCommit:input.repairBaseCommit===undefined?current.repairBaseCommit'),'failure queue must preserve repair base evidence across transitions');
+assert(queue.includes('repairCommit:input.repairCommit===undefined?current.repairCommit'),'failure queue must preserve repair candidate evidence across transitions');
 assert(read(selfImprovementVerifierPath).includes('AUTOBOT_FAILURE_QUEUE_PATH')&&read(selfImprovementVerifierPath).includes('requiresHumanReview')&&read(selfImprovementVerifierPath).includes('aider-feature-brain-state.json'),'Self-Improvement verifier must cover exact evidence inputs and Builder state contract');
 assert(read('scripts/verify-main-suite.mjs').includes("'verify:autobot-specialist-handoff'"),'main verification suite must discover the specialist handoff verifier');
 assert(doc.includes('Specialist Builder Fleet')&&doc.includes('Director Builder')&&doc.includes('Timeline Builder'),'foundation documentation must describe specialist Builders');
@@ -105,8 +112,7 @@ assert(validationWorkflow.includes('node builder/runner/autobot-coordinator.mjs'
 assert(validationWorkflow.includes('p.activationBlocked!==true')&&validationWorkflow.includes('p.enabled!==false')&&validationWorkflow.includes("p.mode!=='plan-only'"),'dedicated validation workflow must prove the fleet remains disabled and plan-only');
 for(const forbidden of [coordinatorPath,repairPath,qaPath,reviewerPath,selfImprovementPath,specialistPath])assert(!workflow.includes(forbidden),`production workflow must not activate new AutoBot worker: ${forbidden}`);
 for(const forbidden of [repairPath,qaPath,reviewerPath,selfImprovementPath,specialistPath])assert(!validationWorkflow.includes(`run node ${forbidden}`),`foundation validation workflow must not execute an autonomous worker: ${forbidden}`);
-
 const queueTestDir=fs.mkdtempSync(path.join(os.tmpdir(),'autobot-fleet-queue-test-')); const queueTestPath=path.join(queueTestDir,'failure-queue.jsonl');
 try{const env={...process.env,AUTOBOT_FAILURE_QUEUE_PATH:queueTestPath}; const script=`import {appendFailure,transitionFailure,readFailures} from './builder/runner/autobot-failure-queue.mjs'; const f=appendFailure({source:'fleet-verifier',runId:'synthetic',stage:'verification',error:'synthetic failure',files:['src/director.js'],retryable:true}); transitionFailure(f.id,'claimed',{transitionedBy:'fleet-verifier'}); transitionFailure(f.id,'repairing',{transitionedBy:'fleet-verifier'}); transitionFailure(f.id,'repaired',{transitionedBy:'fleet-verifier',repairBaseCommit:'1111111111111111111111111111111111111111',repairCommit:'2222222222222222222222222222222222222222'}); transitionFailure(f.id,'verified',{transitionedBy:'fleet-verifier'}); let rejected=false; try{transitionFailure(f.id,'open',{transitionedBy:'fleet-verifier'});}catch{rejected=true;} if(!rejected)throw new Error('failure queue accepted an illegal backward transition'); const r=readFailures()[0]; if(r.status!=='verified'||r.repairBaseCommit!=='1111111111111111111111111111111111111111'||r.repairCommit!=='2222222222222222222222222222222222222222')throw new Error('failure queue lost terminal repair evidence');`; execFileSync(process.execPath,['--input-type=module','-e',script],{cwd:root,env,stdio:'inherit'});}finally{fs.rmSync(queueTestDir,{recursive:true,force:true});}
 for(const file of [coordinatorPath,queuePath,repairPath,qaPath,reviewerPath,specialistPath,specialistHandoffPath,selfImprovementPath,repairVerifierPath,qaVerifierPath,reviewerVerifierPath,reviewerHandoffPath,specialistVerifierPath,specialistHandoffVerifierPath,selfImprovementVerifierPath])execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,state:live?'fifteen-minute-live-test':'disabled-plan-only',enabled:registry.enabled,mode:registry.coordination.mode,protectedIntegration:registry.activationGate?.protectedIntegration===false,specialistBuilders:specialists.map(bot=>({id:bot.id,entrypoint:bot.entrypoint,ownsFiles:bot.ownsFiles})),validationWorkflow:validationWorkflowPath,failureQueueBehavioralTest:true,isolatedDependencySetup:true,contracts:Object.keys(scriptContracts)}));
+console.log(JSON.stringify({ok:true,state:singleLive?'fifteen-minute-live-test':parallelLive?'parallel-two-worker-live-test':'disabled-plan-only',enabled:registry.enabled,mode:registry.coordination.mode,maxConcurrentWorkers:registry.coordination.maxConcurrentWorkers,protectedIntegration:registry.activationGate?.protectedIntegration===false,specialistBuilders:specialists.map(bot=>({id:bot.id,entrypoint:bot.entrypoint,ownsFiles:bot.ownsFiles})),validationWorkflow:validationWorkflowPath,failureQueueBehavioralTest:true,isolatedDependencySetup:true,contracts:Object.keys(scriptContracts)}));
