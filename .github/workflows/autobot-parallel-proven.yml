@@ -120,6 +120,7 @@ jobs:
           npm run verify:autobot-dependencies
           npm run verify:director-selection-quality
       - name: Publish verified worker branch
+        id: publish
         if: steps.production.outcome == 'success'
         env: {GH_TOKEN: ${{ github.token }}, AUTOBOT_PROVEN_WORKER_ID: ${{ matrix.worker }}, GITHUB_RUN_ID: ${{ github.run_id }}}
         run: node scripts/autobot/publish-proven-worker-candidate.mjs
@@ -127,7 +128,7 @@ jobs:
         if: always()
         env:
           AUTOBOT_PROVEN_WORKER_ID: ${{ matrix.worker }}
-          AUTOBOT_PROVEN_RUN_OUTCOME: ${{ (steps.run_proven.outcome == 'success' && steps.production.outcome == 'success') && 'success' || 'failure' }}
+          AUTOBOT_PROVEN_RUN_OUTCOME: ${{ (steps.run_proven.outcome == 'success' && steps.production.outcome == 'success' && steps.publish.outcome == 'success') && 'success' || 'failure' }}
         run: |
           set -euo pipefail
           git diff --binary HEAD -- src package.json public index.html vite.config.js > builder/working/autobot-proven-worker.patch || true
