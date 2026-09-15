@@ -3,7 +3,7 @@ name: 🧪 AUTOBOT FLEET — VALIDATION ONLY
 on:
   pull_request:
     paths:
-      - '.github/workflows/bikeztagram-proven-autobot-fleet.yml'
+      - '.github/workflows/autobot-parallel-specialists.yml'
       - 'builder/runner/proven-fleet-worker.mjs'
       - 'builder/runner/proven-builder-recovery.mjs'
       - 'scripts/autobot/create-parallel-proven-packages.mjs'
