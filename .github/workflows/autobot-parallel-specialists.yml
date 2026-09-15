@@ -171,7 +171,7 @@ jobs:
           if-no-files-found: ignore
 
   completed-work:
-    needs: specialists
+    needs: [plan, specialists]
     if: ${{ always() && needs.plan.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -192,6 +192,8 @@ jobs:
         with:
           name: autobot-specialist-timeline-builder-${{ github.run_id }}
           path: builder/working/specialist-results/timeline-builder
+      - name: Verify completed-work inbox contract
+        run: node scripts/autobot/verify-autobot-completed-work.mjs
       - name: Build central completed-work manifest
         run: node builder/runner/autobot-completed-work.mjs
       - name: Publish central completed-work manifest
