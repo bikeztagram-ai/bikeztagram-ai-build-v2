@@ -60,7 +60,7 @@ try{
   const aider=String(process.env.AIDER_BIN||'aider').trim();
   const model=String(process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b').trim();
   const apiBase=String(process.env.OLLAMA_HOST||'http://127.0.0.1:11435').trim();
-  const normalizedBase=apiBase.replace(/\\/$/,'');
+  const normalizedBase=apiBase.replace(/\/$/,'');
   const aiderModel=model.startsWith('ollama_chat/')||model.startsWith('ollama/')?model:`ollama_chat/${model}`;
   console.log(`[autobot] specialist ${botId} using local Aider model ${aiderModel} via ${normalizedBase}`);
   run(aider,['--model',aiderModel,'--api-base',normalizedBase,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--map-tokens=768','--subtree-only','--message',prompt,...files],worktree);
