@@ -4,7 +4,7 @@
  *
  * This file is a manifest only: source code remains isolated in worker branches.
  * Only verified specialist or verified-repair handoffs enter candidates[]. Failed workers
- * are preserved as failures[] so the orchestration/recovery layer can route repairable work.
+ * are preserved as failures[] until a verified repair candidate replaces that failure.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -33,6 +33,13 @@ export function buildCompletedWork({inputRoot='builder/working/specialist-result
   const candidates=[];
   const failures=[];
   const seenIds=new Set();
+  const recoveredBots=new Set();
+
+  for(const file of verifiedFiles){
+    const parts=file.split(path.sep);
+    const recoveryIndex=parts.lastIndexOf('recovery');
+    if(recoveryIndex>0)recoveredBots.add(parts[recoveryIndex-1]);
+  }
 
   for(const file of handoffFiles){
     try{
@@ -75,7 +82,7 @@ export function buildCompletedWork({inputRoot='builder/working/specialist-result
       const outcome=readJson(file);
       if(outcome.status==='success') continue;
       const botId=String(outcome.botId||path.basename(path.dirname(file))).trim();
-      if(candidates.some(item=>item.botId===botId)) continue;
+      if(recoveredBots.has(botId)) continue;
       failures.push({
         id:`${botId}-${runId}`,kind:outcome.category||'specialist-builder-failure',botId,
         objective:outcome.objective||null,status:'needs-routing',repairable:outcome.repairable===true,
