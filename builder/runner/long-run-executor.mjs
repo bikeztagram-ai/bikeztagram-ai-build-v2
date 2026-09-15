@@ -32,6 +32,7 @@ const maxFeatureCycles=Math.max(1,Number.parseInt(process.env.AUTOBOT_MAX_FEATUR
 const featurePassesPerSlice=Math.max(1,Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES_PER_SLICE||'2',10));
 const featureProtocol=process.env.AUTOBOT_FEATURE_ENGINE==='aider'?(process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4'):'structured-search-replace-v3';
 const featureEngine=process.env.AUTOBOT_FEATURE_ENGINE==='aider'?'builder/runner/aider-feature-brain.mjs':'builder/runner/feature-brain.mjs';
+if(specialistMode&&process.env.AUTOBOT_FEATURE_ENGINE!=='aider')throw new Error('Specialist AutoBot mode is locked to the proven Aider feature engine.');
 const completedObjectives=new Set();
 
 function readState(){try{return JSON.parse(fs.readFileSync(checkpoint,'utf8'));}catch{return null;}}
