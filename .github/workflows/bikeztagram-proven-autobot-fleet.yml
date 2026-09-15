@@ -180,7 +180,7 @@ jobs:
         with: {ref: ${{ github.sha }}, fetch-depth: 0}
       - uses: actions/download-artifact@v4
         continue-on-error: true
-        with: {name: autobot-proven-worker-${{ matrix.worker }}-${{ github.run_id }, path: builder/working/worker-result}
+        with: {name: autobot-proven-worker-${{ matrix.worker }}-${{ github.run_id }}, path: builder/working/worker-result}
       - name: Route only real product failures
         id: route
         run: |
