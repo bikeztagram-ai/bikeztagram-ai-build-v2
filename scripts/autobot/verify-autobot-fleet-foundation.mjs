@@ -53,7 +53,7 @@ assert(publisher.includes('autobot-proven/')&&publisher.includes("execFileSync('
 
 assert(recovery.includes('autobot-fleet-recovery.mjs')&&recovery.includes('verified-candidate'),'recovery must use the existing recovery chain and require verified-candidate output');
 assert(recovery.includes("execFileSync('git',['worktree','add'")&&recovery.includes("execFileSync('git',['worktree','remove','--force'"),'recovery must use and clean up an isolated git worktree');
-assert(recoveryCore.includes('autobot-repair.mjs')&&recoveryCore.includes('autobot-qa.mjs')&&recoveryCore.includes('autobot-reviewer.mjs'),'Repair -> QA -> Reviewer chain must remain connected');
+assert(recoveryCore.includes("loadWorker(registry,'repair')")&&recoveryCore.includes("loadWorker(registry,'qa')")&&recoveryCore.includes("loadWorker(registry,'reviewer')")&&recoveryCore.includes('repairOne')&&recoveryCore.includes('qaOne')&&recoveryCore.includes('runReviewer'),'Repair -> QA -> Reviewer chain must remain connected through registered isolated workers');
 assert(reviewer.includes('automaticMerge:false')&&reviewer.includes('automaticPush:false'),'Reviewer must not merge or push');
 
 assert(completed.includes('autobot-completed-work-v1')&&completed.includes('verified-candidate'),'completed-work inbox must use v1 and accept verified candidates');
