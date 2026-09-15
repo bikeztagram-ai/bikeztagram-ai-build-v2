@@ -8,7 +8,7 @@ const json=file=>JSON.parse(read(file));
 const assert=(condition,message)=>{if(!condition)throw new Error(message);};
 const registry=json('builder/brain/autobot-fleet.json');
 const pkg=json('package.json');
-const workflow=read('.github/workflows/autobot-parallel-specialists.yml');
+const workflow=read('.github/workflows/autobot-parallel-proven.yml');
 const validationWorkflow=read('.github/workflows/autobot-proven-fleet-validation.yml');
 const worker=read('builder/runner/proven-fleet-worker.mjs');
 const recovery=read('builder/runner/proven-builder-recovery.mjs');

@@ -1,10 +1,10 @@
-name: 🧩 AutoBot Parallel Specialists
+name: 🚀 AutoBot Proven Fleet
 
 on:
   workflow_dispatch:
     inputs:
       duration:
-        description: Controlled parallel specialist budget
+        description: Controlled parallel AutoBot budget
         required: true
         default: 15m
         type: choice
@@ -19,7 +19,7 @@ permissions:
   pull-requests: write
   actions: read
 concurrency:
-  group: autobot-parallel-specialists
+  group: autobot-parallel-proven
   cancel-in-progress: false
 env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
