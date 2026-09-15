@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "policy": {
+    "unknownBots": "blocked",
+    "assignmentRequires": ["proven-or-verified-status", "scope-match", "verification-contract"],
+    "failedBots": "quarantined-until-reverified",
+    "protectedIntegration": false
+  },
+  "specialists": [
+    {"id":"builder","status":"proven","trust":"high","entrypoint":"builder/runner/aider-feature-brain.mjs","scope":["objective-scoped product implementation"],"verification":"npm run verify:autobot-product-change-quality"},
+    {"id":"director-builder","status":"verified","trust":"medium","entrypoint":"builder/runner/autobot-specialist-builder.mjs","scope":["creative direction","story construction","shot selection","director runtime"],"files":["src/director.js","src/aiEditPlanner.js"]},
+    {"id":"timeline-builder","status":"verified","trust":"medium","entrypoint":"builder/runner/autobot-specialist-builder.mjs","scope":["timeline execution","editorial rhythm","cut timing","transition and motion execution"],"files":["src/executableTimeline.js","src/editorialRhythm.js","src/renderer.js"]},
+    {"id":"repair","status":"verified","trust":"high","entrypoint":"builder/runner/autobot-repair.mjs","scope":["failure diagnosis","verified isolated fixes"]},
+    {"id":"qa","status":"verified","trust":"high","entrypoint":"builder/runner/autobot-qa.mjs","scope":["independent regression and product verification"]},
+    {"id":"reviewer","status":"verified","trust":"high","entrypoint":"builder/runner/autobot-reviewer.mjs","scope":["adversarial product review and handoff"]},
+    {"id":"self-improvement","status":"verified","trust":"medium","entrypoint":"builder/runner/autobot-self-improvement.mjs","scope":["measured AutoBot system improvement"]}
+  ],
+  "assignmentRules": [
+    "The controller may assign only a registered specialist whose status is proven or verified.",
+    "Trust describes evidence of capability; it is not permission to bypass QA or review.",
+    "A specialist failure records a failure reason and may move the specialist to quarantine; a single failure does not permanently condemn it.",
+    "No specialist may edit protected infrastructure unless an explicitly scoped infrastructure objective authorizes it.",
+    "Repair, QA and Reviewer remain downstream safety workers and are never replaced by the product Builder.",
+    "The controller must never fabricate a specialist, entrypoint, file scope or verification contract."
+  ]
+}
