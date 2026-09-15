@@ -84,9 +84,12 @@ try{
       console.log(`[autobot] normalised model placeholder path/to/${path.basename(file)} -> ${file}`);
     }
   }
-  const all=git(['status','--porcelain','--untracked-files=no'],worktree).split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>line.slice(3));
+
+  // Use Git's file-name primitives directly. Aider's human-readable output
+  // such as "Updated 'src/foo.js'" must never be interpreted as a filename.
   const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  const touched=Array.from(new Set([...changed,...all]));
+  const untracked=git(['ls-files','--others','--exclude-standard'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const touched=Array.from(new Set([...changed,...untracked]));
   if(touched.some(file=>!files.includes(file))) fail(`Specialist Builder modified out-of-scope files: ${touched.filter(file=>!files.includes(file)).join(', ')}`);
   run('git',['diff','HEAD','--check'],worktree);
   run('npm',['install','--no-audit','--no-fund','--no-package-lock'],worktree);

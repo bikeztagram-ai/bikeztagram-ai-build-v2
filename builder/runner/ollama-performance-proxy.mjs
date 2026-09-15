@@ -10,11 +10,12 @@ const listenPort = Number(process.env.OLLAMA_PROXY_PORT || 11435);
 const upstream = process.env.OLLAMA_UPSTREAM || 'http://127.0.0.1:11434';
 const maxContext = Number(process.env.LOCAL_AI_PROXY_NUM_CTX || 8192);
 const maxPredict = Number(process.env.LOCAL_AI_PROXY_NUM_PREDICT || 1500);
+const maxAttempts = Number(process.env.LOCAL_AI_PROXY_MAX_ATTEMPTS || 3);
 
 function clampBody(body) {
   const request = JSON.parse(body);
   request.stream = false;
-  request.keep_alive = request.keep_alive ?? '15m';
+  request.keep_alive = request.keep_alive ?? '30m';
   request.options = {
     ...(request.options || {}),
     temperature: 0,
@@ -22,6 +23,31 @@ function clampBody(body) {
     num_predict: Math.min(Number(request.options?.num_predict || maxPredict), maxPredict),
   };
   return JSON.stringify(request);
+}
+
+function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+
+async function requestUpstream(body){
+  let lastError;
+  for(let attempt=1;attempt<=maxAttempts;attempt++){
+    try{
+      const response=await fetch(`${upstream}/api/chat`,{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body,
+      });
+      if(response.ok || ![502,503,504].includes(response.status)) return response;
+      lastError=new Error(`upstream returned HTTP ${response.status}`);
+    }catch(error){
+      lastError=error;
+    }
+    if(attempt<maxAttempts){
+      const delay=attempt*1500;
+      console.error(`[autobot] Ollama upstream transient failure; retrying in ${delay}ms (attempt ${attempt+1}/${maxAttempts})`);
+      await sleep(delay);
+    }
+  }
+  throw lastError || new Error('upstream request failed');
 }
 
 const server = http.createServer(async (req, res) => {
@@ -43,11 +69,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     const body = clampBody(Buffer.concat(chunks).toString('utf8'));
-    const response = await fetch(`${upstream}/api/chat`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body,
-    });
+    const response = await requestUpstream(body);
     const text = await response.text();
     console.error(`[autobot] Ollama proxy ${response.status} in ${((Date.now() - started) / 1000).toFixed(1)}s`);
     res.writeHead(response.status, {
@@ -62,5 +84,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(listenPort, '127.0.0.1', () => {
-  console.log(`[autobot] Ollama performance proxy listening on 127.0.0.1:${listenPort}; num_ctx<=${maxContext}; num_predict<=${maxPredict}`);
+  console.log(`[autobot] Ollama performance proxy listening on 127.0.0.1:${listenPort}; num_ctx<=${maxContext}; num_predict<=${maxPredict}; retries=${maxAttempts}`);
 });
