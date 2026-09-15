@@ -62,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with: {ref: ${{ github.sha }}, fetch-depth: 0}
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v4
         with: {name: autobot-proven-packages-${{ github.run_id }}, path: builder/working}
       - run: npm install --no-audit --no-fund --no-package-lock
       - run: python -m pip install --disable-pip-version-check --no-input aider-chat
@@ -160,7 +160,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with: {ref: ${{ github.sha }}, fetch-depth: 0}
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v4
         continue-on-error: true
         with: {name: autobot-proven-worker-${{ matrix.worker }}-${{ github.run_id }}, path: builder/working/worker-result}
       - name: Route only real product failures
