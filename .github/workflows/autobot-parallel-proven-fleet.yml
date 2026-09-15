@@ -1,4 +1,4 @@
-name: 🪐 AutoBot Parallel Proven
+name: AutoBot Parallel Proven Fleet
 
 on:
   workflow_dispatch:
