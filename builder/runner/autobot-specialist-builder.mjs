@@ -16,6 +16,8 @@ const botId=String(process.env.AUTOBOT_SPECIALIST_BOT_ID||'').trim();
 const objective=String(process.env.AUTOBOT_SPECIALIST_OBJECTIVE||'').trim();
 const enabled=String(process.env.AUTOBOT_SPECIALIST_BUILDER_ENABLED||'').trim().toLowerCase()==='true';
 const bot=registry.bots.find(item=>item.id===botId);
+const outcomePath=process.env.AUTOBOT_SPECIALIST_OUTCOME_PATH||path.join(root,'builder/working/autobot-specialist-outcome.json');
+const failurePatchPath=process.env.AUTOBOT_SPECIALIST_FAILURE_PATCH_PATH||path.join(root,'builder/working/autobot-specialist-failure.patch');
 
 function fail(message){throw new Error(message);}
 function run(command,args,cwd){
@@ -26,6 +28,33 @@ function git(args,cwd){return execFileSync('git',args,{cwd,encoding:'utf8'}).tri
 function safeRelative(file){
   const value=String(file||'').trim();
   return value && !path.isAbsolute(value) && !value.includes('..') && !value.startsWith('.') && !value.includes('\\') ? value : null;
+}
+function classifyFailure(error){
+  const message=String(error?.message||error||'');
+  if(/ollama|proxy:\s*fetch failed|fetch failed|network|connection|timed out|timeout|cannot schedule new futures after shutdown|rate limit|503|502|504/i.test(message))return {category:'infrastructure',repairable:false};
+  return {category:'product-change',repairable:true};
+}
+function writeFailureOutcome({error,base,worktree,files}){
+  const classification=classifyFailure(error);
+  let patchPath=null;
+  if(worktree && fs.existsSync(worktree)){
+    try{
+      const patch=execFileSync('git',['diff','--binary','HEAD','--',...files],{cwd:worktree,encoding:'utf8'});
+      if(patch.trim()){
+        fs.mkdirSync(path.dirname(failurePatchPath),{recursive:true});
+        fs.writeFileSync(failurePatchPath,patch);
+        patchPath=failurePatchPath;
+      }
+    }catch(patchError){console.error(`[autobot] could not capture specialist failure patch: ${patchError.message}`);}
+  }
+  fs.mkdirSync(path.dirname(outcomePath),{recursive:true});
+  fs.writeFileSync(outcomePath,JSON.stringify({
+    schemaVersion:'autobot-specialist-outcome-v1',botId,objective,status:'failure',
+    category:classification.category,repairable:classification.repairable,
+    files,baseCommit:base||null,patchPath,
+    evidence:['GitHub Actions specialist execution logs',patchPath].filter(Boolean),
+    error:String(error?.message||error||'unknown specialist failure')
+  },null,2)+'\n');
 }
 
 if(!enabled) fail('Specialist Builder execution is disabled until the fleet activation gate is explicitly enabled.');
@@ -109,8 +138,13 @@ try{
     ownsFiles:stagedDiff,productQualityCheck:productQuality,status:'verified-candidate',
     downstream:{reviewContract:'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT'}
   });
+  fs.mkdirSync(path.dirname(outcomePath),{recursive:true});
+  fs.writeFileSync(outcomePath,JSON.stringify({schemaVersion:'autobot-specialist-outcome-v1',botId,objective,status:'success',category:'completed',repairable:false,files:stagedDiff,baseCommit:base,patchPath:null,evidence:[handoffPath]},null,2)+'\n');
   keepBranch=true;
   console.log(JSON.stringify({schemaVersion:1,ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:stagedDiff,productQualityCheck:productQuality,handoffPath,activationBlocked:false}));
+}catch(error){
+  writeFailureOutcome({error,base,worktree,files});
+  throw error;
 }finally{
   try{run('git',['worktree','remove','--force',worktree],root);}catch{}
   if(!keepBranch){try{run('git',['branch','-D',branch],root);}catch{}}
