@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Execute one registry-defined specialist Builder in an isolated worktree.
- * Specialist identity and ownership remain independent while the coding brain
- * is delegated to the proven Aider feature engine.
+ * Specialist identity and ownership remain independent while execution is
+ * delegated to the same proven long-run AutoBot controller used by the main
+ * fleet. No second specialist engine is introduced.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -20,65 +21,18 @@ const outcomePath=process.env.AUTOBOT_SPECIALIST_OUTCOME_PATH||path.join(root,'b
 const failurePatchPath=process.env.AUTOBOT_SPECIALIST_FAILURE_PATCH_PATH||path.join(root,'builder/working/autobot-specialist-failure.patch');
 
 function fail(message){throw new Error(message);}
-function run(command,args,cwd,options={}){
-  const result=spawnSync(command,args,{cwd,stdio:'inherit',env:process.env,...options});
-  if(result.error||result.status!==0)fail(`${command} ${args.join(' ')} failed with status ${result.status??'error'}`);
-  return result;
-}
+function run(command,args,cwd,options={}){const result=spawnSync(command,args,{cwd,stdio:'inherit',env:process.env,...options});if(result.error||result.status!==0)fail(`${command} ${args.join(' ')} failed with status ${result.status??'error'}`);return result;}
 function git(args,cwd){return execFileSync('git',args,{cwd,encoding:'utf8'}).trim();}
-function safeRelative(file){
-  const value=String(file||'').trim();
-  return value&&!path.isAbsolute(value)&&!value.includes('..')&&!value.startsWith('.')&&!value.includes('\\')?value:null;
-}
-function normalizeAiderModel(value){
-  const model=String(value||'').trim();
-  if(!model)return 'ollama_chat/qwen2.5-coder:7b';
-  return model.includes('/')?model:`ollama_chat/${model}`;
-}
-function classifyFailure(error){
-  const message=String(error?.message||error||'');
-  if(/ollama|proxy:\s*fetch failed|fetch failed|network|connection|timed out|timeout|cannot schedule new futures after shutdown|rate limit|503|502|504/i.test(message))return {category:'infrastructure',repairable:false};
-  return {category:'product-change',repairable:true};
-}
+function safeRelative(file){const value=String(file||'').trim();return value&&!path.isAbsolute(value)&&!value.includes('..')&&!value.startsWith('.')&&!value.includes('\\')?value:null;}
+function normalizeAiderModel(value){const model=String(value||'').trim();if(!model)return 'ollama_chat/qwen2.5-coder:7b';return model.includes('/')?model:`ollama_chat/${model}`;}
+function classifyFailure(error){const message=String(error?.message||error||'');if(/ollama|proxy:\s*fetch failed|fetch failed|network|connection|timed out|timeout|cannot schedule new futures after shutdown|rate limit|503|502|504/i.test(message))return {category:'infrastructure',repairable:false};return {category:'product-change',repairable:true};}
 function writeFailureOutcome({error,base,worktree,files}){
-  const classification=classifyFailure(error);
-  let patchPath=null;
-  if(worktree&&fs.existsSync(worktree)&&files.length){
-    try{
-      const patch=execFileSync('git',['diff','--binary','HEAD','--',...files],{cwd:worktree,encoding:'utf8'});
-      if(patch.trim()){
-        fs.mkdirSync(path.dirname(failurePatchPath),{recursive:true});
-        fs.writeFileSync(failurePatchPath,patch);
-        patchPath=failurePatchPath;
-      }
-    }catch(patchError){console.error(`[autobot] could not capture specialist failure patch: ${patchError.message}`);}
-  }
+  const classification=classifyFailure(error);let patchPath=null;
+  if(worktree&&fs.existsSync(worktree)&&files.length){try{const patch=execFileSync('git',['diff','--binary','HEAD','--',...files],{cwd:worktree,encoding:'utf8'});if(patch.trim()){fs.mkdirSync(path.dirname(failurePatchPath),{recursive:true});fs.writeFileSync(failurePatchPath,patch);patchPath=failurePatchPath;}}catch(patchError){console.error(`[autobot] could not capture specialist failure patch: ${patchError.message}`);}}
   fs.mkdirSync(path.dirname(outcomePath),{recursive:true});
-  fs.writeFileSync(outcomePath,JSON.stringify({
-    schemaVersion:'autobot-specialist-outcome-v1',botId,objective:objectiveText,status:'failure',
-    category:classification.category,repairable:classification.repairable,
-    files,baseCommit:base||null,patchPath,
-    evidence:['GitHub Actions specialist execution logs',patchPath].filter(Boolean),
-    error:String(error?.message||error||'unknown specialist failure')
-  },null,2)+'\n');
+  fs.writeFileSync(outcomePath,JSON.stringify({schemaVersion:'autobot-specialist-outcome-v1',botId,objective:objectiveText,status:'failure',category:classification.category,repairable:classification.repairable,files,baseCommit:base||null,patchPath,evidence:['GitHub Actions specialist execution logs',patchPath].filter(Boolean),error:String(error?.message||error||'unknown specialist failure')},null,2)+'\n');
 }
-function parseObjective(text,bot,files){
-  const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
-  const acceptanceIndex=lines.findIndex(line=>/^acceptance:?$/i.test(line));
-  const title=lines[0]||`${bot.role} improvement`;
-  const whyNow=acceptanceIndex>1?lines[1]:'';
-  const acceptance=acceptanceIndex>=0?lines.slice(acceptanceIndex+1):[];
-  return {
-    id:`specialist-${botId}-${Date.now()}`,
-    title,whyNow,enabled:true,dependsOn:[],files,
-    acceptance:acceptance.length?acceptance:[title],
-    constraints:[
-      `This is the ${bot.role} specialist lane. Preserve its declared product ownership.`,
-      'Do not modify protected infrastructure, workflows, dependencies, secrets, or AutoBot control-plane code.',
-      'Do not merge or push. Do not create pull requests.'
-    ]
-  };
-}
+function parseObjective(text,bot,files){const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);const acceptanceIndex=lines.findIndex(line=>/^acceptance:?$/i.test(line));const title=lines[0]||`${bot.role} improvement`;const whyNow=acceptanceIndex>1?lines[1]:'';const acceptance=acceptanceIndex>=0?lines.slice(acceptanceIndex+1):[];return {id:`specialist-${botId}-${Date.now()}`,title,whyNow,enabled:true,dependsOn:[],files,acceptance:acceptance.length?acceptance:[title],constraints:[`This is the ${bot.role} specialist lane. Preserve its declared product ownership.`,'Do not modify protected infrastructure, workflows, dependencies, secrets, or AutoBot control-plane code.','Do not merge or push. Do not create pull requests.']};}
 
 if(!enabled)fail('Specialist Builder execution is disabled until the fleet activation gate is explicitly enabled.');
 if(registry.enabled!==true || registry.coordination?.mode!=='active')fail('AutoBot fleet activation is blocked; registry must be enabled with active coordination.');
@@ -104,47 +58,34 @@ const branch=`autobot-specialist/${botId}-${Date.now()}`;
 let keepBranch=false;
 try{
   run('git',['worktree','add','-b',branch,worktree,base],root);
-
   const assignmentPath=path.join(worktree,'builder/working/autobot-orchestrator-assignment.json');
   const objective=parseObjective(objectiveText,bot,files);
   fs.mkdirSync(path.dirname(assignmentPath),{recursive:true});
-  fs.writeFileSync(assignmentPath,JSON.stringify({
-    schemaVersion:'autobot-orchestrator-assignment-v1',
-    specialist:{id:botId,role:bot.role},objective,source:'parallel-specialist-workflow'
-  },null,2)+'\n');
+  fs.writeFileSync(assignmentPath,JSON.stringify({schemaVersion:'autobot-orchestrator-assignment-v1',specialist:{id:botId,role:bot.role},objective,source:'parallel-specialist-workflow'},null,2)+'\n');
 
   let requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'',10));
-  if(!Number.isFinite(requestedMinutes)){
-    try{
-      const eventPath=process.env.GITHUB_EVENT_PATH;
-      const event=eventPath&&fs.existsSync(eventPath)?JSON.parse(fs.readFileSync(eventPath,'utf8')):{};
-      const duration=String(event.inputs?.duration||'').trim();
-      const match=duration.match(/(\d+)/);
-      requestedMinutes=match?Math.max(1,Number.parseInt(match[1],10)):15;
-    }catch{requestedMinutes=15;}
-  }
+  if(!Number.isFinite(requestedMinutes)){try{const eventPath=process.env.GITHUB_EVENT_PATH;const event=eventPath&&fs.existsSync(eventPath)?JSON.parse(fs.readFileSync(eventPath,'utf8')):{};const duration=String(event.inputs?.duration||'').trim();const match=duration.match(/(\d+)/);requestedMinutes=match?Math.max(1,Number.parseInt(match[1],10)):15;}catch{requestedMinutes=15;}}
   const model=normalizeAiderModel(process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL);
   const protocol=String(process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4').trim();
   const passCount=Math.max(1,Math.min(3,Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES||'2',10)));
-  const deadline=Date.now()+requestedMinutes*60_000;
   const engineEnv={
     ...process.env,
+    AUTOBOT_SPECIALIST_MODE:'true',
+    AUTOBOT_FEATURE_ENGINE:'aider',
     AUTOBOT_ORCHESTRATOR_ENABLED:'true',
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH:assignmentPath,
     AUTOBOT_FEATURE_PROTOCOL:protocol,
     AUTOBOT_FEATURE_PASSES:String(passCount),
-    AUTOBOT_FEATURE_DEADLINE_EPOCH_MS:String(deadline),
-    AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS:String(deadline),
+    AUTOBOT_FEATURE_DEADLINE_EPOCH_MS:String(Date.now()+requestedMinutes*60_000),
+    AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS:String(Date.now()+requestedMinutes*60_000),
     AUTOBOT_AIDER_MODEL:model,
     LOCAL_AI_MODEL:process.env.LOCAL_AI_MODEL||model.replace(/^ollama_chat\//,''),
     BUILDER_MAX_MINUTES:String(requestedMinutes)
   };
 
-  console.log(`[autobot] specialist ${botId} entering proven Aider feature engine: ${requestedMinutes}m, ${passCount} passes, ${model}, ${protocol}`);
-  const engine=spawnSync(process.execPath,['builder/runner/aider-feature-brain.mjs'],{
-    cwd:worktree,stdio:'inherit',env:engineEnv,timeout:requestedMinutes*60_000+30_000
-  });
-  if(engine.error||engine.status!==0)fail(`proven Aider feature engine failed with status ${engine.status??engine.error?.code??'error'}`);
+  console.log(`[autobot] specialist ${botId} entering the proven long-run controller: ${requestedMinutes}m budget, ${passCount} passes, ${model}, ${protocol}`);
+  const engine=spawnSync(process.execPath,['builder/runner/long-run-executor.mjs'],{cwd:worktree,stdio:'inherit',env:engineEnv,timeout:requestedMinutes*60_000+5*60_000+30_000});
+  if(engine.error||engine.status!==0)fail(`proven long-run AutoBot controller failed with status ${engine.status??engine.error?.code??'error'}`);
 
   const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const trackedBefore=git(['status','--porcelain','--untracked-files=no'],worktree);
@@ -168,25 +109,9 @@ try{
 
   run('git',['commit','-m',`autobot(${botId}): ${objective.title.slice(0,72)}`],worktree);
   const candidate=git(['rev-parse','HEAD'],worktree);
-  const handoffPath=writeSpecialistHandoff({
-    schemaVersion:'autobot-specialist-handoff-v1',botId,objective:objectiveText,
-    baseCommit:base,candidateCommit:candidate,branch,ownsFiles:staged,
-    productQualityCheck:productQuality,status:'verified-candidate',
-    downstream:{reviewContract:'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT'}
-  });
+  const handoffPath=writeSpecialistHandoff({schemaVersion:'autobot-specialist-handoff-v1',botId,objective:objectiveText,baseCommit:base,candidateCommit:candidate,branch,ownsFiles:staged,productQualityCheck:productQuality,status:'verified-candidate',downstream:{reviewContract:'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT'}});
   fs.mkdirSync(path.dirname(outcomePath),{recursive:true});
-  fs.writeFileSync(outcomePath,JSON.stringify({
-    schemaVersion:'autobot-specialist-outcome-v1',botId,objective:objectiveText,
-    status:'success',category:'completed',repairable:false,files:staged,
-    baseCommit:base,patchPath:null,evidence:[handoffPath],
-    engine:'builder/runner/aider-feature-brain.mjs',passes:passCount,protocol
-  },null,2)+'\n');
+  fs.writeFileSync(outcomePath,JSON.stringify({schemaVersion:'autobot-specialist-outcome-v1',botId,objective:objectiveText,status:'success',category:'completed',repairable:false,files:staged,baseCommit:base,patchPath:null,evidence:[handoffPath],engine:'proven-autobot-long-run-controller',featureEngine:'builder/runner/aider-feature-brain.mjs',passes:passCount,protocol},null,2)+'\n');
   keepBranch=true;
-  console.log(JSON.stringify({ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:staged,engine:'proven-aider-feature-brain',passes:passCount,protocol,handoffPath}));
-}catch(error){
-  writeFailureOutcome({error,base,worktree,files});
-  throw error;
-}finally{
-  try{run('git',['worktree','remove','--force',worktree],root);}catch{}
-  if(!keepBranch){try{run('git',['branch','-D',branch],root);}catch{}}
-}
+  console.log(JSON.stringify({ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:staged,engine:'proven-autobot-long-run-controller',featureEngine:'aider-feature-brain',passes:passCount,protocol,handoffPath}));
+}catch(error){writeFailureOutcome({error,base,worktree,files});throw error;}finally{try{run('git',['worktree','remove','--force',worktree],root);}catch{}if(!keepBranch){try{run('git',['branch','-D',branch],root);}catch{}}}
