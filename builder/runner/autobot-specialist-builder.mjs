@@ -56,9 +56,14 @@ try{
     'Implement the smallest complete product-quality change that genuinely serves the objective.',
     'Run targeted verification and npm run build before finishing.',
     'Do not merge or push. Leave a clean, reviewable commit-ready working tree.'
-  ].join('\n');
+  ].join('\\n');
   const aider=String(process.env.AIDER_BIN||'aider').trim();
-  run(aider,['--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--map-tokens=768','--subtree-only','--message',prompt,...files],worktree);
+  const model=String(process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b').trim();
+  const apiBase=String(process.env.OLLAMA_HOST||'http://127.0.0.1:11435').trim();
+  const normalizedBase=apiBase.replace(/\\/$/,'');
+  const aiderModel=model.startsWith('ollama_chat/')||model.startsWith('ollama/')?model:`ollama_chat/${model}`;
+  console.log(`[autobot] specialist ${botId} using local Aider model ${aiderModel} via ${normalizedBase}`);
+  run(aider,['--model',aiderModel,'--api-base',normalizedBase,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--map-tokens=768','--subtree-only','--message',prompt,...files],worktree);
   const all=git(['status','--porcelain','--untracked-files=no'],worktree).split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>line.slice(3));
   const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const touched=Array.from(new Set([...changed,...all]));
