@@ -133,10 +133,12 @@ try{
   if(engine.error||engine.status!==0)fail(`proven Aider feature engine failed with status ${engine.status??engine.error?.code??'error'}`);
 
   const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const trackedBefore=git(['status','--porcelain','--untracked-files=no'],worktree);
   const untracked=git(['ls-files','--others','--exclude-standard'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const unauthorizedTracked=changed.filter(file=>!files.includes(file));
   const unauthorizedUntracked=untracked.filter(file=>!file.startsWith('builder/working/'));
   if(unauthorizedTracked.length||unauthorizedUntracked.length)fail(`Specialist Builder modified out-of-scope files: ${[...unauthorizedTracked,...unauthorizedUntracked].join(', ')}`);
+  if(trackedBefore&&trackedBefore.split(/\r?\n/).some(line=>line.trim()&&!files.includes(line.slice(3).trim())))fail('Specialist Builder modified out-of-scope tracked files.');
   run('git',['diff','HEAD','--check'],worktree);
 
   const productQuality=String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality').trim();
