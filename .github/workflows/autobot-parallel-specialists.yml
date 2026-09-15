@@ -175,8 +175,100 @@ jobs:
             builder/working/autobot-review.json
           if-no-files-found: ignore
 
-  completed-work:
+  repair-specialists:
     needs: [plan, specialists]
+    if: ${{ always() && needs.plan.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        bot: [director-builder, timeline-builder]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Download specialist result
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          name: autobot-specialist-${{ matrix.bot }}-${{ github.run_id }}
+          path: builder/working/specialist-results/${{ matrix.bot }}
+      - name: Classify repair route
+        id: classify
+        env:
+          BOT: ${{ matrix.bot }}
+        run: |
+          set -euo pipefail
+          repairable=false
+          if [ -f builder/working/specialist-results/${BOT}/autobot-specialist-outcome.json ]; then
+            repairable="$(node -e "const x=require('./builder/working/specialist-results/${BOT}/autobot-specialist-outcome.json'); console.log(x.repairable===true && x.category==='product-change' && x.status==='failure' ? 'true':'false')")"
+          fi
+          echo "repairable=$repairable" >> "$GITHUB_OUTPUT"
+      - name: Install Aider engine
+        if: steps.classify.outputs.repairable == 'true'
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - name: Start local AI brain
+        if: steps.classify.outputs.repairable == 'true'
+        run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
+          OLLAMA_CONTEXT_LENGTH: 4096
+          OLLAMA_NUM_PARALLEL: 1
+          OLLAMA_MAX_QUEUE: 8
+          OLLAMA_LOAD_TIMEOUT: 20m
+          OLLAMA_KEEP_ALIVE: 30m
+      - name: Start performance proxy
+        if: steps.classify.outputs.repairable == 'true'
+        run: |
+          nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:11435/health >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS http://127.0.0.1:11435/health >/dev/null
+      - name: Repair specialist failure
+        if: steps.classify.outputs.repairable == 'true'
+        env:
+          AUTOBOT_AIDER_MODEL: ${{ inputs.local_model }}
+          OLLAMA_API_BASE: http://127.0.0.1:11435
+          OLLAMA_HOST: http://127.0.0.1:11435
+        run: node builder/runner/autobot-specialist-recovery.mjs builder/working/specialist-results/${{ matrix.bot }}
+      - name: Record no-repair route
+        if: steps.classify.outputs.repairable != 'true'
+        run: |
+          mkdir -p builder/working
+          node - <<'NODE'
+          const fs=require('node:fs');
+          fs.writeFileSync('builder/working/autobot-specialist-recovery-outcome.json',JSON.stringify({status:'not-routed',reason:'No repairable product failure was classified for this specialist.'},null,2)+'\n');
+          NODE
+      - name: Capture recovery diagnostics
+        if: always()
+        run: |
+          echo '--- ollama ps ---'
+          ollama ps || true
+          echo '--- ollama server log ---'
+          tail -n 160 /tmp/bikeztagram-ollama.log || true
+          echo '--- performance proxy log ---'
+          tail -n 160 /tmp/bikeztagram-ollama-proxy.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: autobot-specialist-recovery-${{ matrix.bot }}-${{ github.run_id }}
+          path: |
+            builder/working/autobot-fleet-recovery.json
+            builder/working/autobot-failure-queue.jsonl
+            builder/working/autobot-review.json
+            builder/working/autobot-verified-candidate.json
+            builder/working/autobot-repair-candidate.patch
+            builder/working/autobot-repair-base-commit.txt
+            builder/working/autobot-repair-commit.txt
+            builder/working/autobot-specialist-recovery-outcome.json
+          if-no-files-found: ignore
+
+  completed-work:
+    needs: [plan, specialists, repair-specialists]
     if: ${{ always() && needs.plan.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -197,6 +289,18 @@ jobs:
         with:
           name: autobot-specialist-timeline-builder-${{ github.run_id }}
           path: builder/working/specialist-results/timeline-builder
+      - name: Download Director recovery result
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          name: autobot-specialist-recovery-director-builder-${{ github.run_id }}
+          path: builder/working/specialist-results/director-builder/recovery
+      - name: Download Timeline recovery result
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          name: autobot-specialist-recovery-timeline-builder-${{ github.run_id }}
+          path: builder/working/specialist-results/timeline-builder/recovery
       - name: Verify completed-work inbox contract
         run: node scripts/autobot/verify-autobot-completed-work.mjs
       - name: Build central completed-work manifest
