@@ -1,5 +1,5 @@
-name: Bikeztagram Proven AutoBot Fleet
-run-name: Bikeztagram Proven AutoBot Fleet — ${{ inputs.duration || 'manual' }}
+name: 🚀 AUTOBOT FLEET — RUN THIS
+run-name: 🚀 AUTOBOT FLEET — ${{ inputs.duration || 'manual' }}
 
 "on":
   workflow_dispatch:
