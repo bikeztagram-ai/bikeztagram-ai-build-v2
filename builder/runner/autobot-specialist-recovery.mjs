@@ -73,7 +73,20 @@ try{
   if(recoveryPath!=='builder/runner/autobot-fleet-recovery.mjs')throw new Error('registry recovery runner does not match the controlled recovery implementation');
   const {recoverFleet}=await import(pathToFileURL(path.join(recoveryRoot,recoveryPath)).href);
   const result=await recoverFleet({failureId:queueRecord.id});
-  console.log(JSON.stringify({ok:result?.ok===true,failureId:queueRecord.id,botId:outcome.botId,restoredBase:base,restoredCandidate:restoredCommit,recovery:result},null,2));
+  if(result?.status==='verified-candidate'){
+    const qaBase=result.qa?.baseCommit;
+    const repairCommit=result.qa?.repairCommit;
+    if(!/^[0-9a-f]{40}$/i.test(qaBase)||!/^[0-9a-f]{40}$/i.test(repairCommit))throw new Error('verified recovery result is missing exact QA commit pair');
+    const patch=git(['diff','--binary',`${qaBase}..${repairCommit}`]);
+    if(!patch.trim())throw new Error('verified repair candidate contains no patch');
+    fs.writeFileSync(path.join(recoveryRoot,'builder/working/autobot-repair-candidate.patch'),patch);
+    fs.writeFileSync(path.join(recoveryRoot,'builder/working/autobot-repair-base-commit.txt'),`${qaBase}\n`);
+    fs.writeFileSync(path.join(recoveryRoot,'builder/working/autobot-repair-commit.txt'),`${repairCommit}\n`);
+    process.env.AUTOBOT_REVIEW_OUTPUT=path.join(recoveryRoot,'builder/working/autobot-review.json');
+    process.env.AUTOBOT_HANDOFF_OUTPUT=path.join(recoveryRoot,'builder/working/autobot-verified-candidate.json');
+    await import(pathToFileURL(path.join(recoveryRoot,'builder/runner/autobot-verified-candidate-handoff.mjs')).href);
+  }
+  console.log(JSON.stringify({ok:result?.ok===true,failureId:queueRecord.id,botId:outcome.botId,restoredBase:base,restoredCandidate:restoredCommit,recovery:result,verifiedCandidate:fs.existsSync(path.join(recoveryRoot,'builder/working/autobot-verified-candidate.json'))},null,2));
   if(result?.ok!==true)process.exitCode=3;
 }finally{
   process.chdir(originalRoot);
