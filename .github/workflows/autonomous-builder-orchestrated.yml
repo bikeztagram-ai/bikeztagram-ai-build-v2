@@ -1,0 +1,145 @@
+name: 🧠 AutoBot Orchestrated Product Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: 'Controlled orchestration shakedown budget'
+        required: true
+        default: '30m'
+        type: choice
+        options: ['15m','30m']
+      local_model:
+        description: 'Local coding/discovery model'
+        required: false
+        default: 'qwen2.5-coder:7b'
+        type: string
+concurrency:
+  group: autobot-orchestrated-product-builder
+  cancel-in-progress: false
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+  id-token: write
+
+env:
+  REQUESTED_DURATION: ${{ inputs.duration }}
+  LOCAL_AI_MODEL: ${{ inputs.local_model }}
+  AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
+  AUTOBOT_DISCOVERY_MODEL: ${{ inputs.local_model }}
+  AUTOBOT_ORCHESTRATOR_ENABLED: 'true'
+  AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: builder/working/autobot-orchestrator-assignment.json
+  AUTOBOT_FEATURE_ENGINE: aider
+  AUTOBOT_FEATURE_PROTOCOL: aider-repo-map-v4
+  AUTOBOT_FEATURE_PASSES_PER_SLICE: 2
+  AUTOBOT_FINISH_GRACE_MINUTES: 5
+  AUTOBOT_DETERMINISTIC_SLICE_MINUTES: 5
+  AUTOBOT_FEATURE_SLICE_MINUTES: 20
+  BUILDER_BASE_BRANCH: main
+
+jobs:
+  orchestrated-builder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact workflow revision
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Install Aider engine
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - name: Start local AI brain
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+        run: bash scripts/autobot/install-local-brain.sh
+      - name: Start performance proxy
+        run: |
+          set -euo pipefail
+          nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:11435/health >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS http://127.0.0.1:11435/health >/dev/null
+          echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_FEATURE_TIMEOUT_SECONDS=120' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_ATTEMPTS=2' >> "$GITHUB_ENV"
+          echo 'AUTOBOT_FEATURE_MAX_EDITS=2' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_CTX=8192' >> "$GITHUB_ENV"
+          echo 'LOCAL_AI_PROXY_NUM_PREDICT=2200' >> "$GITHUB_ENV"
+      - name: Verify orchestration contracts
+        run: |
+          set -euo pipefail
+          node --check builder/runner/autobot-product-discovery.mjs
+          node --check builder/runner/autobot-orchestrator.mjs
+          node --check builder/runner/aider-feature-brain.mjs
+          npm run verify:autobot-product-discovery
+          npm run verify:autobot-orchestrator
+          npm run verify:autobot-fleet-foundation
+          npm run verify:autobot-fleet-recovery
+      - name: Run product orchestrator
+        run: |
+          set -euo pipefail
+          node builder/runner/autobot-orchestrator.mjs
+          test -s builder/working/autobot-orchestrator-assignment.json
+          cat builder/working/autobot-orchestrator-assignment.json
+          echo 'AUTOBOT_ORCHESTRATOR_ENABLED=true' >> "$GITHUB_ENV"
+      - name: Resolve duration
+        run: |
+          case "$REQUESTED_DURATION" in 15m) minutes=15;; 30m) minutes=30;; *) exit 1;; esac
+          echo "BUILDER_MAX_MINUTES=$minutes" >> "$GITHUB_ENV"
+          echo "BUILDER_SEGMENT=1" >> "$GITHUB_ENV"
+      - name: Execute assigned product work with proven Builder
+        run: node builder/runner/long-run-executor.mjs
+      - name: Production verification
+        if: success()
+        run: |
+          npm run verify:autobot-production-gate
+          npm run verify:project-memory
+          npm run verify:autobot-continuous-loop
+          npm run verify:autobot-dependencies
+          npm run verify:director-selection-quality
+      - name: Persist orchestration evidence
+        if: always()
+        run: |
+          node builder/runner/segment-state.mjs || true
+          cat builder/working/autobot-orchestrator-assignment.json || true
+          cat builder/working/autobot-orchestration-state.json || true
+          cat builder/working/autobot-discovered-objective.json || true
+      - name: Capture product candidate on failure
+        if: failure()
+        run: |
+          git diff --binary HEAD -- src package.json public index.html vite.config.js > builder/working/autobot-builder-candidate.patch || true
+          git rev-parse HEAD > builder/working/autobot-builder-candidate-base-sha.txt
+      - name: Upload orchestration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-orchestration-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            builder/working/autobot-orchestrator-assignment.json
+            builder/working/autobot-orchestration-state.json
+            builder/working/autobot-discovered-objective.json
+            builder/working/aider-feature-brain-state.json
+            builder/working/autobot-builder-candidate.patch
+            builder/working/autobot-builder-candidate-base-sha.txt
+      - name: Publish clean product checkpoint
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git restore -- builder/working builder/monitor builder/quality 2>/dev/null || true
+          rm -f .aider.chat.history.md .aider.input.history
+          rm -rf .aider.tags.cache.v4
+          git clean -fd -- builder/working builder/monitor builder/quality .aider.tags.cache.v4 2>/dev/null || true
+          branch="autobot-orchestrated/${GITHUB_RUN_ID}"
+          git checkout -b "$branch"
+          git config user.name 'Bikeztagram AutoBot Orchestrator'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- src package.json
+          git commit -m 'feat: orchestrated product checkpoint' || true
+          git push --set-upstream origin "$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title 'AutoBot orchestrated product checkpoint' --body 'Controlled orchestrator checkpoint. Product work was selected by the central controller from the existing roadmap or evidence-based product discovery, then executed by the proven Builder with existing production gates. Review required before merge.' || true
