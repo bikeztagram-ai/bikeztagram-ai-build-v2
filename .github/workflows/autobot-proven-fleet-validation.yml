@@ -10,7 +10,9 @@ on:
       - 'scripts/autobot/write-proven-worker-outcome.mjs'
       - 'scripts/autobot/publish-proven-worker-candidate.mjs'
       - 'scripts/autobot/verify-autobot-parallel-proven.mjs'
+      - 'scripts/autobot/verify-autobot-fleet-foundation.mjs'
       - 'builder/runner/autobot-completed-work.mjs'
+      - 'package.json'
   workflow_dispatch:
 
 permissions:
@@ -38,8 +40,11 @@ jobs:
           node --check scripts/autobot/write-proven-worker-outcome.mjs
           node --check scripts/autobot/publish-proven-worker-candidate.mjs
           node --check scripts/autobot/verify-autobot-parallel-proven.mjs
+          node --check scripts/autobot/verify-autobot-fleet-foundation.mjs
       - name: Verify fleet contract
-        run: node scripts/autobot/verify-autobot-parallel-proven.mjs
+        run: |
+          node scripts/autobot/verify-autobot-parallel-proven.mjs
+          npm run verify:autobot-fleet-foundation
       - name: Verify existing recovery contracts
         run: |
           npm run verify:autobot-fleet-recovery
