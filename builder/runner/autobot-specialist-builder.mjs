@@ -30,6 +30,11 @@ function safeRelative(file){
   const value=String(file||'').trim();
   return value&&!path.isAbsolute(value)&&!value.includes('..')&&!value.startsWith('.')&&!value.includes('\\')?value:null;
 }
+function normalizeAiderModel(value){
+  const model=String(value||'').trim();
+  if(!model)return 'ollama_chat/qwen2.5-coder:7b';
+  return model.includes('/')?model:`ollama_chat/${model}`;
+}
 function classifyFailure(error){
   const message=String(error?.message||error||'');
   if(/ollama|proxy:\s*fetch failed|fetch failed|network|connection|timed out|timeout|cannot schedule new futures after shutdown|rate limit|503|502|504/i.test(message))return {category:'infrastructure',repairable:false};
@@ -118,7 +123,7 @@ try{
       requestedMinutes=match?Math.max(1,Number.parseInt(match[1],10)):15;
     }catch{requestedMinutes=15;}
   }
-  const model=String(process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b').trim();
+  const model=normalizeAiderModel(process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL);
   const protocol=String(process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4').trim();
   const passCount=Math.max(1,Math.min(3,Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES||'2',10)));
   const deadline=Date.now()+requestedMinutes*60_000;
