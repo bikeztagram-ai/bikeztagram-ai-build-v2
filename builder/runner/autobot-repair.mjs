@@ -21,7 +21,12 @@ import { appendFailure, readFailures, transitionFailure } from './autobot-failur
 const root=process.cwd();
 const queuePath=process.env.AUTOBOT_FAILURE_QUEUE_PATH||path.join(root,'builder','working','autobot-failure-queue.jsonl');
 const repairRoot=process.env.AUTOBOT_REPAIR_WORKTREE_ROOT||path.join(os.tmpdir(),'bikeztagram-autobot-repairs');
-const model=process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b';
+function normalizeAiderModel(value){
+  const model=String(value||'').trim();
+  if(!model)return 'ollama_chat/qwen2.5-coder:7b';
+  return model.includes('/')?model:`ollama_chat/${model}`;
+}
+const model=normalizeAiderModel(process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL);
 const timeoutMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_REPAIR_TIMEOUT_MS||String(30*60*1000),10));
 const maxFiles=Math.max(1,Math.min(40,Number.parseInt(process.env.AUTOBOT_REPAIR_MAX_FILES||'12',10)));
 const maxChangedLines=Math.max(4,Math.min(200,Number.parseInt(process.env.AUTOBOT_REPAIR_MAX_CHANGED_LINES||'80',10)));
