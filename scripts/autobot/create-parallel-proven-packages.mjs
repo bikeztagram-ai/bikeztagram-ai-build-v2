@@ -1,19 +1,14 @@
 #!/usr/bin/env node
-/** Create two explicit, non-overlapping work packages for the proven Builder. */
+/** Create two explicit, non-overlapping product work packages for the proven Builder. */
 import fs from 'node:fs';
 import path from 'node:path';
-
 const root=process.cwd();
 const data=JSON.parse(fs.readFileSync(path.join(root,'builder','brain','task-library.json'),'utf8'));
 const tasks=data.tasks||[];
-
-// Initial shakedown deliberately uses the first independent task in two
-// different product areas. The worker engine remains the proven long-run
-// executor; this file only assigns isolated work.
-const a=tasks.find(t=>t.id==='persistence-audit-and-contract' && t.status==='ready');
-const b=tasks.find(t=>t.id==='cinematic-shot-motion-contract' && t.status==='ready');
+const a=tasks.find(t=>t.id==='cinematic-shot-motion-contract'&&t.status==='ready');
+const b=tasks.find(t=>t.id==='provider-failure-classification'&&t.status==='ready');
 if(!a||!b) throw new Error('Required proven-fleet shakedown tasks are missing.');
-if((a.dependsOn||[]).length || (b.dependsOn||[]).length) throw new Error('Shakedown tasks must have no task-level dependencies.');
+if((a.dependsOn||[]).length||(b.dependsOn||[]).length) throw new Error('Shakedown tasks must have no task-level dependencies.');
 const aFiles=new Set(a.files||[]);
 const overlap=(b.files||[]).filter(file=>aFiles.has(file));
 if(overlap.length) throw new Error(`Parallel package overlap: ${overlap.join(', ')}`);
