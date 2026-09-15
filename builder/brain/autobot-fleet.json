@@ -8,6 +8,7 @@
     "mode": "active",
     "coordinator": "builder/runner/autobot-coordinator.mjs",
     "recoveryRunner": "builder/runner/autobot-fleet-recovery.mjs",
+    "specialistRecoveryRunner": "builder/runner/autobot-specialist-recovery.mjs",
     "recoveryWorkflow": ".github/workflows/autobot-fleet-recovery.yml",
     "recoveryDocumentation": "builder/brain/autobot-fleet-controlled-recovery.md",
     "failureQueue": "builder/working/autobot-failure-queue.jsonl",
@@ -54,6 +55,8 @@
     "Specialist Builder changes must produce an explicit base/candidate commit pair for downstream Reviewer and QA handoff.",
     "Only verified specialist handoffs may enter the central completed-work manifest as candidates.",
     "Specialist failures must remain visible in the central completed-work manifest so the recovery layer can classify and route repairable work.",
+    "Repairable specialist product failures must preserve their exact base, declared file scope and candidate patch before recovery begins.",
+    "The specialist recovery runner may invoke the existing Repair -> QA -> Reviewer chain only for explicitly classified repairable product failures.",
     "The recovery runner may orchestrate Repair, QA and Reviewer only after the explicit fleet activation gate is enabled.",
     "The controlled recovery workflow must use the registered recovery runner and must never bypass the explicit enabled:true plus coordination.mode:'active' gate.",
     "Only durations listed in activationGate.allowedTestDurations may be used for controlled live shakedowns; larger waves or longer endurance require a separate operator-approved activation change."
