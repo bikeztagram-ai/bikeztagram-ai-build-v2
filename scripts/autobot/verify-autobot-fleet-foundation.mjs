@@ -8,7 +8,7 @@ const json=file=>JSON.parse(read(file));
 const assert=(condition,message)=>{if(!condition)throw new Error(message);};
 const registry=json('builder/brain/autobot-fleet.json');
 const pkg=json('package.json');
-const workflow=read('.github/workflows/bikeztagram-proven-autobot-fleet.yml');
+const workflow=read('.github/workflows/autobot-parallel-specialists.yml');
 const validationWorkflow=read('.github/workflows/autobot-proven-fleet-validation.yml');
 const worker=read('builder/runner/proven-fleet-worker.mjs');
 const recovery=read('builder/runner/proven-builder-recovery.mjs');
@@ -30,11 +30,13 @@ assert(registry.activationGate.parallelWorkers.includes('proven-a')&&registry.ac
 const builder=registry.bots.find(bot=>bot.id==='builder');
 assert(builder?.entrypoint==='builder/runner/aider-feature-brain.mjs'&&builder?.status==='proven'&&builder?.protected===true,'protected proven Builder contract changed');
 for(const id of ['repair','qa','reviewer']){const bot=registry.bots.find(item=>item.id===id);assert(bot?.status==='verified'&&bot?.protected===false,`${id} must remain verified and unprotected`);}
+assert(workflow.includes('workflow_dispatch'),'fleet must remain directly manually dispatchable');
+assert(!workflow.includes('workflow_call'),'fleet must not depend on reusable-workflow invocation');
 assert(workflow.includes('proven-a')&&workflow.includes('proven-b'),'parallel workflow must define both proven workers');
 assert(workflow.includes('matrix: {worker: [proven-a, proven-b]}'),'parallel workflow must use the exact two-worker matrix');
 assert(workflow.includes('builder/runner/proven-fleet-worker.mjs'),'parallel workflow must invoke the proven fleet worker wrapper');
 assert(workflow.includes('builder/runner/proven-builder-recovery.mjs'),'parallel workflow must connect gated recovery');
-assert(workflow.includes('builder/runner/autobot-completed-work.mjs'),'parallel workflow must publish to the completed-work inbox');
+assert(workflow.includes('builder/runner/autobot-completed-work.mjs')||workflow.includes('scripts/autobot/collect-proven-completed-work.mjs'),'parallel workflow must publish to the completed-work inbox');
 assert(workflow.includes("steps.run_proven.outcome == 'success' && steps.production.outcome == 'success' && steps.publish.outcome == 'success'"),'worker success must require execution, production verification, and publication');
 assert(!workflow.includes('gh pr merge')&&!workflow.includes('merge_pull_request'),'parallel workflow must not automatically merge');
 assert(worker.includes('long-run-executor.mjs'),'proven fleet worker must delegate to the existing long-run executor');
