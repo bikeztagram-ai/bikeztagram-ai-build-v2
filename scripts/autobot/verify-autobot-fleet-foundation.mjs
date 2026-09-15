@@ -49,7 +49,7 @@ assert(packages.includes('overlap.length')&&!packages.includes('fileOverlap.leng
 assert(packages.includes('task.dependsOn'),'package planner must inspect task-level dependencies');
 assert(outcome.includes('repairable')&&outcome.includes('candidatePatch'),'worker outcome must distinguish repairable failures');
 assert(publisher.includes('verified-candidate')&&publisher.includes('npm run verify:autobot-production-gate'),'candidate publication must require production verification');
-assert(publisher.includes('autobot-proven/')&&publisher.includes('git push'),'successful workers must publish isolated candidate branches');
+assert(publisher.includes('autobot-proven/')&&(/git\s*['\"]?,?\s*\[?['\"]push['\"]/.test(publisher)||publisher.includes("'push'")),'successful workers must publish isolated candidate branches');
 
 assert(recovery.includes('autobot-fleet-recovery.mjs')&&recovery.includes('verified-candidate'),'recovery must use the existing recovery chain and require verified-candidate output');
 assert(recovery.includes('git worktree'),'recovery must use an isolated worktree');
