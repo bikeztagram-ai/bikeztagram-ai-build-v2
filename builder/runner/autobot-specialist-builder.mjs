@@ -60,7 +60,7 @@ try{
   const aider=String(process.env.AIDER_BIN||'aider').trim();
   const model=String(process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b').trim();
   const apiBase=String(process.env.OLLAMA_HOST||'http://127.0.0.1:11435').trim();
-  const normalizedBase=apiBase.replace(/\\/$/,'');
+  const normalizedBase=apiBase.replace(/\/$/,'');
   const aiderModel=model.startsWith('ollama_chat/')||model.startsWith('ollama/')?model:`ollama_chat/${model}`;
   console.log(`[autobot] specialist ${botId} using local Aider model ${aiderModel} via ${normalizedBase}`);
   run(aider,['--model',aiderModel,'--api-base',normalizedBase,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--map-tokens=768','--subtree-only','--message',prompt,...files],worktree);
@@ -78,16 +78,11 @@ try{
   if(stagedDiff.some(file=>!files.includes(file))) fail('Staged specialist diff escaped declared scope.');
   if(!stagedDiff.length) fail('Specialist Builder produced no product change.');
   const commitMessage=`autobot(${botId}): ${objective.slice(0,72)}`;
-  run('git',['commit','-m',commitMessage],worktree);
-  const candidate=git(['rev-parse','HEAD'],worktree);
-  const handoffPath=writeSpecialistHandoff({
-    schemaVersion:'autobot-specialist-handoff-v1',
-    botId,objective,baseCommit:base,candidateCommit:candidate,branch,
-    ownsFiles:stagedDiff,productQualityCheck:productQuality,status:'verified-candidate',
-    downstream:{reviewContract:'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT'}
-  });
+  execFileSync('git',['commit','-m',commitMessage],{cwd:worktree,stdio:'inherit',env:process.env});
+  const commit=git(['rev-parse','HEAD'],worktree);
+  writeSpecialistHandoff(root,{botId,objective,base,branch,commit,files,productQuality});
   keepBranch=true;
-  console.log(JSON.stringify({schemaVersion:1,ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:stagedDiff,productQualityCheck:productQuality,handoffPath,activationBlocked:false}));
+  console.log(`[autobot] specialist ${botId} completed candidate ${commit}`);
 }finally{
   try{run('git',['worktree','remove','--force',worktree],root);}catch{}
   if(!keepBranch){try{run('git',['branch','-D',branch],root);}catch{}}
