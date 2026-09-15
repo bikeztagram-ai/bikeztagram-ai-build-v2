@@ -25,10 +25,12 @@ function run(command,args,cwd,options={}){const result=spawnSync(command,args,{c
 function git(args,cwd){return execFileSync('git',args,{cwd,encoding:'utf8'}).trim();}
 function safeRelative(file){const value=String(file||'').trim();return value&&!path.isAbsolute(value)&&!value.includes('..')&&!value.startsWith('.')&&!value.includes('\\')?value:null;}
 function normalizeAiderModel(value){const model=String(value||'').trim();if(!model)return 'ollama_chat/qwen2.5-coder:7b';return model.includes('/')?model:`ollama_chat/${model}`;}
-function classifyFailure(error){const message=String(error?.message||error||'');if(/ollama|proxy:\s*fetch failed|fetch failed|network|connection|timed out|timeout|cannot schedule new futures after shutdown|rate limit|503|502|504/i.test(message))return {category:'infrastructure',repairable:false};return {category:'product-change',repairable:true};}
-function writeFailureOutcome({error,base,worktree,files}){
-  const classification=classifyFailure(error);let patchPath=null;
-  if(worktree&&fs.existsSync(worktree)&&files.length){try{const patch=execFileSync('git',['diff','--binary','HEAD','--',...files],{cwd:worktree,encoding:'utf8'});if(patch.trim()){fs.mkdirSync(path.dirname(failurePatchPath),{recursive:true});fs.writeFileSync(failurePatchPath,patch);patchPath=failurePatchPath;}}catch(patchError){console.error(`[autobot] could not capture specialist failure patch: ${patchError.message}`);}}
+function classifyFailure(error,hasPatch=false){const message=String(error?.message||error||'');if(/no product change/i.test(message))return {category:'no-product-change',repairable:false};if(/ollama|proxy:\s*fetch failed|fetch failed|network|connection|timed out|timeout|cannot schedule new futures after shutdown|rate limit|503|502|504/i.test(message))return {category:'infrastructure',repairable:false};return {category:'product-change',repairable:hasPatch};}
+function captureBasePatch(base,worktree,files){if(!worktree||!fs.existsSync(worktree)||!files.length)return '';try{return execFileSync('git',['diff','--binary',base,'--',...files],{cwd:worktree,encoding:'utf8'});}catch(error){console.error(`[autobot] could not capture specialist base diff: ${error.message}`);return '';}}
+function writeFailureOutcome({error,base,worktree,files,candidatePatch=''}){
+  let patch=candidatePatch||captureBasePatch(base,worktree,files);let patchPath=null;
+  if(patch.trim()){fs.mkdirSync(path.dirname(failurePatchPath),{recursive:true});fs.writeFileSync(failurePatchPath,patch);patchPath=failurePatchPath;}
+  const classification=classifyFailure(error,Boolean(patchPath));
   fs.mkdirSync(path.dirname(outcomePath),{recursive:true});
   fs.writeFileSync(outcomePath,JSON.stringify({schemaVersion:'autobot-specialist-outcome-v1',botId,objective:objectiveText,status:'failure',category:classification.category,repairable:classification.repairable,files,baseCommit:base||null,patchPath,evidence:['GitHub Actions specialist execution logs',patchPath].filter(Boolean),error:String(error?.message||error||'unknown specialist failure')},null,2)+'\n');
 }
@@ -56,6 +58,7 @@ const base=git(['rev-parse','HEAD'],root);
 const worktree=fs.mkdtempSync(path.join(os.tmpdir(),`autobot-specialist-${botId}-`));
 const branch=`autobot-specialist/${botId}-${Date.now()}`;
 let keepBranch=false;
+let candidatePatch='';
 try{
   run('git',['worktree','add','-b',branch,worktree,base],root);
   const assignmentPath=path.join(worktree,'builder/working/autobot-orchestrator-assignment.json');
@@ -87,21 +90,30 @@ try{
   const engine=spawnSync(process.execPath,['builder/runner/long-run-executor.mjs'],{cwd:worktree,stdio:'inherit',env:engineEnv,timeout:requestedMinutes*60_000+5*60_000+30_000});
   if(engine.error||engine.status!==0)fail(`proven long-run AutoBot controller failed with status ${engine.status??engine.error?.code??'error'}`);
 
-  const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  const trackedBefore=git(['status','--porcelain','--untracked-files=no'],worktree);
-  const untracked=git(['ls-files','--others','--exclude-standard'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  const unauthorizedTracked=changed.filter(file=>!files.includes(file));
-  const unauthorizedUntracked=untracked.filter(file=>!file.startsWith('builder/working/'));
-  if(unauthorizedTracked.length||unauthorizedUntracked.length)fail(`Specialist Builder modified out-of-scope files: ${[...unauthorizedTracked,...unauthorizedUntracked].join(', ')}`);
-  if(trackedBefore&&trackedBefore.split(/\r?\n/).some(line=>line.trim()&&!files.includes(line.slice(3).trim())))fail('Specialist Builder modified out-of-scope tracked files.');
-  run('git',['diff','HEAD','--check'],worktree);
+  // Treat the controller's base-to-worktree diff as the authoritative product
+  // change. This catches both unstaged/staged edits and any commit created by
+  // a future compatible controller, instead of comparing only HEAD to itself.
+  const baseChanged=git(['diff',base,'--name-only','--',...files]).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const trackedStatus=git(['status','--porcelain','--untracked-files=all']);
+  const statusPaths=trackedStatus.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);
+  const unauthorizedTracked=baseChanged.filter(file=>!files.includes(file));
+  const unauthorizedStatus=statusPaths.filter(file=>!files.includes(file)&&!file.startsWith('builder/working/'));
+  if(unauthorizedTracked.length||unauthorizedStatus.length)fail(`Specialist Builder modified out-of-scope files: ${[...unauthorizedTracked,...unauthorizedStatus].join(', ')}`);
+  run('git',['diff',base,'--check'],worktree);
+  candidatePatch=captureBasePatch(base,worktree,files);
+  const candidateFiles=[...new Set([...baseChanged,...statusPaths.filter(file=>files.includes(file))])];
+  if(!candidateFiles.length||!candidatePatch.trim())fail('Specialist Builder produced no product change.');
 
   const productQuality=String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality').trim();
   run('npm',['install','--no-audit','--no-fund','--no-package-lock'],worktree);
   run('npm',['run','build'],worktree);
   run('sh',['-lc',productQuality],worktree);
 
-  run('git',['add','--',...files],worktree);
+  // Normalize any compatible pre-existing controller commit back into one
+  // candidate commit based exactly on the specialist's original base.
+  const headBeforeCommit=git(['rev-parse','HEAD'],worktree);
+  if(headBeforeCommit!==base)run('git',['reset','--soft',base],worktree);
+  run('git',['add','--',...candidateFiles],worktree);
   const staged=git(['diff','--cached','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const stagedUnauthorized=staged.filter(file=>!files.includes(file));
   if(stagedUnauthorized.length)fail(`Staged specialist diff escaped declared scope: ${stagedUnauthorized.join(', ')}`);
@@ -114,4 +126,4 @@ try{
   fs.writeFileSync(outcomePath,JSON.stringify({schemaVersion:'autobot-specialist-outcome-v1',botId,objective:objectiveText,status:'success',category:'completed',repairable:false,files:staged,baseCommit:base,patchPath:null,evidence:[handoffPath],engine:'proven-autobot-long-run-controller',featureEngine:'builder/runner/aider-feature-brain.mjs',passes:passCount,protocol},null,2)+'\n');
   keepBranch=true;
   console.log(JSON.stringify({ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:staged,engine:'proven-autobot-long-run-controller',featureEngine:'aider-feature-brain',passes:passCount,protocol,handoffPath}));
-}catch(error){writeFailureOutcome({error,base,worktree,files});throw error;}finally{try{run('git',['worktree','remove','--force',worktree],root);}catch{}if(!keepBranch){try{run('git',['branch','-D',branch],root);}catch{}}}
+}catch(error){writeFailureOutcome({error,base,worktree,files,candidatePatch});throw error;}finally{try{run('git',['worktree','remove','--force',worktree],root);}catch{}if(!keepBranch){try{run('git',['branch','-D',branch],root);}catch{}}}
