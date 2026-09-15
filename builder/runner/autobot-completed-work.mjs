@@ -3,8 +3,8 @@
  * Build the single auditable AutoBot completed-work inbox from isolated worker artifacts.
  *
  * This file is a manifest only: source code remains isolated in worker branches.
- * Only a verified specialist handoff is allowed into candidates[]. Failed workers are
- * preserved as failures[] so the orchestration/recovery layer can route repairable work.
+ * Only verified specialist or verified-repair handoffs enter candidates[]. Failed workers
+ * are preserved as failures[] so the orchestration/recovery layer can route repairable work.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,32 +28,45 @@ function unique(values){return [...new Set(values.filter(Boolean))];}
 
 export function buildCompletedWork({inputRoot='builder/working/specialist-results',outputPath=process.env.AUTOBOT_COMPLETED_WORK_PATH||path.join(process.cwd(),DEFAULT_OUTPUT),runId=process.env.GITHUB_RUN_ID||'local'}={}){
   const handoffFiles=filesMatching(inputRoot,'autobot-specialist-handoff.json');
+  const verifiedFiles=filesMatching(inputRoot,'autobot-verified-candidate.json');
   const outcomeFiles=filesMatching(inputRoot,'autobot-specialist-outcome.json');
   const candidates=[];
   const failures=[];
-  const seenBots=new Set();
+  const seenIds=new Set();
 
   for(const file of handoffFiles){
     try{
       const handoff=readJson(file);
       if(handoff.schemaVersion!== 'autobot-specialist-handoff-v1' || handoff.status!=='verified-candidate') continue;
-      if(seenBots.has(handoff.botId)) throw new Error(`duplicate verified candidate for ${handoff.botId}`);
-      seenBots.add(handoff.botId);
+      const id=`${handoff.botId}-${handoff.candidateCommit.slice(0,12)}`;
+      if(seenIds.has(id)) throw new Error(`duplicate verified candidate ${id}`);
+      seenIds.add(id);
       candidates.push({
-        id:`${handoff.botId}-${handoff.candidateCommit.slice(0,12)}`,
-        botId:handoff.botId,
-        objective:handoff.objective,
-        status:'ready-for-review',
-        baseCommit:handoff.baseCommit,
-        candidateCommit:handoff.candidateCommit,
-        branch:handoff.branch,
-        files:unique(handoff.ownsFiles),
-        productQualityCheck:handoff.productQualityCheck,
-        downstream:handoff.downstream,
-        sourceArtifact:file
+        id,botId:handoff.botId,objective:handoff.objective,status:'ready-for-review',
+        baseCommit:handoff.baseCommit,candidateCommit:handoff.candidateCommit,branch:handoff.branch,
+        files:unique(handoff.ownsFiles),productQualityCheck:handoff.productQualityCheck,
+        downstream:handoff.downstream,sourceArtifact:file,verificationSource:'specialist-builder'
       });
     }catch(error){
       failures.push({kind:'invalid-handoff',sourceArtifact:file,error:error.message,repairable:false});
+    }
+  }
+
+  for(const file of verifiedFiles){
+    try{
+      const handoff=readJson(file);
+      if(handoff.status!=='integration-eligible'||handoff.eligible!==true)continue;
+      const id=`repair-${handoff.failureId||handoff.candidateCommit.slice(0,12)}`;
+      if(seenIds.has(id))continue;
+      seenIds.add(id);
+      candidates.push({
+        id,botId:`repair:${handoff.failureId||'unknown'}`,objective:null,status:'ready-for-review',
+        baseCommit:handoff.baseCommit,candidateCommit:handoff.candidateCommit,branch:null,
+        files:unique(handoff.changedFiles),productQualityCheck:'npm run verify:autobot-product-change-quality',
+        downstream:{reviewStatus:'pass'},sourceArtifact:file,verificationSource:'repair-qa-review'
+      });
+    }catch(error){
+      failures.push({kind:'invalid-verified-candidate',sourceArtifact:file,error:error.message,repairable:false});
     }
   }
 
@@ -64,17 +77,11 @@ export function buildCompletedWork({inputRoot='builder/working/specialist-result
       const botId=String(outcome.botId||path.basename(path.dirname(file))).trim();
       if(candidates.some(item=>item.botId===botId)) continue;
       failures.push({
-        id:`${botId}-${runId}`,
-        kind:outcome.category||'specialist-builder-failure',
-        botId,
-        objective:outcome.objective||null,
-        status:'needs-routing',
-        repairable:outcome.repairable===true,
+        id:`${botId}-${runId}`,kind:outcome.category||'specialist-builder-failure',botId,
+        objective:outcome.objective||null,status:'needs-routing',repairable:outcome.repairable===true,
         error:outcome.error||'specialist Builder failed without a recorded error',
-        files:Array.isArray(outcome.files)?unique(outcome.files):[],
-        baseCommit:outcome.baseCommit||null,
-        evidence:outcome.evidence||[],
-        sourceArtifact:file
+        files:Array.isArray(outcome.files)?unique(outcome.files):[],baseCommit:outcome.baseCommit||null,
+        patchPath:outcome.patchPath||null,evidence:outcome.evidence||[],sourceArtifact:file
       });
     }catch(error){
       failures.push({kind:'invalid-outcome',sourceArtifact:file,error:error.message,repairable:false});
@@ -83,13 +90,9 @@ export function buildCompletedWork({inputRoot='builder/working/specialist-result
 
   const status=candidates.length?'ready-for-review':failures.length?'needs-recovery':'no-worker-output';
   const manifest={
-    schemaVersion:COMPLETED_WORK_SCHEMA,
-    runId:String(runId),
-    generatedAt:new Date().toISOString(),
-    status,
+    schemaVersion:COMPLETED_WORK_SCHEMA,runId:String(runId),generatedAt:new Date().toISOString(),status,
     summary:{candidateCount:candidates.length,failureCount:failures.length,repairableFailureCount:failures.filter(x=>x.repairable===true).length},
-    candidates,
-    failures,
+    candidates,failures,
     policy:{sourceChangesRemainIsolated:true,onlyVerifiedCandidatesEnterCandidates:true,automaticMerge:false,automaticPush:false,humanReviewRequired:true}
   };
   fs.mkdirSync(path.dirname(outputPath),{recursive:true});
