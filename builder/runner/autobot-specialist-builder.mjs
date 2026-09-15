@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Execute one registry-defined specialist Builder in an isolated worktree.
- * Fleet activation remains blocked by the registry/coordinator foundation gate.
+ * Specialist identity and ownership remain independent while the coding brain
+ * is delegated to the proven Aider feature engine.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -13,21 +14,21 @@ const root=process.cwd();
 const registryPath=path.join(root,'builder/brain/autobot-fleet.json');
 const registry=JSON.parse(fs.readFileSync(registryPath,'utf8'));
 const botId=String(process.env.AUTOBOT_SPECIALIST_BOT_ID||'').trim();
-const objective=String(process.env.AUTOBOT_SPECIALIST_OBJECTIVE||'').trim();
+const objectiveText=String(process.env.AUTOBOT_SPECIALIST_OBJECTIVE||'').trim();
 const enabled=String(process.env.AUTOBOT_SPECIALIST_BUILDER_ENABLED||'').trim().toLowerCase()==='true';
-const bot=registry.bots.find(item=>item.id===botId);
 const outcomePath=process.env.AUTOBOT_SPECIALIST_OUTCOME_PATH||path.join(root,'builder/working/autobot-specialist-outcome.json');
 const failurePatchPath=process.env.AUTOBOT_SPECIALIST_FAILURE_PATCH_PATH||path.join(root,'builder/working/autobot-specialist-failure.patch');
 
 function fail(message){throw new Error(message);}
-function run(command,args,cwd){
-  const result=spawnSync(command,args,{cwd,stdio:'inherit',env:process.env});
-  if(result.status!==0) fail(`${command} ${args.join(' ')} failed with status ${result.status}`);
+function run(command,args,cwd,options={}){
+  const result=spawnSync(command,args,{cwd,stdio:'inherit',env:process.env,...options});
+  if(result.error||result.status!==0)fail(`${command} ${args.join(' ')} failed with status ${result.status??'error'}`);
+  return result;
 }
 function git(args,cwd){return execFileSync('git',args,{cwd,encoding:'utf8'}).trim();}
 function safeRelative(file){
   const value=String(file||'').trim();
-  return value && !path.isAbsolute(value) && !value.includes('..') && !value.startsWith('.') && !value.includes('\\') ? value : null;
+  return value&&!path.isAbsolute(value)&&!value.includes('..')&&!value.startsWith('.')&&!value.includes('\\')?value:null;
 }
 function classifyFailure(error){
   const message=String(error?.message||error||'');
@@ -37,7 +38,7 @@ function classifyFailure(error){
 function writeFailureOutcome({error,base,worktree,files}){
   const classification=classifyFailure(error);
   let patchPath=null;
-  if(worktree && fs.existsSync(worktree)){
+  if(worktree&&fs.existsSync(worktree)&&files.length){
     try{
       const patch=execFileSync('git',['diff','--binary','HEAD','--',...files],{cwd:worktree,encoding:'utf8'});
       if(patch.trim()){
@@ -49,99 +50,134 @@ function writeFailureOutcome({error,base,worktree,files}){
   }
   fs.mkdirSync(path.dirname(outcomePath),{recursive:true});
   fs.writeFileSync(outcomePath,JSON.stringify({
-    schemaVersion:'autobot-specialist-outcome-v1',botId,objective,status:'failure',
+    schemaVersion:'autobot-specialist-outcome-v1',botId,objective:objectiveText,status:'failure',
     category:classification.category,repairable:classification.repairable,
     files,baseCommit:base||null,patchPath,
     evidence:['GitHub Actions specialist execution logs',patchPath].filter(Boolean),
     error:String(error?.message||error||'unknown specialist failure')
   },null,2)+'\n');
 }
+function parseObjective(text,bot,files){
+  const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+  const acceptanceIndex=lines.findIndex(line=>/^acceptance:?$/i.test(line));
+  const title=lines[0]||`${bot.role} improvement`;
+  const whyNow=acceptanceIndex>1?lines[1]:'';
+  const acceptance=acceptanceIndex>=0?lines.slice(acceptanceIndex+1):[];
+  return {
+    id:`specialist-${botId}-${Date.now()}`,
+    title,whyNow,enabled:true,dependsOn:[],files,
+    acceptance:acceptance.length?acceptance:[title],
+    constraints:[
+      `This is the ${bot.role} specialist lane. Preserve its declared product ownership.`,
+      'Do not modify protected infrastructure, workflows, dependencies, secrets, or AutoBot control-plane code.',
+      'Do not merge or push. Do not create pull requests.'
+    ]
+  };
+}
 
-if(!enabled) fail('Specialist Builder execution is disabled until the fleet activation gate is explicitly enabled.');
-if(registry.enabled!==true || registry.coordination?.mode!=='active') fail('AutoBot fleet activation is blocked; registry must be enabled with active coordination.');
-if(!bot) fail(`Unknown specialist Builder id: ${botId}`);
-if(!bot.specialistBuilder) fail(`Registry bot ${botId} is not marked specialistBuilder.`);
-if(bot.protected===true) fail('Specialist Builder cannot be protected infrastructure.');
-if(bot.status!=='verified') fail(`Specialist Builder ${botId} is not verified.`);
-if(bot.entrypoint!=='builder/runner/autobot-specialist-builder.mjs') fail('Registry specialist Builder entrypoint does not match the executable.');
-if(!objective) fail('AUTOBOT_SPECIALIST_OBJECTIVE is required.');
+if(!enabled)fail('Specialist Builder execution is disabled until the fleet activation gate is explicitly enabled.');
+if(registry.enabled!==true || registry.coordination?.mode!=='active')fail('AutoBot fleet activation is blocked; registry must be enabled with active coordination.');
+const bot=registry.bots.find(item=>item.id===botId);
+if(!bot)fail(`Unknown specialist Builder id: ${botId}`);
+if(!bot.specialistBuilder)fail(`Registry bot ${botId} is not marked specialistBuilder.`);
+if(bot.protected===true)fail('Specialist Builder cannot be protected infrastructure.');
+if(bot.status!=='verified')fail(`Specialist Builder ${botId} is not verified.`);
+if(bot.entrypoint!=='builder/runner/autobot-specialist-builder.mjs')fail('Registry specialist Builder entrypoint does not match the executable.');
+if(!objectiveText)fail('AUTOBOT_SPECIALIST_OBJECTIVE is required.');
 
 const files=Array.isArray(bot.ownsFiles)?bot.ownsFiles.map(safeRelative).filter(Boolean):[];
-if(!files.length) fail(`Specialist Builder ${botId} has no declared ownsFiles scope.`);
+if(!files.length)fail(`Specialist Builder ${botId} has no declared ownsFiles scope.`);
+
+const provenBrainPath=path.join(root,'builder/runner/aider-feature-brain.mjs');
+const provenBrain=fs.readFileSync(provenBrainPath,'utf8');
+const PROVEN_AIDER_SAFETY_FLAGS=['--no-auto-commits','--no-dirty-commits'];
+for(const flag of PROVEN_AIDER_SAFETY_FLAGS)if(!provenBrain.includes(`'${flag}'`))fail(`Proven Aider brain lost required safety flag ${flag}.`);
+
 const base=git(['rev-parse','HEAD'],root);
 const worktree=fs.mkdtempSync(path.join(os.tmpdir(),`autobot-specialist-${botId}-`));
 const branch=`autobot-specialist/${botId}-${Date.now()}`;
 let keepBranch=false;
 try{
   run('git',['worktree','add','-b',branch,worktree,base],root);
-  const prompt=[
-    `You are the ${bot.role} for Bikeztagram AI.`,
-    `Specialist objective: ${objective}`,
-    `You may modify ONLY these exact declared product files: ${files.join(', ')}`,
-    `The working repository root is the current directory. Use the exact paths above; never invent placeholder paths such as path/to/... or example paths.`,
-    'Do not create, rename, copy, or modify any other file or directory.',
-    'Inspect callers, contracts, tests and production wiring before editing.',
-    'Do not weaken validators, safety rules, production gates, rollback, audit or protected infrastructure.',
-    'Do not modify package/dependency manifests, workflows, environment files, the fleet registry, or AutoBot runners.',
-    'Do not invent media, fake capabilities, Gemini dependencies, or unsupported claims.',
-    'Implement the smallest complete product-quality change that genuinely serves the objective.',
-    'Run targeted verification and npm run build before finishing.',
-    'Do not merge or push. Leave a clean, reviewable commit-ready working tree.'
-  ].join('\\n');
-  const aider=String(process.env.AIDER_BIN||'aider').trim();
-  const model=String(process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b').trim();
-  const apiBase=String(process.env.OLLAMA_HOST||'http://127.0.0.1:11435').trim();
-  const normalizedBase=apiBase.replace(/\/$/,'');
-  const aiderModel=model.startsWith('ollama_chat/')||model.startsWith('ollama/')?model:`ollama_chat/${model}`;
-  process.env.OLLAMA_API_BASE=normalizedBase;
-  console.log(`[autobot] specialist ${botId} using local Aider model ${aiderModel} via ${normalizedBase}`);
-  run(aider,['--version'],worktree);
-  run(aider,['--model',aiderModel,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--map-tokens=768','--subtree-only','--message',prompt,...files],worktree);
 
-  // Qwen/Aider can occasionally echo a generic patch path such as
-  // "path/to/director.js" even when the exact target file was supplied.
-  // Safely repair only this known placeholder form when its basename exactly
-  // matches one of the specialist's declared owned files. Never generalise
-  // arbitrary out-of-scope paths into owned files.
-  for(const file of files){
-    const placeholder=path.join(worktree,'path','to',path.basename(file));
-    const target=path.join(worktree,file);
-    if(fs.existsSync(placeholder) && fs.statSync(placeholder).isFile()){
-      fs.mkdirSync(path.dirname(target),{recursive:true});
-      fs.copyFileSync(placeholder,target);
-      fs.rmSync(placeholder);
-      console.log(`[autobot] normalised model placeholder path/to/${path.basename(file)} -> ${file}`);
-    }
+  const assignmentPath=path.join(worktree,'builder/working/autobot-orchestrator-assignment.json');
+  const objective=parseObjective(objectiveText,bot,files);
+  fs.mkdirSync(path.dirname(assignmentPath),{recursive:true});
+  fs.writeFileSync(assignmentPath,JSON.stringify({
+    schemaVersion:'autobot-orchestrator-assignment-v1',
+    specialist:{id:botId,role:bot.role},objective,source:'parallel-specialist-workflow'
+  },null,2)+'\n');
+
+  let requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'',10));
+  if(!Number.isFinite(requestedMinutes)){
+    try{
+      const eventPath=process.env.GITHUB_EVENT_PATH;
+      const event=eventPath&&fs.existsSync(eventPath)?JSON.parse(fs.readFileSync(eventPath,'utf8')):{};
+      const duration=String(event.inputs?.duration||'').trim();
+      const match=duration.match(/(\d+)/);
+      requestedMinutes=match?Math.max(1,Number.parseInt(match[1],10)):15;
+    }catch{requestedMinutes=15;}
   }
+  const model=String(process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b').trim();
+  const protocol=String(process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4').trim();
+  const passCount=Math.max(1,Math.min(3,Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES||'2',10)));
+  const deadline=Date.now()+requestedMinutes*60_000;
+  const engineEnv={
+    ...process.env,
+    AUTOBOT_ORCHESTRATOR_ENABLED:'true',
+    AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH:assignmentPath,
+    AUTOBOT_FEATURE_PROTOCOL:protocol,
+    AUTOBOT_FEATURE_PASSES:String(passCount),
+    AUTOBOT_FEATURE_DEADLINE_EPOCH_MS:String(deadline),
+    AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS:String(deadline),
+    AUTOBOT_AIDER_MODEL:model,
+    LOCAL_AI_MODEL:process.env.LOCAL_AI_MODEL||model.replace(/^ollama_chat\//,''),
+    BUILDER_MAX_MINUTES:String(requestedMinutes)
+  };
 
-  // Use Git's file-name primitives directly. Aider's human-readable output
-  // such as "Updated 'src/foo.js'" must never be interpreted as a filename.
+  console.log(`[autobot] specialist ${botId} entering proven Aider feature engine: ${requestedMinutes}m, ${passCount} passes, ${model}, ${protocol}`);
+  const engine=spawnSync(process.execPath,['builder/runner/aider-feature-brain.mjs'],{
+    cwd:worktree,stdio:'inherit',env:engineEnv,timeout:requestedMinutes*60_000+30_000
+  });
+  if(engine.error||engine.status!==0)fail(`proven Aider feature engine failed with status ${engine.status??engine.error?.code??'error'}`);
+
   const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const trackedBefore=git(['status','--porcelain','--untracked-files=no'],worktree);
   const untracked=git(['ls-files','--others','--exclude-standard'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  const touched=Array.from(new Set([...changed,...untracked]));
-  if(touched.some(file=>!files.includes(file))) fail(`Specialist Builder modified out-of-scope files: ${touched.filter(file=>!files.includes(file)).join(', ')}`);
+  const unauthorizedTracked=changed.filter(file=>!files.includes(file));
+  const unauthorizedUntracked=untracked.filter(file=>!file.startsWith('builder/working/'));
+  if(unauthorizedTracked.length||unauthorizedUntracked.length)fail(`Specialist Builder modified out-of-scope files: ${[...unauthorizedTracked,...unauthorizedUntracked].join(', ')}`);
+  if(trackedBefore&&trackedBefore.split(/\r?\n/).some(line=>line.trim()&&!files.includes(line.slice(3).trim())))fail('Specialist Builder modified out-of-scope tracked files.');
   run('git',['diff','HEAD','--check'],worktree);
+
+  const productQuality=String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality').trim();
   run('npm',['install','--no-audit','--no-fund','--no-package-lock'],worktree);
   run('npm',['run','build'],worktree);
-  const productQuality=String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK||'npm run verify:autobot-product-change-quality').trim();
   run('sh',['-lc',productQuality],worktree);
-  git(['add','--',...files],worktree);
-  const stagedDiff=git(['diff','--cached','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  if(stagedDiff.some(file=>!files.includes(file))) fail('Staged specialist diff escaped declared scope.');
-  if(!stagedDiff.length) fail('Specialist Builder produced no product change.');
-  const commitMessage=`autobot(${botId}): ${objective.slice(0,72)}`;
-  run('git',['commit','-m',commitMessage],worktree);
+
+  run('git',['add','--',...files],worktree);
+  const staged=git(['diff','--cached','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const stagedUnauthorized=staged.filter(file=>!files.includes(file));
+  if(stagedUnauthorized.length)fail(`Staged specialist diff escaped declared scope: ${stagedUnauthorized.join(', ')}`);
+  if(!staged.length)fail('Specialist Builder produced no product change.');
+
+  run('git',['commit','-m',`autobot(${botId}): ${objective.title.slice(0,72)}`],worktree);
   const candidate=git(['rev-parse','HEAD'],worktree);
   const handoffPath=writeSpecialistHandoff({
-    schemaVersion:'autobot-specialist-handoff-v1',
-    botId,objective,baseCommit:base,candidateCommit:candidate,branch,
-    ownsFiles:stagedDiff,productQualityCheck:productQuality,status:'verified-candidate',
+    schemaVersion:'autobot-specialist-handoff-v1',botId,objective:objectiveText,
+    baseCommit:base,candidateCommit:candidate,branch,ownsFiles:staged,
+    productQualityCheck:productQuality,status:'verified-candidate',
     downstream:{reviewContract:'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT'}
   });
   fs.mkdirSync(path.dirname(outcomePath),{recursive:true});
-  fs.writeFileSync(outcomePath,JSON.stringify({schemaVersion:'autobot-specialist-outcome-v1',botId,objective,status:'success',category:'completed',repairable:false,files:stagedDiff,baseCommit:base,patchPath:null,evidence:[handoffPath]},null,2)+'\n');
+  fs.writeFileSync(outcomePath,JSON.stringify({
+    schemaVersion:'autobot-specialist-outcome-v1',botId,objective:objectiveText,
+    status:'success',category:'completed',repairable:false,files:staged,
+    baseCommit:base,patchPath:null,evidence:[handoffPath],
+    engine:'builder/runner/aider-feature-brain.mjs',passes:passCount,protocol
+  },null,2)+'\n');
   keepBranch=true;
-  console.log(JSON.stringify({schemaVersion:1,ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:stagedDiff,productQualityCheck:productQuality,handoffPath,activationBlocked:false}));
+  console.log(JSON.stringify({ok:true,botId,baseCommit:base,candidateCommit:candidate,branch,files:staged,engine:'proven-aider-feature-brain',passes:passCount,protocol,handoffPath}));
 }catch(error){
   writeFailureOutcome({error,base,worktree,files});
   throw error;
