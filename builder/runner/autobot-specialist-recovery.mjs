@@ -11,7 +11,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { appendFailure } from './autobot-failure-queue.mjs';
 
 const originalRoot=process.cwd();
 const input=process.argv[2];
@@ -35,6 +34,8 @@ try{
   const base=outcome.baseCommit;
   execFileSync('git',['worktree','add','--detach',recoveryRoot,base],{cwd:originalRoot,stdio:'inherit'});
   process.chdir(recoveryRoot);
+  process.env.AUTOBOT_FAILURE_QUEUE_PATH=path.join(recoveryRoot,'builder','working','autobot-failure-queue.jsonl');
+  const {appendFailure}=await import(pathToFileURL(path.join(recoveryRoot,'builder','runner','autobot-failure-queue.mjs')).href);
   const patch=fs.readFileSync(path.resolve(originalRoot,patchPath),'utf8');
   if(!patch.trim())throw new Error('captured specialist failure patch is empty');
   fs.writeFileSync('.autobot-specialist-recovery.patch',patch);
