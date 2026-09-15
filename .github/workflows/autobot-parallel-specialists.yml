@@ -109,6 +109,7 @@ jobs:
           curl -fsS http://127.0.0.1:11435/health >/dev/null
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
       - name: Execute isolated specialist Builder
+        id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: ${{ matrix.bot }}
           AUTOBOT_SPECIALIST_OBJECTIVE: ${{ steps.assignment.outputs.objective }}
@@ -122,6 +123,22 @@ jobs:
           OLLAMA_LOAD_TIMEOUT: 20m
           OLLAMA_KEEP_ALIVE: 30m
         run: node builder/runner/autobot-specialist-builder.mjs
+      - name: Capture specialist outcome
+        if: always()
+        env:
+          BOT: ${{ matrix.bot }}
+          OBJECTIVE: ${{ steps.assignment.outputs.objective }}
+          OUTCOME: ${{ steps.execute.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p builder/working
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const registry=JSON.parse(fs.readFileSync('builder/brain/autobot-fleet.json','utf8'));
+          const bot=registry.bots.find(x=>x.id===process.env.BOT);
+          const outcome={schemaVersion:'autobot-specialist-outcome-v1',botId:process.env.BOT,objective:process.env.OBJECTIVE,status:process.env.OUTCOME,repairable:process.env.OUTCOME!=='success',category:process.env.OUTCOME==='success'?'completed':'specialist-builder-failure',files:Array.isArray(bot?.ownsFiles)?bot.ownsFiles:[],baseCommit:null,evidence:['GitHub Actions specialist execution logs'],error:process.env.OUTCOME==='success'?null:`Specialist Builder job ended with outcome: ${process.env.OUTCOME}`};
+          fs.writeFileSync('builder/working/autobot-specialist-outcome.json',JSON.stringify(outcome,null,2)+'\n');
+          NODE
       - name: Capture local AI diagnostics
         if: always()
         run: |
@@ -132,6 +149,7 @@ jobs:
           echo '--- performance proxy log ---'
           tail -n 160 /tmp/bikeztagram-ollama-proxy.log || true
       - name: Publish specialist candidate branch
+        if: steps.execute.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           BOT: ${{ matrix.bot }}
@@ -148,4 +166,38 @@ jobs:
           name: autobot-specialist-${{ matrix.bot }}-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-specialist-outcome.json
             builder/working/autobot-review.json
+          if-no-files-found: ignore
+
+  completed-work:
+    needs: specialists
+    if: ${{ always() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Download Director specialist result
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          name: autobot-specialist-director-builder-${{ github.run_id }}
+          path: builder/working/specialist-results/director-builder
+      - name: Download Timeline specialist result
+        uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          name: autobot-specialist-timeline-builder-${{ github.run_id }}
+          path: builder/working/specialist-results/timeline-builder
+      - name: Build central completed-work manifest
+        run: node builder/runner/autobot-completed-work.mjs
+      - name: Publish central completed-work manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autobot-completed-work-${{ github.run_id }}
+          path: builder/working/autobot-completed-work.json
+          if-no-files-found: ignore
