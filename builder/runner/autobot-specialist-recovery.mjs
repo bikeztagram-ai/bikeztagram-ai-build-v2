@@ -2,7 +2,7 @@
 /**
  * Recover one repairable Specialist Builder failure.
  *
- * The failed specialist patch is restored onto its exact base in a detached
+ * The failed specialist patch is restored onto its exact base in an isolated
  * recovery checkout, then the existing Repair -> QA -> Reviewer chain handles
  * it. No main merge or push is performed here.
  */
@@ -13,7 +13,7 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { appendFailure } from './autobot-failure-queue.mjs';
 
-const root=process.cwd();
+const originalRoot=process.cwd();
 const input=process.argv[2];
 if(!input)throw new Error('specialist recovery requires a specialist result directory');
 const outcomePath=path.join(input,'autobot-specialist-outcome.json');
@@ -29,15 +29,15 @@ const recoveryRoot=fs.mkdtempSync(path.join(os.tmpdir(),`bikeztagram-specialist-
 const branch=`autobot-specialist-recovery/${outcome.botId}-${Date.now()}`;
 function git(args,cwd=recoveryRoot){return execFileSync('git',args,{cwd,encoding:'utf8'}).trim();}
 function run(args,cwd=recoveryRoot){execFileSync('git',args,{cwd,stdio:'inherit'});}
-function npmRun(){execFileSync('npm',['--version'],{cwd:recoveryRoot,stdio:'ignore'});}
-function cleanup(){try{execFileSync('git',['worktree','remove','--force',recoveryRoot],{cwd:process.cwd(),stdio:'ignore'});}catch{} }
+function cleanup(){try{execFileSync('git',['worktree','remove','--force',recoveryRoot],{cwd:originalRoot,stdio:'ignore'});}catch{} }
 
 try{
   const base=outcome.baseCommit;
-  execFileSync('git',['worktree','add','--detach',recoveryRoot,base],{cwd:root,stdio:'inherit'});
-  const patch=fs.readFileSync(patchPath,'utf8');
+  execFileSync('git',['worktree','add','--detach',recoveryRoot,base],{cwd:originalRoot,stdio:'inherit'});
+  process.chdir(recoveryRoot);
+  const patch=fs.readFileSync(path.resolve(originalRoot,patchPath),'utf8');
   if(!patch.trim())throw new Error('captured specialist failure patch is empty');
-  fs.writeFileSync(path.join(recoveryRoot,'.autobot-specialist-recovery.patch'),patch);
+  fs.writeFileSync('.autobot-specialist-recovery.patch',patch);
   run(['apply','--check','.autobot-specialist-recovery.patch']);
   run(['apply','--whitespace=nowarn','.autobot-specialist-recovery.patch']);
   run(['diff','--check']);
@@ -75,4 +75,7 @@ try{
   const result=await recoverFleet({failureId:queueRecord.id});
   console.log(JSON.stringify({ok:result?.ok===true,failureId:queueRecord.id,botId:outcome.botId,restoredBase:base,restoredCandidate:restoredCommit,recovery:result},null,2));
   if(result?.ok!==true)process.exitCode=3;
-}finally{cleanup();}
+}finally{
+  process.chdir(originalRoot);
+  cleanup();
+}
