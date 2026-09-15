@@ -62,8 +62,10 @@ try{
   const apiBase=String(process.env.OLLAMA_HOST||'http://127.0.0.1:11435').trim();
   const normalizedBase=apiBase.replace(/\/$/,'');
   const aiderModel=model.startsWith('ollama_chat/')||model.startsWith('ollama/')?model:`ollama_chat/${model}`;
+  process.env.OLLAMA_API_BASE=normalizedBase;
   console.log(`[autobot] specialist ${botId} using local Aider model ${aiderModel} via ${normalizedBase}`);
-  run(aider,['--model',aiderModel,'--ollama-api-base',normalizedBase,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--map-tokens=768','--subtree-only','--message',prompt,...files],worktree);
+  run(aider,['--version'],worktree);
+  run(aider,['--model',aiderModel,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--map-tokens=768','--subtree-only','--message',prompt,...files],worktree);
   const all=git(['status','--porcelain','--untracked-files=no'],worktree).split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>line.slice(3));
   const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const touched=Array.from(new Set([...changed,...all]));
