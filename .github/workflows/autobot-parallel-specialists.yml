@@ -133,7 +133,7 @@ jobs:
           set -euo pipefail
           git diff --binary HEAD -- src package.json public index.html vite.config.js > builder/working/autobot-proven-worker.patch || true
           git rev-parse HEAD > builder/working/autobot-proven-worker-base-sha.txt
-          git status --short -- src package.json public index.html > builder/working/autobot-proven-worker-status.txt || true
+          git status --short -- src package.json public index.html vite.config.js > builder/working/autobot-proven-worker-status.txt || true
           node scripts/autobot/write-proven-worker-outcome.mjs
       - uses: actions/upload-artifact@v4
         if: always()
@@ -197,16 +197,16 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with: {ref: ${{ github.sha }}, fetch-depth: 0}
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v4
         continue-on-error: true
         with: {name: autobot-proven-worker-proven-a-${{ github.run_id }}, path: builder/working/proven-results/proven-a}
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v4
         continue-on-error: true
         with: {name: autobot-proven-worker-proven-b-${{ github.run_id }}, path: builder/working/proven-results/proven-b}
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v4
         continue-on-error: true
         with: {name: autobot-proven-recovery-proven-a-${{ github.run_id }}, path: builder/working/proven-results/proven-a/recovery}
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v4
         continue-on-error: true
         with: {name: autobot-proven-recovery-proven-b-${{ github.run_id }}, path: builder/working/proven-results/proven-b/recovery}
       - name: Build completed-work inbox
