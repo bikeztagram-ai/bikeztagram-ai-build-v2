@@ -6,11 +6,10 @@ import path from 'node:path';
 const root=process.cwd();
 const registryPath=path.join(root,'builder/brain/autobot-fleet.json');
 const objectivesPath=path.join(root,'builder/brain/feature-objectives.json');
-const directivePath=path.join(root,'builder/brain/autobot-product-directive.md');
 const output=path.join(root,'builder/working/autobot-parallel-plan.json');
 const model=process.env.AUTOBOT_DISCOVERY_MODEL||process.env.LOCAL_AI_MODEL||'qwen2.5-coder:3b';
 const host=(process.env.OLLAMA_HOST||'http://127.0.0.1:11434').replace(/\/$/,'');
-const requestTimeoutMs=Number(process.env.AUTOBOT_DISCOVERY_TIMEOUT_MS||180000);
+const requestTimeoutMs=Number(process.env.AUTOBOT_DISCOVERY_TIMEOUT_MS||20000);
 const allowedBots=(process.env.AUTOBOT_PARALLEL_BOTS||'director-builder,timeline-builder').split(',').map(s=>s.trim()).filter(Boolean);
 function readJson(file,fallback){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return fallback;}}
 function inventory(){return fs.readdirSync(path.join(root,'src'),{withFileTypes:true}).filter(e=>e.isFile()&&/\.(js|jsx|ts|tsx)$/.test(e.name)).map(e=>`src/${e.name}`).sort();}
@@ -24,22 +23,34 @@ function validate(item,bot,seenTitles,seenFiles,inv,library){
   const banned=/\b(builder|workflow|github|vercel|autobot|orchestrat|repair bot|qa bot|reviewer|self-improvement|infrastructure|validator|gate|secret|credential)\b/i;if(banned.test(`${p.title} ${p.whyNow} ${p.acceptance.join(' ')}`))throw new Error(`${bot.id}: proposed non-product work`);
   seenTitles.add(p.title.toLowerCase());for(const f of p.files)seenFiles.add(f);return p;
 }
+function fallback(bot,library){
+  const existing=(library.objectives||[]).map(o=>String(o?.title||'').toLowerCase());
+  const candidates={
+    'director-builder':{title:'Adaptive hook-to-payoff shot scoring',whyNow:'Give the director a stronger user-visible way to rank the opening hook and final payoff from the available media instead of relying on a fixed story shape.',files:['src/director.js','src/aiEditPlanner.js'],acceptance:['hook and payoff scores use available media evidence','selection remains diverse and avoids duplicate source use','scores reach the production edit plan','single-source and rich-media inputs remain usable','npm run build passes'],constraints:['preserve existing director contracts','never invent media','keep story structure dynamic'],priority:94},
+    'timeline-builder':{title:'Cadence-aware transition density',whyNow:'Improve visible editorial rhythm by adapting cut and transition density to shot duration and sequence energy rather than applying uniform timing.',files:['src/executableTimeline.js','src/editorialRhythm.js','src/renderer.js'],acceptance:['transition density responds to editorial cadence','short and rich timelines remain executable','duration budget remains deterministic','timing decisions are consumed by rendering','npm run build passes'],constraints:['preserve timeline contracts','do not invent source media','keep transitions executable and provider-neutral'],priority:93}
+  };
+  const candidate=candidates[bot.id];if(!candidate)throw new Error(`${bot.id}: no deterministic product-gap fallback`);
+  if(existing.includes(candidate.title.toLowerCase()))throw new Error(`${bot.id}: fallback objective already exists`);
+  return candidate;
+}
+async function aiPlan(bots,library,inv){
+  const objectiveTitles=(library.objectives||[]).map(o=>String(o?.title||'').trim()).filter(Boolean);
+  const specialistBrief=bots.map(b=>({id:b.id,role:b.role,ownsFiles:b.ownsFiles}));
+  const prompt=`Return ONLY JSON: {"packages":[{"botId":"...","title":"...","whyNow":"...","files":["..."],"acceptance":["..."],"constraints":["..."],"priority":90}]}. Create one genuinely new user-facing product capability per specialist. Do not repeat these existing objectives: ${JSON.stringify(objectiveTitles)}. Use only owned files. Specialists: ${JSON.stringify(specialistBrief)}. Source files: ${JSON.stringify(inv)}. No infrastructure, automation, CI, or provider work.`;
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),requestTimeoutMs);
+  try{
+    const response=await fetch(`${host}/api/chat`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages:[{role:'user',content:prompt}],stream:false,format:'json',options:{temperature:0.1,num_ctx:2048,num_predict:420}}),signal:controller.signal});
+    const bodyText=await response.text();if(!response.ok)throw new Error(`HTTP ${response.status}`);let body;try{body=JSON.parse(bodyText);}catch{throw new Error('invalid HTTP JSON');}
+    const raw=clean(body?.message?.content??body?.response??'');return raw.packages||[];
+  }finally{clearTimeout(timeout);}
+}
 async function main(){
   const registry=readJson(registryPath,null);if(!registry)throw new Error('fleet registry missing');if(registry.coordination?.maxConcurrentWorkers<2)throw new Error('parallel planning is blocked until the fleet activation gate explicitly authorizes at least two concurrent workers');
   const bots=(registry.bots||[]).filter(b=>allowedBots.includes(b.id)&&b.specialistBuilder===true&&b.status==='verified');if(bots.length<2)throw new Error('at least two verified specialist Builders are required');
-  const directive=fs.readFileSync(directivePath,'utf8');const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const prompt=`You are the Bikeztagram Product Discovery Planner. Produce ONE independent missing user-facing capability for EACH specialist below. Work from the end goal, product directive, current source inventory and existing roadmap, but do not simply repeat existing objectives. Each package must be implementable only inside that specialist's declared files and packages MUST NOT overlap. Prefer genuinely new capability over polish of an already listed objective. Return JSON object {packages:[{botId,title,whyNow,files,acceptance,constraints,priority}]}. No infrastructure or AutoBot work.\n\nDIRECTIVE:\n${directive}\n\nEXISTING OBJECTIVES:\n${JSON.stringify(library.objectives||[])}\n\nSOURCE INVENTORY:\n${inv.join('\n')}\n\nSPECIALISTS:\n${JSON.stringify(bots.map(b=>({id:b.id,role:b.role,ownsFiles:b.ownsFiles,owns:b.owns})))} `;
-  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),requestTimeoutMs);
-  let response;
-  try{
-    response=await fetch(`${host}/api/chat`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages:[{role:'user',content:prompt}],stream:false,format:'json',options:{temperature:0.15,num_ctx:6144,num_predict:650}}),signal:controller.signal});
-  }catch(error){
-    const detail=error?.name==='AbortError'?`timeout after ${Math.round(requestTimeoutMs/1000)}s`:String(error?.message||error);
-    throw new Error(`planner model request failed: ${detail} (host=${host}, model=${model})`);
-  }finally{clearTimeout(timeout);}
-  const bodyText=await response.text();
-  if(!response.ok){let detail='';try{const errorBody=JSON.parse(bodyText);detail=String(errorBody.error||'').trim();}catch{}throw new Error(`planner model HTTP ${response.status}${detail?`: ${detail}`:''}`);}
-  let body;try{body=JSON.parse(bodyText);}catch{throw new Error('planner model returned invalid HTTP JSON');}
-  const raw=clean(body?.message?.content??body?.response??'');const byId=new Map((raw.packages||[]).map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{const item=byId.get(bot.id);if(!item)throw new Error(`planner omitted ${bot.id}`);return validate(item,bot,seenTitles,seenFiles,inv,library);});
-  const plan={schemaVersion:1,source:'evidence-based-parallel-product-discovery',generatedAt:new Date().toISOString(),workers:packages};fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(plan,null,2)+'\n');console.log(JSON.stringify({ok:true,status:'parallel-plan-created',workers:packages.map(p=>({botId:p.botId,title:p.title,files:p.files}))}));
+  const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();let rawPackages=[];let source='ai-discovery';let aiFailure='';
+  try{rawPackages=await aiPlan(bots,library,inv);if(!Array.isArray(rawPackages)||rawPackages.length<bots.length)throw new Error('AI planner returned too few packages');}
+  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library));}
+  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{const item=byId.get(bot.id)||fallback(bot,library);return validate(item,bot,seenTitles,seenFiles,inv,library);});
+  const plan={schemaVersion:1,source,generatedAt:new Date().toISOString(),discovery:{model,aiFailure:aiFailure||null},workers:packages};fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(plan,null,2)+'\n');console.log(JSON.stringify({ok:true,status:'parallel-plan-created',source,workers:packages.map(p=>({botId:p.botId,title:p.title,files:p.files}))}));
 }
 main().catch(error=>{console.error(`[parallel-planner] ${error.message}`);process.exit(1);});
