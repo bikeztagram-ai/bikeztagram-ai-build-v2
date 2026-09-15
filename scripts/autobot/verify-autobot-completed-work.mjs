@@ -21,7 +21,7 @@ assert(registry.coordination?.completedWorkManifest==='builder/working/autobot-c
 assert(registry.coordination?.completedWorkRunner===runner,'registry must point to the exact completed-work runner');
 assert(registry.coordination?.specialistRecoveryRunner===recoveryRunner,'registry must point to the exact specialist recovery runner');
 assert(recoveryText.includes('Repair -> QA -> Reviewer'),'specialist recovery must use the existing repair chain');
-assert(recoveryText.includes('repairable===true')&&recoveryText.includes("category!=='product-change'"),'specialist recovery must accept only explicitly classified product failures');
+assert(recoveryText.includes('repairable!==true')&&recoveryText.includes("category!=='product-change'"),'specialist recovery must accept only explicitly classified product failures');
 assert(recoveryText.includes('autobot-specialist-failure.patch'),'specialist recovery must consume the preserved candidate patch');
 assert(workflow.includes('repair-specialists:'),'parallel workflow must have a dedicated specialist repair stage');
 assert(workflow.includes('autobot-specialist-recovery-${{ matrix.bot }}-${{ github.run_id }}'),'repair stage must publish per-specialist recovery evidence');
