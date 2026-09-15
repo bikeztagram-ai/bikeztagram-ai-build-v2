@@ -35,9 +35,9 @@ assert(workflow.includes('matrix: {worker: [proven-a, proven-b]}'),'parallel wor
 assert(workflow.includes('builder/runner/proven-fleet-worker.mjs'),'parallel workflow must invoke the proven fleet worker wrapper');
 assert(workflow.includes('builder/runner/proven-builder-recovery.mjs'),'parallel workflow must connect gated recovery');
 assert(workflow.includes('builder/runner/autobot-completed-work.mjs'),'parallel workflow must publish to the completed-work inbox');
-assert(workflow.includes("steps.run_proven.outcome == 'success' && steps.production.outcome == 'success' && steps.publish.outcome == 'success"),'worker success must require execution, production verification, and publication');
+assert(workflow.includes("steps.run_proven.outcome == 'success' && steps.production.outcome == 'success' && steps.publish.outcome == 'success'"),'worker success must require execution, production verification, and publication');
 assert(!workflow.includes('gh pr merge')&&!workflow.includes('merge_pull_request'),'parallel workflow must not automatically merge');
-worker.includes('long-run-executor.mjs')||assert(false,'proven fleet worker must delegate to the existing long-run executor');
+assert(worker.includes('long-run-executor.mjs'),'proven fleet worker must delegate to the existing long-run executor');
 assert(worker.includes('AUTOBOT_WORK_PACKAGE_PATH'),'worker must receive an explicit work package');
 assert(worker.includes('task-library.json')&&worker.includes('roadmap.json')&&worker.includes('autonomous-builder-queue.json'),'worker must isolate and restore the proven Builder state');
 assert(packages.includes('cinematic-shot-motion-contract')&&packages.includes('provider-failure-classification'),'shakedown must contain two concrete product tasks');
