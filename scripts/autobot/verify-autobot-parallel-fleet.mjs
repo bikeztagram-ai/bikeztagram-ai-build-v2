@@ -25,5 +25,5 @@ assert(workflow.includes('AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK'),'parallel w
 assert(planner.includes('maxConcurrentWorkers<2'),'planner must refuse execution before parallel activation');
 assert(planner.includes('seenFiles')&&planner.includes('scope overlaps another parallel worker'),'planner must reject overlapping file scopes');
 assert(planner.includes('evidence-based-parallel-product-discovery'),'planner must be evidence-based and product-facing');
-assert(specialist.includes('git\',[]')===false,'sanity');
+assert(specialist.includes('writeSpecialistHandoff')&&specialist.includes("status:'verified-candidate'"),'specialist worker must produce a verified candidate handoff');
 console.log(JSON.stringify({ok:true,parallelWorkflow:'two specialist lanes',gate:'explicit registry authorization required',protectedIntegration:false}));
