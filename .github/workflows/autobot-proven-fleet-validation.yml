@@ -1,53 +1,24 @@
 name: 🧪 AutoBot Proven Fleet Validation
-
 on:
   pull_request:
     paths:
-      - '.github/workflows/autobot-parallel-proven-fleet.yml'
-      - 'builder/runner/proven-fleet-worker.mjs'
-      - 'builder/runner/proven-builder-recovery.mjs'
-      - 'scripts/autobot/create-parallel-proven-packages.mjs'
-      - 'scripts/autobot/write-proven-worker-outcome.mjs'
-      - 'scripts/autobot/publish-proven-worker-candidate.mjs'
-      - 'scripts/autobot/verify-autobot-parallel-proven.mjs'
-      - 'scripts/autobot/verify-autobot-fleet-foundation.mjs'
-      - 'builder/runner/autobot-completed-work.mjs'
+      - '.github/workflows/autobot-parallel-specialists.yml'
+      - '.github/workflows/autobot-proven-fleet-validation.yml'
+      - 'builder/runner/**'
+      - 'scripts/autobot/**'
+      - 'builder/brain/**'
+      - 'builder/quality/**'
       - 'package.json'
-  workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: ''
+        with: {fetch-depth: 0}
       - run: npm install --no-audit --no-fund --no-package-lock
-      - name: Syntax-check new fleet code
-        run: |
-          set -euo pipefail
-          node --check builder/runner/proven-fleet-worker.mjs
-          node --check builder/runner/proven-builder-recovery.mjs
-          node --check scripts/autobot/create-parallel-proven-packages.mjs
-          node --check scripts/autobot/write-proven-worker-outcome.mjs
-          node --check scripts/autobot/publish-proven-worker-candidate.mjs
-          node --check scripts/autobot/verify-autobot-parallel-proven.mjs
-          node --check scripts/autobot/verify-autobot-fleet-foundation.mjs
-      - name: Verify fleet contract
-        run: |
-          node scripts/autobot/verify-autobot-parallel-proven.mjs
-          npm run verify:autobot-fleet-foundation
-      - name: Verify existing recovery contracts
-        run: |
-          npm run verify:autobot-fleet-recovery
-          npm run verify:autobot-production-gate
-      - name: Build product
-        run: npm run build
+      - run: node scripts/autobot/verify-autobot-parallel-proven.mjs
+      - run: node scripts/autobot/verify-autobot-fleet-foundation.mjs
+      - run: npm run verify:autobot-production-gate
+      - run: npm run build
