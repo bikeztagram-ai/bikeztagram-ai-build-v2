@@ -22,7 +22,8 @@ concurrency:
   cancel-in-progress: false
 env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
-  AUTOBOT_DISCOVERY_MODEL: ${{ inputs.local_model }}
+  AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
+  AUTOBOT_DISCOVERY_TIMEOUT_MS: 180000
   AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder
 jobs:
   plan:
@@ -46,6 +47,15 @@ jobs:
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:11435/health >/dev/null 2>&1 && break; sleep 1; done
           curl -fsS http://127.0.0.1:11435/health >/dev/null
           echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
+      - name: Verify planner model through proxy
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 120 \
+            http://127.0.0.1:11435/api/chat \
+            -H 'Content-Type: application/json' \
+            -d "{\"model\":\"${AUTOBOT_DISCOVERY_MODEL}\",\"stream\":false,\"messages\":[{\"role\":\"user\",\"content\":\"Reply with READY only.\"}],\"options\":{\"num_ctx\":2048,\"num_predict\":16}}" \
+            >/tmp/bikeztagram-planner-smoke.json
+          node -e "const x=require('/tmp/bikeztagram-planner-smoke.json'); if(!x.message?.content && !x.response) process.exit(1); console.log('[autobot] planner model smoke test passed')"
       - name: Discover independent work packages
         run: node builder/runner/autobot-parallel-planner.mjs
       - uses: actions/upload-artifact@v4
@@ -84,6 +94,7 @@ jobs:
       - run: bash scripts/autobot/install-local-brain.sh
         env:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
+          AUTOBOT_DISCOVERY_MODEL: ${{ inputs.local_model }}
       - name: Start performance proxy
         run: |
           nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
