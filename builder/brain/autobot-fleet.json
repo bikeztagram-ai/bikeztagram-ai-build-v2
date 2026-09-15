@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "status": "fifteen-minute-live-test",
+  "status": "parallel-two-worker-live-test",
   "enabled": true,
-  "purpose": "Run the first controlled fifteen-minute end-to-end AutoBot fleet shakedown and subsequent explicitly authorized short-duration tests before any longer endurance activation.",
+  "purpose": "Run the first controlled two-worker parallel AutoBot shakedown, then expand the specialist fleet only after concurrent isolation, verification and handoff are proven.",
   "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving the protected proven builder and truthful verification.",
   "coordination": {
     "mode": "active",
@@ -15,7 +15,7 @@
     "specialistHandoff": "builder/working/autobot-specialist-handoff.json",
     "specialistHandoffContract": "builder/runner/autobot-specialist-handoff.mjs",
     "specialistHandoffVerifier": "scripts/autobot/verify-autobot-specialist-handoff.mjs",
-    "maxConcurrentWorkers": 1,
+    "maxConcurrentWorkers": 2,
     "requireIsolatedWorker": true,
     "requireVerificationBeforeHandoff": true,
     "requireHumanReviewBeforeProtectedIntegration": true
@@ -26,7 +26,8 @@
     "protectedIntegration": false,
     "testDuration": "15m",
     "allowedTestDurations": ["15m", "30m"],
-    "operatorControl": "Temporary live activation for controlled fifteen- or thirty-minute fleet shakedowns only. Protected integration remains disabled and requires operator-controlled review. Longer endurance is not authorized by this gate."
+    "parallelWorkers": ["director-builder", "timeline-builder"],
+    "operatorControl": "Temporary live activation for a controlled two-worker fifteen- or thirty-minute parallel shakedown only. Workers must have disjoint declared file scopes and isolated worktrees. Protected integration remains disabled. Longer endurance and additional workers require a separate operator-approved activation change."
   },
   "bots": [
     {"id":"builder","role":"protected-product-builder","entrypoint":"builder/runner/aider-feature-brain.mjs","status":"proven","owns":["objective-scoped product implementation"],"protected":true},
@@ -35,7 +36,7 @@
     {"id":"repair","role":"failure-analysis-and-repair","entrypoint":"builder/runner/autobot-repair.mjs","status":"verified","owns":["failure diagnosis","repair proposals","verified isolated fixes"],"protected":false},
     {"id":"qa","role":"independent-product-verifier","entrypoint":"builder/runner/autobot-qa.mjs","status":"verified","owns":["regression checks","product-quality review","handoff evidence"],"protected":false},
     {"id":"reviewer","role":"adversarial-product-reviewer","entrypoint":"builder/runner/autobot-reviewer.mjs","status":"verified","owns":["product-gap review","quality challenge","anti-churn review"],"protected":false},
-    {"id":"self-improvement","role":"autobot-system-improvement","entrypoint":"builder/runner/autobot-self-improvement.mjs","status":"verified","owns":["failure pattern analysis","brain/task/contract improvements","measured self-improvement"],"protected":false}
+    {"id":"self-improvement","role":"autobot-system-improvement","entrypoint":"builder/runner/autobot-self-improvement.mjs","status":"verified","owns":["failure pattern analysis","brain/task/contract improvements"],"protected":false}
   ],
   "handoffRules": [
     "Workers must write structured evidence before handing work to another worker.",
@@ -46,9 +47,9 @@
     "Removed or renamed bots and entrypoints must be removed from this registry and all active discovery paths at the same time.",
     "The coordinator must never invent a worker, path or protocol that is absent from this registry.",
     "Specialist Builders must use the shared isolated runner, explicit bot id, explicit objective and exact registry-owned file scope.",
+    "Parallel specialist work must use disjoint file scopes and isolated worktrees; overlapping scopes are a planner failure.",
     "Specialist Builder changes must produce an explicit base/candidate commit pair for downstream Reviewer and QA handoff.",
     "The recovery runner may orchestrate Repair, QA and Reviewer only after the explicit fleet activation gate is enabled.",
-    "The controlled recovery workflow must use the registered recovery runner and must never bypass the explicit enabled:true plus coordination.mode:'active' gate.",
-    "Only durations listed in activationGate.allowedTestDurations may be used for controlled live shakedowns; longer endurance requires a separate operator-approved activation change."
+    "Only durations listed in activationGate.allowedTestDurations may be used for controlled live shakedowns; longer endurance or additional workers require a separate operator-approved activation change."
   ]
 }
