@@ -95,6 +95,8 @@ jobs:
         env:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
           AUTOBOT_DISCOVERY_MODEL: ${{ inputs.local_model }}
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
       - name: Start performance proxy
         run: |
           nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
@@ -107,6 +109,9 @@ jobs:
           AUTOBOT_SPECIALIST_OBJECTIVE: ${{ steps.assignment.outputs.objective }}
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
+          OLLAMA_KEEP_ALIVE: 30m
         run: node builder/runner/autobot-specialist-builder.mjs
       - name: Publish specialist candidate branch
         env:

@@ -48,7 +48,9 @@ try{
   const prompt=[
     `You are the ${bot.role} for Bikeztagram AI.`,
     `Specialist objective: ${objective}`,
-    `You may modify ONLY these declared product files: ${files.join(', ')}`,
+    `You may modify ONLY these exact declared product files: ${files.join(', ')}`,
+    `The working repository root is the current directory. Use the exact paths above; never invent placeholder paths such as path/to/... or example paths.`,
+    'Do not create, rename, copy, or modify any other file or directory.',
     'Inspect callers, contracts, tests and production wiring before editing.',
     'Do not weaken validators, safety rules, production gates, rollback, audit or protected infrastructure.',
     'Do not modify package/dependency manifests, workflows, environment files, the fleet registry, or AutoBot runners.',
@@ -66,6 +68,22 @@ try{
   console.log(`[autobot] specialist ${botId} using local Aider model ${aiderModel} via ${normalizedBase}`);
   run(aider,['--version'],worktree);
   run(aider,['--model',aiderModel,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--map-tokens=768','--subtree-only','--message',prompt,...files],worktree);
+
+  // Qwen/Aider can occasionally echo a generic patch path such as
+  // "path/to/director.js" even when the exact target file was supplied.
+  // Safely repair only this known placeholder form when its basename exactly
+  // matches one of the specialist's declared owned files. Never generalise
+  // arbitrary out-of-scope paths into owned files.
+  for(const file of files){
+    const placeholder=path.join(worktree,'path','to',path.basename(file));
+    const target=path.join(worktree,file);
+    if(fs.existsSync(placeholder) && fs.statSync(placeholder).isFile()){
+      fs.mkdirSync(path.dirname(target),{recursive:true});
+      fs.copyFileSync(placeholder,target);
+      fs.rmSync(placeholder);
+      console.log(`[autobot] normalised model placeholder path/to/${path.basename(file)} -> ${file}`);
+    }
+  }
   const all=git(['status','--porcelain','--untracked-files=no'],worktree).split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>line.slice(3));
   const changed=git(['diff','HEAD','--name-only'],worktree).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const touched=Array.from(new Set([...changed,...all]));
