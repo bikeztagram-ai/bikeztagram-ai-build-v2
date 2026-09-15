@@ -14,8 +14,6 @@ on:
         required: false
         default: qwen2.5-coder:7b
         type: string
-  push:
-    branches: [autobot-registration-probe]
 permissions:
   contents: write
   pull-requests: write
