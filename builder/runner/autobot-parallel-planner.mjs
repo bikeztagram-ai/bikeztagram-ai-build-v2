@@ -8,8 +8,9 @@ const registryPath=path.join(root,'builder/brain/autobot-fleet.json');
 const objectivesPath=path.join(root,'builder/brain/feature-objectives.json');
 const directivePath=path.join(root,'builder/brain/autobot-product-directive.md');
 const output=path.join(root,'builder/working/autobot-parallel-plan.json');
-const model=process.env.AUTOBOT_DISCOVERY_MODEL||process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b';
+const model=process.env.AUTOBOT_DISCOVERY_MODEL||process.env.LOCAL_AI_MODEL||'qwen2.5-coder:3b';
 const host=(process.env.OLLAMA_HOST||'http://127.0.0.1:11434').replace(/\/$/,'');
+const requestTimeoutMs=Number(process.env.AUTOBOT_DISCOVERY_TIMEOUT_MS||180000);
 const allowedBots=(process.env.AUTOBOT_PARALLEL_BOTS||'director-builder,timeline-builder').split(',').map(s=>s.trim()).filter(Boolean);
 function readJson(file,fallback){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return fallback;}}
 function inventory(){return fs.readdirSync(path.join(root,'src'),{withFileTypes:true}).filter(e=>e.isFile()&&/\.(js|jsx|ts|tsx)$/.test(e.name)).map(e=>`src/${e.name}`).sort();}
@@ -27,7 +28,14 @@ async function main(){
   const registry=readJson(registryPath,null);if(!registry)throw new Error('fleet registry missing');if(registry.coordination?.maxConcurrentWorkers<2)throw new Error('parallel planning is blocked until the fleet activation gate explicitly authorizes at least two concurrent workers');
   const bots=(registry.bots||[]).filter(b=>allowedBots.includes(b.id)&&b.specialistBuilder===true&&b.status==='verified');if(bots.length<2)throw new Error('at least two verified specialist Builders are required');
   const directive=fs.readFileSync(directivePath,'utf8');const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const prompt=`You are the Bikeztagram Product Discovery Planner. Produce ONE independent missing user-facing capability for EACH specialist below. Work from the end goal, product directive, current source inventory and existing roadmap, but do not simply repeat existing objectives. Each package must be implementable only inside that specialist's declared files and packages MUST NOT overlap. Prefer genuinely new capability over polish of an already listed objective. Return JSON object {packages:[{botId,title,whyNow,files,acceptance,constraints,priority}]}. No infrastructure or AutoBot work.\n\nDIRECTIVE:\n${directive}\n\nEXISTING OBJECTIVES:\n${JSON.stringify(library.objectives||[])}\n\nSOURCE INVENTORY:\n${inv.join('\n')}\n\nSPECIALISTS:\n${JSON.stringify(bots.map(b=>({id:b.id,role:b.role,ownsFiles:b.ownsFiles,owns:b.owns})))} `;
-  const response=await fetch(`${host}/api/chat`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages:[{role:'user',content:prompt}],stream:false,format:'json',options:{temperature:0.25}})});
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),requestTimeoutMs);
+  let response;
+  try{
+    response=await fetch(`${host}/api/chat`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages:[{role:'user',content:prompt}],stream:false,format:'json',options:{temperature:0.15,num_ctx:6144,num_predict:650}}),signal:controller.signal});
+  }catch(error){
+    const detail=error?.name==='AbortError'?`timeout after ${Math.round(requestTimeoutMs/1000)}s`:String(error?.message||error);
+    throw new Error(`planner model request failed: ${detail} (host=${host}, model=${model})`);
+  }finally{clearTimeout(timeout);}
   const bodyText=await response.text();
   if(!response.ok){let detail='';try{const errorBody=JSON.parse(bodyText);detail=String(errorBody.error||'').trim();}catch{}throw new Error(`planner model HTTP ${response.status}${detail?`: ${detail}`:''}`);}
   let body;try{body=JSON.parse(bodyText);}catch{throw new Error('planner model returned invalid HTTP JSON');}
