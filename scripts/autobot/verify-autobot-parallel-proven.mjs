@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-const workflow=fs.readFileSync('.github/workflows/autobot-parallel-proven.yml','utf8');
+const workflow=fs.readFileSync('.github/workflows/autobot-parallel-proven-fleet.yml','utf8');
 const worker=fs.readFileSync('builder/runner/proven-fleet-worker.mjs','utf8');
 const recovery=fs.readFileSync('builder/runner/proven-builder-recovery.mjs','utf8');
 const manifest=fs.readFileSync('builder/runner/autobot-completed-work.mjs','utf8');
