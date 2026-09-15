@@ -132,11 +132,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p builder/working
+          if [ -f builder/working/autobot-specialist-outcome.json ]; then
+            echo '[autobot] preserving structured outcome written by specialist runner'
+            exit 0
+          fi
           node - <<'NODE'
           const fs=require('node:fs');
           const registry=JSON.parse(fs.readFileSync('builder/brain/autobot-fleet.json','utf8'));
           const bot=registry.bots.find(x=>x.id===process.env.BOT);
-          const outcome={schemaVersion:'autobot-specialist-outcome-v1',botId:process.env.BOT,objective:process.env.OBJECTIVE,status:process.env.OUTCOME,repairable:process.env.OUTCOME!=='success',category:process.env.OUTCOME==='success'?'completed':'specialist-builder-failure',files:Array.isArray(bot?.ownsFiles)?bot.ownsFiles:[],baseCommit:null,evidence:['GitHub Actions specialist execution logs'],error:process.env.OUTCOME==='success'?null:`Specialist Builder job ended with outcome: ${process.env.OUTCOME}`};
+          const outcome={schemaVersion:'autobot-specialist-outcome-v1',botId:process.env.BOT,objective:process.env.OBJECTIVE,status:process.env.OUTCOME==='success'?'success':'failure',repairable:false,category:process.env.OUTCOME==='success'?'completed':'unknown-failure',files:Array.isArray(bot?.ownsFiles)?bot.ownsFiles:[],baseCommit:null,patchPath:null,evidence:['GitHub Actions specialist execution logs'],error:process.env.OUTCOME==='success'?null:`Specialist Builder job ended with outcome: ${process.env.OUTCOME}`};
           fs.writeFileSync('builder/working/autobot-specialist-outcome.json',JSON.stringify(outcome,null,2)+'\n');
           NODE
       - name: Capture local AI diagnostics
@@ -167,6 +171,7 @@ jobs:
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
+            builder/working/autobot-specialist-failure.patch
             builder/working/autobot-review.json
           if-no-files-found: ignore
 
