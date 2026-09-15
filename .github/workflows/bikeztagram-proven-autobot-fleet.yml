@@ -1,4 +1,4 @@
-name: 🚀 AUTOBOT FLEET — RUN THIS
+name: 🚀 AUTOBOT FLEET — PROVEN ENGINE
 run-name: 🚀 AUTOBOT FLEET — ${{ inputs.duration || 'manual' }}
 
 "on":
@@ -15,13 +15,27 @@ run-name: 🚀 AUTOBOT FLEET — ${{ inputs.duration || 'manual' }}
         required: false
         default: qwen2.5-coder:7b
         type: string
+  workflow_call:
+    inputs:
+      duration:
+        description: Controlled parallel AutoBot budget
+        required: true
+        type: string
+      local_model:
+        description: Proven local coding model
+        required: false
+        default: qwen2.5-coder:7b
+        type: string
+
 permissions:
   contents: write
   pull-requests: write
   actions: read
+
 concurrency:
   group: bikeztagram-proven-autobot-fleet
   cancel-in-progress: false
+
 env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_AIDER_MODEL: ollama_chat/${{ inputs.local_model }}
@@ -30,6 +44,7 @@ env:
   AUTOBOT_WORKER_CONFIG_VERSION: proven-builder-fleet-v1
   AUTOBOT_FINISH_GRACE_MINUTES: 5
   BUILDER_BASE_BRANCH: main
+
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -54,6 +69,7 @@ jobs:
         with:
           name: autobot-proven-packages-${{ github.run_id }}
           path: builder/working/autobot-proven-package-*.json
+
   proven-workers:
     needs: plan
     if: needs.plan.result == 'success'
@@ -152,6 +168,7 @@ jobs:
             builder/working/autobot-proven-handoff.json
             builder/working/autobot-specialist-handoff.json
             builder/quality/audit-log.jsonl
+
   recovery:
     needs: [plan, proven-workers]
     if: always() && needs.plan.result == 'success'
@@ -163,7 +180,7 @@ jobs:
         with: {ref: ${{ github.sha }}, fetch-depth: 0}
       - uses: actions/download-artifact@v4
         continue-on-error: true
-        with: {name: autobot-proven-worker-${{ matrix.worker }}-${{ github.run_id }}, path: builder/working/worker-result}
+        with: {name: autobot-proven-worker-${{ matrix.worker }}-${{ github.run_id }, path: builder/working/worker-result}
       - name: Route only real product failures
         id: route
         run: |
@@ -190,6 +207,7 @@ jobs:
             builder/working/autobot-repair-candidate.patch
             builder/working/autobot-repair-base-commit.txt
             builder/working/autobot-repair-commit.txt
+
   completed-work:
     needs: [plan, proven-workers, recovery]
     if: always() && needs.plan.result == 'success'
