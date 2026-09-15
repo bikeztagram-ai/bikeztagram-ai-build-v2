@@ -79,14 +79,16 @@ try{
     if(!/^[0-9a-f]{40}$/i.test(qaBase)||!/^[0-9a-f]{40}$/i.test(repairCommit))throw new Error('verified recovery result is missing exact QA commit pair');
     const patch=git(['diff','--binary',`${qaBase}..${repairCommit}`]);
     if(!patch.trim())throw new Error('verified repair candidate contains no patch');
-    fs.writeFileSync(path.join(recoveryRoot,'builder/working/autobot-repair-candidate.patch'),patch);
-    fs.writeFileSync(path.join(recoveryRoot,'builder/working/autobot-repair-base-commit.txt'),`${qaBase}\n`);
-    fs.writeFileSync(path.join(recoveryRoot,'builder/working/autobot-repair-commit.txt'),`${repairCommit}\n`);
-    process.env.AUTOBOT_REVIEW_OUTPUT=path.join(recoveryRoot,'builder/working/autobot-review.json');
-    process.env.AUTOBOT_HANDOFF_OUTPUT=path.join(recoveryRoot,'builder/working/autobot-verified-candidate.json');
+    const workingDir=path.join(recoveryRoot,'builder','working');
+    fs.mkdirSync(workingDir,{recursive:true});
+    fs.writeFileSync(path.join(workingDir,'autobot-repair-candidate.patch'),patch);
+    fs.writeFileSync(path.join(workingDir,'autobot-repair-base-commit.txt'),`${qaBase}\n`);
+    fs.writeFileSync(path.join(workingDir,'autobot-repair-commit.txt'),`${repairCommit}\n`);
+    process.env.AUTOBOT_REVIEW_OUTPUT=path.join(workingDir,'autobot-review.json');
+    process.env.AUTOBOT_HANDOFF_OUTPUT=path.join(workingDir,'autobot-verified-candidate.json');
     await import(pathToFileURL(path.join(recoveryRoot,'builder/runner/autobot-verified-candidate-handoff.mjs')).href);
   }
-  console.log(JSON.stringify({ok:result?.ok===true,failureId:queueRecord.id,botId:outcome.botId,restoredBase:base,restoredCandidate:restoredCommit,recovery:result,verifiedCandidate:fs.existsSync(path.join(recoveryRoot,'builder/working/autobot-verified-candidate.json'))},null,2));
+  console.log(JSON.stringify({ok:result?.ok===true,failureId:queueRecord.id,botId:outcome.botId,restoredBase:base,restoredCandidate:restoredCommit,recovery:result,verifiedCandidate:fs.existsSync(path.join(recoveryRoot,'builder','working','autobot-verified-candidate.json'))},null,2));
   if(result?.ok!==true)process.exitCode=3;
 }finally{
   process.chdir(originalRoot);
