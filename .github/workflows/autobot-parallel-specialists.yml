@@ -35,8 +35,7 @@ jobs:
           fetch-depth: 0
       - run: npm install --no-audit --no-fund --no-package-lock
       - name: Verify parallel activation gate
-        run: |
-          node scripts/autobot/verify-autobot-parallel-fleet.mjs --gate-only
+        run: node scripts/autobot/verify-autobot-parallel-fleet.mjs --gate-only
       - name: Install Aider engine
         run: python -m pip install --disable-pip-version-check --no-input aider-chat
       - name: Start local AI brain
@@ -101,12 +100,14 @@ jobs:
       - name: Publish specialist candidate branch
         env:
           GH_TOKEN: ${{ github.token }}
+          BOT: ${{ matrix.bot }}
         run: |
           set -euo pipefail
-          branch="$(git branch --show-current)"
+          branch="$(node -e "console.log(JSON.parse(require('fs').readFileSync('builder/working/autobot-specialist-handoff.json','utf8')).branch)")"
           candidate="$(node -e "console.log(JSON.parse(require('fs').readFileSync('builder/working/autobot-specialist-handoff.json','utf8')).candidateCommit)")"
+          test -n "$branch" && test -n "$candidate"
           git push --set-upstream origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title "AutoBot ${BOT} candidate" --body "Parallel specialist candidate. Isolated scope and product-quality checks passed; downstream QA/Reviewer required before integration." || true
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title "AutoBot ${BOT} candidate" --body "Parallel specialist candidate ${candidate}. Isolated scope and product-quality checks passed; downstream QA/Reviewer required before integration." || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
