@@ -1,76 +1,31 @@
 name: 🚀 AUTOBOT FLEET — RUN THIS
 
-# Stable, known-working manual entry point for the real two-worker AutoBot fleet.
-# This launcher keeps the proven GitHub Actions registration while dispatching
-# the canonical two-worker proven fleet workflow. Protected integration remains manual.
+# Stable user-facing launcher. The proven fleet is called as a reusable workflow,
+# avoiding a second API dispatch/registration dependency.
 
 on:
   workflow_dispatch:
     inputs:
       duration:
-        description: 'Controlled two-worker fleet-test duration'
+        description: Controlled parallel AutoBot budget
         required: true
-        default: '15m'
+        default: 15m
         type: choice
-        options: ['15m','30m']
+        options: ['15m','30m','1h','2h','3h','4h','5h','6h']
       local_model:
-        description: 'Proven local coding model'
+        description: Proven local coding model
         required: false
-        default: 'qwen2.5-coder:7b'
+        default: qwen2.5-coder:7b
         type: string
 
 permissions:
-  actions: write
-  contents: read
-
-concurrency:
-  group: autobot-fleet-run-this
-  cancel-in-progress: false
+  contents: write
+  pull-requests: write
 
 jobs:
-  launch:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Verify fleet activation gate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          api="https://api.github.com/repos/$GITHUB_REPOSITORY/contents/builder/brain/autobot-fleet.json?ref=main"
-          registry="$(gh api "$api" --jq .content | base64 --decode)"
-          node -e '
-            const r=JSON.parse(process.argv[1]);
-            const requested=process.argv[2];
-            if(r.enabled!==true || r.coordination?.mode!=="active" || r.activationGate?.protectedIntegration!==false || !Array.isArray(r.activationGate?.allowedTestDurations) || !r.activationGate.allowedTestDurations.includes(requested) || JSON.stringify(r.activationGate.parallelWorkers)!==JSON.stringify(["proven-a","proven-b"])) {
-              console.error(`Fleet activation gate rejected ${requested}.`);
-              process.exit(1);
-            }
-            console.log(`Fleet activation gate PASS: ${requested}, exactly proven-a + proven-b, protected integration disabled.`);
-          ' "$registry" '${{ inputs.duration }}'
-
-      - name: Refuse duplicate fleet or recovery runs
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          fleet=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow 'bikeztagram-proven-autobot-fleet.yml' --status in_progress --json databaseId --jq 'length')
-          fleet_q=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow 'bikeztagram-proven-autobot-fleet.yml' --status queued --json databaseId --jq 'length')
-          recovery=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow 'autobot-fleet-recovery.yml' --status in_progress --json databaseId --jq 'length')
-          recovery_q=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow 'autobot-fleet-recovery.yml' --status queued --json databaseId --jq 'length')
-          if [ "$fleet" -gt 0 ] || [ "$fleet_q" -gt 0 ] || [ "$recovery" -gt 0 ] || [ "$recovery_q" -gt 0 ]; then
-            echo 'An active proven fleet or recovery run already exists; refusing duplicate fleet launch.'
-            exit 1
-          fi
-
-      - name: Dispatch canonical two-worker proven fleet
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh workflow run bikeztagram-proven-autobot-fleet.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref main \
-            -f duration='${{ inputs.duration }}' \
-            -f local_model='${{ inputs.local_model }}'
-          echo "Dispatched the canonical two-worker proven fleet with the authorized ${{ inputs.duration }} budget and model ${{ inputs.local_model }}."
+  fleet:
+    name: 🚀 Run proven two-worker AutoBot fleet
+    uses: ./.github/workflows/bikeztagram-proven-autobot-fleet.yml
+    with:
+      duration: ${{ inputs.duration }}
+      local_model: ${{ inputs.local_model }}
