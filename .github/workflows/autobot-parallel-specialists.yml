@@ -1,10 +1,7 @@
 name: 🚀 AUTOBOT FLEET — RUN THIS
 run-name: 🚀 AUTOBOT FLEET — ${{ inputs.duration || 'manual' }}
 
-# This is deliberately a directly dispatched workflow.
-# It keeps the proven two-worker engine under the historically working
-# AutoBot Parallel Specialists registration path and avoids reusable-workflow
-# parsing and cross-workflow dispatch entirely.
+# Direct manual fleet registration. No reusable workflow and no second dispatch layer.
 "on":
   workflow_dispatch:
     inputs:
@@ -211,18 +208,18 @@ jobs:
         with: {ref: ${{ github.sha }}, fetch-depth: 0}
       - uses: actions/download-artifact@v4
         continue-on-error: true
-        with: {name: autobot-proven-recovery-proven-a-${{ github.run_id }}, path: builder/working/recovery-a}
+        with: {name: autobot-proven-worker-proven-a-${{ github.run_id }}, path: builder/working/proven-results/proven-a}
       - uses: actions/download-artifact@v4
         continue-on-error: true
-        with: {name: autobot-proven-recovery-proven-b-${{ github.run_id }}, path: builder/working/recovery-b}
+        with: {name: autobot-proven-worker-proven-b-${{ github.run_id }}, path: builder/working/proven-results/proven-b}
       - uses: actions/download-artifact@v4
         continue-on-error: true
-        with: {name: autobot-proven-worker-proven-a-${{ github.run_id }}, path: builder/working/worker-a}
+        with: {name: autobot-proven-recovery-proven-a-${{ github.run_id }}, path: builder/working/proven-results/proven-a/recovery}
       - uses: actions/download-artifact@v4
         continue-on-error: true
-        with: {name: autobot-proven-worker-proven-b-${{ github.run_id }}, path: builder/working/worker-b}
+        with: {name: autobot-proven-recovery-proven-b-${{ github.run_id }}, path: builder/working/proven-results/proven-b/recovery}
       - name: Build completed-work inbox
-        run: node scripts/autobot/collect-proven-completed-work.mjs
+        run: node builder/runner/autobot-completed-work.mjs builder/working/proven-results
       - uses: actions/upload-artifact@v4
         if: always()
         with:
