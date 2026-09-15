@@ -108,7 +108,16 @@ try{
     specialist:{id:botId,role:bot.role},objective,source:'parallel-specialist-workflow'
   },null,2)+'\n');
 
-  const requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'15',10));
+  let requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'',10));
+  if(!Number.isFinite(requestedMinutes)){
+    try{
+      const eventPath=process.env.GITHUB_EVENT_PATH;
+      const event=eventPath&&fs.existsSync(eventPath)?JSON.parse(fs.readFileSync(eventPath,'utf8')):{};
+      const duration=String(event.inputs?.duration||'').trim();
+      const match=duration.match(/(\d+)/);
+      requestedMinutes=match?Math.max(1,Number.parseInt(match[1],10)):15;
+    }catch{requestedMinutes=15;}
+  }
   const model=String(process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b').trim();
   const protocol=String(process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4').trim();
   const passCount=Math.max(1,Math.min(3,Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES||'2',10)));
