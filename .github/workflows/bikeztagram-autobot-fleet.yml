@@ -1,10 +1,6 @@
 name: BIKEZTAGRAM AUTOBOT FLEET
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/bikeztagram-autobot-fleet.yml'
   workflow_dispatch:
     inputs:
       duration:
@@ -29,15 +25,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  registration:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Confirm fleet registration
-        run: echo 'BIKEZTAGRAM AUTOBOT FLEET registered; manual dispatch is enabled.'
-
   plan:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -63,7 +51,6 @@ jobs:
 
   proven-workers:
     needs: plan
-    if: github.event_name == 'workflow_dispatch' && needs.plan.result == 'success'
     strategy: {fail-fast: false, max-parallel: 2, matrix: {worker: [proven-a, proven-b]}}
     runs-on: ubuntu-latest
     timeout-minutes: 370
@@ -165,7 +152,7 @@ jobs:
 
   recovery:
     needs: [plan, proven-workers]
-    if: github.event_name == 'workflow_dispatch' && needs.plan.result == 'success'
+    if: ${{ always() && needs.plan.result == 'success' }}
     strategy: {fail-fast: false, max-parallel: 2, matrix: {worker: [proven-a, proven-b]}}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -202,7 +189,7 @@ jobs:
 
   completed-work:
     needs: [plan, proven-workers, recovery]
-    if: github.event_name == 'workflow_dispatch' && needs.plan.result == 'success'
+    if: ${{ always() && needs.plan.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
