@@ -1,0 +1,117 @@
+name: 🧩 AutoBot Parallel Specialists
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: Controlled parallel specialist budget
+        required: true
+        default: 15m
+        type: choice
+        options: ['15m','30m']
+      local_model:
+        description: Local discovery/coding model
+        required: false
+        default: qwen2.5-coder:7b
+        type: string
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+concurrency:
+  group: autobot-parallel-specialists
+  cancel-in-progress: false
+env:
+  LOCAL_AI_MODEL: ${{ inputs.local_model }}
+  AUTOBOT_DISCOVERY_MODEL: ${{ inputs.local_model }}
+  AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - run: npm install --no-audit --no-fund --no-package-lock
+      - name: Verify parallel activation gate
+        run: node scripts/autobot/verify-autobot-parallel-fleet.mjs --gate-only
+      - name: Install Aider engine
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - name: Start local AI brain
+        run: bash scripts/autobot/install-local-brain.sh
+      - name: Start performance proxy
+        run: |
+          nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:11435/health >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS http://127.0.0.1:11435/health >/dev/null
+          echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
+      - name: Discover independent work packages
+        run: node builder/runner/autobot-parallel-planner.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: autobot-parallel-plan-${{ github.run_id }}
+          path: builder/working/autobot-parallel-plan.json
+  specialists:
+    needs: plan
+    if: ${{ needs.plan.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        bot: [director-builder, timeline-builder]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v5
+        with:
+          name: autobot-parallel-plan-${{ github.run_id }}
+          path: builder/working
+      - name: Read assigned objective
+        id: assignment
+        env:
+          BOT: ${{ matrix.bot }}
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'); const plan=JSON.parse(fs.readFileSync('builder/working/autobot-parallel-plan.json','utf8')); const item=plan.workers.find(x=>x.botId===process.env.BOT); if(!item) throw new Error(`No plan for ${process.env.BOT}`); fs.appendFileSync(process.env.GITHUB_OUTPUT,`objective<<EOF\n${item.title}\n${item.whyNow}\nAcceptance:\n${item.acceptance.join('; ')}\nEOF\n`);
+          NODE
+      - run: npm install --no-audit --no-fund --no-package-lock
+      - run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+      - name: Start performance proxy
+        run: |
+          nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:11435/health >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS http://127.0.0.1:11435/health >/dev/null
+          echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
+      - name: Execute isolated specialist Builder
+        env:
+          AUTOBOT_SPECIALIST_BOT_ID: ${{ matrix.bot }}
+          AUTOBOT_SPECIALIST_OBJECTIVE: ${{ steps.assignment.outputs.objective }}
+          AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+        run: node builder/runner/autobot-specialist-builder.mjs
+      - name: Publish specialist candidate branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOT: ${{ matrix.bot }}
+        run: |
+          set -euo pipefail
+          branch="$(node -e "console.log(JSON.parse(require('fs').readFileSync('builder/working/autobot-specialist-handoff.json','utf8')).branch)")"
+          candidate="$(node -e "console.log(JSON.parse(require('fs').readFileSync('builder/working/autobot-specialist-handoff.json','utf8')).candidateCommit)")"
+          test -n "$branch" && test -n "$candidate"
+          git push --set-upstream origin "$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title "AutoBot ${BOT} candidate" --body "Parallel specialist candidate ${candidate}. Isolated scope and product-quality checks passed; downstream QA/Reviewer required before integration." || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: autobot-specialist-${{ matrix.bot }}-${{ github.run_id }}
+          path: |
+            builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-review.json
