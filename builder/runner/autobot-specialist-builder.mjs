@@ -70,7 +70,7 @@ function parseObjective(text,bot,files){
     constraints:[
       `This is the ${bot.role} specialist lane. Preserve its declared product ownership.`,
       'Do not modify protected infrastructure, workflows, dependencies, secrets, or AutoBot control-plane code.',
-      'Do not merge or create pull requests.'
+      'Do not merge or push. Do not create pull requests.'
     ]
   };
 }
