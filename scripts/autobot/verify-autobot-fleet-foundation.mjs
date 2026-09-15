@@ -17,8 +17,6 @@ const outcome=read('scripts/autobot/write-proven-worker-outcome.mjs');
 const publisher=read('scripts/autobot/publish-proven-worker-candidate.mjs');
 const completed=read('builder/runner/autobot-completed-work.mjs');
 const recoveryCore=read('builder/runner/autobot-fleet-recovery.mjs');
-const repair=read('builder/runner/autobot-repair.mjs');
-const qa=read('builder/runner/autobot-qa.mjs');
 const reviewer=read('builder/runner/autobot-reviewer.mjs');
 
 assert(registry.schemaVersion===1,'fleet registry schema must remain v1');
@@ -47,7 +45,8 @@ assert(worker.includes('long-run-executor.mjs'),'proven fleet worker must delega
 assert(worker.includes('AUTOBOT_WORK_PACKAGE_PATH'),'worker must receive an explicit work package');
 assert(worker.includes('task-library.json')&&worker.includes('roadmap.json')&&worker.includes('autonomous-builder-queue.json'),'worker must isolate and restore the proven Builder state');
 assert(packages.includes('cinematic-shot-motion-contract')&&packages.includes('provider-failure-classification'),'shakedown must contain two concrete product tasks');
-assert(packages.includes('fileOverlap.length===0'),'package planner must reject overlapping file scopes');
+assert(packages.includes('overlap.length')&&!packages.includes('fileOverlap.length'),'package planner must reject overlapping file scopes');
+assert(packages.includes('task.dependsOn'),'package planner must inspect task-level dependencies');
 assert(outcome.includes('repairable')&&outcome.includes('candidatePatch'),'worker outcome must distinguish repairable failures');
 assert(publisher.includes('verified-candidate')&&publisher.includes('npm run verify:autobot-production-gate'),'candidate publication must require production verification');
 assert(publisher.includes('autobot-proven/')&&publisher.includes('git push'),'successful workers must publish isolated candidate branches');
@@ -59,7 +58,7 @@ assert(reviewer.includes('automaticMerge:false')&&reviewer.includes('automaticPu
 
 assert(completed.includes('autobot-completed-work-v1')&&completed.includes('verified-candidate'),'completed-work inbox must use v1 and accept verified candidates');
 assert(completed.includes('ready-for-review')&&completed.includes('needs-recovery'),'completed-work must preserve review/recovery states');
-assert(completed.includes('automatic merge')||completed.includes('automaticMerge'),'completed-work must retain the no-automatic-merge boundary');
+assert(completed.includes('automaticMerge:false'),'completed-work must retain the no-automatic-merge boundary');
 
 const scripts=pkg.scripts||{};
 assert(scripts['verify:autobot-fleet-foundation']==='node scripts/autobot/verify-autobot-fleet-foundation.mjs','fleet foundation package script contract changed');
