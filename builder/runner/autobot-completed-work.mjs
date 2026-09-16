@@ -112,4 +112,9 @@ if(import.meta.url===`file://${process.argv[1]}`){
   const manifest=buildCompletedWork({inputRoot});
   console.log(JSON.stringify(manifest,null,2));
   if(manifest.status==='no-worker-output')process.exitCode=2;
+  // Aggregation is the truth boundary. If unresolved failures remain after the
+  // repair stage, the job must be red even though the manifest itself is still
+  // published for audit/recovery. A green aggregation means no worker failure
+  // is being silently carried forward.
+  if(manifest.status==='needs-recovery')process.exitCode=3;
 }
