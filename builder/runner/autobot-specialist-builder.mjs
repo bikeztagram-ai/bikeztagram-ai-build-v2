@@ -35,6 +35,7 @@ function writeFailureOutcome({error,base,worktree,files,candidatePatch=''}){
   fs.writeFileSync(outcomePath,JSON.stringify({schemaVersion:'autobot-specialist-outcome-v1',botId,objective:objectiveText,status:'failure',category:classification.category,repairable:classification.repairable,files,baseCommit:base||null,patchPath,evidence:['GitHub Actions specialist execution logs',patchPath].filter(Boolean),error:String(error?.message||error||'unknown specialist failure')},null,2)+'\n');
 }
 function parseObjective(text,bot,files){const lines=text.split(/\r?\n/).map(line=>line.trim()).filter(Boolean);const acceptanceIndex=lines.findIndex(line=>/^acceptance:?$/i.test(line));const title=lines[0]||`${bot.role} improvement`;const whyNow=acceptanceIndex>1?lines[1]:'';const acceptance=acceptanceIndex>=0?lines.slice(acceptanceIndex+1):[];return {id:`specialist-${botId}-${Date.now()}`,title,whyNow,enabled:true,dependsOn:[],files,acceptance:acceptance.length?acceptance:[title],constraints:[`This is the ${bot.role} specialist lane. Preserve its declared product ownership.`,'Do not modify protected infrastructure, workflows, dependencies, secrets, or AutoBot control-plane code.','Do not merge or push. Do not create pull requests.']};}
+function parseDurationMinutes(value,fallback=15){const duration=String(value||'').trim().toLowerCase();const match=duration.match(/^(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?$/);if(!match)return fallback;const amount=Number.parseInt(match[1],10);if(!Number.isFinite(amount)||amount<1)return fallback;const unit=match[2]||'m';return unit.startsWith('h')?amount*60:amount;}
 
 if(!enabled)fail('Specialist Builder execution is disabled until the fleet activation gate is explicitly enabled.');
 if(registry.enabled!==true || registry.coordination?.mode!=='active')fail('AutoBot fleet activation is blocked; registry must be enabled with active coordination.');
@@ -67,7 +68,7 @@ try{
   fs.writeFileSync(assignmentPath,JSON.stringify({schemaVersion:'autobot-orchestrator-assignment-v1',specialist:{id:botId,role:bot.role},objective,source:'parallel-specialist-workflow'},null,2)+'\n');
 
   let requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'',10));
-  if(!Number.isFinite(requestedMinutes)){try{const eventPath=process.env.GITHUB_EVENT_PATH;const event=eventPath&&fs.existsSync(eventPath)?JSON.parse(fs.readFileSync(eventPath,'utf8')):{};const duration=String(event.inputs?.duration||'').trim();const match=duration.match(/(\d+)/);requestedMinutes=match?Math.max(1,Number.parseInt(match[1],10)):15;}catch{requestedMinutes=15;}}
+  if(!Number.isFinite(requestedMinutes)){try{const eventPath=process.env.GITHUB_EVENT_PATH;const event=eventPath&&fs.existsSync(eventPath)?JSON.parse(fs.readFileSync(eventPath,'utf8')):{};requestedMinutes=parseDurationMinutes(event.inputs?.duration,15);}catch{requestedMinutes=15;}}
   const model=normalizeAiderModel(process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL);
   const protocol=String(process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4').trim();
   const passCount=Math.max(1,Math.min(3,Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES||'2',10)));
@@ -90,9 +91,6 @@ try{
   const engine=spawnSync(process.execPath,['builder/runner/long-run-executor.mjs'],{cwd:worktree,stdio:'inherit',env:engineEnv,timeout:requestedMinutes*60_000+5*60_000+30_000});
   if(engine.error||engine.status!==0)fail(`proven long-run AutoBot controller failed with status ${engine.status??engine.error?.code??'error'}`);
 
-  // Treat the controller's base-to-worktree diff as the authoritative product
-  // change. This catches both unstaged/staged edits and any commit created by
-  // a future compatible controller, instead of comparing only HEAD to itself.
   const baseChanged=git(['diff',base,'--name-only','--',...files]).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const trackedStatus=git(['status','--porcelain','--untracked-files=all']);
   const statusPaths=trackedStatus.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);
@@ -109,8 +107,6 @@ try{
   run('npm',['run','build'],worktree);
   run('sh',['-lc',productQuality],worktree);
 
-  // Normalize any compatible pre-existing controller commit back into one
-  // candidate commit based exactly on the specialist's original base.
   const headBeforeCommit=git(['rev-parse','HEAD'],worktree);
   if(headBeforeCommit!==base)run('git',['reset','--soft',base],worktree);
   run('git',['add','--',...candidateFiles],worktree);
