@@ -160,13 +160,20 @@ try {
   }
   const model = normalizeAiderModel(process.env.AUTOBOT_AIDER_MODEL || process.env.LOCAL_AI_MODEL);
   const protocol = String(process.env.AUTOBOT_FEATURE_PROTOCOL || 'aider-repo-map-v4').trim();
-  const passCount = Math.max(1, Math.min(3, Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '2', 10)));
-  // Keep a small deterministic reserve outside the proven controller for the
-  // mandatory build/product-quality gates. The previous run allowed the local
-  // Aider process to consume essentially the entire hour, leaving no time for
-  // those gates to run.
+  const configuredPasses = Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '', 10);
+  // A one-hour specialist run must leave enough wall-clock budget for the
+  // mandatory verification gates. One verified Aider pass is the useful unit
+  // at short budgets; longer endurance runs can opt into two or three passes.
+  const passCount = Number.isFinite(configuredPasses)
+    ? Math.max(1, Math.min(3, configuredPasses))
+    : requestedMinutes >= 120 ? 2 : 1;
+  // Reserve time outside the proven controller for the mandatory build and
+  // product-quality gates. The controller itself also has a controlled finish
+  // grace, so reserve that grace separately rather than consuming the whole
+  // verification reserve twice.
   const verificationReserveMinutes = requestedMinutes >= 60 ? 5 : requestedMinutes >= 30 ? 3 : Math.min(2, Math.max(1, requestedMinutes - 1));
-  const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes);
+  const controllerFinishGraceMinutes = Math.max(0, Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES || '5', 10));
+  const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - controllerFinishGraceMinutes);
   const deadline = Date.now() + controllerMinutes * 60_000;
   const engineEnv = {
     ...process.env,
@@ -175,13 +182,14 @@ try {
     AUTOBOT_FEATURE_PASSES: String(passCount), AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline), AUTOBOT_AIDER_MODEL: model,
     LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama_chat\//, ''),
-    BUILDER_MAX_MINUTES: String(controllerMinutes)
+    BUILDER_MAX_MINUTES: String(controllerMinutes),
+    AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
 
-  console.log(`[autobot] specialist ${botId} entering the proven long-run controller: ${controllerMinutes}m controller budget (${verificationReserveMinutes}m reserved for verification), ${passCount} passes, ${model}, ${protocol}`);
+  console.log(`[autobot] specialist ${botId} entering the proven long-run controller: ${controllerMinutes}m controller budget + ${controllerFinishGraceMinutes}m controller grace (${verificationReserveMinutes}m reserved for verification), ${passCount} passes, ${model}, ${protocol}`);
   const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], {
     cwd: worktree, stdio: 'inherit', env: engineEnv,
-    timeout: controllerMinutes * 60_000 + 5 * 60_000 + 30_000
+    timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000
   });
   if (engine.error || engine.status !== 0) fail(`proven long-run AutoBot controller failed with status ${engine.status ?? engine.error?.code ?? 'error'}`);
 
