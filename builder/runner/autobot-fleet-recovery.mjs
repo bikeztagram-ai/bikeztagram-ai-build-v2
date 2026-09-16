@@ -104,7 +104,9 @@ export async function recoverFleet({failureId=null}={}){
   // rewriting and hand the exact recorded commit directly to independent QA.
   let repair;
   if(failure.metadata?.preverifiedCandidate===true&&validCommit(failure.metadata?.specialistBaseCommit)&&validCommit(failure.metadata?.restoredCandidateCommit)){
-    repair={ok:true,failureId:failure.id,branch:`autobot-specialist-recovery/${failure.metadata.specialistBotId||'unknown'}`,baseCommit:failure.metadata.specialistBaseCommit,commit:failure.metadata.restoredCandidateCommit,mode:'preverified-candidate'};
+    const branch=failure.metadata?.restoredRecoveryBranch;
+    if(!branch)fail('Preverified specialist candidate is missing its exact recovery branch.');
+    repair={ok:true,failureId:failure.id,branch,baseCommit:failure.metadata.specialistBaseCommit,commit:failure.metadata.restoredCandidateCommit,mode:'preverified-candidate'};
   }else{
     repair=repairModule.repairOne({failureId:failure.id});
     if(!repair?.ok)fail('Repair Bot did not return a successful repair handoff.');
