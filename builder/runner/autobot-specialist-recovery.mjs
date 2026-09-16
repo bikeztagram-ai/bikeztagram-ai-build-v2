@@ -34,6 +34,11 @@ try{
   const base=outcome.baseCommit;
   execFileSync('git',['worktree','add','--detach',recoveryRoot,base],{cwd:originalRoot,stdio:'inherit'});
   process.chdir(recoveryRoot);
+  // Recovery creates a temporary candidate commit. GitHub-hosted isolated
+  // worktrees do not inherit a user identity, so configure a deterministic
+  // AutoBot identity before the restore/Repair -> QA chain attempts to commit.
+  run(['config','user.name','Bikeztagram AutoBot']);
+  run(['config','user.email','autobot@bikeztagram.local']);
   process.env.AUTOBOT_FAILURE_QUEUE_PATH=path.join(recoveryRoot,'builder','working','autobot-failure-queue.jsonl');
   const {appendFailure}=await import(pathToFileURL(path.join(recoveryRoot,'builder','runner','autobot-failure-queue.mjs')).href);
   const patch=fs.readFileSync(path.resolve(originalRoot,patchPath),'utf8');
