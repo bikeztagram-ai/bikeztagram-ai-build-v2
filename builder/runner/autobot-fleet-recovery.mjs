@@ -97,8 +97,28 @@ export async function recoverFleet({failureId=null}={}){
   if(!failure)failure=readFailures({status:'open'})[0]||null;
   if(!failure)return {ok:true,status:'no-open-failure'};
   writeState({schemaVersion:1,status:'repairing',failureId:failure.id});
-  const repair=repairModule.repairOne({failureId:failure.id});
-  if(!repair?.ok)fail('Repair Bot did not return a successful repair handoff.');
+
+  // A specialist may have failed only at the controller lifecycle boundary
+  // after producing a candidate that independently passed the same product
+  // gates. In that case the candidate is already the repair; skip Aider
+  // rewriting and hand the exact recorded commit directly to independent QA.
+  let repair;
+  if(failure.metadata?.preverifiedCandidate===true&&validCommit(failure.metadata?.specialistBaseCommit)&&validCommit(failure.metadata?.restoredCandidateCommit)){
+    const branch=failure.metadata?.restoredRecoveryBranch;
+    if(!branch)fail('Preverified specialist candidate is missing its exact recovery branch.');
+    repair={ok:true,failureId:failure.id,branch,baseCommit:failure.metadata.specialistBaseCommit,commit:failure.metadata.restoredCandidateCommit,mode:'preverified-candidate'};
+  }else{
+    repair=repairModule.repairOne({failureId:failure.id});
+    if(!repair?.ok)fail('Repair Bot did not return a successful repair handoff.');
+  }
+
+  // QA consumes a REPAIRED queue record. The preverified fast path updates the
+  // record only after the candidate gates pass, so it remains independently
+  // reconstructed and verified by the same QA contract.
+  if(failure.metadata?.preverifiedCandidate===true){
+    const { transitionFailure }=await import('./autobot-failure-queue.mjs');
+    transitionFailure(failure.id,'repaired',{transitionedBy:'autobot-specialist-recovery',repairBranch:repair.branch,repairBaseCommit:repair.baseCommit,repairCommit:repair.commit,resolution:'specialist candidate passed recovery preflight; exact candidate routed directly to independent QA.'});
+  }
   writeState({schemaVersion:1,status:'qa',failureId:failure.id,repair});
   const qa=qaModule.qaOne({failureId:failure.id});
   if(!qa?.ok)fail('QA Bot did not verify the repaired handoff.');
