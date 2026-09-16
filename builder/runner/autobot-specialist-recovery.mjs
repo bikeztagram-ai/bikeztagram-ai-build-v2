@@ -4,12 +4,15 @@
  *
  * The failed specialist patch is restored onto its exact base in an isolated
  * recovery checkout, then the existing Repair -> QA -> Reviewer chain handles
- * it. No main merge or push is performed here.
+ * it. If the specialist's failure was only lifecycle/runtime-related and the
+ * restored candidate independently passes the same build/product-quality
+ * gates, recovery records that exact candidate for QA instead of asking Aider
+ * to rewrite an already-valid product change.
  */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 const originalRoot=process.cwd();
@@ -29,6 +32,15 @@ const branch=`autobot-specialist-recovery/${outcome.botId}-${Date.now()}`;
 function git(args,cwd=recoveryRoot){return execFileSync('git',args,{cwd,encoding:'utf8'}).trim();}
 function run(args,cwd=recoveryRoot){execFileSync('git',args,{cwd,stdio:'inherit'});}
 function cleanup(){try{execFileSync('git',['worktree','remove','--force',recoveryRoot],{cwd:originalRoot,stdio:'ignore'});}catch{} }
+function verifyCandidateTree(cwd){
+  const install=spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd,encoding:'utf8',stdio:'inherit',timeout:180_000});
+  if(install.error||install.status!==0)return {ok:false,stage:'npm-install',error:String(install.error?.message||install.status)};
+  const build=spawnSync('npm',['run','build'],{cwd,encoding:'utf8',stdio:'inherit',timeout:120_000});
+  if(build.error||build.status!==0)return {ok:false,stage:'build',error:String(build.error?.message||build.status)};
+  const quality=spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd,encoding:'utf8',stdio:'inherit',timeout:120_000});
+  if(quality.error||quality.status!==0)return {ok:false,stage:'product-quality',error:String(quality.error?.message||quality.status)};
+  return {ok:true,stage:'build-and-product-quality'};
+}
 
 try{
   const base=outcome.baseCommit;
@@ -72,6 +84,21 @@ try{
     repairHint:`Repair the failed ${outcome.botId} candidate from restored commit ${restoredCommit}.`,
     metadata:{specialistBotId:outcome.botId,objective:outcome.objective,specialistBaseCommit:base,restoredCandidateCommit:restoredCommit}
   });
+
+  // A specialist can fail after producing a real candidate because the
+  // controller lifecycle exits non-zero even though the product gates pass.
+  // Do not make Aider rewrite an already-valid candidate; prove the restored
+  // tree first, then let the normal QA -> Reviewer chain decide it.
+  const preflight=verifyCandidateTree(recoveryRoot);
+  if(preflight.ok){
+    queueRecord.metadata={...(queueRecord.metadata||{}),preverifiedCandidate:true,preflight:preflight.stage};
+    const queuePath=path.join(recoveryRoot,'builder','working','autobot-failure-queue.jsonl');
+    const queueText=fs.readFileSync(queuePath,'utf8');
+    const records=queueText.split(/\r?\n/).filter(Boolean).map(line=>JSON.parse(line));
+    const updated=records.map(record=>record.id===queueRecord.id?queueRecord:record);
+    fs.writeFileSync(queuePath,updated.map(record=>JSON.stringify(record)).join('\n')+'\n');
+    console.log(`[autobot] specialist ${outcome.botId} candidate passed recovery preflight; routing exact candidate to QA without a rewrite`);
+  }
 
   const registry=JSON.parse(fs.readFileSync(path.join(recoveryRoot,'builder/brain/autobot-fleet.json'),'utf8'));
   if(registry.enabled!==true||registry.coordination?.mode!=='active')throw new Error('fleet recovery gate is not active');
