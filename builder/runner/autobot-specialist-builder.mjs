@@ -67,6 +67,12 @@ try{
   fs.mkdirSync(path.dirname(assignmentPath),{recursive:true});
   fs.writeFileSync(assignmentPath,JSON.stringify({schemaVersion:'autobot-orchestrator-assignment-v1',specialist:{id:botId,role:bot.role},objective,source:'parallel-specialist-workflow'},null,2)+'\n');
 
+  // The specialist controller runs inside this isolated worktree. Git worktrees
+  // do not inherit the ignored node_modules directory from the Actions checkout,
+  // so install the product dependencies here before the proven controller can
+  // run its mandatory build/quality gates.
+  run('npm',['install','--no-audit','--no-fund','--no-package-lock'],worktree);
+
   let requestedMinutes=Math.max(1,Number.parseInt(process.env.BUILDER_MAX_MINUTES||'',10));
   if(!Number.isFinite(requestedMinutes)){try{const eventPath=process.env.GITHUB_EVENT_PATH;const event=eventPath&&fs.existsSync(eventPath)?JSON.parse(fs.readFileSync(eventPath,'utf8')):{};requestedMinutes=parseDurationMinutes(event.inputs?.duration,15);}catch{requestedMinutes=15;}}
   const model=normalizeAiderModel(process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL);

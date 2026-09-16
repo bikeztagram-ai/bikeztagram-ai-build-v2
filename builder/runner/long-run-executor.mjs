@@ -24,6 +24,7 @@ const started=Date.now();
 const normalRunDeadline=started+requestedMinutes*60_000;
 const runDeadline=normalRunDeadline+finishGraceMinutes*60_000;
 let totalUnits=0,totalObjectives=0,iteration=0,replenishments=0,featureCycles=0,consecutiveNoProgress=0;
+let specialistFailureStatus=0;
 const maxNoProgressIterations=Math.max(1,Number.parseInt(process.env.AUTOBOT_MAX_NO_PROGRESS_ITERATIONS||'2',10));
 const maxReplenishments=Number.parseInt(process.env.AUTOBOT_MAX_GENERATED_WAVES||'3',10);
 const deterministicSliceMinutes=Math.max(3,Number.parseInt(process.env.AUTOBOT_DETERMINISTIC_SLICE_MINUTES||'5',10));
@@ -96,9 +97,11 @@ if(specialistMode){
     appendAudit('iteration-started',{iteration,mode:'specialist',remainingMinutes:Math.floor(remainingMs()/60000),normalRemainingMinutes:Math.floor(normalRemainingMs()/60000),featureCycles,featureSlice:slice});
     const status=runFeatureBrain();
     if(status!==0){
+      specialistFailureStatus=status;
       consecutiveNoProgress++;
-      appendAudit('feature-brain-recoverable-failure',{iteration,mode:'specialist',status,consecutiveNoProgress,remainingMinutes:Number((remainingMs()/60000).toFixed(2)),engine:featureEngine});
-      writeRuntimeState('running');
+      appendAudit('feature-brain-recoverable-failure',{iteration,mode:'specialist',status,consecutiveNoProgress,remainingMinutes:Number((remainingMs()/60000).toFixed(2)),engine:featureEngine,repairCandidatePreserved:process.env.AUTOBOT_SPECIALIST_MODE==='true'});
+      writeRuntimeState('blocked');
+      break;
     }else{
       consecutiveNoProgress=0;
       appendAudit('iteration-finished',{iteration,mode:'specialist',status,featureCycles,consecutiveNoProgress});
@@ -137,9 +140,10 @@ if(specialistMode){
   }
 }
 
-const summary={mode:specialistMode?'specialist':'standard',totalUnits,totalObjectives,iterations:iteration,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),replenishments,featureBrain:featureCycles>0,featureCycles,featurePassesPerSlice,consecutiveNoProgress,remainingMinutes:Number((remainingMs()/60000).toFixed(2)),normalRemainingMinutes:Number((normalRemainingMs()/60000).toFixed(2)),finishGraceMinutes,featureProtocol,featureEngine,selfImprovementSlices:specialistMode?0:Math.floor(iteration/2),assignmentPath:specialistMode?(process.env.AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH||null):null};
+const summary={mode:specialistMode?'specialist':'standard',totalUnits,totalObjectives,iterations:iteration,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),replenishments,featureBrain:featureCycles>0,featureCycles,featurePassesPerSlice,consecutiveNoProgress,remainingMinutes:Number((remainingMs()/60000).toFixed(2)),normalRemainingMinutes:Number((normalRemainingMs()/60000).toFixed(2)),finishGraceMinutes,featureProtocol,featureEngine,selfImprovementSlices:specialistMode?0:Math.floor(iteration/2),assignmentPath:specialistMode?(process.env.AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH||null):null,specialistFailureStatus};
 appendAudit('run-finished',summary);
-writeRuntimeState('finished');
+writeRuntimeState(specialistFailureStatus!==0?'blocked':'finished');
 const audit=verifyAuditLog();
 if(!audit.valid){console.error(`[autobot] final audit verification failed: ${audit.error}`);process.exit(3);}
 console.log(`[autobot] sustained ${specialistMode?'specialist ':''}run finished: ${totalUnits}/${requestedUnits} newly verified deterministic units; ${totalObjectives} completed objectives; ${iteration} iterations; ${summary.elapsedMinutes} minutes elapsed; featureCycles=${featureCycles}; engine=${featureEngine}; finishGrace=${finishGraceMinutes}m; auditRecords=${audit.checked}.`);
+if(specialistFailureStatus!==0)process.exit(specialistFailureStatus);
