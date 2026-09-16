@@ -82,7 +82,7 @@ try{
     attempted:[`Specialist ${outcome.botId} execution`],
     retryable:true,
     repairHint:`Repair the failed ${outcome.botId} candidate from restored commit ${restoredCommit}.`,
-    metadata:{specialistBotId:outcome.botId,objective:outcome.objective,specialistBaseCommit:base,restoredCandidateCommit:restoredCommit}
+    metadata:{specialistBotId:outcome.botId,objective:outcome.objective,specialistBaseCommit:base,restoredCandidateCommit:restoredCommit,restoredRecoveryBranch:branch}
   });
 
   // A specialist can fail after producing a real candidate because the
