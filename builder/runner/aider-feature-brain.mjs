@@ -72,9 +72,21 @@ const useSrcSubtree=files.every(file=>file.startsWith('src/'));const aiderCwd=us
 for(let pass=firstPass;pass<=maxPasses;pass++){
   const remaining=remainingMs();if(remaining<35_000)break;if(normalRemainingMs()<35_000&&pass>firstPass)break;state.runs=(state.runs||0)+1;const before=new Set(trackedPaths());const snapshot=snapshotFiles(files);const timeout=Math.min(perCallMaxMs,Math.max(30_000,remaining-5_000));const apiTimeout=Math.max(30,Math.floor(timeout/1000));const args=[`--model=${model}`,`--timeout=${apiTimeout}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only','--message',promptFor(obj,pass),...aiderFiles];
   const result=spawnSync('aider',args,{cwd:aiderCwd,encoding:'utf8',stdio:'inherit',timeout});
-  if(result.error){restorePassSnapshot(obj,snapshot);state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error.code||'process-error'}];saveAiderState(statePath,state);if(remainingMs()<35_000)break;continue;}
-  if(result.status!==0){restorePassSnapshot(obj,snapshot);state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.status}];saveAiderState(statePath,state);continue;}
-  try{assertScope(before,obj);verifyDiff();verifyBuild();state.inProgress={id:obj.id,completedPasses:pass,lastVerifiedAt:new Date().toISOString(),remainingPasses:Math.max(0,maxPasses-pass)};saveAiderState(statePath,state);discardSnapshot(snapshot);success=pass>=maxPasses;if(success)break;if(normalRemainingMs()<35_000)break;}catch(error){restorePassSnapshot(obj,snapshot);state.failed=[...(state.failed||[]),{id:obj.id,pass,code:'verification',error:error.message}];saveAiderState(statePath,state);if(remainingMs()<35_000)break;}
+  if(result.error){
+    const specialistPreserve=process.env.AUTOBOT_SPECIALIST_MODE==='true';
+    if(!specialistPreserve)restorePassSnapshot(obj,snapshot);else discardSnapshot(snapshot);
+    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error.code||'process-error',preservedSpecialistChanges:specialistPreserve}];saveAiderState(statePath,state);if(specialistPreserve)break;if(remainingMs()<35_000)break;continue;
+  }
+  if(result.status!==0){
+    const specialistPreserve=process.env.AUTOBOT_SPECIALIST_MODE==='true';
+    if(!specialistPreserve)restorePassSnapshot(obj,snapshot);else discardSnapshot(snapshot);
+    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.status,preservedSpecialistChanges:specialistPreserve}];saveAiderState(statePath,state);if(specialistPreserve)break;continue;
+  }
+  try{assertScope(before,obj);verifyDiff();verifyBuild();state.inProgress={id:obj.id,completedPasses:pass,lastVerifiedAt:new Date().toISOString(),remainingPasses:Math.max(0,maxPasses-pass)};saveAiderState(statePath,state);discardSnapshot(snapshot);success=pass>=maxPasses;if(success)break;if(normalRemainingMs()<35_000)break;}catch(error){
+    const specialistPreserve=process.env.AUTOBOT_SPECIALIST_MODE==='true';
+    if(!specialistPreserve)restorePassSnapshot(obj,snapshot);else discardSnapshot(snapshot);
+    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:'verification',error:error.message,preservedSpecialistChanges:specialistPreserve}];saveAiderState(statePath,state);if(remainingMs()<35_000)break;if(specialistPreserve)break;
+  }
 }
 if(success){state.completed=[...(state.completed||[]),obj.id];state.lastSuccess={id:obj.id,at:new Date().toISOString()};state.inProgress=null;}else if(state.inProgress?.id===obj.id){state.inProgress={...state.inProgress,remainingPasses:Math.max(0,maxPasses-Number(state.inProgress.completedPasses||0)),checkpointedAt:new Date().toISOString()};}
-state.protocol=protocol;state.lastRunAt=new Date().toISOString();saveAiderState(statePath,state);console.log(JSON.stringify({ok:success,protocol,objective:obj.id,objectiveSource:assignment?'orchestrator-assignment':'feature-library',assignedSpecialist:assignment?.specialist?.id||null,passes:maxPasses,startingPass:firstPass,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),normalRemainingMs:normalRemainingMs(),resumable:!success&&state.inProgress?.id===obj.id,adversarialReviewEnabled:maxPasses>1,productDirectiveLoaded:Boolean(productDirective),postChangeProductQualityGuard:true}));process.exit(success?0:1);
+state.protocol=protocol;state.lastRunAt=new Date().toISOString();saveAiderState(statePath,state);console.log(JSON.stringify({ok:success,protocol,objective:obj.id,objectiveSource:assignment?'orchestrator-assignment':'feature-library',assignedSpecialist:assignment?.specialist?.id||null,passes:maxPasses,startingPass:firstPass,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),normalRemainingMs:normalRemainingMs(),resumable:!success&&state.inProgress?.id===obj.id,preservedSpecialistChanges:process.env.AUTOBOT_SPECIALIST_MODE==='true'&&!success,adversarialReviewEnabled:maxPasses>1,productDirectiveLoaded:Boolean(productDirective),postChangeProductQualityGuard:true}));process.exit(success?0:1);
