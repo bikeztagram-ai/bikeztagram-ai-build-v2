@@ -286,7 +286,7 @@ jobs:
             builder/working/autobot-repair-base-commit.txt
             builder/working/autobot-repair-commit.txt
             builder/working/autobot-specialist-recovery-outcome.json
-          if-no-files-found: error
+          if-no-files-found: ignore
 
   completed-work:
     needs: [plan, specialists, repair-specialists]
