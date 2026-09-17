@@ -42,9 +42,9 @@ function registeredWorker(registry,id){
   if(!fs.existsSync(full))fail(`Registered AutoBot worker '${id}' entrypoint does not exist: ${worker.entrypoint}`);
   return worker;
 }
-async function loadWorker(registry,id){
+function loadWorker(registry,id){
   const worker=registeredWorker(registry,id);
-  return {worker,module:await import(pathToFileURL(path.join(root,worker.entrypoint)).href)};
+  return {worker,modulePromise:import(pathToFileURL(path.join(root,worker.entrypoint)).href)};
 }
 function captureFailure(){
   const checkpoint=fs.existsSync(checkpointPath)?readJson(checkpointPath):null;
@@ -88,9 +88,14 @@ export function captureBuilderFailure(){return captureFailure();}
 export async function recoverFleet({failureId=null}={}){
   const registry=readJson(registryPath);
   if(registry.enabled!==true||registry.coordination?.mode!=='active')fail('AutoBot fleet execution is disabled; recovery orchestration must be explicitly activated after foundation verification.');
-  const {worker:repairWorker,module:repairModule}=await loadWorker(registry,'repair');
-  const {worker:qaWorker,module:qaModule}=await loadWorker(registry,'qa');
-  const {worker:reviewerWorker}=await loadWorker(registry,'reviewer');
+  const {worker:repairWorker,modulePromise:repairModulePromise}=loadWorker(registry,'repair');
+  const {worker:qaWorker,modulePromise:qaModulePromise}=loadWorker(registry,'qa');
+  // Reviewer validates its environment at module import time, so do not
+  // eagerly import it here. runReviewer supplies the exact full SHAs first
+  // and executes the reviewer as a child process with that environment.
+  const reviewerWorker=registeredWorker(registry,'reviewer');
+  const {module:repairModule}=await repairModulePromise;
+  const {module:qaModule}=await qaModulePromise;
   if(typeof repairModule.repairOne!=='function')fail(`Registered Repair Bot '${repairWorker.entrypoint}' does not export repairOne.`);
   if(typeof qaModule.qaOne!=='function')fail(`Registered QA Bot '${qaWorker.entrypoint}' does not export qaOne.`);
   let failure=failureId?readFailures({status:'open'}).find(item=>item.id===failureId):null;
