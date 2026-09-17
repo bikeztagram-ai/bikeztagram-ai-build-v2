@@ -28,6 +28,8 @@ assert(repair.includes("const unauthorized=touched.filter(file=>!files.includes(
 assert(repair.includes("npm install --no-audit --no-fund --no-package-lock")||repair.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'Repair Bot must install dependencies inside its isolated worktree');
 assert(repair.includes("spawnSync('npm',['run','build']"),'Repair Bot must verify the isolated build through the implemented npm invocation contract');
 assert(repair.includes("spawnSync('npm',['run','verify:autobot-product-change-quality']"),'Repair Bot must run the product-quality guard through the implemented npm invocation contract');
+assert(repair.includes('Aider ended non-zero after making a scoped repair candidate'),'Repair Bot must inspect scoped work before rejecting a non-zero Aider exit');
+assert(repair.includes('preservedAfterNonzero'),'Repair Bot must report when a verified candidate survived a non-zero Aider exit');
 assert(!repair.includes("git(['merge'"),'Repair Bot must not contain a merge operation');
 assert(!repair.includes("git(['push'"),'Repair Bot must not push repairs automatically');
 assert(repair.includes("builder/runner/aider-feature-brain.mjs"),'Protected Builder must be explicitly excluded from Repair Bot edits');
@@ -65,4 +67,4 @@ try{
 
 execFileSync(process.execPath,['--check',repairFile],{cwd:root,stdio:'inherit'});
 execFileSync(process.execPath,['--check',queueFile],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,repairEntrypoint:repairFile,queueLifecycle:['open','claimed','repairing','repaired','verified','rejected','blocked'],isolatedWorktree:true,isolatedDependencyInstall:true,automaticPush:false,automaticMerge:false,productQualityGuard:true}));
+console.log(JSON.stringify({ok:true,repairEntrypoint:repairFile,queueLifecycle:['open','claimed','repairing','repaired','verified','rejected','blocked'],isolatedWorktree:true,isolatedDependencyInstall:true,automaticPush:false,automaticMerge:false,productQualityGuard:true,preservesVerifiedNonzeroAiderCandidate:true}));
