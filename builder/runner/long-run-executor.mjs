@@ -146,4 +146,9 @@ writeRuntimeState(specialistFailureStatus!==0?'blocked':'finished');
 const audit=verifyAuditLog();
 if(!audit.valid){console.error(`[autobot] final audit verification failed: ${audit.error}`);process.exit(3);}
 console.log(`[autobot] sustained ${specialistMode?'specialist ':''}run finished: ${totalUnits}/${requestedUnits} newly verified deterministic units; ${totalObjectives} completed objectives; ${iteration} iterations; ${summary.elapsedMinutes} minutes elapsed; featureCycles=${featureCycles}; engine=${featureEngine}; finishGrace=${finishGraceMinutes}m; auditRecords=${audit.checked}.`);
-if(specialistFailureStatus!==0)process.exit(specialistFailureStatus);
+// In specialist mode a non-zero feature-engine result is intentionally returned
+// as a recoverable outcome. The specialist Builder must inspect the actual
+// worktree diff, run its independent build/quality gates, and either preserve
+// the verified candidate or hand the failure to Specialist Recovery. Returning
+// non-zero here used to discard otherwise useful Aider work before that gate.
+if(specialistFailureStatus!==0 && !specialistMode)process.exit(specialistFailureStatus);
