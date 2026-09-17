@@ -30,7 +30,10 @@ has(/AUTOBOT_FEATURE_PASSES/,'Specialist Builder must pass its feature-pass budg
 has(/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'Specialist Builder must pass its verification deadline to the shared controller.');
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 assert(specialists.length===2,'Exactly two specialist Builders are authorised by the current gate.');
-const scopes={director-builder:['src/director.js','src/aiEditPlanner.js'],timeline-builder:['src/executableTimeline.js','src/editorialRhythm.js','src/renderer.js']};
+const scopes={
+  'director-builder':['src/director.js','src/aiEditPlanner.js'],
+  'timeline-builder':['src/executableTimeline.js','src/editorialRhythm.js','src/renderer.js']
+};
 for(const bot of specialists){assert(bot.entrypoint===runnerPath&&bot.status==='verified'&&bot.protected===false,`Invalid specialist registry contract: ${bot.id}`);assert(JSON.stringify(bot.ownsFiles)===JSON.stringify(scopes[bot.id]),`Invalid specialist scope: ${bot.id}`);for(const file of bot.ownsFiles)assert(fs.existsSync(path.join(root,file)),`Missing specialist scope file: ${file}`);}
 assert(pkg.scripts?.['verify:autobot-specialist-builder']==='node scripts/autobot/verify-autobot-specialist-builder.mjs','Package verifier contract is wrong.');
 assert(suite.includes("'verify:autobot-specialist-builder'"),'Main verification suite must discover the specialist verifier.');
