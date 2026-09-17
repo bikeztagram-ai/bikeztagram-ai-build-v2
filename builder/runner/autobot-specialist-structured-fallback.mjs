@@ -19,10 +19,8 @@ const backupPath = path.join(root, 'builder/working/autobot-specialist-feature-o
 
 function fail(message) { throw new Error(message); }
 function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
-function remainingMinutes() {
-  const deadline = Number.parseInt(process.env.AUTOBOT_FEATURE_DEADLINE_EPOCH_MS || '', 10);
-  if (Number.isFinite(deadline)) return Math.max(1, Math.floor((deadline - Date.now()) / 60000));
-  return Math.max(1, Number.parseInt(process.env.BUILDER_MAX_MINUTES || '5', 10));
+function fallbackMinutes() {
+  return Math.max(1, Number.parseInt(process.env.AUTOBOT_SPECIALIST_FALLBACK_MINUTES || '5', 10));
 }
 
 if (!fs.existsSync(assignmentPath)) fail(`Specialist assignment not found: ${assignmentPath}`);
@@ -57,7 +55,8 @@ fs.writeFileSync(backupPath, original);
 fs.writeFileSync(objectivePath, JSON.stringify(adapted, null, 2) + '\n');
 
 try {
-  const minutes = remainingMinutes();
+  const minutes = fallbackMinutes();
+  const deadline = Date.now() + minutes * 60_000;
   const env = {
     ...process.env,
     LOCAL_AI_READY: '1',
@@ -69,6 +68,8 @@ try {
     AUTOBOT_FEATURE_PROTOCOL: 'structured-search-replace-v3',
     AUTOBOT_ORCHESTRATOR_ENABLED: 'true',
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath,
+    AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
+    AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline),
     LOCAL_AI_FEATURE_TIMEOUT_SECONDS: String(Math.max(90, Math.min(210, minutes * 60 - 20)))
   };
   console.log(`[autobot] Aider produced no owned product change; invoking proven structured fallback for ${minutes}m with ${files.join(', ')}`);
@@ -76,7 +77,7 @@ try {
     cwd: root,
     stdio: 'inherit',
     env,
-    timeout: Math.max(90_000, minutes * 60_000 + 30_000)
+    timeout: minutes * 60_000 + 30_000
   });
   if (result.error) fail(`structured fallback failed: ${result.error.message}`);
   if (result.status !== 0) fail(`structured fallback failed with status ${result.status}`);
