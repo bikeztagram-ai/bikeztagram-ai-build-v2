@@ -181,12 +181,15 @@ try {
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath, AUTOBOT_FEATURE_PROTOCOL: protocol,
     AUTOBOT_FEATURE_PASSES: String(passCount), AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline), AUTOBOT_AIDER_MODEL: model,
+    AUTOBOT_FEATURE_SLICE_MINUTES: String(controllerMinutes),
+    AUTOBOT_MAX_FEATURE_CYCLES: '1',
+    AUTOBOT_AIDER_CALL_TIMEOUT_MS: String(Math.max(30_000, (controllerMinutes - 5) * 60_000)),
     LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama_chat\//, ''),
     BUILDER_MAX_MINUTES: String(controllerMinutes),
     AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
 
-  console.log(`[autobot] specialist ${botId} entering the proven long-run controller: ${controllerMinutes}m controller budget + ${controllerFinishGraceMinutes}m controller grace (${verificationReserveMinutes}m reserved for verification), ${passCount} passes, ${model}, ${protocol}`);
+  console.log(`[autobot] specialist ${botId} entering the proven long-run controller: ${controllerMinutes}m controller budget + ${controllerFinishGraceMinutes}m controller grace (${verificationReserveMinutes}m reserved for verification), ${passCount} passes, ${model}, ${protocol}; feature slice=${controllerMinutes}m, Aider call reserve=5m, cycles=1`);
   const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], {
     cwd: worktree, stdio: 'inherit', env: engineEnv,
     timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000
@@ -231,7 +234,7 @@ try {
     passes: passCount, protocol
   }, null, 2) + '\n');
   keepBranch = true;
-  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'proven-autobot-long-run-controller', featureEngine: 'aider-feature-brain', passes: passCount, protocol, handoffPath }));
+  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'proven-autobot-long-run-controller', featureEngine: 'builder/runner/aider-feature-brain', passes: passCount, protocol, handoffPath }));
 } catch (error) {
   // IMPORTANT: capture the candidate before the finally block removes the
   // isolated worktree. This is what allows Specialist Recovery to receive the
@@ -240,5 +243,6 @@ try {
   throw error;
 } finally {
   try { run('git', ['worktree', 'remove', '--force', worktree], root); } catch {}
+  try { fs.rmSync(worktree, { recursive: true, force: true }); } catch {}
   if (!keepBranch) { try { run('git', ['branch', '-D', branch], root); } catch {} }
 }
