@@ -3,22 +3,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-
 const root=process.cwd();
-const paths={
-  registry:'builder/brain/autobot-fleet.json', package:'package.json',
-  workflow:'.github/workflows/autonomous-builder-v2-fast.yml',
-  validation:'.github/workflows/autobot-fleet-foundation-validation.yml',
-  documentation:'builder/brain/autobot-fleet-foundation.md',
-  coordinator:'builder/runner/autobot-coordinator.mjs', queue:'builder/runner/autobot-failure-queue.mjs',
-  repair:'builder/runner/autobot-repair.mjs', qa:'builder/runner/autobot-qa.mjs',
-  reviewer:'builder/runner/autobot-reviewer.mjs', reviewerVerifier:'scripts/autobot/verify-autobot-reviewer.mjs',
-  reviewerHandoffVerifier:'scripts/autobot/verify-autobot-reviewer-handoff.mjs',
-  specialist:'builder/runner/autobot-specialist-builder.mjs', specialistVerifier:'scripts/autobot/verify-autobot-specialist-builder.mjs',
-  specialistHandoff:'builder/runner/autobot-specialist-handoff.mjs', specialistHandoffVerifier:'scripts/autobot/verify-autobot-specialist-handoff.mjs',
-  selfImprovement:'builder/runner/autobot-self-improvement.mjs', selfImprovementVerifier:'scripts/autobot/verify-autobot-self-improvement.mjs',
-  repairVerifier:'scripts/autobot/verify-autobot-repair-bot.mjs', qaVerifier:'scripts/autobot/verify-autobot-qa.mjs'
-};
+const paths={registry:'builder/brain/autobot-fleet.json', package:'package.json',workflow:'.github/workflows/autonomous-builder-v2-fast.yml',validation:'.github/workflows/autobot-fleet-foundation-validation.yml',documentation:'builder/brain/autobot-fleet-foundation.md',coordinator:'builder/runner/autobot-coordinator.mjs',queue:'builder/runner/autobot-failure-queue.mjs',repair:'builder/runner/autobot-repair.mjs',qa:'builder/runner/autobot-qa.mjs',reviewer:'builder/runner/autobot-reviewer.mjs',reviewerVerifier:'scripts/autobot/verify-autobot-reviewer.mjs',reviewerHandoffVerifier:'scripts/autobot/verify-autobot-reviewer-handoff.mjs',specialist:'builder/runner/autobot-specialist-builder.mjs',specialistVerifier:'scripts/autobot/verify-autobot-specialist-builder.mjs',specialistHandoff:'builder/runner/autobot-specialist-handoff.mjs',specialistHandoffVerifier:'scripts/autobot/verify-autobot-specialist-handoff.mjs',selfImprovement:'builder/runner/autobot-self-improvement.mjs',selfImprovementVerifier:'scripts/autobot/verify-autobot-self-improvement.mjs',repairVerifier:'scripts/autobot/verify-autobot-repair-bot.mjs',qaVerifier:'scripts/autobot/verify-autobot-qa.mjs'};
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const assert=(ok,message)=>{if(!ok)throw new Error(message);};
 const has=(text,pattern,message)=>assert(pattern.test(text),message);
@@ -32,14 +18,16 @@ const foundation=registry.enabled===false&&registry.coordination?.mode==='plan-o
 assert(live||foundation,'fleet must be active under an explicit live-test gate or disabled/plan-only');
 assert(Number.isInteger(registry.coordination?.maxConcurrentWorkers)&&registry.coordination.maxConcurrentWorkers>=1&&registry.coordination.maxConcurrentWorkers<=2,'fleet worker limit must remain bounded at two');
 if(live){
-  assert(registry.activationGate?.requiredEnabled===true&&registry.activationGate?.requiredMode==='active','live activation contract changed');
-  assert(registry.activationGate?.protectedIntegration===false,'protected integration must remain disabled');
-  assert(registry.coordination?.requireIsolatedWorker===true,'isolated worker requirement missing');
-  assert(registry.coordination?.requireVerificationBeforeHandoff===true,'verification-before-handoff requirement missing');
-  assert(registry.coordination?.requireHumanReviewBeforeProtectedIntegration===true,'human review boundary missing');
-  assert(['15m','30m','1h'].includes(registry.activationGate?.testDuration),'live test duration must be bounded');
-  assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(['director-builder','timeline-builder']),'parallel activation must name exactly Director and Timeline specialists');
-  assert((registry.activationGate?.allowedTestDurations||[]).every(d=>['15m','30m','1h'].includes(d)),'activation duration list contains an unapproved duration');
+ assert(registry.activationGate?.requiredEnabled===true&&registry.activationGate?.requiredMode==='active','live activation contract changed');
+ assert(registry.activationGate?.protectedIntegration===false,'protected integration must remain disabled');
+ assert(registry.coordination?.requireIsolatedWorker===true,'isolated worker requirement missing');
+ assert(registry.coordination?.requireVerificationBeforeHandoff===true,'verification-before-handoff requirement missing');
+ assert(registry.coordination?.requireHumanReviewBeforeProtectedIntegration===true,'human review boundary missing');
+ const approved=['15m','30m','1h','4h','5h'];
+ assert(approved.includes(registry.activationGate?.testDuration),'live test duration must be bounded to an approved window');
+ assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(['director-builder','timeline-builder']),'parallel activation must name exactly Director and Timeline specialists');
+ assert((registry.activationGate?.allowedTestDurations||[]).every(d=>approved.includes(d)),'activation duration list contains an unapproved duration');
+ assert((registry.activationGate?.allowedTestDurations||[]).includes('5h'),'five-hour overnight activation must be explicitly registered');
 }
 const c=registry.coordination;
 assert(c?.coordinator===paths.coordinator&&c?.failureQueue==='builder/working/autobot-failure-queue.jsonl'&&c?.sharedEvidence==='builder/working/autobot-fleet-plan.json','core registry paths changed');
@@ -50,24 +38,10 @@ for(const bot of registry.bots){assert(bot.id&&bot.role&&bot.entrypoint&&bot.sta
 for(const [id,entrypoint] of [['repair',paths.repair],['qa',paths.qa],['reviewer',paths.reviewer],['self-improvement',paths.selfImprovement]]){const bot=registry.bots.find(b=>b.id===id);assert(bot?.entrypoint===entrypoint&&bot.status==='verified',`${id} registry contract must match its verified implementation`);assert(fs.existsSync(path.join(root,entrypoint)),`${id} implementation missing: ${entrypoint}`);}
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 assert(specialists.length===2,'exactly two specialist Builders are authorised by the current live gate');
-const scopes={'director-builder':['src/director.js','src/aiEditPlanner.js'],'timeline-builder':['src/executableTimeline.js','src/editorialRhythm.js','src/renderer.js']};
+const scopes={'director-builder':['src/director.js'],'timeline-builder':['src/executableTimeline.js','src/editorialRhythm.js','src/renderer.js']};
 for(const bot of specialists){assert(bot.entrypoint===paths.specialist&&bot.status==='verified'&&bot.protected===false,`specialist registry contract invalid: ${bot.id}`);assert(JSON.stringify(bot.ownsFiles)===JSON.stringify(scopes[bot.id]),`specialist scope invalid: ${bot.id}`);for(const file of bot.ownsFiles){assert(!path.isAbsolute(file)&&!file.includes('..')&&!file.startsWith('.')&&!file.includes('\\'),`unsafe specialist scope: ${bot.id}:${file}`);assert(fs.existsSync(path.join(root,file)),`specialist scope file missing: ${file}`);}}
-has(specialist,/AUTOBOT_SPECIALIST_BOT_ID/,'specialist id contract missing');
-has(specialist,/AUTOBOT_SPECIALIST_OBJECTIVE/,'specialist objective contract missing');
-has(specialist,/AUTOBOT_SPECIALIST_BUILDER_ENABLED/,'specialist activation flag missing');
-has(specialist,/bot\.specialistBuilder/,'specialist registry-role guard missing');
-has(specialist,/ownsFiles/,'specialist registry scope guard missing');
-has(specialist,/candidateCommit/,'specialist candidate handoff wiring missing');
-has(specialist,/writeSpecialistHandoff\(/,'specialist handoff producer missing');
-has(specialist,/status\s*:\s*['"]verified-candidate['"]/,'verified candidate handoff missing');
-has(specialist,/AUTOBOT_FEATURE_PASSES/,'specialist feature-pass budget missing');
-has(specialist,/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'specialist verification deadline missing');
-has(specialist,/no-auto-commits/,'Aider auto-commits must remain disabled');
-has(specialist,/no-dirty-commits/,'Aider dirty commits must remain disabled');
-has(specialist,/Do not merge or push/,'specialist must not merge or push');
-has(coordinator,/specialistBotId/,'coordinator specialist discovery missing');
-has(coordinator,/specialistObjective/,'coordinator specialist objective missing');
-has(coordinator,/specialist-builder-required/,'coordinator specialist decision missing');
+has(specialist,/AUTOBOT_SPECIALIST_BOT_ID/,'specialist id contract missing');has(specialist,/AUTOBOT_SPECIALIST_OBJECTIVE/,'specialist objective contract missing');has(specialist,/AUTOBOT_SPECIALIST_BUILDER_ENABLED/,'specialist activation flag missing');has(specialist,/bot\.specialistBuilder/,'specialist registry-role guard missing');has(specialist,/ownsFiles/,'specialist registry scope guard missing');has(specialist,/candidateCommit/,'specialist candidate handoff wiring missing');has(specialist,/writeSpecialistHandoff\(/,'specialist handoff producer missing');has(specialist,/status\s*:\s*['"]verified-candidate['"]/,'verified candidate handoff missing');has(specialist,/AUTOBOT_FEATURE_PASSES/,'specialist feature-pass budget missing');has(specialist,/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'specialist verification deadline missing');has(specialist,/no-auto-commits/,'Aider auto-commits must remain disabled');has(specialist,/no-dirty-commits/,'Aider dirty commits must remain disabled');has(specialist,/Do not merge or push/,'specialist must not merge or push');
+has(coordinator,/specialistBotId/,'coordinator specialist discovery missing');has(coordinator,/specialistObjective/,'coordinator specialist objective missing');has(coordinator,/specialist-builder-required/,'coordinator specialist decision missing');
 for(const text of [repair,qa,reviewer])has(text,/no-audit.*no-fund.*no-package-lock/,'recovery worker isolated dependency install missing');
 assert(handoff.includes('AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT'),'specialist handoff must expose Reviewer commit contract');
 const scripts=pkg.scripts||{};

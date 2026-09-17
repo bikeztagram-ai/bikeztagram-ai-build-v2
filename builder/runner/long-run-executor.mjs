@@ -3,10 +3,10 @@
  * Sustained AutoBot controller with resumable work and controlled finish grace.
  *
  * The normal mode remains the production deterministic AutoBot. Specialist mode
- * is not a second engine: it uses this same controller and its existing
- * Aider Feature Brain as the scoped work unit supplied by a specialist
- * assignment. This keeps the long-run/checkpoint/audit/recovery behaviour in
- * one place without cloning the proven AutoBot.
+ * uses this same controller and the proven structured feature brain by default,
+ * while allowing an explicit specialist engine override. This keeps the
+ * long-run/checkpoint/audit/recovery behaviour in one place without cloning the
+ * proven AutoBot.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -32,9 +32,11 @@ const featureSliceMinutes=Math.max(3,Number.parseInt(process.env.AUTOBOT_FEATURE
 const maxFeatureCycles=Math.max(1,Number.parseInt(process.env.AUTOBOT_MAX_FEATURE_CYCLES||'24',10));
 const configuredFeaturePasses=process.env.AUTOBOT_FEATURE_PASSES||process.env.AUTOBOT_FEATURE_PASSES_PER_SLICE||'2';
 const featurePassesPerSlice=Math.max(1,Math.min(3,Number.parseInt(configuredFeaturePasses,10)||2));
-const featureProtocol=process.env.AUTOBOT_FEATURE_ENGINE==='aider'?(process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4'):'structured-search-replace-v3';
-const featureEngine=process.env.AUTOBOT_FEATURE_ENGINE==='aider'?'builder/runner/aider-feature-brain.mjs':'builder/runner/feature-brain.mjs';
-if(specialistMode&&process.env.AUTOBOT_FEATURE_ENGINE!=='aider')throw new Error('Specialist AutoBot mode is locked to the proven Aider feature engine.');
+const configuredEngine=String(process.env.AUTOBOT_FEATURE_ENGINE||'structured').trim().toLowerCase();
+const selectedFeatureEngine=specialistMode?String(process.env.AUTOBOT_SPECIALIST_FEATURE_ENGINE||'structured').trim().toLowerCase():configuredEngine;
+const featureEngine=selectedFeatureEngine==='aider'?'builder/runner/aider-feature-brain.mjs':'builder/runner/feature-brain.mjs';
+const featureProtocol=selectedFeatureEngine==='aider'?(process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4'):(process.env.AUTOBOT_FEATURE_PROTOCOL||'structured-search-replace-v3');
+if(!['aider','structured'].includes(selectedFeatureEngine))throw new Error(`Unsupported AutoBot feature engine: ${selectedFeatureEngine}`);
 const completedObjectives=new Set();
 
 function readState(){try{return JSON.parse(fs.readFileSync(checkpoint,'utf8'));}catch{return null;}}
@@ -75,7 +77,7 @@ function runFeatureBrain(){
   const featureDeadline=process.env.AUTOBOT_FEATURE_DEADLINE_EPOCH_MS||String(runDeadline);
   const featureNormalDeadline=process.env.AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS||String(normalRunDeadline);
   const env={...process.env,BUILDER_MAX_MINUTES:String(slice),LOCAL_AI_MODEL:process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b',AUTOBOT_FEATURE_PASSES:String(featurePassesPerSlice),AUTOBOT_FEATURE_PROTOCOL:featureProtocol,AUTOBOT_FEATURE_DEADLINE_EPOCH_MS:featureDeadline,AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS:featureNormalDeadline,AUTOBOT_AIDER_MODEL:process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b'};
-  if(specialistMode){env.AUTOBOT_ORCHESTRATOR_ENABLED='true';env.AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH=assignmentPath;}
+  if(specialistMode){env.AUTOBOT_ORCHESTRATOR_ENABLED='true';env.AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH=assignmentPath;env.AUTOBOT_FEATURE_ENGINE=selectedFeatureEngine;}
   appendAudit('feature-brain-started',{cycle:featureCycles,mode:specialistMode?'specialist':'standard',minutes:slice,model:env.AUTOBOT_AIDER_MODEL,engine:featureEngine,passes:featurePassesPerSlice,protocol:featureProtocol,assignmentPath:specialistMode?assignmentPath:null,deadline:new Date(Number(featureDeadline)).toISOString(),normalDeadline:new Date(Number(featureNormalDeadline)).toISOString()});
   console.log(`[autobot] ${specialistMode?'specialist ':''}feature-engineering cycle ${featureCycles}/${maxFeatureCycles}: ${slice}m slice; engine=${featureEngine}; model=${env.AUTOBOT_AIDER_MODEL}; passes=${featurePassesPerSlice}; protocol=${featureProtocol}`);
   const result=spawnSync(process.execPath,[featureEngine],{cwd:root,stdio:'inherit',env,timeout:childTimeoutMs()});
@@ -146,9 +148,4 @@ writeRuntimeState(specialistFailureStatus!==0?'blocked':'finished');
 const audit=verifyAuditLog();
 if(!audit.valid){console.error(`[autobot] final audit verification failed: ${audit.error}`);process.exit(3);}
 console.log(`[autobot] sustained ${specialistMode?'specialist ':''}run finished: ${totalUnits}/${requestedUnits} newly verified deterministic units; ${totalObjectives} completed objectives; ${iteration} iterations; ${summary.elapsedMinutes} minutes elapsed; featureCycles=${featureCycles}; engine=${featureEngine}; finishGrace=${finishGraceMinutes}m; auditRecords=${audit.checked}.`);
-// In specialist mode a non-zero feature-engine result is intentionally returned
-// as a recoverable outcome. The specialist Builder must inspect the actual
-// worktree diff, run its independent build/quality gates, and either preserve
-// the verified candidate or hand the failure to Specialist Recovery. Returning
-// non-zero here used to discard otherwise useful Aider work before that gate.
 if(specialistFailureStatus!==0 && !specialistMode)process.exit(specialistFailureStatus);

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "parallel-two-worker-live-test",
   "enabled": true,
-  "purpose": "Run controlled two-worker AutoBot specialist shakedowns and a staged one-hour endurance validation before any larger parallel wave.",
+  "purpose": "Run controlled two-worker AutoBot specialist shakedowns and an operator-approved four-to-five-hour overnight endurance validation before any larger parallel wave.",
   "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving the protected proven builder and truthful verification.",
   "coordination": {
     "mode": "active",
@@ -28,14 +28,14 @@
     "requiredEnabled": true,
     "requiredMode": "active",
     "protectedIntegration": false,
-    "testDuration": "1h",
-    "allowedTestDurations": ["15m", "30m", "1h"],
+    "testDuration": "5h",
+    "allowedTestDurations": ["15m", "30m", "1h", "4h", "5h"],
     "parallelWorkers": ["director-builder", "timeline-builder"],
-    "operatorControl": "Temporary live activation for exactly two isolated specialist workers during controlled fifteen-minute, thirty-minute, or one-hour endurance shakedowns only. Protected integration remains disabled and requires operator-controlled review. Larger waves and longer endurance require separate operator-approved activation changes."
+    "operatorControl": "Temporary live activation for exactly two isolated specialist workers during controlled fifteen-minute, thirty-minute, one-hour, four-hour, or five-hour endurance runs. Protected integration remains disabled and requires operator-controlled review. Larger waves require a separate operator-approved activation change."
   },
   "bots": [
     {"id":"builder","role":"protected-product-builder","entrypoint":"builder/runner/aider-feature-brain.mjs","status":"proven","owns":["objective-scoped product implementation"],"protected":true},
-    {"id":"director-builder","role":"specialist-cinematic-director-builder","entrypoint":"builder/runner/autobot-specialist-builder.mjs","status":"verified","owns":["creative direction","story construction","shot selection","director runtime"],"ownsFiles":["src/director.js","src/aiEditPlanner.js"],"specialistBuilder":true,"protected":false},
+    {"id":"director-builder","role":"specialist-cinematic-director-builder","entrypoint":"builder/runner/autobot-specialist-builder.mjs","status":"verified","owns":["creative direction","story construction","shot selection","director runtime"],"ownsFiles":["src/director.js"],"specialistBuilder":true,"protected":false},
     {"id":"timeline-builder","role":"specialist-executable-timeline-builder","entrypoint":"builder/runner/autobot-specialist-builder.mjs","status":"verified","owns":["timeline execution","editorial rhythm","cut timing","transition and motion execution"],"ownsFiles":["src/executableTimeline.js","src/editorialRhythm.js","src/renderer.js"],"specialistBuilder":true,"protected":false},
     {"id":"repair","role":"failure-analysis-and-repair","entrypoint":"builder/runner/autobot-repair.mjs","status":"verified","owns":["failure diagnosis","repair proposals","verified isolated fixes"],"protected":false},
     {"id":"qa","role":"independent-product-verifier","entrypoint":"builder/runner/autobot-qa.mjs","status":"verified","owns":["regression checks","product-quality review","handoff evidence"],"protected":false},
@@ -59,6 +59,6 @@
     "The specialist recovery runner may invoke the existing Repair -> QA -> Reviewer chain only for explicitly classified repairable product failures.",
     "The recovery runner may orchestrate Repair, QA and Reviewer only after the explicit fleet activation gate is enabled.",
     "The controlled recovery workflow must use the registered recovery runner and must never bypass the explicit enabled:true plus coordination.mode:'active' gate.",
-    "Only durations listed in activationGate.allowedTestDurations may be used for controlled live shakedowns; larger waves or longer endurance require a separate operator-approved activation change."
+    "Only durations listed in activationGate.allowedTestDurations may be used for controlled live shakedowns; larger waves require a separate operator-approved activation change."
   ]
 }

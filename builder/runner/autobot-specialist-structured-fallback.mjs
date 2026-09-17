@@ -62,7 +62,7 @@ try {
     LOCAL_AI_READY: '1',
     BUILDER_MAX_MINUTES: String(minutes),
     AUTOBOT_FEATURE_PASSES: '1',
-    AUTOBOT_FEATURE_MAX_ATTEMPTS: process.env.AUTOBOT_FEATURE_MAX_ATTEMPTS || '2',
+    AUTOBOT_FEATURE_MAX_ATTEMPTS: '1',
     AUTOBOT_FEATURE_MAX_EDITS: process.env.AUTOBOT_FEATURE_MAX_EDITS || '2',
     AUTOBOT_FEATURE_ENGINE: 'structured',
     AUTOBOT_FEATURE_PROTOCOL: 'structured-search-replace-v3',
@@ -70,7 +70,7 @@ try {
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath,
     AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline),
-    LOCAL_AI_FEATURE_TIMEOUT_SECONDS: String(Math.max(90, Math.min(210, minutes * 60 - 20)))
+    LOCAL_AI_FEATURE_TIMEOUT_SECONDS: String(Math.max(90, Math.min(270, minutes * 60 - 20)))
   };
   console.log(`[autobot] Aider produced no owned product change; invoking proven structured fallback for ${minutes}m with ${files.join(', ')}`);
   const result = spawnSync(process.execPath, ['builder/runner/feature-brain.mjs'], {
