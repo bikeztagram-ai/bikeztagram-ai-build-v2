@@ -55,7 +55,10 @@ const builder=registry.bots.find(b=>b.id==='builder');
 assert(builder?.entrypoint==='builder/runner/aider-feature-brain.mjs'&&builder.status==='proven'&&builder.protected===true,'protected proven Builder contract changed');
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 assert(specialists.length===2,'exactly two specialist Builders are authorised by the current live gate');
-const scopes={'director-builder':['src/director.js','src/aiEditPlanner.js'],'timeline-builder':['src/executableTimeline.js','src/editorialRhythm.js','src/renderer.js']};
+const scopes={
+  'director-builder':['src/director.js','src/aiEditPlanner.js'],
+  'timeline-builder':['src/executableTimeline.js','src/editorialRhythm.js','src/renderer.js']
+};
 for(const bot of specialists){assert(bot.entrypoint===specialistPath&&bot.status==='verified'&&bot.protected===false,`specialist registry contract invalid: ${bot.id}`);assert(JSON.stringify(bot.ownsFiles)===JSON.stringify(scopes[bot.id]),`specialist scope invalid: ${bot.id}`);for(const file of bot.ownsFiles)assert(fs.existsSync(path.join(root,file)),`specialist scope file missing: ${file}`);}
 has(specialist,/AUTOBOT_SPECIALIST_BOT_ID/,'specialist id contract missing');
 has(specialist,/AUTOBOT_SPECIALIST_OBJECTIVE/,'specialist objective contract missing');
