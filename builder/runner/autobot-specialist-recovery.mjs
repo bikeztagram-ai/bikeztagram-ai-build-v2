@@ -12,7 +12,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { appendFailure, transitionFailure } from './autobot-failure-queue.mjs';
 
 const originalRoot=process.cwd();
 const input=process.argv[2];
@@ -48,7 +47,7 @@ async function runReviewer(root,entrypoint,baseCommit,candidateCommit){
   try{execFileSync(process.execPath,[entrypoint],{cwd:root,env,stdio:'inherit'});return {status:'pass'};}
   catch(error){if(error.status===3)return {status:'needs-repair'};if(error.status===2)return {status:'reject'};throw error;}
 }
-async function routeVerifiedCandidate(recoveryRoot,registry,queueRecord,base,restoredCommit,restoredBranch){
+async function routeVerifiedCandidate(recoveryRoot,registry,queueRecord,base,restoredCommit,restoredBranch,transitionFailure){
   const qaPath=registry.bots.find(item=>item.id==='qa')?.entrypoint;
   const reviewerPath=registry.bots.find(item=>item.id==='reviewer')?.entrypoint;
   if(!qaPath||!reviewerPath)throw new Error('registered QA/Reviewer entrypoints are required for direct verified-candidate recovery');
@@ -67,8 +66,14 @@ try{
   process.chdir(recoveryRoot);
   run(['config','user.name','Bikeztagram AutoBot']);
   run(['config','user.email','autobot@bikeztagram.local']);
+
+  // The failure queue module resolves its queue path at import time. Recovery
+  // intentionally imports it only after changing into the isolated recovery
+  // worktree and setting AUTOBOT_FAILURE_QUEUE_PATH, so the temporary recovery
+  // queue and the verification/QA stages all operate on the same evidence file.
   process.env.AUTOBOT_FAILURE_QUEUE_PATH=path.join(recoveryRoot,'builder','working','autobot-failure-queue.jsonl');
-  const {appendFailure}=await import(pathToFileURL(path.join(recoveryRoot,'builder','runner','autobot-failure-queue.mjs')).href);
+  const {appendFailure,transitionFailure}=await import(pathToFileURL(path.join(recoveryRoot,'builder/runner/autobot-failure-queue.mjs')).href);
+
   const patch=fs.readFileSync(path.resolve(originalRoot,patchPath),'utf8');
   if(!patch.trim())throw new Error('captured specialist failure patch is empty');
   fs.writeFileSync('.autobot-specialist-recovery.patch',patch);
@@ -100,7 +105,7 @@ try{
   let result;
   if(preflight.ok){
     console.log(`[autobot] specialist ${outcome.botId} candidate passed recovery preflight; routing exact candidate to QA without a rewrite`);
-    result=await routeVerifiedCandidate(recoveryRoot,registry,queueRecord,base,restoredCommit,branch);
+    result=await routeVerifiedCandidate(recoveryRoot,registry,queueRecord,base,restoredCommit,branch,transitionFailure);
   }else{
     const recoveryPath=registry.coordination?.recoveryRunner;
     if(recoveryPath!=='builder/runner/autobot-fleet-recovery.mjs')throw new Error('registry recovery runner does not match the controlled recovery implementation');
