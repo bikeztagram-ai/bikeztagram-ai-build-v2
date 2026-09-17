@@ -30,7 +30,8 @@ const maxReplenishments=Number.parseInt(process.env.AUTOBOT_MAX_GENERATED_WAVES|
 const deterministicSliceMinutes=Math.max(3,Number.parseInt(process.env.AUTOBOT_DETERMINISTIC_SLICE_MINUTES||'5',10));
 const featureSliceMinutes=Math.max(3,Number.parseInt(process.env.AUTOBOT_FEATURE_SLICE_MINUTES||'20',10));
 const maxFeatureCycles=Math.max(1,Number.parseInt(process.env.AUTOBOT_MAX_FEATURE_CYCLES||'24',10));
-const featurePassesPerSlice=Math.max(1,Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES_PER_SLICE||'2',10));
+const configuredFeaturePasses=process.env.AUTOBOT_FEATURE_PASSES||process.env.AUTOBOT_FEATURE_PASSES_PER_SLICE||'2';
+const featurePassesPerSlice=Math.max(1,Math.min(3,Number.parseInt(configuredFeaturePasses,10)||2));
 const featureProtocol=process.env.AUTOBOT_FEATURE_ENGINE==='aider'?(process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4'):'structured-search-replace-v3';
 const featureEngine=process.env.AUTOBOT_FEATURE_ENGINE==='aider'?'builder/runner/aider-feature-brain.mjs':'builder/runner/feature-brain.mjs';
 if(specialistMode&&process.env.AUTOBOT_FEATURE_ENGINE!=='aider')throw new Error('Specialist AutoBot mode is locked to the proven Aider feature engine.');
@@ -71,9 +72,11 @@ function runFeatureBrain(){
   const assignmentPath=String(process.env.AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH||'').trim();
   if(specialistMode&&!assignmentPath)throw new Error('Specialist AutoBot mode requires AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH.');
   if(specialistMode&&!fs.existsSync(assignmentPath))throw new Error(`Specialist AutoBot assignment not found: ${assignmentPath}`);
-  const env={...process.env,BUILDER_MAX_MINUTES:String(slice),LOCAL_AI_MODEL:process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b',AUTOBOT_FEATURE_PASSES:String(featurePassesPerSlice),AUTOBOT_FEATURE_PROTOCOL:featureProtocol,AUTOBOT_FEATURE_DEADLINE_EPOCH_MS:String(runDeadline),AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS:String(normalRunDeadline),AUTOBOT_AIDER_MODEL:process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b'};
+  const featureDeadline=process.env.AUTOBOT_FEATURE_DEADLINE_EPOCH_MS||String(runDeadline);
+  const featureNormalDeadline=process.env.AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS||String(normalRunDeadline);
+  const env={...process.env,BUILDER_MAX_MINUTES:String(slice),LOCAL_AI_MODEL:process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b',AUTOBOT_FEATURE_PASSES:String(featurePassesPerSlice),AUTOBOT_FEATURE_PROTOCOL:featureProtocol,AUTOBOT_FEATURE_DEADLINE_EPOCH_MS:featureDeadline,AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS:featureNormalDeadline,AUTOBOT_AIDER_MODEL:process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL||'ollama_chat/qwen2.5-coder:7b'};
   if(specialistMode){env.AUTOBOT_ORCHESTRATOR_ENABLED='true';env.AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH=assignmentPath;}
-  appendAudit('feature-brain-started',{cycle:featureCycles,mode:specialistMode?'specialist':'standard',minutes:slice,model:env.AUTOBOT_AIDER_MODEL,engine:featureEngine,passes:featurePassesPerSlice,protocol:featureProtocol,assignmentPath:specialistMode?assignmentPath:null,deadline:new Date(runDeadline).toISOString(),normalDeadline:new Date(normalRunDeadline).toISOString()});
+  appendAudit('feature-brain-started',{cycle:featureCycles,mode:specialistMode?'specialist':'standard',minutes:slice,model:env.AUTOBOT_AIDER_MODEL,engine:featureEngine,passes:featurePassesPerSlice,protocol:featureProtocol,assignmentPath:specialistMode?assignmentPath:null,deadline:new Date(Number(featureDeadline)).toISOString(),normalDeadline:new Date(Number(featureNormalDeadline)).toISOString()});
   console.log(`[autobot] ${specialistMode?'specialist ':''}feature-engineering cycle ${featureCycles}/${maxFeatureCycles}: ${slice}m slice; engine=${featureEngine}; model=${env.AUTOBOT_AIDER_MODEL}; passes=${featurePassesPerSlice}; protocol=${featureProtocol}`);
   const result=spawnSync(process.execPath,[featureEngine],{cwd:root,stdio:'inherit',env,timeout:childTimeoutMs()});
   const status=result.error?1:(result.status??1);
@@ -112,7 +115,7 @@ if(specialistMode){
 }else{
   while(totalUnits<requestedUnits&&remainingMs()>0){
     iteration++;
-    const deterministicSlice=Math.min(deterministicSliceMinutes,Math.max(1,Math.floor(remainingMs()/60000)));
+    const deterministicSlice=Math.min(deterministicSliceMinutes,Math.max(1,Math.floor(remainingMs()/60000));
     appendAudit('iteration-started',{iteration,remainingMinutes:Math.floor(remainingMs()/60000),normalRemainingMinutes:Math.floor(normalRemainingMs()/60000),remainingUnits:requestedUnits-totalUnits,featureCycles,deterministicSlice,consecutiveNoProgress,selfImprovementSlice:iteration%2===0});
     const status=runOnce(deterministicSlice,requestedUnits-totalUnits);
     const state=readState();
