@@ -115,6 +115,7 @@ jobs:
           AUTOBOT_SPECIALIST_OBJECTIVE: ${{ steps.assignment.outputs.objective }}
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          AUTOBOT_FINISH_GRACE_MINUTES: '0'
           LOCAL_AI_PROXY_NUM_CTX: 4096
           LOCAL_AI_PROXY_NUM_PREDICT: 900
           OLLAMA_CONTEXT_LENGTH: 4096
@@ -243,6 +244,26 @@ jobs:
           const fs=require('node:fs');
           fs.writeFileSync('builder/working/autobot-specialist-recovery-outcome.json',JSON.stringify({status:'not-routed',reason:'No repairable product failure was classified for this specialist.'},null,2)+'\n');
           NODE
+      - name: Ensure recovery outcome artifact input exists
+        if: always()
+        env:
+          BOT: ${{ matrix.bot }}
+          OUTCOME: ${{ steps.classify.outputs.repairable }}
+          REPAIR_OUTCOME: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          mkdir -p builder/working
+          if [ ! -f builder/working/autobot-specialist-recovery-outcome.json ]; then
+            node - <<'NODE'
+            const fs=require('node:fs');
+            const repairable=process.env.OUTCOME==='true';
+            const status=repairable?'failure':'not-routed';
+            const reason=repairable
+              ? `Specialist recovery runner ended before publishing its outcome (job status: ${process.env.REPAIR_OUTCOME}).`
+              : 'No repairable product failure was classified for this specialist.';
+            fs.writeFileSync('builder/working/autobot-specialist-recovery-outcome.json',JSON.stringify({schemaVersion:'autobot-specialist-recovery-outcome-v1',botId:process.env.BOT,status,reason},null,2)+'\n');
+            NODE
+          fi
       - name: Capture recovery diagnostics
         if: always()
         run: |
@@ -265,7 +286,7 @@ jobs:
             builder/working/autobot-repair-base-commit.txt
             builder/working/autobot-repair-commit.txt
             builder/working/autobot-specialist-recovery-outcome.json
-          if-no-files-found: ignore
+          if-no-files-found: error
 
   completed-work:
     needs: [plan, specialists, repair-specialists]

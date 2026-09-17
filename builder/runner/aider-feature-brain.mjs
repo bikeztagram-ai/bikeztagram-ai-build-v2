@@ -65,6 +65,14 @@ function discardSnapshot(snapshot){try{fs.unlinkSync(snapshot);}catch{}}
 function assertScope(before,obj){const allowed=new Set(scopedFiles(obj));const after=trackedPaths();const newPaths=after.filter(p=>!before.has(p));const unauthorized=newPaths.filter(p=>!allowed.has(p));if(unauthorized.length){for(const file of unauthorized){try{execFileSync('git',['restore','--',file],{cwd:root,stdio:'inherit'});}catch{}try{execFileSync('git',['clean','-fd','--',file],{cwd:root,stdio:'inherit'});}catch{}}throw new Error(`Aider modified files outside objective scope: ${unauthorized.join(', ')}`);}}
 function verifyDiff(){execFileSync('git',['diff','--check'],{cwd:root,stdio:'inherit'});}
 function verifyBuild(){const remaining=remainingMs();if(remaining<35_000)throw new Error('insufficient remaining run budget for build verification');const result=run('npm',['run','build'],{timeout:Math.min(120_000,remaining-5_000)});if(result.error||result.status!==0)throw new Error(`npm run build failed with status ${result.status??'error'}`);const qualityRemaining=remainingMs();if(qualityRemaining<35_000)throw new Error('insufficient remaining run budget for product quality verification');const quality=run('npm',['run','verify:autobot-product-change-quality'],{timeout:Math.min(120_000,qualityRemaining-5_000)});if(quality.error||quality.status!==0)throw new Error(`AutoBot product quality verification failed with status ${quality.status??'error'}`);}
+function hasScopedChanges(obj){const allowed=new Set(scopedFiles(obj));return trackedPaths().some(file=>allowed.has(file));}
+function acceptPreservedPass(obj,pass){
+  verifyDiff();
+  verifyBuild();
+  state.inProgress={id:obj.id,completedPasses:pass,lastVerifiedAt:new Date().toISOString(),remainingPasses:Math.max(0,maxPasses-pass),aiderLifecycle:'nonzero-but-verified'};
+  saveAiderState(statePath,state);
+  return pass>=maxPasses;
+}
 const obj=objective();
 if(!obj){console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective'}));process.exit(0);}
 const files=scopedFiles(obj);if(!files.length){console.error(`[aider] objective ${obj.id} has no scoped files`);process.exit(1);}
@@ -72,18 +80,26 @@ const useSrcSubtree=files.every(file=>file.startsWith('src/'));const aiderCwd=us
 for(let pass=firstPass;pass<=maxPasses;pass++){
   const remaining=remainingMs();if(remaining<35_000)break;if(normalRemainingMs()<35_000&&pass>firstPass)break;state.runs=(state.runs||0)+1;const before=new Set(trackedPaths());const snapshot=snapshotFiles(files);const timeout=Math.min(perCallMaxMs,Math.max(30_000,remaining-5_000));const apiTimeout=Math.max(30,Math.floor(timeout/1000));const args=[`--model=${model}`,`--timeout=${apiTimeout}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only','--message',promptFor(obj,pass),...aiderFiles];
   const result=spawnSync('aider',args,{cwd:aiderCwd,encoding:'utf8',stdio:'inherit',timeout});
-  if(result.error){
-    const specialistPreserve=process.env.AUTOBOT_SPECIALIST_MODE==='true';
+  const specialistPreserve=process.env.AUTOBOT_SPECIALIST_MODE==='true';
+  if(result.error||result.status!==0){
+    if(specialistPreserve&&hasScopedChanges(obj)){
+      try{
+        success=acceptPreservedPass(obj,pass);
+        discardSnapshot(snapshot);
+        state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error?.code||result.status||'nonzero',preservedSpecialistChanges:true,verifiedAfterNonzero:true}];
+        saveAiderState(statePath,state);
+        console.warn(`[aider] Aider ended non-zero after making scoped specialist changes; candidate passed independent build/product-quality verification, so preserving it for downstream QA/Reviewer.`);
+        if(success)break;
+        if(normalRemainingMs()<35_000)break;
+        continue;
+      }catch(error){
+        console.warn(`[aider] preserved specialist candidate failed post-nonzero verification: ${error.message}`);
+      }
+    }
     if(!specialistPreserve)restorePassSnapshot(obj,snapshot);else discardSnapshot(snapshot);
-    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error.code||'process-error',preservedSpecialistChanges:specialistPreserve}];saveAiderState(statePath,state);if(specialistPreserve)break;if(remainingMs()<35_000)break;continue;
-  }
-  if(result.status!==0){
-    const specialistPreserve=process.env.AUTOBOT_SPECIALIST_MODE==='true';
-    if(!specialistPreserve)restorePassSnapshot(obj,snapshot);else discardSnapshot(snapshot);
-    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.status,preservedSpecialistChanges:specialistPreserve}];saveAiderState(statePath,state);if(specialistPreserve)break;continue;
+    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error?.code||result.status||'process-error',preservedSpecialistChanges:specialistPreserve}];saveAiderState(statePath,state);if(specialistPreserve)break;if(remainingMs()<35_000)break;continue;
   }
   try{assertScope(before,obj);verifyDiff();verifyBuild();state.inProgress={id:obj.id,completedPasses:pass,lastVerifiedAt:new Date().toISOString(),remainingPasses:Math.max(0,maxPasses-pass)};saveAiderState(statePath,state);discardSnapshot(snapshot);success=pass>=maxPasses;if(success)break;if(normalRemainingMs()<35_000)break;}catch(error){
-    const specialistPreserve=process.env.AUTOBOT_SPECIALIST_MODE==='true';
     if(!specialistPreserve)restorePassSnapshot(obj,snapshot);else discardSnapshot(snapshot);
     state.failed=[...(state.failed||[]),{id:obj.id,pass,code:'verification',error:error.message,preservedSpecialistChanges:specialistPreserve}];saveAiderState(statePath,state);if(remainingMs()<35_000)break;if(specialistPreserve)break;
   }
