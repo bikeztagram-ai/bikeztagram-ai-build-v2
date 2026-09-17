@@ -26,9 +26,11 @@ assert(registry.coordination?.recoveryWorkflow===workflowPath,'registry recovery
 has(runner,/function registeredWorker\(registry,id\)/,'recovery must resolve workers through the registry');
 has(runner,/loadWorker\(registry,'repair'\)/,'recovery must load registered Repair Bot');
 has(runner,/loadWorker\(registry,'qa'\)/,'recovery must load registered QA Bot');
-has(runner,/loadWorker\(registry,'reviewer'\)/,'recovery must load registered Reviewer Bot');
-has(runner,/await import\(pathToFileURL/,'recovery must lazy-load registered worker modules');
-has(runner,/AUTOBOT_REVIEW_BASE_COMMIT.*AUTOBOT_REVIEW_COMMIT/,'recovery must preserve explicit Reviewer commit contract');
+has(runner,/const reviewerWorker\s*=\s*registeredWorker\(registry,'reviewer'\)/,'recovery must resolve the registered Reviewer Bot before execution');
+has(runner,/pathToFileURL/,'recovery must resolve registry entrypoints as filesystem modules');
+has(runner,/reviewerWorker\.entrypoint/,'Reviewer execution must use the registry-provided entrypoint');
+has(runner,/runReviewer\(reviewerWorker/,'Reviewer must execute only after the recovery runner has validated the exact SHAs');
+has(runner,/AUTOBOT_REVIEW_BASE_COMMIT.*AUTOBOT_REVIEW_COMMIT/,'recovery must preserve the explicit Reviewer commit contract');
 has(runner,/registry\.enabled\s*!==\s*true\s*\|\|\s*registry\.coordination\?\.mode\s*!==\s*['"]active['"]/,'recovery must remain behind the activation gate');
 has(runner,/export function captureBuilderFailure/,'failure capture must remain separately discoverable');
 has(runner,/task\?\.files/,'failure capture must derive scope from the failing task');
