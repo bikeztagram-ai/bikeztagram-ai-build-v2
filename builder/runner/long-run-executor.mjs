@@ -115,7 +115,7 @@ if(specialistMode){
 }else{
   while(totalUnits<requestedUnits&&remainingMs()>0){
     iteration++;
-    const deterministicSlice=Math.min(deterministicSliceMinutes,Math.max(1,Math.floor(remainingMs()/60000));
+    const deterministicSlice=Math.min(deterministicSliceMinutes,Math.max(1,Math.floor(remainingMs()/60000)));
     appendAudit('iteration-started',{iteration,remainingMinutes:Math.floor(remainingMs()/60000),normalRemainingMinutes:Math.floor(normalRemainingMs()/60000),remainingUnits:requestedUnits-totalUnits,featureCycles,deterministicSlice,consecutiveNoProgress,selfImprovementSlice:iteration%2===0});
     const status=runOnce(deterministicSlice,requestedUnits-totalUnits);
     const state=readState();
