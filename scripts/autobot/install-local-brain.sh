@@ -7,9 +7,9 @@ if ! command -v ollama >/dev/null 2>&1; then
   curl -fsSL https://ollama.com/install.sh | sh
 fi
 
-# Keep the Ollama lifecycle owned by this script. In particular, do not start
-# a second server when a healthy instance is already listening on 11434.
-# This prevents the "bind: address already in use" failure seen in long runs.
+# The official installer may start Ollama as a system service. A port can be
+# occupied before the API becomes ready, so never launch a second server while
+# 11434 is already bound.
 export OLLAMA_HOST="127.0.0.1:11434"
 OLLAMA_URL="http://127.0.0.1:11434"
 OLLAMA_LOG="/tmp/bikeztagram-ollama.log"
@@ -19,12 +19,18 @@ ollama_is_ready() {
   curl -fsS --max-time 3 "$OLLAMA_URL/api/tags" >/dev/null 2>&1
 }
 
+ollama_port_in_use() {
+  ss -ltn 2>/dev/null | grep -Eq '127\.0\.0\.1:11434[[:space:]]' || return 1
+}
+
 if ollama_is_ready; then
   echo "[autobot] reusing healthy Ollama server on 127.0.0.1:11434"
 else
-  # If a stale pid file points at a live Ollama process, give it a chance to
-  # become ready before attempting another bind.
-  if [[ -f "$OLLAMA_PID_FILE" ]]; then
+  # If the installer/systemd service has already bound the port but is still
+  # warming up, wait for that existing server instead of competing with it.
+  if ollama_port_in_use; then
+    echo "[autobot] Ollama port 11434 is already bound; waiting for existing server readiness"
+  elif [[ -f "$OLLAMA_PID_FILE" ]]; then
     existing_pid="$(cat "$OLLAMA_PID_FILE" 2>/dev/null || true)"
     if [[ "$existing_pid" =~ ^[0-9]+$ ]] && kill -0 "$existing_pid" 2>/dev/null; then
       echo "[autobot] Ollama process $existing_pid already exists; waiting for readiness"
@@ -33,7 +39,7 @@ else
     fi
   fi
 
-  if ! ollama_is_ready; then
+  if ! ollama_is_ready && ! ollama_port_in_use; then
     echo "[autobot] starting Ollama server on 127.0.0.1:11434"
     nohup ollama serve >"$OLLAMA_LOG" 2>&1 &
     ollama_pid=$!
