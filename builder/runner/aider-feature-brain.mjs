@@ -1,9 +1,5 @@
 #!/usr/bin/env node
-/**
- * Bikeztagram AutoBot — Aider-backed feature engineer.
- * A specialist execution worker. The controller may provide one explicit
- * assignment; discovery is never performed here.
- */
+/** Bikeztagram AutoBot — Aider-backed feature engineer. */
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -19,90 +15,43 @@ const configuredDeadline=Number.parseInt(process.env.AUTOBOT_FEATURE_DEADLINE_EP
 const deadline=Number.isFinite(configuredDeadline)&&configuredDeadline>Date.now()?configuredDeadline:Date.now()+requestedMinutes*60_000;
 const normalDeadline=Number.parseInt(process.env.AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS||String(deadline),10);
 const perCallMaxMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_AIDER_CALL_TIMEOUT_MS||String(6*60*60*1000),10));
+const specialist=process.env.AUTOBOT_SPECIALIST_MODE==='true';
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
 const directivePath=path.join(root,'builder/brain/autobot-product-directive.md');
 const assignmentPath=process.env.AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH||path.join(root,'builder/working/autobot-orchestrator-assignment.json');
-let productDirective='';
-try{productDirective=fs.readFileSync(directivePath,'utf8').trim();}catch(error){console.warn(`[aider] product directive unavailable: ${error.message}`);}
-function loadObjectives(){
-  const file=path.join(root,'builder/brain/feature-objectives.json');
-  try{return JSON.parse(fs.readFileSync(file,'utf8')).objectives||[];}
-  catch(error){
-    try{const changed=execFileSync('git',['status','--short','--','builder/brain/feature-objectives.json'],{cwd:root,encoding:'utf8'}).trim();if(changed){execFileSync('git',['restore','--','builder/brain/feature-objectives.json'],{cwd:root,stdio:'inherit'});return JSON.parse(fs.readFileSync(file,'utf8')).objectives||[];}}catch{}
-    throw new Error(`feature objectives JSON is invalid and could not be safely restored: ${error.message}`);
-  }
-}
-const objectives=loadObjectives();
-const loadedState=loadAiderState(statePath,{protocol,completed:[],failed:[],runs:0,inProgress:null});
-const state=loadedState.state;
+let directive='';try{directive=fs.readFileSync(directivePath,'utf8').trim();}catch{}
 function remainingMs(){return Math.max(0,deadline-Date.now());}
 function normalRemainingMs(){return Math.max(0,normalDeadline-Date.now());}
-function loadAssignment(){
-  if(process.env.AUTOBOT_ORCHESTRATOR_ENABLED!=='true')return null;
-  try{return JSON.parse(fs.readFileSync(assignmentPath,'utf8'));}catch(error){throw new Error(`orchestrator assignment required but unavailable: ${error.message}`);}
-}
-const assignment=loadAssignment();
-function objective(){
-  if(assignment?.objective?.title){
-    const assigned={...assignment.objective,id:assignment.objective.id||`orchestrated-${Date.now()}`,enabled:true,dependsOn:[],files:Array.isArray(assignment.objective.files)?assignment.objective.files:[],acceptance:Array.isArray(assignment.objective.acceptance)?assignment.objective.acceptance:[],constraints:Array.isArray(assignment.objective.constraints)?assignment.objective.constraints:[]};
-    if(!assigned.files.length)throw new Error('orchestrator assignment has no product file scope');
-    return assigned;
-  }
-  const completed=new Set(state.completed||[]);const resumeId=state.inProgress?.id;
-  if(resumeId){const resumed=objectives.find(o=>o?.id===resumeId&&o?.enabled!==false&&!completed.has(o.id));if(resumed)return resumed;}
-  return objectives.find(o=>o?.enabled!==false&&!completed.has(o.id)&&(!o.dependsOn||o.dependsOn.every(d=>completed.has(d))))||null;
-}
-function scopedFiles(obj){return Array.isArray(obj?.files)?obj.files.filter(Boolean):[];}
-function promptFor(obj,pass){
-  const files=scopedFiles(obj);const completedPasses=state.inProgress?.id===obj.id?Number(state.inProgress.completedPasses||0):0;const reviewPass=pass>1;
-  const directiveSection=productDirective?`\nPRODUCT QUALITY DIRECTIVE:\n${productDirective}\n`:'\nPRODUCT QUALITY DIRECTIVE: unavailable; apply the same principles from the objective acceptance criteria.\n';
-  return ['You are the Bikeztagram AI autonomous feature engineer. You are a specialist execution worker, not the product discovery/controller.','Objective: '+(obj.title||obj.id),`Pass ${pass} of ${maxPasses}.`,reviewPass?'THIS IS AN ADVERSARIAL REVIEW/IMPROVEMENT PASS. Treat the existing work as suspect until you inspect it. Look for regressions, arbitrary limits, dead or unwired logic, weak edge-case handling, false quality signals, and changes that pass tests but make the actual product worse. Fix justified weaknesses rather than merely adding more code.':'This is the primary implementation pass. First understand the current decision path, then make one coherent product-quality improvement.',completedPasses>0?`This objective is being resumed after ${completedPasses} verified pass(es). Preserve those changes and continue the unfinished portion; do not redo completed work.`:'This objective is new in this worker state.',`Acceptance criteria: ${JSON.stringify(obj.acceptance||[])}`,`Objective-scoped product files: ${files.join(', ')}`,`Objective constraints: ${JSON.stringify(obj.constraints||[])}`,directiveSection,'Inspect the supplied product files and their relevant callers/contracts as needed. Identify where the change will affect production behaviour before editing.','The supplied objective files are the ONLY files you may modify. Do not modify any other path, including builder code, workflows, .gitignore, secrets, package/dependency manifests, generated output, or unrelated files.','Preserve public contracts and all existing safety, scope, rollback, audit, production verification, and Gemini-free rules.','Do not introduce arbitrary limits that discard useful user media. For director/editor objectives, story structure must be dynamic and shot count must follow creative intent, useful media, target duration and rhythm.','Do not add helpers, exports, metadata or quality scores unless they are connected to and consumed by the production decision path.','Run the narrowest relevant verification. When practical, exercise both sparse and rich inputs for selection/timeline/continuity changes.','If the current implementation is already correct, do not churn it. Improve only where evidence or reasoning supports the change.','Do not merely describe changes: actually edit the supplied files.','Do not merge or create a pull request.'].join('\n');
-}
-function trackedPaths(){try{return execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'}).split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);}catch{return[];}}
-function snapshotFiles(files){const snapshot=path.join(root,'builder','working',`aider-pass-snapshot-${process.pid}.patch`);fs.mkdirSync(path.dirname(snapshot),{recursive:true});try{const patch=execFileSync('git',['diff','--binary','--',...files],{cwd:root,encoding:'utf8'});fs.writeFileSync(snapshot,patch);return snapshot;}catch{return snapshot;}}
-function restorePassSnapshot(obj,snapshot){for(const file of scopedFiles(obj)){try{execFileSync('git',['restore','--worktree','--',file],{cwd:root,stdio:'inherit'});}catch{}try{execFileSync('git',['clean','-fd','--',file],{cwd:root,stdio:'inherit'});}catch{}}try{if(fs.existsSync(snapshot)&&fs.statSync(snapshot).size>0)execFileSync('git',['apply','--whitespace=nowarn',snapshot],{cwd:root,stdio:'inherit'});}catch(error){console.error(`[aider] failed to restore pass snapshot: ${error.message}`);}try{fs.unlinkSync(snapshot);}catch{}}
-function discardSnapshot(snapshot){try{fs.unlinkSync(snapshot);}catch{}}
-function assertScope(before,obj){const allowed=new Set(scopedFiles(obj));const after=trackedPaths();const newPaths=after.filter(p=>!before.has(p));const unauthorized=newPaths.filter(p=>!allowed.has(p));if(unauthorized.length){for(const file of unauthorized){try{execFileSync('git',['restore','--',file],{cwd:root,stdio:'inherit'});}catch{}try{execFileSync('git',['clean','-fd','--',file],{cwd:root,stdio:'inherit'});}catch{}}throw new Error(`Aider modified files outside objective scope: ${unauthorized.join(', ')}`);}}
-function verifyDiff(){execFileSync('git',['diff','--check'],{cwd:root,stdio:'inherit'});}
-function verifyBuild(){const remaining=remainingMs();if(remaining<35_000)throw new Error('insufficient remaining run budget for build verification');const result=run('npm',['run','build'],{timeout:Math.min(120_000,remaining-5_000)});if(result.error||result.status!==0)throw new Error(`npm run build failed with status ${result.status??'error'}`);const qualityRemaining=remainingMs();if(qualityRemaining<35_000)throw new Error('insufficient remaining run budget for product quality verification');const quality=run('npm',['run','verify:autobot-product-change-quality'],{timeout:Math.min(120_000,qualityRemaining-5_000)});if(quality.error||quality.status!==0)throw new Error(`AutoBot product quality verification failed with status ${quality.status??'error'}`);}
-function hasScopedChanges(obj){const allowed=new Set(scopedFiles(obj));return trackedPaths().some(file=>allowed.has(file));}
-function acceptPreservedPass(obj,pass){
-  verifyDiff();
-  verifyBuild();
-  state.inProgress={id:obj.id,completedPasses:pass,lastVerifiedAt:new Date().toISOString(),remainingPasses:Math.max(0,maxPasses-pass),aiderLifecycle:'nonzero-but-verified'};
-  saveAiderState(statePath,state);
-  return pass>=maxPasses;
-}
-const obj=objective();
-if(!obj){console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective'}));process.exit(0);}
-const files=scopedFiles(obj);if(!files.length){console.error(`[aider] objective ${obj.id} has no scoped files`);process.exit(1);}
-const useSrcSubtree=files.every(file=>file.startsWith('src/'));const aiderCwd=useSrcSubtree?path.join(root,'src'):root;const aiderFiles=useSrcSubtree?files.map(file=>file.slice(4)):files;const priorCompletedPasses=state.inProgress?.id===obj.id?Math.max(0,Number(state.inProgress.completedPasses||0)):0;const firstPass=Math.min(maxPasses,priorCompletedPasses+1);let success=false;
-for(let pass=firstPass;pass<=maxPasses;pass++){
-  const remaining=remainingMs();if(remaining<35_000)break;if(normalRemainingMs()<35_000&&pass>firstPass)break;state.runs=(state.runs||0)+1;const before=new Set(trackedPaths());const snapshot=snapshotFiles(files);const timeout=Math.min(perCallMaxMs,Math.max(30_000,remaining-5_000));const apiTimeout=Math.max(30,Math.floor(timeout/1000));const args=[`--model=${model}`,`--timeout=${apiTimeout}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only','--message',promptFor(obj,pass),...aiderFiles];
-  const result=spawnSync('aider',args,{cwd:aiderCwd,encoding:'utf8',stdio:'inherit',timeout});
-  const specialistPreserve=process.env.AUTOBOT_SPECIALIST_MODE==='true';
+function loadObjectives(){const p=path.join(root,'builder/brain/feature-objectives.json');try{return JSON.parse(fs.readFileSync(p,'utf8')).objectives||[];}catch(e){try{const changed=execFileSync('git',['status','--short','--',p],{cwd:root,encoding:'utf8'}).trim();if(changed){execFileSync('git',['restore','--','builder/brain/feature-objectives.json'],{cwd:root});return JSON.parse(fs.readFileSync(p,'utf8')).objectives||[];}}catch{}throw new Error(`feature objectives JSON is invalid: ${e.message}`);}}
+const objectives=loadObjectives();
+const loaded=loadAiderState(statePath,{protocol,completed:[],failed:[],runs:0,inProgress:null});
+const state=loaded.state;
+function assignment(){if(!specialist)return null;try{return JSON.parse(fs.readFileSync(assignmentPath,'utf8'));}catch(e){throw new Error(`orchestrator assignment unavailable: ${e.message}`);}}
+const assigned=assignment();
+function objective(){if(assigned?.objective?.title){const o={...assigned.objective,id:assigned.objective.id||`orchestrated-${Date.now()}`,enabled:true,dependsOn:[],files:Array.isArray(assigned.objective.files)?assigned.objective.files:[],acceptance:Array.isArray(assigned.objective.acceptance)?assigned.objective.acceptance:[],constraints:Array.isArray(assigned.objective.constraints)?assigned.objective.constraints:[]};if(!o.files.length)throw new Error('orchestrator assignment has no product file scope');return o;}const done=new Set(state.completed||[]);const resume=state.inProgress?.id;if(resume){const o=objectives.find(x=>x?.id===resume&&x.enabled!==false&&!done.has(x.id));if(o)return o;}return objectives.find(x=>x?.enabled!==false&&!done.has(x.id)&&(!x.dependsOn||x.dependsOn.every(d=>done.has(d))))||null;}
+function filesFor(o){return Array.isArray(o?.files)?o.files.filter(Boolean):[];}
+function promptFor(o,pass){const files=filesFor(o);const review=pass>1;return ['You are the Bikeztagram AI autonomous feature engineer.','Objective: '+(o.title||o.id),`Pass ${pass} of ${maxPasses}.`,review?'Review the existing implementation critically and fix only justified weaknesses.':'Make one coherent product-quality improvement.',`Acceptance criteria: ${JSON.stringify(o.acceptance||[])}`,`Objective-scoped product files: ${files.join(', ')}`,`Objective constraints: ${JSON.stringify(o.constraints||[])}`,directive?`PRODUCT QUALITY DIRECTIVE:\n${directive}`:'Apply the project quality principles from the acceptance criteria.','Inspect the supplied product files and relevant callers/contracts as needed.','ONLY modify the supplied objective files. Do not modify workflows, builder infrastructure, dependencies, secrets, or unrelated paths.','Preserve public contracts, safety, rollback, audit, production verification and Gemini-free rules.','Do not introduce arbitrary limits that discard useful user media.','Do not add helpers, metadata or scores unless they are connected to and consumed by production behaviour.','Run the narrowest relevant verification when practical.','Do not merely describe changes: actually edit the supplied files.','Do not merge or create a pull request.'].join('\n');}
+function tracked(){try{return execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'}).split(/\r?\n/).filter(Boolean).map(x=>x.slice(3).trim()).filter(Boolean);}catch{return[];}}
+function snapshot(files){const p=path.join(root,'builder/working',`aider-pass-snapshot-${process.pid}.patch`);fs.mkdirSync(path.dirname(p),{recursive:true});try{fs.writeFileSync(p,execFileSync('git',['diff','--binary','--',...files],{cwd:root,encoding:'utf8'}));}catch{}return p;}
+function discard(p){try{fs.unlinkSync(p);}catch{}}
+function restore(o,p){for(const f of filesFor(o)){try{execFileSync('git',['restore','--worktree','--',f],{cwd:root});}catch{}try{execFileSync('git',['clean','-fd','--',f],{cwd:root});}catch{}}try{if(fs.existsSync(p)&&fs.statSync(p).size)execFileSync('git',['apply','--whitespace=nowarn',p],{cwd:root});}catch(e){console.error(`[aider] snapshot restore failed: ${e.message}`);}discard(p);}
+function scope(before,o){const allowed=new Set(filesFor(o));const after=tracked();const bad=after.filter(x=>!allowed.has(x)&&!before.has(x));if(bad.length)throw new Error(`Aider modified files outside objective scope: ${bad.join(', ')}`);}
+function verify(){execFileSync('git',['diff','--check'],{cwd:root,stdio:'inherit'});const r=remainingMs();if(r<35_000)throw new Error('insufficient remaining run budget for build verification');const b=run('npm',['run','build'],{timeout:Math.min(120_000,r-5_000)});if(b.error||b.status!==0)throw new Error(`npm run build failed with status ${b.status??'error'}`);const q=remainingMs();if(q<35_000)throw new Error('insufficient remaining run budget for product quality verification');const v=run('npm',['run','verify:autobot-product-change-quality'],{timeout:Math.min(120_000,q-5_000)});if(v.error||v.status!==0)throw new Error(`product quality verification failed with status ${v.status??'error'}`);}
+function hasChanges(o){const allowed=new Set(filesFor(o));return tracked().some(f=>allowed.has(f));}
+const o=objective();
+if(!o){console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective'}));process.exit(0);}
+const files=filesFor(o);if(!files.length){console.error(`[aider] objective ${o.id} has no scoped files`);process.exit(1);}
+const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;const prior=state.inProgress?.id===o.id?Math.max(0,Number(state.inProgress.completedPasses||0)):0;const first=Math.min(maxPasses,prior+1);let success=false;
+for(let pass=first;pass<=maxPasses;pass++){
+  const rem=remainingMs();if(rem<35_000||normalRemainingMs()<35_000&&pass>first)break;
+  state.runs=(state.runs||0)+1;const before=new Set(tracked());const snap=snapshot(files);const timeout=Math.min(perCallMaxMs,Math.max(30_000,rem-5_000));
+  const args=[`--model=${model}`,`--timeout=${Math.max(30,Math.floor(timeout/1000))}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only',`--edit-format=${specialist?'diff':'whole'}`,'--message',promptFor(o,pass),...aiderFiles];
+  const result=spawnSync('aider',args,{cwd,encoding:'utf8',stdio:'inherit',timeout});
   if(result.error||result.status!==0){
-    if(specialistPreserve&&hasScopedChanges(obj)){
-      try{
-        success=acceptPreservedPass(obj,pass);
-        discardSnapshot(snapshot);
-        state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error?.code||result.status||'nonzero',preservedSpecialistChanges:true,verifiedAfterNonzero:true}];
-        saveAiderState(statePath,state);
-        console.warn(`[aider] Aider ended non-zero after making scoped specialist changes; candidate passed independent build/product-quality verification, so preserving it for downstream QA/Reviewer.`);
-        if(success)break;
-        if(normalRemainingMs()<35_000)break;
-        continue;
-      }catch(error){
-        console.warn(`[aider] preserved specialist candidate failed post-nonzero verification: ${error.message}`);
-      }
-    }
-    if(!specialistPreserve)restorePassSnapshot(obj,snapshot);else discardSnapshot(snapshot);
-    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:result.error?.code||result.status||'process-error',preservedSpecialistChanges:specialistPreserve}];saveAiderState(statePath,state);if(specialistPreserve)break;if(remainingMs()<35_000)break;continue;
+    if(specialist&&hasChanges(o)){try{scope(before,o);verify();state.inProgress={id:o.id,completedPasses:pass,lastVerifiedAt:new Date().toISOString(),remainingPasses:Math.max(0,maxPasses-pass),aiderLifecycle:'nonzero-but-verified'};state.failed=[...(state.failed||[]),{id:o.id,pass,code:result.error?.code||result.status||'nonzero',preservedSpecialistChanges:true,verifiedAfterNonzero:true}];saveAiderState(statePath,state);discard(snap);console.warn('[aider] specialist candidate survived non-zero Aider exit and passed independent gates; preserving for downstream QA/Reviewer.');success=pass>=maxPasses;if(success)break;continue;}catch(e){console.warn(`[aider] preserved candidate failed verification: ${e.message}`);}}
+    if(specialist)discard(snap);else restore(o,snap);state.failed=[...(state.failed||[]),{id:o.id,pass,code:result.error?.code||result.status||'process-error',preservedSpecialistChanges:specialist}];saveAiderState(statePath,state);if(remainingMs()<35_000)break;continue;
   }
-  try{assertScope(before,obj);verifyDiff();verifyBuild();state.inProgress={id:obj.id,completedPasses:pass,lastVerifiedAt:new Date().toISOString(),remainingPasses:Math.max(0,maxPasses-pass)};saveAiderState(statePath,state);discardSnapshot(snapshot);success=pass>=maxPasses;if(success)break;if(normalRemainingMs()<35_000)break;}catch(error){
-    if(!specialistPreserve)restorePassSnapshot(obj,snapshot);else discardSnapshot(snapshot);
-    state.failed=[...(state.failed||[]),{id:obj.id,pass,code:'verification',error:error.message,preservedSpecialistChanges:specialistPreserve}];saveAiderState(statePath,state);if(remainingMs()<35_000)break;if(specialistPreserve)break;
-  }
+  try{scope(before,o);verify();state.inProgress={id:o.id,completedPasses:pass,lastVerifiedAt:new Date().toISOString(),remainingPasses:Math.max(0,maxPasses-pass)};saveAiderState(statePath,state);discard(snap);success=pass>=maxPasses;if(success)break;}catch(e){if(specialist)discard(snap);else restore(o,snap);state.failed=[...(state.failed||[]),{id:o.id,pass,code:'verification',error:e.message,preservedSpecialistChanges:specialist}];saveAiderState(statePath,state);if(remainingMs()<35_000)break;if(specialist)break;}
 }
-if(success){state.completed=[...(state.completed||[]),obj.id];state.lastSuccess={id:obj.id,at:new Date().toISOString()};state.inProgress=null;}else if(state.inProgress?.id===obj.id){state.inProgress={...state.inProgress,remainingPasses:Math.max(0,maxPasses-Number(state.inProgress.completedPasses||0)),checkpointedAt:new Date().toISOString()};}
-state.protocol=protocol;state.lastRunAt=new Date().toISOString();saveAiderState(statePath,state);console.log(JSON.stringify({ok:success,protocol,objective:obj.id,objectiveSource:assignment?'orchestrator-assignment':'feature-library',assignedSpecialist:assignment?.specialist?.id||null,passes:maxPasses,startingPass:firstPass,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),normalRemainingMs:normalRemainingMs(),resumable:!success&&state.inProgress?.id===obj.id,preservedSpecialistChanges:process.env.AUTOBOT_SPECIALIST_MODE==='true'&&!success,adversarialReviewEnabled:maxPasses>1,productDirectiveLoaded:Boolean(productDirective),postChangeProductQualityGuard:true}));process.exit(success?0:1);
+if(success){state.completed=[...(state.completed||[]),o.id];state.lastSuccess={id:o.id,at:new Date().toISOString()};state.inProgress=null;}else if(state.inProgress?.id===o.id){state.inProgress={...state.inProgress,remainingPasses:Math.max(0,maxPasses-Number(state.inProgress.completedPasses||0)),checkpointedAt:new Date().toISOString()};}
+state.protocol=protocol;state.lastRunAt=new Date().toISOString();saveAiderState(statePath,state);console.log(JSON.stringify({ok:success,protocol,objective:o.id,objectiveSource:assigned?'orchestrator-assignment':'feature-library',assignedSpecialist:assigned?.specialist?.id||null,passes:maxPasses,startingPass:first,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),normalRemainingMs:normalRemainingMs(),resumable:!success&&state.inProgress?.id===o.id,preservedSpecialistChanges:specialist&&!success,adversarialReviewEnabled:maxPasses>1,productDirectiveLoaded:Boolean(directive),postChangeProductQualityGuard:true,editFormat:specialist?'diff':'whole'}));process.exit(success?0:1);
