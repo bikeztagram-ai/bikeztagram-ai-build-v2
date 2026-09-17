@@ -61,16 +61,20 @@ function captureBasePatch(base, worktree, files) {
     return '';
   }
 }
-function changedFromBase(base, worktree, files) {
+function splitGitPaths(output) {
+  return String(output || '').split('\0').map(value => value.trim()).filter(Boolean);
+}
+function changedFromBase(base, worktree) {
   const paths = new Set();
-  for (const args of [['diff', base, '--name-only', '--', ...files], ['diff', `${base}..HEAD`, '--name-only', '--', ...files]]) {
+  for (const args of [
+    ['diff', '--name-only', '-z', base],
+    ['diff', '--name-only', '-z', `${base}..HEAD`],
+    ['ls-files', '--others', '--exclude-standard', '-z']
+  ]) {
     try {
-      for (const file of git(args, worktree).split(/\r?\n/).map(s => s.trim()).filter(Boolean)) paths.add(file);
+      for (const file of splitGitPaths(execFileSync('git', args, { cwd: worktree, encoding: 'utf8' }))) paths.add(file);
     } catch {}
   }
-  try {
-    for (const file of git(['status', '--porcelain', '--untracked-files=all'], worktree).split(/\r?\n/).filter(Boolean).map(line => line.slice(3).trim()).filter(Boolean)) paths.add(file);
-  } catch {}
   return [...paths];
 }
 function writeFailureOutcome({ error, base, worktree, files, candidatePatch = '' }) {
@@ -196,7 +200,7 @@ try {
   });
   if (engine.error || engine.status !== 0) fail(`proven long-run AutoBot controller failed with status ${engine.status ?? engine.error?.code ?? 'error'}`);
 
-  const baseChanged = changedFromBase(base, worktree, files);
+  const baseChanged = changedFromBase(base, worktree);
   const unauthorized = baseChanged.filter(file => !files.includes(file) && !file.startsWith('builder/working/'));
   if (unauthorized.length) fail(`Specialist Builder modified out-of-scope files: ${unauthorized.join(', ')}`);
   run('git', ['diff', base, '--check'], worktree);
