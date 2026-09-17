@@ -3,6 +3,8 @@
  * Execute one registry-defined specialist Builder in an isolated worktree.
  * Specialist identity and ownership remain independent while execution is
  * delegated to the proven long-run AutoBot controller and Aider feature brain.
+ * If Aider cannot materialize an owned product change, the older proven
+ * structured search/replace brain gets a bounded second chance.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -61,6 +63,36 @@ function captureBasePatch(base, worktree, files) {
     if (working.trim()) return working;
     return execFileSync('git', ['diff', '--binary', `${base}..HEAD`, '--', ...files], { cwd: worktree, encoding: 'utf8' });
   } catch { return ''; }
+}
+function ownedProductFiles(base, worktree, files) {
+  return changedFromBase(base, worktree).filter(file => files.includes(file));
+}
+function runStructuredFallback(worktree, assignmentPath, model) {
+  const fallbackMinutes = Math.max(1, Number.parseInt(process.env.AUTOBOT_SPECIALIST_FALLBACK_MINUTES || '5', 10));
+  const env = {
+    ...process.env,
+    LOCAL_AI_READY: '1',
+    LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama_chat\//, ''),
+    OLLAMA_HOST: process.env.OLLAMA_HOST || 'http://127.0.0.1:11434',
+    AUTOBOT_ORCHESTRATOR_ENABLED: 'true',
+    AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath,
+    AUTOBOT_FEATURE_ENGINE: 'structured',
+    AUTOBOT_FEATURE_PROTOCOL: 'structured-search-replace-v3',
+    AUTOBOT_FEATURE_PASSES: '1',
+    AUTOBOT_FEATURE_MAX_ATTEMPTS: process.env.AUTOBOT_FEATURE_MAX_ATTEMPTS || '2',
+    AUTOBOT_FEATURE_MAX_EDITS: process.env.AUTOBOT_FEATURE_MAX_EDITS || '2',
+    BUILDER_MAX_MINUTES: String(fallbackMinutes),
+    LOCAL_AI_FEATURE_TIMEOUT_SECONDS: String(Math.max(90, Math.min(210, fallbackMinutes * 60 - 20)))
+  };
+  console.log(`[autobot] Aider produced no owned product change; invoking proven structured fallback for ${fallbackMinutes}m`);
+  const result = spawnSync(process.execPath, ['builder/runner/autobot-specialist-structured-fallback.mjs'], {
+    cwd: worktree,
+    stdio: 'inherit',
+    env,
+    timeout: fallbackMinutes * 60_000 + 30_000
+  });
+  if (result.error || result.status !== 0) return result.error ? 1 : (result.status ?? 1);
+  return 0;
 }
 function writeFailureOutcome({ error, base, worktree, files, candidatePatch = '' }) {
   const patch = candidatePatch || captureBasePatch(base, worktree, files);
@@ -131,8 +163,9 @@ try {
   const configuredPasses = Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '', 10);
   const passCount = Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 120 ? 2 : 1;
   const verificationReserveMinutes = requestedMinutes >= 60 ? 5 : requestedMinutes >= 30 ? 3 : Math.min(2, Math.max(1, requestedMinutes - 1));
+  const fallbackReserveMinutes = Math.min(6, Math.max(4, requestedMinutes >= 30 ? 6 : 5));
   const controllerFinishGraceMinutes = Math.max(0, Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES || '5', 10));
-  const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - controllerFinishGraceMinutes);
+  const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - fallbackReserveMinutes - controllerFinishGraceMinutes);
   const deadline = Date.now() + controllerMinutes * 60_000;
   const engineEnv = {
     ...process.env,
@@ -141,26 +174,26 @@ try {
     AUTOBOT_FEATURE_PASSES: String(passCount), AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline), AUTOBOT_AIDER_MODEL: model,
     AUTOBOT_FEATURE_SLICE_MINUTES: String(controllerMinutes), AUTOBOT_MAX_FEATURE_CYCLES: '1',
-    // Do NOT impose a second shorter timeout on Aider. The proven long-run
-    // controller already owns the wall-clock deadline and kills its feature
-    // engine at that deadline. The old controller subtracted another five
-    // minutes here, which left a 15m run with roughly seven minutes for Aider;
-    // Run #65 showed the model still reasoning when that timeout killed it.
     LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama_chat\//, ''),
     BUILDER_MAX_MINUTES: String(controllerMinutes), AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
-  console.log(`[autobot] specialist ${botId} entering the proven long-run controller: ${controllerMinutes}m controller budget + ${controllerFinishGraceMinutes}m controller grace (${verificationReserveMinutes}m reserved for verification), ${passCount} passes, ${model}, ${protocol}; Aider receives the controller deadline`);
+  console.log(`[autobot] specialist ${botId} entering Aider-first controller: ${controllerMinutes}m Aider budget + ${fallbackReserveMinutes}m structured fallback + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace (${model}, ${protocol})`);
   const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], { cwd: worktree, stdio: 'inherit', env: engineEnv, timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000 });
-  if (engine.error || engine.status !== 0) fail(`proven long-run AutoBot controller failed with status ${engine.status ?? engine.error?.code ?? 'error'}`);
+  if (engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller ended with ${engine.error.message}; inspecting worktree before fallback`);
+  if (engine.status !== 0 && engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller process status: ${engine.status ?? 'error'}`);
 
-  const baseChanged = changedFromBase(base, worktree);
-  const unauthorized = baseChanged.filter(file => !files.includes(file) && !file.startsWith('builder/working/'));
+  let candidateFiles = ownedProductFiles(base, worktree, files);
+  candidatePatch = captureBasePatch(base, worktree, files);
+  if (!candidateFiles.length || !candidatePatch.trim()) {
+    const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model);
+    candidateFiles = ownedProductFiles(base, worktree, files);
+    candidatePatch = captureBasePatch(base, worktree, files);
+    if (fallbackStatus !== 0 && (!candidateFiles.length || !candidatePatch.trim())) fail(`Specialist Builder produced no product change after Aider and structured fallback (fallback status ${fallbackStatus}).`);
+  }
+
+  const unauthorized = changedFromBase(base, worktree).filter(file => !files.includes(file) && !file.startsWith('builder/working/'));
   if (unauthorized.length) fail(`Specialist Builder modified out-of-scope files: ${unauthorized.join(', ')}`);
   run('git', ['diff', base, '--check'], worktree);
-  candidatePatch = captureBasePatch(base, worktree, files);
-  const candidateFiles = baseChanged.filter(file => files.includes(file));
-  if (!candidateFiles.length || !candidatePatch.trim()) fail('Specialist Builder produced no product change.');
-
   const productQuality = String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK || 'npm run verify:autobot-product-change-quality').trim();
   run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
   run('npm', ['run', 'build'], worktree);
@@ -176,9 +209,9 @@ try {
   const candidate = git(['rev-parse', 'HEAD'], worktree);
   const handoffPath = writeSpecialistHandoff({ schemaVersion: 'autobot-specialist-handoff-v1', botId, objective: objectiveText, baseCommit: base, candidateCommit: candidate, branch, ownsFiles: staged, productQualityCheck: productQuality, status: 'verified-candidate', downstream: { reviewContract: 'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT' } });
   fs.mkdirSync(path.dirname(outcomePath), { recursive: true });
-  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffPath], engine: 'proven-autobot-long-run-controller', featureEngine: 'builder/runner/aider-feature-brain.mjs', passes: passCount, protocol }, null, 2) + '\n');
+  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffPath], engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
   keepBranch = true;
-  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'proven-autobot-long-run-controller', featureEngine: 'builder/runner/aider-feature-brain', passes: passCount, protocol, handoffPath }));
+  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath }));
 } catch (error) {
   writeFailureOutcome({ error, base, worktree, files, candidatePatch });
   throw error;
