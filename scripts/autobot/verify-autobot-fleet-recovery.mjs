@@ -5,9 +5,11 @@ import path from 'node:path';
 import { spawnSync, execFileSync } from 'node:child_process';
 const root=process.cwd();
 const runnerPath='builder/runner/autobot-fleet-recovery.mjs';
+const specialistRecoveryPath='builder/runner/autobot-specialist-recovery.mjs';
 const handoffPath='builder/runner/autobot-verified-candidate-handoff.mjs';
 const workflowPath='.github/workflows/autobot-fleet-recovery.yml';
 const runner=fs.readFileSync(path.join(root,runnerPath),'utf8');
+const specialistRecovery=fs.readFileSync(path.join(root,specialistRecoveryPath),'utf8');
 const handoff=fs.readFileSync(path.join(root,handoffPath),'utf8');
 const workflow=fs.readFileSync(path.join(root,workflowPath),'utf8');
 const registry=JSON.parse(fs.readFileSync(path.join(root,'builder/brain/autobot-fleet.json'),'utf8'));
@@ -36,6 +38,21 @@ has(runner,/export function captureBuilderFailure/,'failure capture must remain 
 has(runner,/task\?\.files/,'failure capture must derive scope from the failing task');
 has(runner,/checkpoint\?\.error/,'failure capture must require durable Builder error evidence');
 for(const text of [repair,qa,reviewer])has(text,/no-audit.*no-fund.*no-package-lock/,'recovery worker must install dependencies in isolation');
+
+// Regression guard for the specialist-recovery queue-context bug fixed after
+// the two-specialist shakedown failures. autobot-failure-queue resolves its
+// queue path at import time, so specialist recovery must set the isolated
+// queue path before importing the queue module and must use that same module
+// instance for append + transition + QA handoff.
+assert(!/import\s*\{[^}]*appendFailure[^}]*transitionFailure[^}]*\}\s*from\s*['"]\.\/autobot-failure-queue\.mjs['"]/.test(specialistRecovery),'Specialist recovery must not import the failure queue before setting its isolated queue path.');
+const queueEnvIndex=specialistRecovery.indexOf("process.env.AUTOBOT_FAILURE_QUEUE_PATH=path.join(recoveryRoot,'builder','working','autobot-failure-queue.jsonl');");
+const queueImportIndex=specialistRecovery.indexOf("const {appendFailure,transitionFailure}=await import(pathToFileURL(path.join(recoveryRoot,'builder/runner/autobot-failure-queue.mjs')).href);");
+assert(queueEnvIndex>=0,'Specialist recovery must set AUTOBOT_FAILURE_QUEUE_PATH to the isolated recovery queue.');
+assert(queueImportIndex>queueEnvIndex,'Specialist recovery must import its failure queue only after setting the isolated queue path.');
+assert(queueImportIndex>=0,'Specialist recovery must load appendFailure and transitionFailure from the isolated queue module.');
+has(specialistRecovery,/routeVerifiedCandidate\([^)]*transitionFailure\)/,'verified specialist candidates must use the recovery-scoped transitionFailure function');
+has(specialistRecovery,/qaModule=await import\(pathToFileURL\(path\.join\(recoveryRoot,qaPath\)\)\.href\)/,'specialist recovery QA must load from the same isolated worktree');
+
 has(handoff,/state\.status\s*!==\s*['"]verified-candidate['"]/,'verified handoff must require verified-candidate state');
 has(handoff,/state\.review\?\.status\s*!==\s*['"]pass['"]/,'verified handoff must require Reviewer pass');
 has(handoff,/state\.qa\?\.ok\s*!==\s*true/,'verified handoff must require QA success');
@@ -52,5 +69,5 @@ has(workflow,/autobot-verified-candidate-handoff\.mjs/,'recovery workflow must e
 assert(!production.includes(`${runnerPath} recover`),'production Builder workflow must not activate fleet recovery');
 const smoke=spawnSync(process.execPath,['scripts/autobot/test-autobot-failure-capture.mjs'],{cwd:root,encoding:'utf8'});
 assert(smoke.status===0,`failure capture smoke test failed: ${smoke.stderr||smoke.stdout||'unknown error'}`);
-for(const file of [runnerPath,handoffPath,'builder/runner/autobot-repair.mjs','builder/runner/autobot-qa.mjs','builder/runner/autobot-reviewer.mjs'])execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
-console.log(JSON.stringify({ok:true,state:registry.enabled?'active-live-test':'disabled-plan-only',flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot','verified-candidate handoff'],registryDrivenDiscovery:true,captureSmokeTest:true,protectedIntegrationBlocked:true}));
+for(const file of [runnerPath,specialistRecoveryPath,handoffPath,'builder/runner/autobot-repair.mjs','builder/runner/autobot-qa.mjs','builder/runner/autobot-reviewer.mjs'])execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
+console.log(JSON.stringify({ok:true,state:registry.enabled?'active-live-test':'disabled-plan-only',flow:['Builder failure evidence','Failure Queue','Repair Bot','QA Bot','Reviewer Bot','verified-candidate handoff'],registryDrivenDiscovery:true,captureSmokeTest:true,specialistRecoveryQueueContextGuard:true,protectedIntegrationBlocked:true}));
