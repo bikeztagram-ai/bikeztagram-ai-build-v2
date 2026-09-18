@@ -325,6 +325,53 @@ jobs:
             builder/working/autobot-candidate-review.json
           if-no-files-found: ignore
 
+
+  carry-forward:
+    needs: [verify-candidates]
+    if: ${{ needs.verify-candidates.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      cumulative_ref: ${{ steps.publish.outputs.cumulative_ref }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v7
+        with:
+          name: autobot-specialist-candidate-check-director-builder-${{ github.run_id }}
+          path: builder/working/checks/director-builder
+      - uses: actions/download-artifact@v7
+        with:
+          name: autobot-specialist-candidate-check-timeline-builder-${{ github.run_id }}
+          path: builder/working/checks/timeline-builder
+      - name: Integrate only independently verified candidates
+        run: |
+          set -euo pipefail
+          git config user.name 'Bikeztagram AutoBot Carry Forward'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          branch="autobot/carry-forward/$GITHUB_RUN_ID"
+          git checkout -b "$branch"
+          for bot in director-builder timeline-builder; do
+            f="builder/working/checks/$bot/autobot-endurance-candidate-check.json"
+            node -e "const x=require('./$f'); if(x.status!=='pass'||x.integrationEligible!==true) throw new Error('Candidate not integration eligible: '+x.status)"
+            candidate="$(node -e "console.log(require('./$f').candidateCommit)")"
+            candidate_branch="$(node -e "console.log(require('./$f').branch)")"
+            test -n "$candidate" && test -n "$candidate_branch"
+            git fetch origin "+refs/heads/$candidate_branch:refs/remotes/origin/$candidate_branch"
+            fetched="$(git rev-parse "refs/remotes/origin/$candidate_branch")"
+            test "$fetched" = "$candidate"
+            git merge --no-edit --no-ff "origin/$candidate_branch"
+          done
+          npm install --no-audit --no-fund --no-package-lock
+          npm run build
+          npm run verify:autobot-product-change-quality
+          git diff --check
+          git push --set-upstream origin "$branch"
+      - id: publish
+        run: echo "cumulative_ref=autobot/carry-forward/$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+
   completed-work:
     needs: [plan, specialists, repair-specialists]
     if: ${{ always() && needs.plan.result == 'success' }}
