@@ -363,7 +363,7 @@ jobs:
           branch="autobot/carry-forward/$GITHUB_RUN_ID"
           git checkout -b "$branch"
           for bot in director-builder timeline-builder; do
-            f="builder/working/checks/$bot/autobot-endurance-candidate-check.json"
+            f="builder/working/checks/$bot/autobot-candidate-check.json"
             node -e "const x=require('./$f'); if(x.status!=='pass'||x.integrationEligible!==true) throw new Error('Candidate not integration eligible: '+x.status)"
             candidate="$(node -e "console.log(require('./$f').candidateCommit)")"
             candidate_branch="$(node -e "console.log(require('./$f').branch)")"
