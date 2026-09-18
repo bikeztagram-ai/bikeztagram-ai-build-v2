@@ -69,6 +69,26 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
     "const hookPayoffBoost=(role==='hook'||role==='hero-ending')?evidence*.08:0;const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;const finalScore=clamp(Math.round(roleScore+qualityBoost+hookPayoffBoost+promptBoost-diversityPenalty),0,100);",
     'evidence-weighted hook/payoff scoring'
   )];
+} else if(specialist==='director-builder'){
+  const options=[
+    ["const hookPayoffBoost=(role==='hook'||role==='hero-ending')?evidence*.08:0;const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;","const hookPayoffBoost=(role==='hook'||role==='hero-ending')?evidence*.12:0;const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;","generic director hook/payoff evidence"],
+    ["if(usedFamilies.has(family)&&family!=='unknown'){diversityPenalty+=9;","if(usedFamilies.has(family)&&family!=='unknown'){diversityPenalty+=11;","generic director family diversity"],
+    ["if(usedSubjects.has(subjectType)&&subjectType!=='unknown'){diversityPenalty+=5;","if(usedSubjects.has(subjectType)&&subjectType!=='unknown'){diversityPenalty+=7;","generic director subject diversity"]
+  ];
+  for(const [search,replacement,label] of options){
+    try{files=[replaceOnce('src/director.js',search,replacement,label)];break;}catch{}
+  }
+  if(!files.length){console.log(JSON.stringify({ok:false,status:'unsupported-objective',specialist,objective}));process.exit(2);}
+} else if(specialist==='timeline-builder'){
+  const options=[
+    ["cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));","const roleMotion=role==='action'?1.15:role==='reveal'?1.06:role==='hero-ending'?.92:1;cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*roleMotion,.35,1.6).toFixed(2));","generic timeline role-aware motion"],
+    ["const end=Number.isFinite(endRaw)&&endRaw>start?endRaw:start+duration;return{trimStart:Number(start.toFixed(3)),trimEnd:Number(end.toFixed(3))};","const available=number(cut?.sourceDuration,number(cut?.durationInSeconds,NaN));const proposed=Number.isFinite(endRaw)&&endRaw>start?endRaw:start+duration;const end=Number.isFinite(available)&&available>0?Math.max(start,Math.min(proposed,available)):proposed;return{trimStart:Number(start.toFixed(3)),trimEnd:Number(end.toFixed(3))};","generic timeline source-aware trim"],
+    ["function transitionFor(cut,index,total,plan){if(cut?.transition&&cut.transition!=='hard-cut')return cut.transition;if(index===0)return'fade-in';","function transitionFor(cut,index,total,plan){if(cut?.transition&&cut.transition!=='hard-cut')return cut.transition;const cadenceDuration=number(cut?.duration,2);if(index>0&&index<total-1&&cadenceDuration<=.8)return index%2?'whip-right':'hard-cut';if(index===0)return'fade-in';","generic timeline cadence transition"]
+  ];
+  for(const [search,replacement,label] of options){
+    try{files=[replaceOnce('src/executableTimeline.js',search,replacement,label)];break;}catch{}
+  }
+  if(!files.length){console.log(JSON.stringify({ok:false,status:'unsupported-objective',specialist,objective}));process.exit(2);}
 } else {
   console.log(JSON.stringify({ok:false,status:'unsupported-objective',specialist,objective}));
   process.exit(2);
