@@ -284,6 +284,47 @@ jobs:
             builder/working/autobot-specialist-recovery-outcome.json
           if-no-files-found: ignore
 
+
+  verify-candidates:
+    needs: [specialists, repair-specialists]
+    if: ${{ always() && needs.specialists.result == 'success' && needs.repair-specialists.result == 'success' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        bot: [director-builder, timeline-builder]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-specialist-${{ matrix.bot }}-${{ github.run_id }}
+          path: builder/working/specialist-results/${{ matrix.bot }}
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-specialist-recovery-${{ matrix.bot }}-${{ github.run_id }}
+          path: builder/working/specialist-results/${{ matrix.bot }}/recovery
+      - name: Verify candidate independently
+        env:
+          BOT: ${{ matrix.bot }}
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/autobot-candidate-check.json
+        run: node builder/runner/autobot-endurance-candidate-check.mjs "$BOT"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: autobot-specialist-candidate-check-${{ matrix.bot }}-${{ github.run_id }}
+          path: |
+            builder/working/autobot-candidate-check.json
+            builder/working/autobot-candidate-review.json
+          if-no-files-found: ignore
+
   completed-work:
     needs: [plan, specialists, repair-specialists]
     if: ${{ always() && needs.plan.result == 'success' }}
