@@ -41,6 +41,13 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
     "const energyText=intentText(cut,plan);const energy=/action|chase|race|speed|impact|ride|drive|energetic|fast/.test(energyText)?1.25:/calm|peaceful|emotional|beautiful|romantic|ambient/.test(energyText)?.75:1;cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*energy,.35,1.6).toFixed(2));",
     'energy-aware motion intensity'
   )];
+} else if(specialist==='timeline-builder' && (objective.includes('timing')||objective.includes('motion')||objective.includes('transition'))){
+  files=[replaceOnce(
+    'src/executableTimeline.js',
+    "cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));",
+    "const roleMotion=role==='action'?1.2:role==='reveal'?1.08:role==='hero-ending'?.9:1;cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*roleMotion,.35,1.6).toFixed(2));",
+    'purposeful role-aware motion intensity'
+  )];
 } else if(specialist==='timeline-builder' && objective.includes('source-aware trim continuity')){
   files=[replaceOnce(
     'src/executableTimeline.js',
