@@ -23,11 +23,11 @@ if(live){
  assert(registry.coordination?.requireIsolatedWorker===true,'isolated worker requirement missing');
  assert(registry.coordination?.requireVerificationBeforeHandoff===true,'verification-before-handoff requirement missing');
  assert(registry.coordination?.requireHumanReviewBeforeProtectedIntegration===true,'human review boundary missing');
- const approved=['15m','30m','1h','4h','5h'];
+ const approved=['15m','30m','1h','4h','5h','5h30'];
  assert(approved.includes(registry.activationGate?.testDuration),'live test duration must be bounded to an approved window');
  assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(['director-builder','timeline-builder']),'parallel activation must name exactly Director and Timeline specialists');
  assert((registry.activationGate?.allowedTestDurations||[]).every(d=>approved.includes(d)),'activation duration list contains an unapproved duration');
- assert((registry.activationGate?.allowedTestDurations||[]).includes('5h'),'five-hour overnight activation must be explicitly registered');
+ assert((registry.activationGate?.allowedTestDurations||[]).includes('5h'),'five-and-a-half-hour overnight activation must be explicitly registered');
 }
 const c=registry.coordination;
 assert(c?.coordinator===paths.coordinator&&c?.failureQueue==='builder/working/autobot-failure-queue.jsonl'&&c?.sharedEvidence==='builder/working/autobot-fleet-plan.json','core registry paths changed');
