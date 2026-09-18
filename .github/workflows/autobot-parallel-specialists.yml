@@ -94,7 +94,8 @@ jobs:
       - run: bash scripts/autobot/install-local-brain.sh
         env:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
-          AUTOBOT_DISCOVERY_MODEL: ${{ inputs.local_model }}
+          AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
           LOCAL_AI_PROXY_NUM_CTX: 4096
           LOCAL_AI_PROXY_NUM_PREDICT: 900
           OLLAMA_CONTEXT_LENGTH: 4096
@@ -115,6 +116,9 @@ jobs:
           AUTOBOT_SPECIALIST_OBJECTIVE: ${{ steps.assignment.outputs.objective }}
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          AUTOBOT_SPECIALIST_FEATURE_ENGINE: aider
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
+          AUTOBOT_AIDER_CALL_TIMEOUT_MS: '150000'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           LOCAL_AI_PROXY_NUM_CTX: 4096
           LOCAL_AI_PROXY_NUM_PREDICT: 900
