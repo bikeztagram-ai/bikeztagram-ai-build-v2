@@ -53,7 +53,9 @@ async function routeVerifiedCandidate(recoveryRoot,registry,queueRecord,base,res
   if(!qaPath||!reviewerPath)throw new Error('registered QA/Reviewer entrypoints are required for direct verified-candidate recovery');
   const qaModule=await import(pathToFileURL(path.join(recoveryRoot,qaPath)).href);
   if(typeof qaModule.qaOne!=='function')throw new Error(`registered QA Bot '${qaPath}' does not export qaOne`);
-  transitionFailure(queueRecord.id,'repaired',{transitionedBy:'autobot-specialist-recovery',repairBranch:restoredBranch,repairBaseCommit:base,repairCommit:restoredCommit,resolution:'specialist candidate independently passed build/product-quality preflight; routed directly to QA without an Aider rewrite.'});
+  transitionFailure(queueRecord.id,'claimed',{transitionedBy:'autobot-specialist-recovery',repairBranch:restoredBranch,repairBaseCommit:base});
+  transitionFailure(queueRecord.id,'repairing',{transitionedBy:'autobot-specialist-recovery',repairBranch:restoredBranch,repairBaseCommit:base,repairCommit:restoredCommit});
+  transitionFailure(queueRecord.id,'repaired',{transitionedBy:'autobot-specialist-recovery',repairBranch:restoredBranch,repairBaseCommit:base,repairCommit:restoredCommit,resolution:'specialist candidate independently passed dirty-tree build/product-quality preflight; routed directly to QA without an Aider rewrite.'});
   const qa=qaModule.qaOne({failureId:queueRecord.id});
   if(!qa?.ok)throw new Error('QA Bot did not verify the preserved specialist candidate');
   const review=await runReviewer(recoveryRoot,reviewerPath,qa.baseCommit,qa.repairCommit);
@@ -85,10 +87,6 @@ try{
   if(!files.length)throw new Error('repairable specialist failure has no file scope');
   const changed=git(['diff','--name-only']).split(/\r?\n/).filter(Boolean);
   if(changed.some(file=>!files.includes(file)))throw new Error(`restored specialist patch escaped declared scope: ${changed.filter(file=>!files.includes(file)).join(', ')}`);
-  run(['add','--',...files]);
-  run(['commit','-m',`chore(autobot): restore failed ${outcome.botId} candidate`]);
-  const restoredCommit=git(['rev-parse','HEAD']);
-
   const queueRecord=appendFailure({
     source:'autobot-specialist-builder',runId:process.env.GITHUB_RUN_ID||'local',objectiveId:`specialist:${outcome.botId}`,taskId:`specialist:${outcome.botId}`,
     stage:'specialist-builder',error:outcome.error,
@@ -104,7 +102,10 @@ try{
 
   let result;
   if(preflight.ok){
-    console.log(`[autobot] specialist ${outcome.botId} candidate passed recovery preflight; routing exact candidate to QA without a rewrite`);
+    run(['add','--',...files]);
+    run(['commit','-m',`chore(autobot): restore failed ${outcome.botId} candidate`]);
+    const restoredCommit=git(['rev-parse','HEAD']);
+    console.log(`[autobot] specialist ${outcome.botId} candidate passed dirty-tree recovery preflight; routing exact candidate to QA without a rewrite`);
     result=await routeVerifiedCandidate(recoveryRoot,registry,queueRecord,base,restoredCommit,branch,transitionFailure);
   }else{
     const recoveryPath=registry.coordination?.recoveryRunner;
