@@ -88,7 +88,7 @@ try {
     const deterministic = spawnSync(process.execPath, ['builder/runner/autobot-specialist-deterministic-fallback.mjs'], { cwd: root, stdio: 'inherit', env: process.env, timeout: 30_000 });
     if (deterministic.error || deterministic.status !== 0) fail(`structured and deterministic specialist fallbacks failed (${result.error?.message || result.status}; deterministic=${deterministic.error?.message || deterministic.status})`);
     console.log(JSON.stringify({ ok: true, engine: 'deterministic-specialist-fallback-v1', files }));
-    return;
+    result.status=0; result.error=null;
   }
   console.log(JSON.stringify({ ok: true, engine: 'legacy-structured-search-replace', objectiveId: id, files, minutes }));
 } finally {
