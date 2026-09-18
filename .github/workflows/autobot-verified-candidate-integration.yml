@@ -59,7 +59,7 @@ jobs:
           echo "RECOVERY_RUN_ID=$RECOVERY_RUN_ID" >> "$GITHUB_ENV"
 
       - name: Download verified recovery artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}

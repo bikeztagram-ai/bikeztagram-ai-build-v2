@@ -6,6 +6,7 @@ const registry=JSON.parse(fs.readFileSync(path.join(root,'builder/brain/autobot-
 const workflow=fs.readFileSync(path.join(root,'.github/workflows/autobot-parallel-specialists.yml'),'utf8');
 const planner=fs.readFileSync(path.join(root,'builder/runner/autobot-parallel-planner.mjs'),'utf8');
 const specialist=fs.readFileSync(path.join(root,'builder/runner/autobot-specialist-builder.mjs'),'utf8');
+const structuredFallback=fs.readFileSync(path.join(root,'builder/runner/feature-brain.mjs'),'utf8');
 const assert=(ok,msg)=>{if(!ok)throw new Error(msg);};
 const gateOnly=process.argv.includes('--gate-only');
 assert(registry.schemaVersion===1,'fleet registry schema must be v1');
@@ -19,11 +20,12 @@ if(gateOnly){
 }
 assert(workflow.includes('strategy:')&&workflow.includes('max-parallel: 2'),'parallel workflow must use a two-lane matrix');
 assert(workflow.includes('director-builder')&&workflow.includes('timeline-builder'),'parallel workflow must activate the two registered specialist Builders only');
-assert(workflow.includes('actions/upload-artifact@v4')&&workflow.includes('actions/download-artifact@v5'),'parallel planner/workers must exchange structured plan evidence through artifacts');
+assert(workflow.includes('actions/upload-artifact@v7')&&workflow.includes('actions/download-artifact@v7'),'parallel planner/workers must exchange structured plan evidence through current Node24 artifact actions');
 assert(workflow.includes('AUTOBOT_SPECIALIST_BOT_ID')&&workflow.includes('AUTOBOT_SPECIALIST_OBJECTIVE')&&workflow.includes('AUTOBOT_SPECIALIST_BUILDER_ENABLED'),'parallel workflow must use the specialist execution contract');
 assert(workflow.includes('AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK'),'parallel workflow must retain product-quality verification');
 assert(planner.includes('maxConcurrentWorkers<2'),'planner must refuse execution before parallel activation');
 assert(planner.includes('seenFiles')&&planner.includes('scope overlaps another parallel worker'),'planner must reject overlapping file scopes');
 assert(planner.includes('Create one genuinely new user-facing product capability per specialist')&&planner.includes('Do not repeat these already-completed specialist objectives')&&planner.includes('No infrastructure, automation, CI, or provider work'),'planner must perform evidence-based product-facing discovery without repeating completed work or drifting into infrastructure');
 assert(specialist.includes('writeSpecialistHandoff')&&specialist.includes("status:'verified-candidate'"),'specialist worker must produce a verified candidate handoff');
+assert(structuredFallback.includes('overlapping edits in one file are disabled for safety')&&!structuredFallback.includes('multiple edits in one file are disabled for safety'),'structured fallback must permit only non-overlapping multiple edits within a declared file');
 console.log(JSON.stringify({ok:true,parallelWorkflow:'two specialist lanes',gate:'explicit registry authorization required',protectedIntegration:false}));

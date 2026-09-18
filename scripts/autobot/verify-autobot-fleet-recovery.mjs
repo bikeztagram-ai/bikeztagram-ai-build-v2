@@ -60,7 +60,7 @@ has(handoff,/automaticMerge\s*:\s*false/,'verified handoff must prohibit automat
 has(handoff,/automaticPush\s*:\s*false/,'verified handoff must prohibit automatic push');
 has(workflow,/workflow_run:/,'recovery workflow must receive failed Builder runs');
 has(workflow,/workflow_dispatch:/,'recovery workflow must support operator-triggered recovery');
-has(workflow,/actions\/download-artifact@v5/,'recovery workflow must consume Builder artifacts');
+has(workflow,/actions\/download-artifact@v7/,'recovery workflow must consume Builder artifacts with the current Node24 artifact action');
 has(workflow,/autobot-builder-candidate\.patch/,'recovery workflow must restore the actual candidate patch');
 has(workflow,/registry\.enabled===true\s*&&\s*registry\.coordination\?\.mode==='active'/,'recovery workflow must enforce the activation gate');
 has(workflow,/steps\.gate\.outputs\.active == ['"]true['"]/,'recovery execution must be conditional on the gate');
