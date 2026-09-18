@@ -68,7 +68,8 @@ function captureBasePatch(base, worktree, files) {
 function ownedProductFiles(base, worktree, files) {
   return changedFromBase(base, worktree).filter(file => files.includes(file));
 }
-function runStructuredFallback(worktree, assignmentPath, model) {
+function runStructuredFallback(worktree, assignmentPath, model, base) {
+  run('git', ['reset', '--hard', base], worktree);
   const fallbackModel = String(process.env.AUTOBOT_SPECIALIST_FALLBACK_MODEL || 'qwen2.5-coder:3b').trim();
   const fallbackMinutes = Math.max(1, Number.parseInt(process.env.AUTOBOT_SPECIALIST_FALLBACK_MINUTES || '5', 10));
   const env = {
@@ -194,7 +195,7 @@ try {
   let candidateFiles = ownedProductFiles(base, worktree, files);
   candidatePatch = captureBasePatch(base, worktree, files);
   if (!candidateFiles.length || !candidatePatch.trim()) {
-    const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model);
+    const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model, base);
     candidateFiles = ownedProductFiles(base, worktree, files);
     candidatePatch = captureBasePatch(base, worktree, files);
     if (fallbackStatus !== 0 && (!candidateFiles.length || !candidatePatch.trim())) fail(`Specialist Builder produced no product change after Aider and structured fallback (fallback status ${fallbackStatus}).`);
