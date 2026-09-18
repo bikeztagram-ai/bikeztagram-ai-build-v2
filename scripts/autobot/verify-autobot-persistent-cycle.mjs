@@ -25,6 +25,7 @@ const checks=[
  [workflow.includes('OLLAMA_KEEP_ALIVE: 30m'),'model keep-alive must be configured'],
  [workflow.includes('timeout-minutes: 345'),'final job ceiling must remain below GitHub six-hour cutoff'],
  [workflow.includes("'5h30'"),'final 5h30 option must exist'],
+ [workflow.includes("inputs.duration == '15m' && '10'") ,'15m staging must reserve a bounded specialist cycle'],
  [engine.includes('autobot-parallel-planner.mjs'),'every internal cycle must re-plan'],
  [engine.includes('autobot-specialist-builder.mjs'),'every internal cycle must build product work'],
  [engine.includes("git',['push','--set-upstream','origin',handoff.branch]"),'specialist candidate branches must be published before independent verification'],
