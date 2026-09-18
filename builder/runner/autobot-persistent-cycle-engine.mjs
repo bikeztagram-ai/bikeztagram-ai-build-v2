@@ -26,7 +26,7 @@ function status(message){const line=`[${new Date().toISOString()}] ${message}`;c
 
 function parseDuration(v){
   const value=String(v).trim().toLowerCase();
-  const hm=value.match(/^(\\d+)h(?:(\\d+)m)?$/);
+  const hm=value.match(/^(\d+)h(?:(\d+)m)?$/);
   if(hm)return Number(hm[1])*60+Number(hm[2]||0);
   const m=value.match(/^(\\d+)\\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?$/);
   if(!m)return 30;
