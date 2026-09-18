@@ -7,6 +7,7 @@ import {execFileSync} from 'node:child_process';
 const root=process.cwd();
 const registryPath=path.join(root,'builder/brain/autobot-fleet.json');
 const objectivesPath=path.join(root,'builder/brain/feature-objectives.json');
+const completedObjectivesPath=path.join(root,'builder/brain/autobot-completed-specialist-objectives.json');
 const output=path.join(root,'builder/working/autobot-parallel-plan.json');
 const model=process.env.AUTOBOT_DISCOVERY_MODEL||process.env.LOCAL_AI_MODEL||'qwen2.5-coder:3b';
 const host=(process.env.OLLAMA_HOST||'http://127.0.0.1:11434').replace(/\/$/,'');
@@ -20,7 +21,7 @@ function completedSpecialistTitles(){
   try{
     const log=execFileSync('git',['log','-n','100','--format=%s'],{cwd:root,encoding:'utf8'});
     return log.split(/\r?\n/).map(line=>{
-      const m=line.match(/^autobot\\((?:director-builder|timeline-builder)\\):\\s*(.+?)(?:\\s+\\(#\\d+\\))?$/i);
+      const m=line.match(/^autobot\((?:director-builder|timeline-builder)\):\s*(.+?)(?:\s+\(#\d+\))?$/i);
       return m?m[1].trim().toLowerCase():'';
     }).filter(Boolean);
   }catch{return [];}
@@ -59,7 +60,7 @@ async function aiPlan(bots,library,inv,completedTitles){
 async function main(){
   const registry=readJson(registryPath,null);if(!registry)throw new Error('fleet registry missing');if(registry.coordination?.maxConcurrentWorkers<2)throw new Error('parallel planning is blocked until the fleet activation gate explicitly authorizes at least two concurrent workers');
   const bots=(registry.bots||[]).filter(b=>allowedBots.includes(b.id)&&b.specialistBuilder===true&&b.status==='verified');if(bots.length<2)throw new Error('at least two verified specialist Builders are required');
-  const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const completedTitles=new Set(completedSpecialistTitles());let rawPackages=[];let source='ai-discovery';let aiFailure='';
+  const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const completedTitles=new Set([...completedSpecialistTitles(),...completedObjectiveRegistry()]);let rawPackages=[];let source='ai-discovery';let aiFailure='';
   try{rawPackages=await aiPlan(bots,library,inv,completedTitles);if(!Array.isArray(rawPackages)||rawPackages.length<bots.length)throw new Error('AI planner returned too few packages');}
   catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library));}
   const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{const item=byId.get(bot.id)||fallback(bot,library);return validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles);});
