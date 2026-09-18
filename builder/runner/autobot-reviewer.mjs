@@ -26,11 +26,17 @@ let build='not-run';
 try{
   git(['worktree','add','--detach',tempDir,candidate]);
   if(productFiles.length){
-    const directorPath=path.join(tempDir,'src','director.js');
-    const director=fs.existsSync(directorPath)?fs.readFileSync(directorPath,'utf8'):'';
-    if(director.includes("const roles=desiredCount===1?['hero-ending']:['hook'")||director.includes("['hook',...middleRoles"))finding('high','fixed-story-template','director story construction appears to force hook/middle/hero-ending bookends instead of deriving structure from intent and evidence',['src/director.js']);
-    if(!director.includes('rankDirectorCandidates'))finding('high','missing-evidence-selection','director story does not visibly use candidate ranking for selection',['src/director.js']);
-    if(!director.includes('targetDuration'))finding('medium','missing-duration-input','director story does not visibly consume target duration',['src/director.js']);
+    if(changed.includes('src/director.js')){
+      const directorPath=path.join(tempDir,'src','director.js');
+      const director=fs.existsSync(directorPath)?fs.readFileSync(directorPath,'utf8'):'';
+      let baseDirector='';
+      try{baseDirector=git(['show',`8aab077e8205e7a9f67e36a8326450f2e488e8a0:src/director.js`]);}catch{}
+      const fixedStoryPattern=director.includes("const roles=desiredCount===1?['hero-ending']:['hook'")||director.includes("['hook',...middleRoles");
+      const baseHadFixedStoryPattern=baseDirector.includes("const roles=desiredCount===1?['hero-ending']:['hook'")||baseDirector.includes("['hook',...middleRoles");
+      if(fixedStoryPattern&&!baseHadFixedStoryPattern)finding('high','fixed-story-template','candidate introduces forced hook/middle/hero-ending bookends instead of deriving structure from intent and evidence',['src/director.js']);
+      if(!director.includes('rankDirectorCandidates'))finding('high','missing-evidence-selection','director story does not visibly use candidate ranking for selection',['src/director.js']);
+      if(!director.includes('targetDuration'))finding('medium','missing-duration-input','director story does not visibly consume target duration',['src/director.js']);
+    }
   }
   if(!changed.length)finding('high','no-change','candidate contains no changes relative to review base');
   try{run('git',['diff','--check',`${base}..${candidate}`],tempDir);}catch(error){finding('critical','patch-integrity-failed','candidate diff has whitespace or patch-integrity errors',[String(error.stdout||error.stderr||error.message).slice(-1200)]);}
