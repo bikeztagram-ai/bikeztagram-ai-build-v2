@@ -18,7 +18,8 @@ const configuredCycleMinutes=Math.max(1,Number.parseInt(process.env.AUTOBOT_CYCL
 const finishGraceMinutes=Math.max(0,Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES||'0',10));
 const safetyMinutes=Math.max(1,Number.parseInt(process.env.AUTOBOT_CYCLE_SAFETY_MINUTES||'1',10));
 const startMs=Number.parseInt(process.env.AUTOBOT_RUN_STARTED_EPOCH_MS||String(Date.now()),10);
-const deadlineMs=startMs+totalMinutes*60_000;
+const normalDeadlineMs=startMs+totalMinutes*60_000;
+const hardDeadlineMs=normalDeadlineMs+finishGraceMinutes*60_000;
 const bots=['director-builder','timeline-builder'];
 const statusPath=path.join(root,'builder','working','autobot-live-status.log');
 function status(message){const line=`[${new Date().toISOString()}] ${message}`;console.log(`\\n${line}`);fs.mkdirSync(path.dirname(statusPath),{recursive:true});fs.appendFileSync(statusPath,line+'\\n');}
@@ -43,7 +44,8 @@ function spawnLogged(command,args,env={}){
 }
 function readJson(file,fallback=null){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return fallback;}}
 function writeJson(file,value){fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value,null,2)+'\n');}
-function remainingMs(){return Math.max(0,deadlineMs-Date.now());}
+function remainingMs(){return Math.max(0,hardDeadlineMs-Date.now());}
+function remainingNormalMs(){return Math.max(0,normalDeadlineMs-Date.now());}
 function log(message){console.log(`[autobot-persistent] ${message}`);}
 function ensureClean(){run('git',['reset','--hard']);run('git',['clean','-fd','builder/working']);}
 function checkoutBase(ref){
@@ -184,9 +186,9 @@ async function main(){
   const audit=[];
   while(true){
     const remaining=remainingMs();
-    const requiredStartMs=(configuredCycleMinutes+finishGraceMinutes+safetyMinutes)*60_000;
-    if(remaining<requiredStartMs){
-      log(`stopping before cycle ${cycleNumber}: ${(remaining/60000).toFixed(1)}m remains, ${(requiredStartMs/60000).toFixed(1)}m required to start safely`);
+    const requiredStartMs=(configuredCycleMinutes+safetyMinutes)*60_000;
+    if(remainingNormalMs()<requiredStartMs){
+      log(`stopping before cycle ${cycleNumber}: ${(remainingNormalMs()/60000).toFixed(1)}m remains in normal budget, ${(requiredStartMs/60000).toFixed(1)}m required to start safely; finish grace is reserved for the active final cycle and shutdown only`);
       break;
     }
     try{
@@ -195,9 +197,9 @@ async function main(){
       audit.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),status:'verified-and-carried-forward'});
       cycleNumber++;
       status(`NEXT CYCLE READY | cycle=${cycleNumber} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
-      writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'running',nextCycle:cycleNumber,baseRef,audit,deadlineMs:deadlineMs,finishGraceMinutes});
+      writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'running',nextCycle:cycleNumber,baseRef,audit,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes});
     }catch(error){
-      writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'blocked',nextCycle:cycleNumber,baseRef,audit,deadlineMs:deadlineMs,error:String(error?.message||error)});
+      writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'blocked',nextCycle:cycleNumber,baseRef,audit,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,error:String(error?.message||error)});
       throw error;
     }
   }
