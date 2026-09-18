@@ -68,11 +68,12 @@ function ownedProductFiles(base, worktree, files) {
   return changedFromBase(base, worktree).filter(file => files.includes(file));
 }
 function runStructuredFallback(worktree, assignmentPath, model) {
+  const fallbackModel = String(process.env.AUTOBOT_SPECIALIST_FALLBACK_MODEL || 'qwen2.5-coder:3b').trim();
   const fallbackMinutes = Math.max(1, Number.parseInt(process.env.AUTOBOT_SPECIALIST_FALLBACK_MINUTES || '5', 10));
   const env = {
     ...process.env,
     LOCAL_AI_READY: '1',
-    LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama_chat\//, ''),
+    LOCAL_AI_MODEL: fallbackModel.replace(/^ollama_chat\//, ''),
     OLLAMA_HOST: process.env.OLLAMA_HOST || 'http://127.0.0.1:11434',
     AUTOBOT_ORCHESTRATOR_ENABLED: 'true',
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath,
@@ -84,7 +85,7 @@ function runStructuredFallback(worktree, assignmentPath, model) {
     BUILDER_MAX_MINUTES: String(fallbackMinutes),
     LOCAL_AI_FEATURE_TIMEOUT_SECONDS: String(Math.max(90, Math.min(210, fallbackMinutes * 60 - 20)))
   };
-  console.log(`[autobot] Aider produced no owned product change; invoking proven structured fallback for ${fallbackMinutes}m`);
+  console.log(`[autobot] Aider produced no owned product change; invoking proven structured fallback for ${fallbackMinutes}m with ${fallbackModel}`);
   const result = spawnSync(process.execPath, ['builder/runner/autobot-specialist-structured-fallback.mjs'], {
     cwd: worktree,
     stdio: 'inherit',
