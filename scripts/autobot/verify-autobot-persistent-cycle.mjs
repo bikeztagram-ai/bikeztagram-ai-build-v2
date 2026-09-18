@@ -52,7 +52,7 @@ const checks=[
  [specialist.includes('AUTOBOT_SKIP_NPM_INSTALL'),'persistent specialists must be able to reuse root node_modules'],
  [recovery.includes('AUTOBOT_SKIP_NPM_INSTALL'),'Repair Bot must be able to reuse root node_modules'],
  [specialist.includes("runStructuredFallback(worktree, assignmentPath, model, base)")&&specialist.includes("git', ['reset', '--hard', base]"),'specialist fallback must reset failed Aider edits before retry'],
- [deterministic.includes("objective.includes('timing')||objective.includes('motion')||objective.includes('transition')") || deterministic.includes("objective.includes('timing') || objective.includes('motion') || objective.includes('transition')"),'timeline deterministic fallback must support semantic timing/motion/transition objectives'],
+ [deterministic.includes("specialist==='director-builder'")&&deterministic.includes("generic director hook/payoff evidence")&&deterministic.includes("specialist==='timeline-builder'")&&deterministic.includes("generic timeline role-aware motion"),'deterministic fallback must have generic safe product paths for both specialist lanes'],
  [candidate.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate reviewers must have isolated outputs'],
  [candidate.includes('AUTOBOT_SKIP_NPM_INSTALL'),'candidate QA must be able to reuse root node_modules'],
  [planner.includes('completedSpecialistTitles'),'Planner must avoid repeating completed specialist objectives'],
