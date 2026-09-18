@@ -7,6 +7,8 @@ import {execFileSync,spawnSync} from 'node:child_process';
 const root=process.cwd(), bot=process.argv[2];
 const specialistRoot=process.env.AUTOBOT_SPECIALIST_RESULTS_ROOT||'builder/working';
 const outputPath=process.env.AUTOBOT_CANDIDATE_CHECK_OUTPUT||'builder/working/autobot-endurance-candidate-check.json';
+const reviewOutputPath=process.env.AUTOBOT_CANDIDATE_REVIEW_OUTPUT||path.join(root,'builder/working','autobot-candidate-review.json');
+const skipNpmInstall=String(process.env.AUTOBOT_SKIP_NPM_INSTALL||'').toLowerCase()==='true';
 if(!bot)throw new Error('candidate check requires bot id');
 const read=p=>fs.existsSync(p)?JSON.parse(fs.readFileSync(p,'utf8')):null;
 const h=read(path.join(specialistRoot,bot,'autobot-specialist-handoff.json'));
@@ -43,7 +45,7 @@ try{
   const record=registry.bots.find(x=>x.id===bot);
   const unauthorized=files.filter(x=>!(record?.ownsFiles||[]).includes(x));
   if(unauthorized.length)throw new Error('candidate escaped scope: '+unauthorized.join(','));
-  if(spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA dependency install failed');
+  if(!skipNpmInstall && spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA dependency install failed');
   if(spawnSync('npm',['run','build'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA build failed');
   if(spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA product-quality failed');
   const reviewOutput=path.join(root,'builder/working/autobot-candidate-review.json');
