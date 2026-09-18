@@ -15,6 +15,7 @@ const recovery=read('builder/runner/autobot-specialist-recovery.mjs');
 const candidate=read('builder/runner/autobot-endurance-candidate-check.mjs');
 const planner=read('builder/runner/autobot-parallel-planner.mjs');
 const handoff=read('builder/runner/autobot-specialist-handoff.mjs');
+const deterministic=read('builder/runner/autobot-specialist-deterministic-fallback.mjs');
 const registry=JSON.parse(read('builder/brain/autobot-fleet.json'));
 const checks=[
  [workflow.includes('workflow_dispatch:'),'persistent workflow must be manually dispatchable'],
@@ -50,6 +51,8 @@ const checks=[
  [specialist.includes('AUTOBOT_SPECIALIST_HANDOFF_PATH'),'parallel specialists must have isolated handoff outputs'],
  [specialist.includes('AUTOBOT_SKIP_NPM_INSTALL'),'persistent specialists must be able to reuse root node_modules'],
  [recovery.includes('AUTOBOT_SKIP_NPM_INSTALL'),'Repair Bot must be able to reuse root node_modules'],
+ [specialist.includes("runStructuredFallback(worktree, assignmentPath, model, base)")&&specialist.includes("git', ['reset', '--hard', base]"),'specialist fallback must reset failed Aider edits before retry'],
+ [deterministic.includes("objective.includes('timing')||objective.includes('motion')||objective.includes('transition')") || deterministic.includes("objective.includes('timing') || objective.includes('motion') || objective.includes('transition')"),'timeline deterministic fallback must support semantic timing/motion/transition objectives'],
  [candidate.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate reviewers must have isolated outputs'],
  [candidate.includes('AUTOBOT_SKIP_NPM_INSTALL'),'candidate QA must be able to reuse root node_modules'],
  [planner.includes('completedSpecialistTitles'),'Planner must avoid repeating completed specialist objectives'],
