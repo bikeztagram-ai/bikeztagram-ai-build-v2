@@ -8,7 +8,7 @@ on:
         required: true
         default: 15m
         type: choice
-        options: ['15m','30m','1h','4h','5h']
+        options: ['15m','30m','1h','4h','5h','5h30']
       local_model:
         description: Local discovery/coding model
         required: false
@@ -30,7 +30,7 @@ env:
   AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder
   AUTOBOT_TOTAL_DURATION: ${{ inputs.duration }}
   AUTOBOT_CYCLE_MINUTES: ${{ inputs.duration == '15m' && '10' || inputs.duration == '30m' && '15' || '30' }}
-  AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h') && '15' || '0' }}
+  AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
   AUTOBOT_CYCLE_SAFETY_MINUTES: '1'
   AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
 
