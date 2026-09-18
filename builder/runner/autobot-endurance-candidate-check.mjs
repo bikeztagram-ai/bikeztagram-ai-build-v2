@@ -5,12 +5,14 @@ import os from 'node:os';
 import {execFileSync,spawnSync} from 'node:child_process';
 
 const root=process.cwd(), bot=process.argv[2];
+const specialistRoot=process.env.AUTOBOT_SPECIALIST_RESULTS_ROOT||'builder/working';
+const outputPath=process.env.AUTOBOT_CANDIDATE_CHECK_OUTPUT||'builder/working/autobot-endurance-candidate-check.json';
 if(!bot)throw new Error('candidate check requires bot id');
 const read=p=>fs.existsSync(p)?JSON.parse(fs.readFileSync(p,'utf8')):null;
-const h=read('builder/working/specialist/autobot-specialist-handoff.json');
-const o=read('builder/working/specialist/autobot-specialist-outcome.json');
-const r=read('builder/working/recovery/autobot-verified-candidate.json');
-const patch='builder/working/recovery/autobot-repair-candidate.patch';
+const h=read(path.join(specialistRoot,bot,'autobot-specialist-handoff.json'));
+const o=read(path.join(specialistRoot,bot,'autobot-specialist-outcome.json'));
+const r=read(path.join(specialistRoot,bot,'recovery','autobot-verified-candidate.json'));
+const patch=path.join(specialistRoot,bot,'recovery','autobot-repair-candidate.patch');
 let candidate=r?.candidateCommit||h?.candidateCommit;
 let base=r?.baseCommit||h?.baseCommit;
 let branch=r?.branch||h?.branch;
@@ -44,7 +46,7 @@ try{
   if(spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA dependency install failed');
   if(spawnSync('npm',['run','build'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA build failed');
   if(spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA product-quality failed');
-  const reviewOutput=path.join(root,'builder/working/autobot-endurance-review.json');
+  const reviewOutput=path.join(root,'builder/working/autobot-candidate-review.json');
   let reviewStatus='pass';
   try{
     execFileSync(process.execPath,['builder/runner/autobot-reviewer.mjs'],{cwd:root,env:{...process.env,AUTOBOT_REVIEW_BASE_COMMIT:base,AUTOBOT_REVIEW_COMMIT:candidate,AUTOBOT_REVIEW_OUTPUT:reviewOutput},stdio:'inherit'});
@@ -53,6 +55,7 @@ try{
   if(reviewStatus!=='pass'||review?.status!=='pass')throw new Error('Reviewer rejected candidate: '+(review?.status||reviewStatus));
   const result={schemaVersion:1,botId:bot,status:'pass',integrationEligible:true,baseCommit:base,candidateCommit:candidate,branch,changedFiles:files,qa:{build:true,productQuality:true},review:{status:'pass',findings:review.findings||[]},recovered:Boolean(r),generatedAt:new Date().toISOString()};
   fs.mkdirSync('builder/working',{recursive:true});
-  fs.writeFileSync('builder/working/autobot-endurance-candidate-check.json',JSON.stringify(result,null,2)+'\n');
+  fs.mkdirSync(path.dirname(outputPath),{recursive:true});
+  fs.writeFileSync(outputPath,JSON.stringify(result,null,2)+'\n');
   console.log(JSON.stringify(result,null,2));
 }finally{try{execFileSync('git',['worktree','remove','--force',temp],{stdio:'ignore'});}catch{}}
