@@ -101,10 +101,11 @@ try{
   if(registry.enabled!==true||registry.coordination?.mode!=='active')throw new Error('fleet recovery gate is not active');
 
   let result;
+  let restoredCommit=null;
   if(preflight.ok){
     run(['add','--',...files]);
     run(['commit','-m',`chore(autobot): restore failed ${outcome.botId} candidate`]);
-    const restoredCommit=git(['rev-parse','HEAD']);
+    restoredCommit=git(['rev-parse','HEAD']);
     console.log(`[autobot] specialist ${outcome.botId} candidate passed dirty-tree recovery preflight; routing exact candidate to QA without a rewrite`);
     result=await routeVerifiedCandidate(recoveryRoot,registry,queueRecord,base,restoredCommit,branch,transitionFailure);
   }else{
@@ -128,7 +129,15 @@ try{
     process.env.AUTOBOT_REVIEW_OUTPUT=path.join(workingDir,'autobot-review.json');
     process.env.AUTOBOT_HANDOFF_OUTPUT=path.join(workingDir,'autobot-verified-candidate.json');
     await import(pathToFileURL(path.join(recoveryRoot,'builder/runner/autobot-verified-candidate-handoff.mjs')).href);
+    const handoffFiles=['autobot-verified-candidate.json','autobot-repair-candidate.patch','autobot-repair-base-commit.txt','autobot-repair-commit.txt','autobot-review.json'];
+    const publishDir=path.join(originalRoot,'builder','working');
+    fs.mkdirSync(publishDir,{recursive:true});
+    for(const name of handoffFiles){
+      const source=path.join(workingDir,name);
+      if(fs.existsSync(source))fs.copyFileSync(source,path.join(publishDir,name));
+    }
+    fs.writeFileSync(path.join(publishDir,'autobot-specialist-recovery-outcome.json'),JSON.stringify({schemaVersion:'autobot-specialist-recovery-outcome-v1',botId:outcome.botId,status:'verified-candidate',failureId:queueRecord.id,baseCommit:qaBase,candidateCommit:repairCommit,branch:restoredBranch||branch},null,2)+'\\n');
   }
-  console.log(JSON.stringify({ok:result?.ok===true,failureId:queueRecord.id,botId:outcome.botId,restoredBase:base,restoredCandidate:restoredCommit,recovery:result,preflight,verifiedCandidate:fs.existsSync(path.join(recoveryRoot,'builder','working','autobot-verified-candidate.json'))},null,2));
+  console.log(JSON.stringify({ok:result?.ok===true,failureId:queueRecord.id,botId:outcome.botId,restoredBase:base,restoredCandidate:restoredCommit,recovery:result,preflight,verifiedCandidate:fs.existsSync(path.join(originalRoot,'builder','working','autobot-verified-candidate.json'))},null,2));
   if(result?.ok!==true)process.exitCode=3;
 }finally{process.chdir(originalRoot);cleanup();}
