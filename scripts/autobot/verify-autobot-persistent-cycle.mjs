@@ -18,6 +18,8 @@ const handoff=read('builder/runner/autobot-specialist-handoff.mjs');
 const registry=JSON.parse(read('builder/brain/autobot-fleet.json'));
 const checks=[
  [workflow.includes('workflow_dispatch:'),'persistent workflow must be manually dispatchable'],
+ [workflow.indexOf('Anchor cumulative deadline')<workflow.indexOf('Run persistent AutoBot engine'),'endurance clock must be anchored immediately before the persistent engine'],
+ [workflow.indexOf('Anchor cumulative deadline')>workflow.indexOf('Verify planner model once'),'endurance clock must not consume dependency/model setup time'],
  [!workflow.includes('repository_dispatch:'),'persistent workflow must not restart itself through repository_dispatch'],
  [workflow.includes('autobot-persistent-cycle-engine.mjs'),'workflow must run the persistent cycle engine'],
  [workflow.includes('python -m pip install'),'Aider must be installed once at workflow level'],
