@@ -22,6 +22,9 @@ function readJson(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 function fallbackMinutes() {
   return Math.max(1, Number.parseInt(process.env.AUTOBOT_SPECIALIST_FALLBACK_MINUTES || '5', 10));
 }
+function fallbackModel() {
+  return String(process.env.AUTOBOT_SPECIALIST_FALLBACK_MODEL || process.env.LOCAL_AI_MODEL || 'qwen2.5-coder:3b').trim();
+}
 
 if (!fs.existsSync(assignmentPath)) fail(`Specialist assignment not found: ${assignmentPath}`);
 if (!fs.existsSync(objectivePath)) fail(`Legacy feature objective library not found: ${objectivePath}`);
@@ -60,6 +63,7 @@ try {
   const env = {
     ...process.env,
     LOCAL_AI_READY: '1',
+    LOCAL_AI_MODEL: fallbackModel(),
     BUILDER_MAX_MINUTES: String(minutes),
     AUTOBOT_FEATURE_PASSES: '1',
     AUTOBOT_FEATURE_MAX_ATTEMPTS: '1',
@@ -72,7 +76,7 @@ try {
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline),
     LOCAL_AI_FEATURE_TIMEOUT_SECONDS: String(Math.max(90, Math.min(270, minutes * 60 - 20)))
   };
-  console.log(`[autobot] Aider produced no owned product change; invoking proven structured fallback for ${minutes}m with ${files.join(', ')}`);
+  console.log(`[autobot] Aider produced no owned product change; invoking proven structured fallback for ${minutes}m using ${fallbackModel()} with ${files.join(', ')}`);
   const result = spawnSync(process.execPath, ['builder/runner/feature-brain.mjs'], {
     cwd: root,
     stdio: 'inherit',
