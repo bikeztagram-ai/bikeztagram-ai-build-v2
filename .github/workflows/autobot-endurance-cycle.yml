@@ -198,9 +198,9 @@ jobs:
           for bot in director-builder timeline-builder; do
             f="builder/working/checks/$bot/autobot-endurance-candidate-check.json"
             node -e "const x=require('./$f'); if(x.status!=='pass'||x.integrationEligible!==true)throw new Error('Candidate not eligible: '+x.status)"
-            c="$(node -e "console.log(require('./$f').candidateCommit)")"
-            git fetch origin "$c"
-            git merge --no-edit --no-ff "$c"
+            b="$(node -e "console.log(require('./$f').branch)")"
+            git fetch origin "+refs/heads/$b:refs/remotes/origin/$b"
+            git merge --no-edit --no-ff "origin/$b"
           done
           npm install --no-audit --no-fund --no-package-lock
           npm run build
