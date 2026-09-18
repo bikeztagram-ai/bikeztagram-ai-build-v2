@@ -24,6 +24,6 @@ assert(workflow.includes('AUTOBOT_SPECIALIST_BOT_ID')&&workflow.includes('AUTOBO
 assert(workflow.includes('AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK'),'parallel workflow must retain product-quality verification');
 assert(planner.includes('maxConcurrentWorkers<2'),'planner must refuse execution before parallel activation');
 assert(planner.includes('seenFiles')&&planner.includes('scope overlaps another parallel worker'),'planner must reject overlapping file scopes');
-assert(planner.includes('evidence-based-parallel-product-discovery'),'planner must be evidence-based and product-facing');
+assert(planner.includes('Create one genuinely new user-facing product capability per specialist')&&planner.includes('Do not repeat these already-completed specialist objectives')&&planner.includes('No infrastructure, automation, CI, or provider work'),'planner must perform evidence-based product-facing discovery without repeating completed work or drifting into infrastructure');
 assert(specialist.includes('writeSpecialistHandoff')&&specialist.includes("status:'verified-candidate'"),'specialist worker must produce a verified candidate handoff');
 console.log(JSON.stringify({ok:true,parallelWorkflow:'two specialist lanes',gate:'explicit registry authorization required',protectedIntegration:false}));
