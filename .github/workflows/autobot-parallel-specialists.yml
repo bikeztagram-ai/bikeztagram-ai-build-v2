@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       duration:
-        description: Controlled parallel specialist budget
+        description: Total AutoBot run budget (cycles continue automatically)
         required: true
         default: 15m
         type: choice
@@ -13,10 +13,12 @@ on:
         required: false
         default: qwen2.5-coder:7b
         type: string
+  repository_dispatch:
+    types: [autobot-cycle]
 permissions:
   contents: write
   pull-requests: write
-  actions: read
+  actions: write
 concurrency:
   group: autobot-parallel-specialists
   cancel-in-progress: false
@@ -25,6 +27,11 @@ env:
   AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
   AUTOBOT_DISCOVERY_TIMEOUT_MS: 180000
   AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder
+  AUTOBOT_BASE_REF: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.base_ref || 'main' }}
+  AUTOBOT_TOTAL_DURATION: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.total_duration || inputs.duration }}
+  AUTOBOT_RUN_DEADLINE_EPOCH_MS: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.run_deadline_epoch_ms || '' }}
+  AUTOBOT_CYCLE_NUMBER: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.cycle_number || '1' }}
+  AUTOBOT_CYCLE_MINUTES: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.total_duration || inputs.duration) == '15m' && '15' || (github.event_name == 'repository_dispatch' && github.event.client_payload.total_duration || inputs.duration) == '30m' && '15' || '30' }}
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -32,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.AUTOBOT_BASE_REF }}
           fetch-depth: 0
       - run: npm install --no-audit --no-fund --no-package-lock
       - name: Verify parallel activation gate
@@ -75,7 +82,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.AUTOBOT_BASE_REF }}
           fetch-depth: 0
       - uses: actions/download-artifact@v7
         with:
@@ -193,7 +200,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.AUTOBOT_BASE_REF }}
           fetch-depth: 0
       - name: Download specialist result
         uses: actions/download-artifact@v7
@@ -298,7 +305,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.AUTOBOT_BASE_REF }}
           fetch-depth: 0
       - uses: actions/download-artifact@v7
         continue-on-error: true
@@ -336,7 +343,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.AUTOBOT_BASE_REF }}
           fetch-depth: 0
       - uses: actions/download-artifact@v7
         with:
@@ -372,6 +379,36 @@ jobs:
       - id: publish
         run: echo "cumulative_ref=autobot/carry-forward/$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
 
+  continue-cycle:
+    needs: [carry-forward]
+    if: ${{ needs.carry-forward.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Continue cumulative AutoBot cycle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ needs.carry-forward.outputs.cumulative_ref }}
+          TOTAL_DURATION: ${{ env.AUTOBOT_TOTAL_DURATION }}
+          DEADLINE: ${{ env.AUTOBOT_RUN_DEADLINE_EPOCH_MS }}
+          CYCLE_NUMBER: ${{ env.AUTOBOT_CYCLE_NUMBER }}
+          CYCLE_MINUTES: ${{ env.AUTOBOT_CYCLE_MINUTES }}
+          LOCAL_MODEL: ${{ env.LOCAL_AI_MODEL }}
+        run: |
+          set -euo pipefail
+          now_ms="$(date +%s000)"
+          total_minutes="$(case "$TOTAL_DURATION" in 15m) echo 15;; 30m) echo 30;; 1h) echo 60;; 4h) echo 240;; 5h) echo 300;; *) echo 0;; esac)"
+          if [ "$total_minutes" -le 0 ]; then echo "[autobot] invalid total duration: $TOTAL_DURATION"; exit 1; fi
+          if [ -z "$DEADLINE" ]; then deadline_ms="$((now_ms + total_minutes * 60 * 1000))"; else deadline_ms="$DEADLINE"; fi
+          remaining_ms="$((deadline_ms - now_ms))"
+          required_ms="$((CYCLE_MINUTES * 60 * 1000 + 60 * 1000))"
+          if [ "$remaining_ms" -lt "$required_ms" ]; then echo "[autobot] cumulative deadline reached; no new cycle will start (remaining_ms=$remaining_ms, required_ms=$required_ms)"; exit 0; fi
+          next_cycle="$((CYCLE_NUMBER + 1))"
+          export DEADLINE_FALLBACK="$deadline_ms" NEXT_CYCLE="$next_cycle"
+          payload="$(node -e 'const p={event_type:"autobot-cycle",client_payload:{base_ref:process.env.BASE_REF,total_duration:process.env.TOTAL_DURATION,run_deadline_epoch_ms:process.env.DEADLINE||process.env.DEADLINE_FALLBACK,cycle_number:process.env.NEXT_CYCLE,local_model:process.env.LOCAL_MODEL}}; console.log(JSON.stringify(p))')"
+          curl --fail --silent --show-error -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2026-03-10" "https://api.github.com/repos/$GITHUB_REPOSITORY/dispatches" -d "$payload"
+          echo "[autobot] dispatched cumulative cycle $next_cycle from $BASE_REF with deadline $deadline_ms"
+
   completed-work:
     needs: [plan, specialists, repair-specialists]
     if: ${{ always() && needs.plan.result == 'success' }}
@@ -380,7 +417,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.AUTOBOT_BASE_REF }}
           fetch-depth: 0
       - name: Download Director specialist result
         uses: actions/download-artifact@v7
