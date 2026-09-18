@@ -40,7 +40,7 @@ function validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles){
   const banned=/\b(builder|workflow|github|vercel|autobot|orchestrat|repair bot|qa bot|reviewer|self-improvement|infrastructure|validator|gate|secret|credential)\b/i;if(banned.test(`${p.title} ${p.whyNow} ${p.acceptance.join(' ')}`))throw new Error(`${bot.id}: proposed non-product work`);
   seenTitles.add(p.title.toLowerCase());for(const f of p.files)seenFiles.add(f);return p;
 }
-function fallback(bot,library,completedTitles=new Set()) {
+function fallback(bot,library,completedTitles=new Set(),reservedTitles=new Set()) {
   const existing=new Set(objectivesFromLibrary(library).map(o=>String(o?.title||'').trim().toLowerCase()));
   const completed=completedTitles instanceof Set?completedTitles:new Set(completedTitles);
   const candidates={
@@ -87,7 +87,7 @@ function fallback(bot,library,completedTitles=new Set()) {
 
   const candidate=pool.find(item=>{
     const title=String(item.title||'').toLowerCase();
-    return !existing.has(title)&&!completed.has(title);
+    return !existing.has(title)&&!completed.has(title)&&!reservedTitles.has(title);
   });
   if(!candidate)throw new Error(`${bot.id}: no unused deterministic product-gap fallback remains`);
   return candidate;
@@ -110,7 +110,7 @@ async function main(){
   const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const completedTitles=new Set([...completedSpecialistTitles(),...completedObjectiveRegistry()]);let rawPackages=[];let source='ai-discovery';let aiFailure='';
   try{rawPackages=await aiPlan(bots,library,inv,completedTitles);if(!Array.isArray(rawPackages)||rawPackages.length<bots.length)throw new Error('AI planner returned too few packages');}
   catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library,completedTitles));}
-  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{const item=byId.get(bot.id)||fallback(bot,library,completedTitles);return validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles);});
+  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{let item=byId.get(bot.id);if(!item){item=fallback(bot,library,completedTitles,seenTitles);}let validated=validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles);return validated;});
   const plan={schemaVersion:1,source,generatedAt:new Date().toISOString(),discovery:{model,aiFailure:aiFailure||null,completedSpecialistObjectives:Array.from(completedTitles)},workers:packages};fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(plan,null,2)+'\n');console.log(JSON.stringify({ok:true,status:'parallel-plan-created',source,workers:packages.map(p=>({botId:p.botId,title:p.title,files:p.files}))}));
 }
 main().catch(error=>{console.error(`[parallel-planner] ${error.message}`);process.exit(1);});
