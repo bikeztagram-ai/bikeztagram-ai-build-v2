@@ -40,14 +40,22 @@ function validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles){
   const banned=/\b(builder|workflow|github|vercel|autobot|orchestrat|repair bot|qa bot|reviewer|self-improvement|infrastructure|validator|gate|secret|credential)\b/i;if(banned.test(`${p.title} ${p.whyNow} ${p.acceptance.join(' ')}`))throw new Error(`${bot.id}: proposed non-product work`);
   seenTitles.add(p.title.toLowerCase());for(const f of p.files)seenFiles.add(f);return p;
 }
-function fallback(bot,library){
-  const existing=objectivesFromLibrary(library).map(o=>String(o?.title||'').toLowerCase());
+function fallback(bot,library,completedTitles=new Set()){
+  const existing=new Set(objectivesFromLibrary(library).map(o=>String(o?.title||'').trim().toLowerCase()));
+  const completed=completedTitles instanceof Set?completedTitles:new Set(completedTitles);
   const candidates={
-    'director-builder':{title:'Adaptive hook-to-payoff shot scoring',whyNow:'Give the director a stronger user-visible way to rank the opening hook and final payoff from the available media instead of relying on a fixed story shape.',files:['src/director.js'],acceptance:['hook and payoff scores use available media evidence','selection remains diverse and avoids duplicate source use','scores are emitted by director story data consumed by the production edit plan','single-source and rich-media inputs remain usable','npm run build passes'],constraints:['preserve existing director contracts','never invent media','keep story structure dynamic'],priority:94},
-    'timeline-builder':{title:'Cadence-aware transition density',whyNow:'Improve visible editorial rhythm by adapting cut and transition density to shot duration and sequence energy rather than applying uniform timing.',files:['src/executableTimeline.js','src/editorialRhythm.js','src/renderer.js'],acceptance:['transition density responds to editorial cadence','short and rich timelines remain executable','duration budget remains deterministic','timing decisions are consumed by rendering','npm run build passes'],constraints:['preserve timeline contracts','do not invent source media','keep transitions executable and provider-neutral'],priority:93}
+    'director-builder':[
+      {title:'Prompt-sensitive role weighting',whyNow:'Make creative-brief language visibly influence the director scoring weights for story roles, so action, reveal and calm requests change which available shots are selected.',files:['src/director.js'],acceptance:['creative intent changes role-specific scoring using existing media evidence','selection remains diverse and avoids duplicate source use','the resulting score is consumed by the production story decision path','single-source and rich-media inputs remain usable','npm run build passes'],constraints:['preserve existing director contracts','never invent media','keep story structure dynamic'],priority:92},
+      {title:'Evidence-weighted subject diversity',whyNow:'Improve shot selection variety by balancing visual evidence against repeated subject families instead of allowing one strong subject to dominate the story.',files:['src/director.js'],acceptance:['subject repetition affects candidate scoring without blocking useful media','visual evidence remains part of the final score','selected shots remain consumed by the production edit plan','single-source inputs remain usable','npm run build passes'],constraints:['preserve existing director contracts','never invent media','keep diversity deterministic'],priority:91}
+    ],
+    'timeline-builder':[
+      {title:'Source-aware trim continuity',whyNow:'Make executable timeline trims adapt safely to source duration metadata so cuts do not request more source media than is available.',files:['src/executableTimeline.js'],acceptance:['trim end is bounded by available source duration when metadata exists','short clips remain executable after normalization','duration budgeting remains deterministic','the normalized trims reach rendering through directorExecution','npm run build passes'],constraints:['preserve timeline contracts','never invent source media','keep provider-neutral execution'],priority:92},
+      {title:'Energy-aware motion intensity',whyNow:'Tie executable motion intensity to editorial role and energy so action beats feel more dynamic while calmer beats retain controlled movement.',files:['src/executableTimeline.js'],acceptance:['motion intensity responds deterministically to role and creative intent','action and calm sequences produce different executable motion values','normalized motion remains within safe bounds','directorExecution carries the chosen intensity to rendering','npm run build passes'],constraints:['preserve timeline contracts','keep motion bounded','do not alter provider abstraction'],priority:91}
+    ]
   };
-  const candidate=candidates[bot.id];if(!candidate)throw new Error(`${bot.id}: no deterministic product-gap fallback`);
-  if(existing.includes(candidate.title.toLowerCase()))throw new Error(`${bot.id}: fallback objective already exists`);
+  const pool=candidates[bot.id]||[];
+  const candidate=pool.find(item=>{const title=item.title.toLowerCase();return !existing.has(title)&&!completed.has(title);});
+  if(!candidate)throw new Error(`${bot.id}: no unused deterministic product-gap fallback remains`);
   return candidate;
 }
 async function aiPlan(bots,library,inv,completedTitles){
@@ -67,8 +75,8 @@ async function main(){
   const bots=(registry.bots||[]).filter(b=>allowedBots.includes(b.id)&&b.specialistBuilder===true&&b.status==='verified');if(bots.length<2)throw new Error('at least two verified specialist Builders are required');
   const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const completedTitles=new Set([...completedSpecialistTitles(),...completedObjectiveRegistry()]);let rawPackages=[];let source='ai-discovery';let aiFailure='';
   try{rawPackages=await aiPlan(bots,library,inv,completedTitles);if(!Array.isArray(rawPackages)||rawPackages.length<bots.length)throw new Error('AI planner returned too few packages');}
-  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library));}
-  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{const item=byId.get(bot.id)||fallback(bot,library);return validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles);});
+  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library,completedTitles));}
+  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{const item=byId.get(bot.id)||fallback(bot,library,completedTitles);return validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles);});
   const plan={schemaVersion:1,source,generatedAt:new Date().toISOString(),discovery:{model,aiFailure:aiFailure||null,completedSpecialistObjectives:Array.from(completedTitles)},workers:packages};fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(plan,null,2)+'\n');console.log(JSON.stringify({ok:true,status:'parallel-plan-created',source,workers:packages.map(p=>({botId:p.botId,title:p.title,files:p.files}))}));
 }
 main().catch(error=>{console.error(`[parallel-planner] ${error.message}`);process.exit(1);});
