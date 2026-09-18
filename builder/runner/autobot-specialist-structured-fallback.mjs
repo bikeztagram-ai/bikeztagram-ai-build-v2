@@ -83,10 +83,13 @@ try {
     env,
     timeout: minutes * 60_000 + 30_000
   });
-  if (result.error || result.status !== 0) {
-    console.warn(`[autobot] structured specialist fallback did not complete (${result.error?.message || result.status}); trying deterministic product fallback.`);
+  const changed = spawnSync('git', ['diff', '--name-only', '--', ...files], { cwd: root, encoding: 'utf8' });
+  const hasProductChange = Boolean(changed.stdout?.trim());
+  if (result.error || result.status !== 0 || !hasProductChange) {
+    const reason = result.error?.message || result.status || (hasProductChange ? 'unknown' : 'structured fallback produced no product change');
+    console.warn(`[autobot] structured specialist fallback did not materialize an owned product change (${reason}); trying deterministic product fallback.`);
     const deterministic = spawnSync(process.execPath, ['builder/runner/autobot-specialist-deterministic-fallback.mjs'], { cwd: root, stdio: 'inherit', env: process.env, timeout: 30_000 });
-    if (deterministic.error || deterministic.status !== 0) fail(`structured and deterministic specialist fallbacks failed (${result.error?.message || result.status}; deterministic=${deterministic.error?.message || deterministic.status})`);
+    if (deterministic.error || deterministic.status !== 0) fail(`structured and deterministic specialist fallbacks failed (${reason}; deterministic=${deterministic.error?.message || deterministic.status})`);
     console.log(JSON.stringify({ ok: true, engine: 'deterministic-specialist-fallback-v1', files }));
     result.status=0; result.error=null;
   }
