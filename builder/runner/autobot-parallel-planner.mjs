@@ -20,7 +20,7 @@ function completedSpecialistTitles(){
   try{
     const log=execFileSync('git',['log','-n','100','--format=%s'],{cwd:root,encoding:'utf8'});
     return log.split(/\r?\n/).map(line=>{
-      const m=line.match(/^autobot\\((?:director-builder|timeline-builder)\\):\\s*(.+?)(?:\\s+\\(#\\d+\\))?$/i);
+      const m=line.match(/^autobot\((?:director-builder|timeline-builder)\):\s*(.+?)(?:\s+\(#\d+\))?$/i);
       return m?m[1].trim().toLowerCase():'';
     }).filter(Boolean);
   }catch{return [];}
