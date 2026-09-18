@@ -31,7 +31,7 @@ if(specialist==='timeline-builder' && objective.includes('cadence-aware transiti
   files=[replaceOnce(
     'src/director.js',
     "const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;const finalScore=clamp(Math.round(roleScore+qualityBoost+promptBoost-diversityPenalty),0,100);",
-    "const hookPayoffBoost=(r==='hook'||r==='hero-ending')?evidence*.08:0;const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;const finalScore=clamp(Math.round(roleScore+qualityBoost+hookPayoffBoost+promptBoost-diversityPenalty),0,100);",
+    "const hookPayoffBoost=(role==='hook'||role==='hero-ending')?evidence*.08:0;const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;const finalScore=clamp(Math.round(roleScore+qualityBoost+hookPayoffBoost+promptBoost-diversityPenalty),0,100);",
     'evidence-weighted hook/payoff scoring'
   )];
 } else {
