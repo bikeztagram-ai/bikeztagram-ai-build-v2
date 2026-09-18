@@ -101,7 +101,7 @@ jobs:
       - run: python -m pip install --disable-pip-version-check --no-input aider-chat
       - run: bash scripts/autobot/install-local-brain.sh
         env:
-          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
           LOCAL_AI_PROXY_NUM_CTX: 4096
@@ -228,7 +228,7 @@ jobs:
         if: steps.classify.outputs.repairable == 'true'
         run: bash scripts/autobot/install-local-brain.sh
         env:
-          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
           LOCAL_AI_PROXY_NUM_CTX: 4096
           LOCAL_AI_PROXY_NUM_PREDICT: 900
           OLLAMA_CONTEXT_LENGTH: 4096
@@ -245,7 +245,7 @@ jobs:
       - name: Repair specialist failure
         if: steps.classify.outputs.repairable == 'true'
         env:
-          AUTOBOT_AIDER_MODEL: ${{ inputs.local_model }}
+          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           OLLAMA_API_BASE: http://127.0.0.1:11435
           OLLAMA_HOST: http://127.0.0.1:11435
         run: node builder/runner/autobot-specialist-recovery.mjs builder/working/specialist-results/${{ matrix.bot }}
