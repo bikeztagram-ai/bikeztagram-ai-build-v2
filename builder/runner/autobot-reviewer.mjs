@@ -30,7 +30,7 @@ try{
       const directorPath=path.join(tempDir,'src','director.js');
       const director=fs.existsSync(directorPath)?fs.readFileSync(directorPath,'utf8'):'';
       let baseDirector='';
-      try{baseDirector=git(['show',`8aab077e8205e7a9f67e36a8326450f2e488e8a0:src/director.js`]);}catch{}
+      try{baseDirector=git(['show',`${base}:src/director.js`]);}catch{}
       const fixedStoryPattern=director.includes("const roles=desiredCount===1?['hero-ending']:['hook'")||director.includes("['hook',...middleRoles");
       const baseHadFixedStoryPattern=baseDirector.includes("const roles=desiredCount===1?['hero-ending']:['hook'")||baseDirector.includes("['hook',...middleRoles");
       if(fixedStoryPattern&&!baseHadFixedStoryPattern)finding('high','fixed-story-template','candidate introduces forced hook/middle/hero-ending bookends instead of deriving structure from intent and evidence',['src/director.js']);
