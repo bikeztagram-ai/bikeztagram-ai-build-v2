@@ -20,6 +20,8 @@ const safetyMinutes=Math.max(1,Number.parseInt(process.env.AUTOBOT_CYCLE_SAFETY_
 const startMs=Number.parseInt(process.env.AUTOBOT_RUN_STARTED_EPOCH_MS||String(Date.now()),10);
 const deadlineMs=startMs+totalMinutes*60_000;
 const bots=['director-builder','timeline-builder'];
+const statusPath=path.join(root,'builder','working','autobot-live-status.log');
+function status(message){const line=`[${new Date().toISOString()}] ${message}`;console.log(`\\n${line}`);fs.mkdirSync(path.dirname(statusPath),{recursive:true});fs.appendFileSync(statusPath,line+'\\n');}
 
 function parseDuration(v){
   const m=String(v).trim().toLowerCase().match(/^(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?$/);
@@ -146,20 +148,28 @@ function integrate(cycle,baseRef,verified){
 
 async function cycle(cycleNumber,baseRef){
   setCycleEnv(cycleNumber);
-  log(`===== CYCLE ${cycleNumber} =====`);
+  status(`===== CYCLE ${cycleNumber} =====`);
   log(`base=${baseRef}; remaining=${(remainingMs()/60000).toFixed(1)}m; specialist budget=${configuredCycleMinutes}m`);
   ensureClean();checkoutBase(baseRef);
   fs.rmSync(path.join(root,'builder','working','persistent'),{recursive:true,force:true});
   run('node',['builder/runner/autobot-parallel-planner.mjs']);
   const plan=readJson(path.join(root,'builder','working','autobot-parallel-plan.json'));
   if(!plan?.workers||plan.workers.length<2)fail('parallel planner did not produce two specialist packages');
+  status(`PLANNER complete | Director=${plan.workers.find(x=>x.botId==='director-builder')?.title||'missing'} | Timeline=${plan.workers.find(x=>x.botId==='timeline-builder')?.title||'missing'}`);
+  status('SPECIALISTS starting in parallel | Director + Timeline');
   await runSpecialists(cycleNumber,plan);
+  status('SPECIALISTS complete | candidate handoffs collected');
+  status('REPAIR checking specialist failures');
   await runRepairs();
+  status('REPAIR complete');
+  status('QA + REVIEWER starting independent verification');
   const verified=await verifyCandidates(cycleNumber);
+  status(`QA + REVIEWER complete | ${verified.filter(x=>x.check?.status==='pass').length}/${verified.length} passed`);
   const failures=verified.filter(x=>x.check?.status!=='pass');
   if(failures.length)fail(`independent candidate verification failed for: ${failures.map(x=>x.bot).join(', ')}`);
+  status('CARRY-FORWARD integrating verified candidates');
   const nextRef=integrate(cycleNumber,baseRef,verified);
-  log(`cycle ${cycleNumber} verified and carried forward as ${nextRef}`);
+  status(`CYCLE ${cycleNumber} VERIFIED + CARRIED FORWARD | ${nextRef}`);
   return nextRef;
 }
 
@@ -184,6 +194,7 @@ async function main(){
       baseRef=await cycle(cycleNumber,baseRef);
       audit.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),status:'verified-and-carried-forward'});
       cycleNumber++;
+      status(`NEXT CYCLE READY | cycle=${cycleNumber} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
       writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'running',nextCycle:cycleNumber,baseRef,audit,deadlineMs:deadlineMs,finishGraceMinutes});
     }catch(error){
       writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'blocked',nextCycle:cycleNumber,baseRef,audit,deadlineMs:deadlineMs,error:String(error?.message||error)});
@@ -193,6 +204,6 @@ async function main(){
   ensureClean();
   checkoutBase(baseRef);
   writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'finished',nextCycle:cycleNumber,baseRef,audit,deadlineMs,finishGraceMinutes});
-  log(`FINISHED: ${audit.length} verified cycles; final cumulative ref=${baseRef}; remaining grace/safety=${(remainingMs()/60000).toFixed(1)}m`);
+  status(`FINISHED | ${audit.length} verified cycle(s) | final=${baseRef} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
 }
 main().catch(error=>{console.error(`[autobot-persistent] FATAL: ${error.message}`);process.exit(1);});
