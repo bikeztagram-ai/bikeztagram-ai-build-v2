@@ -10,6 +10,8 @@ if(process.argv.includes('--cycle-gate')){
   assert(registry.enabled===true&&registry.coordination?.mode==='active','fleet must already be active');
   assert(registry.activationGate?.protectedIntegration===false,'protected integration must remain disabled');
   assert(registry.coordination?.maxConcurrentWorkers>=2,'two specialist lanes are required');
+assert(registry.coordination?.enduranceWorkflow==='.github/workflows/autobot-endurance.yml','registry must expose endurance workflow');
+assert(registry.coordination?.enduranceCycleWorkflow==='.github/workflows/autobot-endurance-cycle.yml','registry must expose reusable cycle workflow');
   process.exit(0);
 }
 assert(cycle.includes('workflow_call:'),'cycle must be reusable');
