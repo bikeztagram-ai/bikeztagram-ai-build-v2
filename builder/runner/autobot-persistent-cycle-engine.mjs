@@ -45,7 +45,7 @@ function remainingMs(){return Math.max(0,deadlineMs-Date.now());}
 function log(message){console.log(`[autobot-persistent] ${message}`);}
 function ensureClean(){run('git',['reset','--hard']);run('git',['clean','-fd','builder/working']);}
 function checkoutBase(ref){
-  run('git',['fetch','origin',`+refs/heads/${ref}:refs/remotes/origin/${ref}']);
+  run('git',['fetch','origin',`+refs/heads/${ref}:refs/remotes/origin/${ref}`]);
   run('git',['checkout','--detach',ref]);
 }
 function objectiveFor(plan,bot){
