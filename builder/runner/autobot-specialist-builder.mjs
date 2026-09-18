@@ -146,7 +146,14 @@ let keepBranch = false;
 let candidatePatch = '';
 try {
   run('git', ['worktree', 'add', '-b', branch, worktree, base], root);
-  run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
+  const skipNpmInstall = String(process.env.AUTOBOT_SKIP_NPM_INSTALL || '').toLowerCase() === 'true';
+  if (skipNpmInstall) {
+    const modules = path.join(root, 'node_modules');
+    if (!fs.existsSync(modules)) fail('AUTOBOT_SKIP_NPM_INSTALL requested but root node_modules is missing.');
+    fs.symlinkSync(modules, path.join(worktree, 'node_modules'), 'junction');
+  } else {
+    run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
+  }
   const assignmentPath = path.join(worktree, 'builder/working/autobot-orchestrator-assignment.json');
   const objective = parseObjective(objectiveText, bot, files);
   fs.mkdirSync(path.dirname(assignmentPath), { recursive: true });
@@ -197,7 +204,7 @@ try {
   if (unauthorized.length) fail(`Specialist Builder modified out-of-scope files: ${unauthorized.join(', ')}`);
   run('git', ['diff', base, '--check'], worktree);
   const productQuality = String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK || 'npm run verify:autobot-product-change-quality').trim();
-  run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
+  if (!skipNpmInstall) run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
   run('npm', ['run', 'build'], worktree);
   run('sh', ['-lc', productQuality], worktree);
   const headBeforeCommit = git(['rev-parse', 'HEAD'], worktree);
