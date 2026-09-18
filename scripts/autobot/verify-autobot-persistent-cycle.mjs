@@ -38,6 +38,8 @@ const checks=[
  [workflow.includes('Ollama live status') || workflow.includes('AutoBot live status'),'workflow must capture readable live status evidence'],
  [workflow.includes('OLLAMA_HOST=127.0.0.1:11434 ollama ps'),'Ollama diagnostics must query the real server, not the chat proxy'],
  [engine.includes('finishGraceMinutes'),'finish grace must be enforced by the engine'],
+ [engine.includes('normalDeadlineMs')&&engine.includes('hardDeadlineMs'),'engine must distinguish normal work deadline from hard finish-grace deadline'],
+ [engine.includes('remainingNormalMs()')&&engine.includes('finish grace is reserved for the active final cycle'),'cycle launch gate must not consume the entire finish grace as dead time'],
  [engine.includes('AUTOBOT_SKIP_NPM_INSTALL'),'persistent cycle must reuse the warm dependency tree'],
  [specialist.includes('AUTOBOT_SPECIALIST_HANDOFF_PATH'),'parallel specialists must have isolated handoff outputs'],
  [specialist.includes('AUTOBOT_SKIP_NPM_INSTALL'),'persistent specialists must be able to reuse root node_modules'],
