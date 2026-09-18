@@ -26,6 +26,11 @@ function completedSpecialistTitles(){
     }).filter(Boolean);
   }catch{return [];}
 }
+function completedObjectiveRegistry(){
+  const data=readJson(completedObjectivesPath,{objectives:[]});
+  const entries=Array.isArray(data)?data:data.objectives;
+  return entries.map(x=>String(x?.title??x??'').trim().toLowerCase()).filter(Boolean);
+}
 function validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles){
   const p={botId:bot.id,title:String(item.title||'').trim(),whyNow:String(item.whyNow||'').trim(),files:Array.isArray(item.files)?item.files.map(String).map(s=>s.trim()).filter(Boolean):[],acceptance:Array.isArray(item.acceptance)?item.acceptance.map(String).map(s=>s.trim()).filter(Boolean):[],constraints:Array.isArray(item.constraints)?item.constraints.map(String).map(s=>s.trim()).filter(Boolean):[],priority:Number(item.priority)};
   if(!p.title||!p.whyNow||!p.acceptance.length||!p.files.length||!Number.isFinite(p.priority))throw new Error(`${bot.id}: incomplete work package`);
