@@ -25,7 +25,10 @@ const statusPath=path.join(root,'builder','working','autobot-live-status.log');
 function status(message){const line=`[${new Date().toISOString()}] ${message}`;console.log(`\\n${line}`);fs.mkdirSync(path.dirname(statusPath),{recursive:true});fs.appendFileSync(statusPath,line+'\\n');}
 
 function parseDuration(v){
-  const m=String(v).trim().toLowerCase().match(/^(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?$/);
+  const value=String(v).trim().toLowerCase();
+  const hm=value.match(/^(\d+)h(?:(\d+)m)?$/);
+  if(hm)return Number(hm[1])*60+Number(hm[2]||0);
+  const m=value.match(/^(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?$/);
   if(!m)return 30;
   const n=Number(m[1]); return /h/.test(m[2]||'')?n*60:n;
 }
