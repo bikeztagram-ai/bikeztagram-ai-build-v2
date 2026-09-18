@@ -5,6 +5,8 @@ const root=process.cwd();
 const registry=JSON.parse(fs.readFileSync(path.join(root,'builder/brain/autobot-fleet.json'),'utf8'));
 const cycle=fs.readFileSync(path.join(root,'.github/workflows/autobot-endurance-cycle.yml'),'utf8');
 const endurance=fs.readFileSync(path.join(root,'.github/workflows/autobot-endurance.yml'),'utf8');
+const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
+
 const assert=(ok,msg)=>{if(!ok)throw new Error(msg)};
 if(process.argv.includes('--cycle-gate')){
   assert(registry.enabled===true&&registry.coordination?.mode==='active','fleet must already be active');
@@ -20,6 +22,8 @@ assert(cycle.includes('autobot-parallel-planner.mjs'),'every cycle must re-plan'
 assert(cycle.includes('autobot-specialist-builder.mjs'),'every cycle must build product work');
 assert(cycle.includes('autobot-specialist-recovery.mjs'),'existing recovery must remain');
 assert(cycle.includes('autobot-endurance-candidate-check.mjs'),'candidates need independent QA/Reviewer verification');
+assert(cycle.includes('verify:autobot-product-change-quality'),'endurance must use the canonical product-quality verifier');
+assert(pkg.scripts?.['verify:autobot-cumulative-endurance']==='node scripts/autobot/verify-autobot-cumulative-endurance.mjs','package verifier registration is missing');
 assert(cycle.includes('cumulative_ref:'),'cycle must return cumulative state');
 assert(cycle.includes('git push --set-upstream origin'),'cumulative state must be preserved');
 assert(endurance.includes('cycle1:')&&endurance.includes('cycle2:')&&endurance.includes('cycle3:'),'endurance must expose three sequential stages');
