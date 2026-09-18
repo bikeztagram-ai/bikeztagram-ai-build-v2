@@ -150,7 +150,7 @@ try {
   if (skipNpmInstall) {
     const modules = path.join(root, 'node_modules');
     if (!fs.existsSync(modules)) fail('AUTOBOT_SKIP_NPM_INSTALL requested but root node_modules is missing.');
-    fs.symlinkSync(modules, path.join(worktree, 'node_modules'), 'junction');
+    fs.symlinkSync(modules, path.join(worktree, 'node_modules'), 'dir');
   } else {
     run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
   }
