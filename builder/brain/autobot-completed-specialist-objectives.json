@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "objectives": [
+    {"title":"Adaptive hook-to-payoff shot scoring","completedBy":"director-builder","integration":"PR #783","candidateCommit":"f1d3498469810177277a736b25e23c8abb722cdd"},
+    {"title":"Cadence-aware transition density","completedBy":"timeline-builder","integration":"PR #782","candidateCommit":"808ce56664679b70b88879562a57d5b39d73f346"}
+  ]
+}
