@@ -58,7 +58,7 @@ jobs:
           node -e "const x=require('/tmp/bikeztagram-planner-smoke.json'); if(!x.message?.content && !x.response) process.exit(1); console.log('[autobot] planner model smoke test passed')"
       - name: Discover independent work packages
         run: node builder/runner/autobot-parallel-planner.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: autobot-parallel-plan-${{ github.run_id }}
           path: builder/working/autobot-parallel-plan.json
@@ -77,7 +77,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: autobot-parallel-plan-${{ github.run_id }}
           path: builder/working
@@ -169,7 +169,7 @@ jobs:
           test -n "$branch" && test -n "$candidate"
           git push --set-upstream origin "$branch"
           gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --draft --title "AutoBot ${BOT} candidate" --body "Parallel specialist candidate ${candidate}. Isolated scope and product-quality checks passed; downstream QA/Reviewer required before integration." || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: autobot-specialist-${{ matrix.bot }}-${{ github.run_id }}
@@ -196,7 +196,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
       - name: Download specialist result
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           name: autobot-specialist-${{ matrix.bot }}-${{ github.run_id }}
@@ -269,7 +269,7 @@ jobs:
           tail -n 160 /tmp/bikeztagram-ollama.log || true
           echo '--- performance proxy log ---'
           tail -n 160 /tmp/bikeztagram-ollama-proxy.log || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: autobot-specialist-recovery-${{ matrix.bot }}-${{ github.run_id }}
@@ -295,25 +295,25 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
       - name: Download Director specialist result
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           name: autobot-specialist-director-builder-${{ github.run_id }}
           path: builder/working/specialist-results/director-builder
       - name: Download Timeline specialist result
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           name: autobot-specialist-timeline-builder-${{ github.run_id }}
           path: builder/working/specialist-results/timeline-builder
       - name: Download Director recovery result
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           name: autobot-specialist-recovery-director-builder-${{ github.run_id }}
           path: builder/working/specialist-results/director-builder/recovery
       - name: Download Timeline recovery result
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         continue-on-error: true
         with:
           name: autobot-specialist-recovery-timeline-builder-${{ github.run_id }}
@@ -324,7 +324,7 @@ jobs:
         run: node builder/runner/autobot-completed-work.mjs
       - name: Publish central completed-work manifest
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: autobot-completed-work-${{ github.run_id }}
           path: builder/working/autobot-completed-work.json
