@@ -402,7 +402,14 @@ jobs:
           now_ms="$(date +%s000)"
           total_minutes="$(case "$TOTAL_DURATION" in 15m) echo 15;; 30m) echo 30;; 1h) echo 60;; 4h) echo 240;; 5h) echo 300;; *) echo 0;; esac)"
           if [ "$total_minutes" -le 0 ]; then echo "[autobot] invalid total duration: $TOTAL_DURATION"; exit 1; fi
-          if [ -z "$DEADLINE" ]; then\n            run_started_at="$RUN_STARTED_AT"\n            if [ -z "$run_started_at" ]; then run_started_at="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at)"; fi\n            start_ms="$(date -d "$run_started_at" +%s000)"\n            deadline_ms="$((start_ms + total_minutes * 60 * 1000))"\n          else\n            deadline_ms="$DEADLINE"\n          fi
+          if [ -z "$DEADLINE" ]; then
+            run_started_at="$RUN_STARTED_AT"
+            if [ -z "$run_started_at" ]; then run_started_at="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at)"; fi
+            start_ms="$(date -d "$run_started_at" +%s000)"
+            deadline_ms="$((start_ms + total_minutes * 60 * 1000))"
+          else
+            deadline_ms="$DEADLINE"
+          fi
           remaining_ms="$((deadline_ms - now_ms))"
           required_ms="$((CYCLE_MINUTES * 60 * 1000 + 60 * 1000))"
           if [ "$remaining_ms" -lt "$required_ms" ]; then echo "[autobot] cumulative deadline reached; no new cycle will start (remaining_ms=$remaining_ms, required_ms=$required_ms)"; exit 0; fi
