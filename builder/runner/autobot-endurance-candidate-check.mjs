@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {execFileSync,spawnSync} from 'node:child_process';
 const root=process.cwd(), bot=process.argv[2];
 if(!bot)throw new Error('candidate check requires bot id');
@@ -13,13 +14,14 @@ if(o?.status==='failure'&&!r)throw new Error('No verified recovery candidate exi
 if(!candidate||!base||!branch)throw new Error('Candidate handoff is incomplete for '+bot);
 if(!/^[0-9a-f]{40}$/i.test(candidate)||!/^[0-9a-f]{40}$/i.test(base))throw new Error('Candidate/base must be full SHAs');
 execFileSync('git',['fetch','origin',branch],{stdio:'inherit'});
-const temp=path.join(require('node:os').tmpdir(),'bikeztagram-endurance-'+bot+'-'+process.pid);
+const temp=path.join(os.tmpdir(),'bikeztagram-endurance-'+bot+'-'+process.pid);
 try{execFileSync('git',['worktree','add','--detach',temp,candidate],{stdio:'inherit'});
 const files=execFileSync('git',['diff','--name-only',base,candidate],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean);
 const registry=JSON.parse(fs.readFileSync(path.join(root,'builder/brain/autobot-fleet.json'),'utf8'));
 const record=registry.bots.find(x=>x.id===bot);
 const unauthorized=files.filter(x=>!(record?.ownsFiles||[]).includes(x));
 if(unauthorized.length)throw new Error('candidate escaped scope: '+unauthorized.join(','));
+if(spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA dependency install failed');
 if(spawnSync('npm',['run','build'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA build failed');
 if(spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA product-quality failed');
 const out=path.join(root,'builder/working/autobot-endurance-review.json');
