@@ -1,0 +1,41 @@
+name: AutoBot Persistent Contract Check
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/autobot-parallel-specialists.yml'
+      - 'builder/runner/autobot-persistent-cycle-engine.mjs'
+      - 'builder/runner/autobot-specialist-builder.mjs'
+      - 'builder/runner/autobot-specialist-recovery.mjs'
+      - 'builder/runner/autobot-endurance-candidate-check.mjs'
+      - 'builder/runner/autobot-specialist-handoff.mjs'
+      - 'builder/runner/autobot-parallel-planner.mjs'
+      - 'scripts/autobot/verify-autobot-persistent-cycle.mjs'
+      - 'package.json'
+  push:
+    branches:
+      - 'autobot/persistent-cycle-engine'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund --no-package-lock
+      - name: Parse AutoBot JavaScript
+        run: |
+          set -euo pipefail
+          for f in             builder/runner/autobot-persistent-cycle-engine.mjs             builder/runner/autobot-specialist-builder.mjs             builder/runner/autobot-specialist-recovery.mjs             builder/runner/autobot-endurance-candidate-check.mjs             builder/runner/autobot-specialist-handoff.mjs             builder/runner/autobot-parallel-planner.mjs             scripts/autobot/verify-autobot-persistent-cycle.mjs; do
+            node --check "$f"
+          done
+      - name: Run deep AutoBot chain audit
+        run: npm run verify:autobot-persistent-cycle
