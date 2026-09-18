@@ -95,7 +95,7 @@ export function buildCompletedWork({inputRoot='builder/working/specialist-result
     }
   }
 
-  const status=candidates.length?'ready-for-review':failures.length?'needs-recovery':'no-worker-output';
+  const status=failures.length?'needs-recovery':candidates.length?'ready-for-review':'no-worker-output';
   const manifest={
     schemaVersion:COMPLETED_WORK_SCHEMA,runId:String(runId),generatedAt:new Date().toISOString(),status,
     summary:{candidateCount:candidates.length,failureCount:failures.length,repairableFailureCount:failures.filter(x=>x.repairable===true).length},
