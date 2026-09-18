@@ -40,7 +40,7 @@ function validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles){
   const banned=/\b(builder|workflow|github|vercel|autobot|orchestrat|repair bot|qa bot|reviewer|self-improvement|infrastructure|validator|gate|secret|credential)\b/i;if(banned.test(`${p.title} ${p.whyNow} ${p.acceptance.join(' ')}`))throw new Error(`${bot.id}: proposed non-product work`);
   seenTitles.add(p.title.toLowerCase());for(const f of p.files)seenFiles.add(f);return p;
 }
-function fallback(bot,library,completedTitles=new Set()){
+function fallback(bot,library,completedTitles=new Set()) {
   const existing=new Set(objectivesFromLibrary(library).map(o=>String(o?.title||'').trim().toLowerCase()));
   const completed=completedTitles instanceof Set?completedTitles:new Set(completedTitles);
   const candidates={
@@ -53,8 +53,42 @@ function fallback(bot,library,completedTitles=new Set()){
       {title:'Energy-aware motion intensity',whyNow:'Tie executable motion intensity to editorial role and energy so action beats feel more dynamic while calmer beats retain controlled movement.',files:['src/executableTimeline.js'],acceptance:['motion intensity responds deterministically to role and creative intent','action and calm sequences produce different executable motion values','normalized motion remains within safe bounds','directorExecution carries the chosen intensity to rendering','npm run build passes'],constraints:['preserve timeline contracts','keep motion bounded','do not alter provider abstraction'],priority:91}
     ]
   };
-  const pool=candidates[bot.id]||[];
-  const candidate=pool.find(item=>{const title=item.title.toLowerCase();return !existing.has(title)&&!completed.has(title);});
+  const pool=[...(candidates[bot.id]||[])];
+  const owned=new Set((bot.ownsFiles||[]).map(String));
+  const inv=new Set(inventory());
+
+  // After the small known fallbacks are exhausted, deterministically decompose
+  // the product objective library into one acceptance slice at a time. This
+  // keeps long runs productive when local AI discovery is temporarily
+  // unavailable, while git history prevents the same slice being repeated.
+  for(const objective of objectivesFromLibrary(library)){
+    const title=String(objective?.title||'').trim();
+    if(!title)continue;
+    const targetFile=(Array.isArray(objective.files)?objective.files:[]).map(String).find(f=>owned.has(f)&&inv.has(f));
+    if(!targetFile)continue;
+    for(const acceptance of (Array.isArray(objective.acceptance)?objective.acceptance:[])){
+      const clause=String(acceptance||'').trim();
+      if(!clause)continue;
+      const generatedTitle=`${title} — ${clause}`;
+      pool.push({
+        title:generatedTitle,
+        whyNow:`Implement the product capability represented by this uncompleted acceptance slice: ${clause}.`,
+        files:[targetFile],
+        acceptance:[
+          clause,
+          'the change affects the real production decision path rather than existing only as metadata',
+          'npm run build passes'
+        ],
+        constraints:Array.isArray(objective.constraints)?objective.constraints.map(String):[],
+        priority:Math.max(50,Number(objective.priority)||50)
+      });
+    }
+  }
+
+  const candidate=pool.find(item=>{
+    const title=String(item.title||'').toLowerCase();
+    return !existing.has(title)&&!completed.has(title);
+  });
   if(!candidate)throw new Error(`${bot.id}: no unused deterministic product-gap fallback remains`);
   return candidate;
 }
