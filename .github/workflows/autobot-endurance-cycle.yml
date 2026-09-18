@@ -34,8 +34,11 @@ jobs:
           path: builder/working/autobot-parallel-plan.json
   specialists:
     needs: plan
-    strategy: {fail-fast: false, max-parallel: 2}
-    matrix: {bot: [director-builder, timeline-builder]}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        bot: [director-builder, timeline-builder]
     runs-on: ubuntu-latest
     timeout-minutes: 330
     steps:
@@ -98,8 +101,11 @@ jobs:
   recovery:
     needs: specialists
     if: always()
-    strategy: {fail-fast: false, max-parallel: 2}
-    matrix: {bot: [director-builder, timeline-builder]}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        bot: [director-builder, timeline-builder]
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -143,8 +149,11 @@ jobs:
   verify-candidates:
     needs: [specialists, recovery]
     if: always()
-    strategy: {fail-fast: false, max-parallel: 2}
-    matrix: {bot: [director-builder, timeline-builder]}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        bot: [director-builder, timeline-builder]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
