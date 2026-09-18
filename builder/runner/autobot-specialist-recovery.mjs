@@ -34,7 +34,7 @@ function verifyCandidateTree(cwd){
   if(String(process.env.AUTOBOT_SKIP_NPM_INSTALL||'').toLowerCase()==='true'){
     const modules=path.join(originalRoot,'node_modules');
     if(!fs.existsSync(modules))return {ok:false,stage:'npm-install',error:'persistent root node_modules is missing'};
-    if(!fs.existsSync(path.join(cwd,'node_modules')))fs.symlinkSync(modules,path.join(cwd,'node_modules'),'junction');
+    if(!fs.existsSync(path.join(cwd,'node_modules')))fs.symlinkSync(modules,path.join(cwd,'node_modules'),'dir');
   }
   const install=String(process.env.AUTOBOT_SKIP_NPM_INSTALL||'').toLowerCase()==='true'?{error:null,status:0}:spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd,encoding:'utf8',stdio:'inherit',timeout:180_000});
   if(install.error||install.status!==0)return {ok:false,stage:'npm-install',error:String(install.error?.message||install.status)};
