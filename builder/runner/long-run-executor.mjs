@@ -33,7 +33,7 @@ const maxFeatureCycles=Math.max(1,Number.parseInt(process.env.AUTOBOT_MAX_FEATUR
 const configuredFeaturePasses=process.env.AUTOBOT_FEATURE_PASSES||process.env.AUTOBOT_FEATURE_PASSES_PER_SLICE||'2';
 const featurePassesPerSlice=Math.max(1,Math.min(3,Number.parseInt(configuredFeaturePasses,10)||2));
 const configuredEngine=String(process.env.AUTOBOT_FEATURE_ENGINE||'structured').trim().toLowerCase();
-const selectedFeatureEngine=specialistMode?String(process.env.AUTOBOT_SPECIALIST_FEATURE_ENGINE||'structured').trim().toLowerCase():configuredEngine;
+const selectedFeatureEngine=specialistMode?String(process.env.AUTOBOT_SPECIALIST_FEATURE_ENGINE||'aider').trim().toLowerCase():configuredEngine;
 const featureEngine=selectedFeatureEngine==='aider'?'builder/runner/aider-feature-brain.mjs':'builder/runner/feature-brain.mjs';
 const featureProtocol=selectedFeatureEngine==='aider'?(process.env.AUTOBOT_FEATURE_PROTOCOL||'aider-repo-map-v4'):(process.env.AUTOBOT_FEATURE_PROTOCOL||'structured-search-replace-v3');
 if(!['aider','structured'].includes(selectedFeatureEngine))throw new Error(`Unsupported AutoBot feature engine: ${selectedFeatureEngine}`);
