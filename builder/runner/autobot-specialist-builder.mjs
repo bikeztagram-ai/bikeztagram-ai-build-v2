@@ -18,6 +18,7 @@ const botId = String(process.env.AUTOBOT_SPECIALIST_BOT_ID || '').trim();
 const objectiveText = String(process.env.AUTOBOT_SPECIALIST_OBJECTIVE || '').trim();
 const enabled = String(process.env.AUTOBOT_SPECIALIST_BUILDER_ENABLED || '').trim().toLowerCase() === 'true';
 const outcomePath = process.env.AUTOBOT_SPECIALIST_OUTCOME_PATH || path.join(root, 'builder/working/autobot-specialist-outcome.json');
+const handoffPath = process.env.AUTOBOT_SPECIALIST_HANDOFF_PATH || path.join(root, 'builder/working/autobot-specialist-handoff.json');
 const failurePatchPath = process.env.AUTOBOT_SPECIALIST_FAILURE_PATCH_PATH || path.join(root, 'builder/working/autobot-specialist-failure.patch');
 
 function fail(message) { throw new Error(message); }
@@ -145,7 +146,14 @@ let keepBranch = false;
 let candidatePatch = '';
 try {
   run('git', ['worktree', 'add', '-b', branch, worktree, base], root);
-  run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
+  const skipNpmInstall = String(process.env.AUTOBOT_SKIP_NPM_INSTALL || '').toLowerCase() === 'true';
+  if (skipNpmInstall) {
+    const modules = path.join(root, 'node_modules');
+    if (!fs.existsSync(modules)) fail('AUTOBOT_SKIP_NPM_INSTALL requested but root node_modules is missing.');
+    fs.symlinkSync(modules, path.join(worktree, 'node_modules'), 'dir');
+  } else {
+    run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
+  }
   const assignmentPath = path.join(worktree, 'builder/working/autobot-orchestrator-assignment.json');
   const objective = parseObjective(objectiveText, bot, files);
   fs.mkdirSync(path.dirname(assignmentPath), { recursive: true });
@@ -196,7 +204,7 @@ try {
   if (unauthorized.length) fail(`Specialist Builder modified out-of-scope files: ${unauthorized.join(', ')}`);
   run('git', ['diff', base, '--check'], worktree);
   const productQuality = String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK || 'npm run verify:autobot-product-change-quality').trim();
-  run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
+  if (!skipNpmInstall) run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
   run('npm', ['run', 'build'], worktree);
   run('sh', ['-lc', productQuality], worktree);
   const headBeforeCommit = git(['rev-parse', 'HEAD'], worktree);
@@ -208,11 +216,11 @@ try {
   if (!staged.length) fail('Specialist Builder produced no product change.');
   run('git', ['commit', '-m', `autobot(${botId}): ${objective.title.slice(0, 72)}`], worktree);
   const candidate = git(['rev-parse', 'HEAD'], worktree);
-  const handoffPath = writeSpecialistHandoff({ schemaVersion: 'autobot-specialist-handoff-v1', botId, objective: objectiveText, baseCommit: base, candidateCommit: candidate, branch, ownsFiles: staged, productQualityCheck: productQuality, status: 'verified-candidate', downstream: { reviewContract: 'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT' } });
+  const handoffFile = writeSpecialistHandoff({ schemaVersion: 'autobot-specialist-handoff-v1', botId, objective: objectiveText, baseCommit: base, candidateCommit: candidate, branch, ownsFiles: staged, productQualityCheck: productQuality, status: 'verified-candidate', downstream: { reviewContract: 'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT' } }, handoffPath);
   fs.mkdirSync(path.dirname(outcomePath), { recursive: true });
-  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffPath], engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
+  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffFile], engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
   keepBranch = true;
-  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath }));
+  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath: handoffFile }));
 } catch (error) {
   writeFailureOutcome({ error, base, worktree, files, candidatePatch });
   throw error;
