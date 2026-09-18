@@ -84,6 +84,11 @@ async function runSpecialists(cycle,plan){
     const bot=bots[i],dir=resultDir(bot),outcome=readJson(path.join(dir,'autobot-specialist-outcome.json'));
     if(!outcome){
       writeJson(path.join(dir,'autobot-specialist-outcome.json'),{schemaVersion:'autobot-specialist-outcome-v1',botId:bot,status:'failure',category:'infrastructure',repairable:false,error:`specialist exited without an outcome (status ${results[i].status})`});
+    } else if(outcome.status==='success') {
+      const handoff=readJson(path.join(dir,'autobot-specialist-handoff.json'));
+      if(!handoff?.branch||!handoff?.candidateCommit)fail(`successful specialist ${bot} did not publish a complete handoff`);
+      run('git',['push','--set-upstream','origin',handoff.branch]);
+      log(`published ${bot} candidate ${handoff.candidateCommit}`);
     }
   }
   return results;
