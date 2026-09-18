@@ -47,7 +47,9 @@ const checks=[
  [recovery.includes('AUTOBOT_SKIP_NPM_INSTALL'),'Repair Bot must be able to reuse root node_modules'],
  [candidate.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate reviewers must have isolated outputs'],
  [candidate.includes('AUTOBOT_SKIP_NPM_INSTALL'),'candidate QA must be able to reuse root node_modules'],
- [planner.includes('completedSpecialistTitles'),'Planner must avoid repeating completed specialist objectives'],
+ [planner.includes('completedSpecialistTitles'),'Planner must avoid repeating completed specialist objectives'],\n [planner.includes('deterministically decompose')&&planner.includes('objective.acceptance'),'Planner must have a product-library fallback when AI discovery is unavailable'],
+ [planner.includes('completed.has(title)'),'Planner fallback must reject already-completed generated objectives'],
+ [planner.includes('source=\'deterministic-product-gap-fallback\'')||planner.includes('source=\\'deterministic-product-gap-fallback\\''),'Planner must record fallback provenance when AI discovery fails'],
  [handoff.includes('validateSpecialistHandoff'),'handoff schema validation must remain active'],
  [registry.enabled===true&&registry.coordination?.mode==='active','fleet activation gate must remain active'],
  [Number(registry.coordination?.maxConcurrentWorkers||0)>=2,'two specialist lanes must remain authorized']
