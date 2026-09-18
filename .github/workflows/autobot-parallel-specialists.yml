@@ -30,6 +30,7 @@ env:
   AUTOBOT_BASE_REF: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.base_ref || 'main' }}
   AUTOBOT_TOTAL_DURATION: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.total_duration || inputs.duration }}
   AUTOBOT_RUN_DEADLINE_EPOCH_MS: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.run_deadline_epoch_ms || '' }}
+  AUTOBOT_RUN_STARTED_AT: ${{ github.run_started_at }}
   AUTOBOT_CYCLE_NUMBER: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.cycle_number || '1' }}
   AUTOBOT_CYCLE_MINUTES: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.total_duration || inputs.duration) == '15m' && '15' || (github.event_name == 'repository_dispatch' && github.event.client_payload.total_duration || inputs.duration) == '30m' && '15' || '30' }}
 jobs:
@@ -392,6 +393,7 @@ jobs:
           BASE_REF: ${{ needs.carry-forward.outputs.cumulative_ref }}
           TOTAL_DURATION: ${{ env.AUTOBOT_TOTAL_DURATION }}
           DEADLINE: ${{ env.AUTOBOT_RUN_DEADLINE_EPOCH_MS }}
+          RUN_STARTED_AT: ${{ env.AUTOBOT_RUN_STARTED_AT }}
           CYCLE_NUMBER: ${{ env.AUTOBOT_CYCLE_NUMBER }}
           CYCLE_MINUTES: ${{ env.AUTOBOT_CYCLE_MINUTES }}
           LOCAL_MODEL: ${{ env.LOCAL_AI_MODEL }}
@@ -400,7 +402,7 @@ jobs:
           now_ms="$(date +%s000)"
           total_minutes="$(case "$TOTAL_DURATION" in 15m) echo 15;; 30m) echo 30;; 1h) echo 60;; 4h) echo 240;; 5h) echo 300;; *) echo 0;; esac)"
           if [ "$total_minutes" -le 0 ]; then echo "[autobot] invalid total duration: $TOTAL_DURATION"; exit 1; fi
-          if [ -z "$DEADLINE" ]; then deadline_ms="$((now_ms + total_minutes * 60 * 1000))"; else deadline_ms="$DEADLINE"; fi
+          if [ -z "$DEADLINE" ]; then start_ms="$(date -d "$RUN_STARTED_AT" +%s000)"; deadline_ms="$((start_ms + total_minutes * 60 * 1000))"; else deadline_ms="$DEADLINE"; fi
           remaining_ms="$((deadline_ms - now_ms))"
           required_ms="$((CYCLE_MINUTES * 60 * 1000 + 60 * 1000))"
           if [ "$remaining_ms" -lt "$required_ms" ]; then echo "[autobot] cumulative deadline reached; no new cycle will start (remaining_ms=$remaining_ms, required_ms=$required_ms)"; exit 0; fi
