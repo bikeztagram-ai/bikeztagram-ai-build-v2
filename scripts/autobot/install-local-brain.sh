@@ -98,6 +98,12 @@ if [[ "$DISCOVERY_MODEL" != "$MODEL" ]]; then
   ollama pull "$DISCOVERY_MODEL"
 fi
 
+FALLBACK_MODEL="${AUTOBOT_SPECIALIST_FALLBACK_MODEL:-}"
+if [[ -n "$FALLBACK_MODEL" && "$FALLBACK_MODEL" != "$MODEL" && "$FALLBACK_MODEL" != "$DISCOVERY_MODEL" ]]; then
+  echo "[autobot] pulling dedicated specialist fallback model: $FALLBACK_MODEL"
+  ollama pull "$FALLBACK_MODEL"
+fi
+
 curl -fsS "$OLLAMA_URL/api/chat" \
   -H 'Content-Type: application/json' \
   -d "{\"model\":\"$MODEL\",\"stream\":false,\"messages\":[{\"role\":\"user\",\"content\":\"Reply with READY only.\"}],\"options\":{\"num_ctx\":2048,\"num_predict\":16}}" \
