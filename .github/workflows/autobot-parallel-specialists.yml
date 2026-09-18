@@ -105,10 +105,12 @@ jobs:
         run: |
           echo '--- persistent runtime state ---'
           cat builder/working/persistent-runtime-state.json 2>/dev/null || true
+          echo '--- AutoBot live status ---'
+          cat builder/working/autobot-live-status.log 2>/dev/null || true
           echo '--- Ollama processes ---'
-          ollama ps || true
+          OLLAMA_HOST=127.0.0.1:11434 ollama ps || true
           echo '--- Ollama server log ---'
-          tail -n 200 /tmp/bikeztagram-ollama.log || true
+          if [ -f /tmp/bikeztagram-ollama.log ]; then tail -n 200 /tmp/bikeztagram-ollama.log; else echo 'Ollama is using an existing service; no local server log file was created.'; fi
           echo '--- performance proxy log ---'
           tail -n 200 /tmp/bikeztagram-ollama-proxy.log || true
 
@@ -118,5 +120,6 @@ jobs:
           name: autobot-persistent-runtime-${{ github.run_id }}
           path: |
             builder/working/persistent-runtime-state.json
+            builder/working/autobot-live-status.log
             builder/working/persistent/**
           if-no-files-found: ignore
