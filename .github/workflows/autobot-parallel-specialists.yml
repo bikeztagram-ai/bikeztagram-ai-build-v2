@@ -23,7 +23,7 @@ concurrency:
   group: autobot-parallel-specialists
   cancel-in-progress: false
 env:
-  LOCAL_AI_MODEL: ${{ inputs.local_model }}
+  LOCAL_AI_MODEL: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.local_model || inputs.local_model }}
   AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
   AUTOBOT_DISCOVERY_TIMEOUT_MS: 180000
   AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder
@@ -127,6 +127,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
           AUTOBOT_AIDER_CALL_TIMEOUT_MS: '150000'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          BUILDER_MAX_MINUTES: ${{ env.AUTOBOT_CYCLE_MINUTES }}
           LOCAL_AI_PROXY_NUM_CTX: 4096
           LOCAL_AI_PROXY_NUM_PREDICT: 900
           OLLAMA_CONTEXT_LENGTH: 4096
