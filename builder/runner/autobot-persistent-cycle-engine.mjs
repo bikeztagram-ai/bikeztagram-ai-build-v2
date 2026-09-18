@@ -28,7 +28,7 @@ function parseDuration(v){
   const value=String(v).trim().toLowerCase();
   const hm=value.match(/^(\d+)h(?:(\d+)m)?$/);
   if(hm)return Number(hm[1])*60+Number(hm[2]||0);
-  const m=value.match(/^(\\d+)\\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?$/);
+  const m=value.match(/^(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?$/);
   if(!m)return 30;
   const n=Number(m[1]); return /h/.test(m[2]||'')?n*60:n;
 }
