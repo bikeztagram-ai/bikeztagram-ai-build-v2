@@ -23,6 +23,8 @@ assert(repair.includes("git(['worktree','add','-b',branch,worktree,baseCommit])"
 assert(repair.includes("const baseCommit=git(['rev-parse','HEAD'])"),'Repair Bot must record the protected checkout base before editing');
 assert(repair.includes('repairBaseCommit:baseCommit'),'Repair Bot must persist the exact base commit in repair handoff evidence');
 assert(repair.includes("'--no-auto-commits'"),'Aider must not auto-commit inside the Repair Bot');
+assert(repair.includes("const editFormat=String(process.env.AUTOBOT_REPAIR_EDIT_FORMAT||'udiff')"),'Repair Bot must default to compact unified-diff editing for reliable specialist repair materialisation');
+assert(repair.includes('`--edit-format=${editFormat}`'),'Repair Bot must pass the selected compact edit format to Aider');
 assert(repair.includes("git(['commit','-m',`fix(autobot): repair failure ${record.id}`],worktree)"),'Repair Bot must create a focused repair commit only after verification');
 assert(repair.includes("const unauthorized=touched.filter(file=>!files.includes(file))"),'Repair Bot must enforce the failure file scope');
 assert(repair.includes("npm install --no-audit --no-fund --no-package-lock")||repair.includes("'install','--no-audit','--no-fund','--no-package-lock'"),'Repair Bot must install dependencies inside its isolated worktree');
