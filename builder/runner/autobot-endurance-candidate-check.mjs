@@ -50,7 +50,7 @@ try{
   if(!skipNpmInstall && spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA dependency install failed');
   if(spawnSync('npm',['run','build'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA build failed');
   if(spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA product-quality failed');
-  const reviewOutput=path.join(root,'builder/working/autobot-candidate-review.json');
+  const reviewOutput=reviewOutputPath;
   let reviewStatus='pass';
   try{
     execFileSync(process.execPath,['builder/runner/autobot-reviewer.mjs'],{cwd:root,env:{...process.env,AUTOBOT_REVIEW_BASE_COMMIT:base,AUTOBOT_REVIEW_COMMIT:candidate,AUTOBOT_REVIEW_OUTPUT:reviewOutput},stdio:'inherit'});
