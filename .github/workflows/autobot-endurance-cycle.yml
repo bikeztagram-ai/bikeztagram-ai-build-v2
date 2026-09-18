@@ -1,0 +1,211 @@
+name: 🧩 AutoBot — cumulative specialist cycle
+on:
+  workflow_call:
+    inputs:
+      base_ref: {required: true, type: string}
+      duration: {required: true, type: string}
+      cycle_number: {required: true, type: string}
+      local_model: {required: true, type: string}
+    outputs:
+      cumulative_ref:
+        value: ${{ jobs.integrate.outputs.cumulative_ref }}
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with: {ref: ${{ inputs.base_ref }}, fetch-depth: 0}
+      - uses: actions/setup-node@v7
+        with: {node-version: 22, cache: npm}
+      - run: npm install --no-audit --no-fund --no-package-lock
+      - run: node scripts/autobot/verify-autobot-cumulative-endurance.mjs --cycle-gate
+      - run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - run: bash scripts/autobot/install-local-brain.sh
+        env: {LOCAL_AI_MODEL: ${{ inputs.local_model }}, AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b}
+      - run: node builder/runner/autobot-parallel-planner.mjs
+      - uses: actions/upload-artifact@v7
+        with:
+          name: autobot-endurance-plan-${{ github.run_id }}-${{ inputs.cycle_number }}
+          path: builder/working/autobot-parallel-plan.json
+  specialists:
+    needs: plan
+    strategy: {fail-fast: false, max-parallel: 2}
+    matrix: {bot: [director-builder, timeline-builder]}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v6
+        with: {ref: ${{ inputs.base_ref }}, fetch-depth: 0}
+      - uses: actions/download-artifact@v7
+        with: {name: autobot-endurance-plan-${{ github.run_id }}-${{ inputs.cycle_number }}, path: builder/working}
+      - name: Read objective
+        id: assignment
+        env: {BOT: ${{ matrix.bot }}}
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),p=JSON.parse(fs.readFileSync('builder/working/autobot-parallel-plan.json','utf8'));
+          const x=p.workers.find(v=>v.botId===process.env.BOT); if(!x)throw new Error('No objective assigned');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,'objective<<EOF\n'+x.title+'\n'+x.whyNow+'\nAcceptance:\n'+x.acceptance.join('; ')+'\nEOF\n');
+          NODE
+      - uses: actions/setup-node@v7
+        with: {node-version: 22, cache: npm}
+      - run: npm install --no-audit --no-fund --no-package-lock
+      - run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+          AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
+          OLLAMA_CONTEXT_LENGTH: 4096
+          OLLAMA_NUM_PARALLEL: 1
+          OLLAMA_MAX_QUEUE: 8
+          OLLAMA_LOAD_TIMEOUT: 20m
+          OLLAMA_KEEP_ALIVE: 30m
+      - name: Execute specialist
+        id: execute
+        env:
+          AUTOBOT_SPECIALIST_BOT_ID: ${{ matrix.bot }}
+          AUTOBOT_SPECIALIST_OBJECTIVE: ${{ steps.assignment.outputs.objective }}
+          AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-quality-check
+          AUTOBOT_SPECIALIST_FEATURE_ENGINE: aider
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
+          AUTOBOT_AIDER_CALL_TIMEOUT_MS: '150000'
+          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || '300' }}
+        run: node builder/runner/autobot-specialist-builder.mjs
+      - name: Publish candidate
+        if: steps.execute.outcome == 'success'
+        run: |
+          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
+          git push --set-upstream origin "$b"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: autobot-endurance-specialist-${{ matrix.bot }}-${{ github.run_id }}-${{ inputs.cycle_number }}
+          path: |
+            builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-specialist-outcome.json
+            builder/working/autobot-specialist-failure.patch
+          if-no-files-found: ignore
+  recovery:
+    needs: specialists
+    if: always()
+    strategy: {fail-fast: false, max-parallel: 2}
+    matrix: {bot: [director-builder, timeline-builder]}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+        with: {ref: ${{ inputs.base_ref }}, fetch-depth: 0}
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-endurance-specialist-${{ matrix.bot }}-${{ github.run_id }}-${{ inputs.cycle_number }}
+          path: builder/working/specialist-results/${{ matrix.bot }}
+      - name: Route repairable specialist failure
+        id: route
+        env: {BOT: ${{ matrix.bot }}}
+        run: |
+          echo "repairable=false" >> "$GITHUB_OUTPUT"
+          if [ -f "builder/working/specialist-results/$BOT/autobot-specialist-outcome.json" ]; then
+            v="$(node -e "const x=require('./builder/working/specialist-results/$BOT/autobot-specialist-outcome.json'); console.log(x.repairable===true && x.category==='product-change' && x.status==='failure'?'true':'false')")"
+            echo "repairable=$v" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v7
+        with: {node-version: 22, cache: npm}
+      - run: npm install --no-audit --no-fund --no-package-lock
+      - if: steps.route.outputs.repairable == 'true'
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - if: steps.route.outputs.repairable == 'true'
+        run: bash scripts/autobot/install-local-brain.sh
+        env: {LOCAL_AI_MODEL: ${{ inputs.local_model }}}
+      - if: steps.route.outputs.repairable == 'true'
+        env: {AUTOBOT_AIDER_MODEL: ${{ inputs.local_model }}, OLLAMA_API_BASE: http://127.0.0.1:11434, OLLAMA_HOST: http://127.0.0.1:11434}
+        run: node builder/runner/autobot-specialist-recovery.mjs builder/working/specialist-results/${{ matrix.bot }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: autobot-endurance-recovery-${{ matrix.bot }}-${{ github.run_id }}-${{ inputs.cycle_number }}
+          path: |
+            builder/working/autobot-verified-candidate.json
+            builder/working/autobot-review.json
+            builder/working/autobot-repair-candidate.patch
+            builder/working/autobot-specialist-recovery-outcome.json
+          if-no-files-found: ignore
+  verify-candidates:
+    needs: [specialists, recovery]
+    if: always()
+    strategy: {fail-fast: false, max-parallel: 2}
+    matrix: {bot: [director-builder, timeline-builder]}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with: {ref: ${{ inputs.base_ref }}, fetch-depth: 0}
+      - uses: actions/setup-node@v7
+        with: {node-version: 22, cache: npm}
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-endurance-specialist-${{ matrix.bot }}-${{ github.run_id }}-${{ inputs.cycle_number }}
+          path: builder/working/specialist
+      - uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-endurance-recovery-${{ matrix.bot }}-${{ github.run_id }}-${{ inputs.cycle_number }}
+          path: builder/working/recovery
+      - env: {BOT: ${{ matrix.bot }}}
+        run: node builder/runner/autobot-endurance-candidate-check.mjs "$BOT"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: autobot-endurance-check-${{ matrix.bot }}-${{ github.run_id }}-${{ inputs.cycle_number }}
+          path: builder/working/autobot-endurance-candidate-check.json
+          if-no-files-found: ignore
+  integrate:
+    needs: [plan, specialists, recovery, verify-candidates]
+    if: ${{ needs.plan.result == 'success' && needs.specialists.result == 'success' && needs.recovery.result == 'success' && needs.verify-candidates.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      cumulative_ref: ${{ steps.publish.outputs.cumulative_ref }}
+    steps:
+      - uses: actions/checkout@v6
+        with: {ref: ${{ inputs.base_ref }}, fetch-depth: 0}
+      - uses: actions/download-artifact@v7
+        with:
+          name: autobot-endurance-check-director-builder-${{ github.run_id }}-${{ inputs.cycle_number }}
+          path: builder/working/checks/director-builder
+      - uses: actions/download-artifact@v7
+        with:
+          name: autobot-endurance-check-timeline-builder-${{ github.run_id }}-${{ inputs.cycle_number }}
+          path: builder/working/checks/timeline-builder
+      - name: Integrate verified candidates
+        run: |
+          set -euo pipefail
+          git config user.name 'Bikeztagram AutoBot Endurance'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          branch="autobot/endurance/cycle-${{ inputs.cycle_number }}-$GITHUB_RUN_ID"
+          git checkout -b "$branch"
+          for bot in director-builder timeline-builder; do
+            f="builder/working/checks/$bot/autobot-endurance-candidate-check.json"
+            node -e "const x=require('./$f'); if(x.status!=='pass'||x.integrationEligible!==true)throw new Error('Candidate not eligible: '+x.status)"
+            c="$(node -e "console.log(require('./$f').candidateCommit)")"
+            git fetch origin "$c"
+            git merge --no-edit --no-ff "$c"
+          done
+          npm install --no-audit --no-fund --no-package-lock
+          npm run build
+          npm run verify:autobot-product-quality-check
+          git diff --check
+          git push --set-upstream origin "$branch"
+      - id: publish
+        run: echo "cumulative_ref=autobot/endurance/cycle-${{ inputs.cycle_number }}-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
