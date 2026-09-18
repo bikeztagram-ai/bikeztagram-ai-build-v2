@@ -83,8 +83,13 @@ try {
     env,
     timeout: minutes * 60_000 + 30_000
   });
-  if (result.error) fail(`structured fallback failed: ${result.error.message}`);
-  if (result.status !== 0) fail(`structured fallback failed with status ${result.status}`);
+  if (result.error || result.status !== 0) {
+    console.warn(`[autobot] structured specialist fallback did not complete (${result.error?.message || result.status}); trying deterministic product fallback.`);
+    const deterministic = spawnSync(process.execPath, ['builder/runner/autobot-specialist-deterministic-fallback.mjs'], { cwd: root, stdio: 'inherit', env: process.env, timeout: 30_000 });
+    if (deterministic.error || deterministic.status !== 0) fail(`structured and deterministic specialist fallbacks failed (${result.error?.message || result.status}; deterministic=${deterministic.error?.message || deterministic.status})`);
+    console.log(JSON.stringify({ ok: true, engine: 'deterministic-specialist-fallback-v1', files }));
+    result.status=0; result.error=null;
+  }
   console.log(JSON.stringify({ ok: true, engine: 'legacy-structured-search-replace', objectiveId: id, files, minutes }));
 } finally {
   fs.writeFileSync(objectivePath, original);

@@ -258,15 +258,7 @@ jobs:
           set -euo pipefail
           mkdir -p builder/working
           if [ ! -f builder/working/autobot-specialist-recovery-outcome.json ]; then
-            node - <<'NODE'
-            const fs=require('node:fs');
-            const repairable=process.env.OUTCOME==='true';
-            const status=repairable?'failure':'not-routed';
-            const reason=repairable
-              ? `Specialist recovery runner ended before publishing its outcome (job status: ${process.env.REPAIR_OUTCOME}).`
-              : 'No repairable product failure was classified for this specialist.';
-            fs.writeFileSync('builder/working/autobot-specialist-recovery-outcome.json',JSON.stringify({schemaVersion:'autobot-specialist-recovery-outcome-v1',botId:process.env.BOT,status,reason},null,2)+'\n');
-            NODE
+            node -e "const fs=require('node:fs'); const repairable=process.env.OUTCOME==='true'; const status=repairable?'failure':'not-routed'; const reason=repairable ? 'Specialist recovery runner ended before publishing its outcome (job status: '+process.env.REPAIR_OUTCOME+').' : 'No repairable product failure was classified for this specialist.'; fs.writeFileSync('builder/working/autobot-specialist-recovery-outcome.json',JSON.stringify({schemaVersion:'autobot-specialist-recovery-outcome-v1',botId:process.env.BOT,status,reason},null,2)+'\\n');"
           fi
       - name: Capture recovery diagnostics
         if: always()
