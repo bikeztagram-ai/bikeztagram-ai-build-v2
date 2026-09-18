@@ -32,7 +32,7 @@ env:
   AUTOBOT_RUN_DEADLINE_EPOCH_MS: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.run_deadline_epoch_ms || '' }}
   AUTOBOT_RUN_STARTED_AT: ${{ github.run_started_at }}
   AUTOBOT_CYCLE_NUMBER: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.cycle_number || '1' }}
-  AUTOBOT_CYCLE_MINUTES: ${{ (github.event_name == 'repository_dispatch' && github.event.client_payload.total_duration || inputs.duration) == '15m' && '15' || (github.event_name == 'repository_dispatch' && github.event.client_payload.total_duration || inputs.duration) == '30m' && '15' || '30' }}
+  AUTOBOT_CYCLE_MINUTES: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.cycle_minutes || ((github.event_name == 'repository_dispatch' && github.event.client_payload.total_duration || inputs.duration) == '15m' && '15' || (github.event_name == 'repository_dispatch' && github.event.client_payload.total_duration || inputs.duration) == '30m' && '15' || '30') }}
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -411,11 +411,14 @@ jobs:
             deadline_ms="$DEADLINE"
           fi
           remaining_ms="$((deadline_ms - now_ms))"
-          required_ms="$((CYCLE_MINUTES * 60 * 1000 + 60 * 1000))"
-          if [ "$remaining_ms" -lt "$required_ms" ]; then echo "[autobot] cumulative deadline reached; no new cycle will start (remaining_ms=$remaining_ms, required_ms=$required_ms)"; exit 0; fi
+          safety_ms="$((60 * 1000))"
+          available_ms="$((remaining_ms - safety_ms))"
+          next_cycle_minutes="$((available_ms / (60 * 1000)))"
+          if [ "$next_cycle_minutes" -lt 1 ]; then echo "[autobot] cumulative deadline reached; no new cycle will start (remaining_ms=$remaining_ms)"; exit 0; fi
+          if [ "$next_cycle_minutes" -gt "$CYCLE_MINUTES" ]; then next_cycle_minutes="$CYCLE_MINUTES"; fi
           next_cycle="$((CYCLE_NUMBER + 1))"
-          export DEADLINE_FALLBACK="$deadline_ms" NEXT_CYCLE="$next_cycle"
-          payload="$(node -e 'const p={event_type:"autobot-cycle",client_payload:{base_ref:process.env.BASE_REF,total_duration:process.env.TOTAL_DURATION,run_deadline_epoch_ms:process.env.DEADLINE||process.env.DEADLINE_FALLBACK,cycle_number:process.env.NEXT_CYCLE,local_model:process.env.LOCAL_MODEL}}; console.log(JSON.stringify(p))')"
+          export DEADLINE_FALLBACK="$deadline_ms" NEXT_CYCLE="$next_cycle" NEXT_CYCLE_MINUTES="$next_cycle_minutes"
+          payload="$(node -e 'const p={event_type:"autobot-cycle",client_payload:{base_ref:process.env.BASE_REF,total_duration:process.env.TOTAL_DURATION,run_deadline_epoch_ms:process.env.DEADLINE||process.env.DEADLINE_FALLBACK,cycle_number:process.env.NEXT_CYCLE,cycle_minutes:process.env.NEXT_CYCLE_MINUTES,local_model:process.env.LOCAL_MODEL}}; console.log(JSON.stringify(p))')"
           curl --fail --silent --show-error -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $GH_TOKEN" -H "X-GitHub-Api-Version: 2026-03-10" "https://api.github.com/repos/$GITHUB_REPOSITORY/dispatches" -d "$payload"
           echo "[autobot] dispatched cumulative cycle $next_cycle from $BASE_REF with deadline $deadline_ms"
 
