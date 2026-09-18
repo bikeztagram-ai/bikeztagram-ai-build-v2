@@ -28,7 +28,7 @@ const checks=[
  [workflow.includes('timeout-minutes: 345'),'final job ceiling must remain below GitHub six-hour cutoff'],
  [workflow.includes("'5h'"),'final 5h option must exist'],
  [workflow.includes("'5h30'") && registry.activationGate?.allowedTestDurations?.includes('5h30'),'5h30 workflow option must be explicitly authorised by the fleet activation gate'],
- [engine.includes('const hm=value.match')&&engine.includes('Number(hm[1])*60+Number(hm[2]||0)'),'engine must parse compound hour-minute durations such as 5h30'],
+ [engine.includes("const hm=value.match(/^(\\d+)h(\\d{1,2})m?$/)")&&engine.includes('Number(hm[1])*60+minutes'),'engine must parse compact hour-minute durations such as 5h30'],
  [registry.activationGate?.testDuration==='5h30','fleet activation testDuration must match the authorised five-and-a-half-hour endurance target'],
  [workflow.includes("inputs.duration == '15m' && '10'") ,'15m staging must reserve a bounded specialist cycle'],
  [engine.includes('autobot-parallel-planner.mjs'),'every internal cycle must re-plan'],
