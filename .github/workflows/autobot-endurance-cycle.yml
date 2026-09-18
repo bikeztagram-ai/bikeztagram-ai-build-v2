@@ -74,7 +74,7 @@ jobs:
           AUTOBOT_SPECIALIST_BOT_ID: ${{ matrix.bot }}
           AUTOBOT_SPECIALIST_OBJECTIVE: ${{ steps.assignment.outputs.objective }}
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-quality-check
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FEATURE_ENGINE: aider
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
           AUTOBOT_AIDER_CALL_TIMEOUT_MS: '150000'
@@ -204,7 +204,7 @@ jobs:
           done
           npm install --no-audit --no-fund --no-package-lock
           npm run build
-          npm run verify:autobot-product-quality-check
+          npm run verify:autobot-product-change-quality
           git diff --check
           git push --set-upstream origin "$branch"
       - id: publish
