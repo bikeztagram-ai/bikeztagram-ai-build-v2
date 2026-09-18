@@ -3,10 +3,11 @@
  * Sustained AutoBot controller with resumable work and controlled finish grace.
  *
  * The normal mode remains the production deterministic AutoBot. Specialist mode
- * uses this same controller and the proven structured feature brain by default,
- * while allowing an explicit specialist engine override. This keeps the
+ * uses this same controller and the proven Aider feature brain by default,
+ * while retaining an explicit specialist engine override. This keeps the
  * long-run/checkpoint/audit/recovery behaviour in one place without cloning the
- * proven AutoBot.
+ * proven AutoBot. Specialist mode is Aider-first; the proven structured brain
+ * remains the bounded fallback when Aider cannot materialize a product change.
  */
 import fs from 'node:fs';
 import path from 'node:path';
