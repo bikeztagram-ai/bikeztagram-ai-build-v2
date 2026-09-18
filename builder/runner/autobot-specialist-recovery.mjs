@@ -31,7 +31,12 @@ function git(args,cwd=recoveryRoot){return execFileSync('git',args,{cwd,encoding
 function run(args,cwd=recoveryRoot){execFileSync('git',args,{cwd,stdio:'inherit'});}
 function cleanup(){try{execFileSync('git',['worktree','remove','--force',recoveryRoot],{cwd:originalRoot,stdio:'ignore'});}catch{}}
 function verifyCandidateTree(cwd){
-  const install=spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd,encoding:'utf8',stdio:'inherit',timeout:180_000});
+  if(String(process.env.AUTOBOT_SKIP_NPM_INSTALL||'').toLowerCase()==='true'){
+    const modules=path.join(originalRoot,'node_modules');
+    if(!fs.existsSync(modules))return {ok:false,stage:'npm-install',error:'persistent root node_modules is missing'};
+    if(!fs.existsSync(path.join(cwd,'node_modules')))fs.symlinkSync(modules,path.join(cwd,'node_modules'),'junction');
+  }
+  const install=String(process.env.AUTOBOT_SKIP_NPM_INSTALL||'').toLowerCase()==='true'?{error:null,status:0}:spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd,encoding:'utf8',stdio:'inherit',timeout:180_000});
   if(install.error||install.status!==0)return {ok:false,stage:'npm-install',error:String(install.error?.message||install.status)};
   const build=spawnSync('npm',['run','build'],{cwd,encoding:'utf8',stdio:'inherit',timeout:120_000});
   if(build.error||build.status!==0)return {ok:false,stage:'build',error:String(build.error?.message||build.status)};
