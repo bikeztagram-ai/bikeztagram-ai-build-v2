@@ -27,7 +27,7 @@ try{
   if(r){
     if(!fs.existsSync(patch))throw new Error('Recovered candidate is missing its verified patch');
     execFileSync('git',['worktree','add','--detach',temp,base],{stdio:'inherit'});
-    if(skipNpmInstall){const modules=path.join(root,'node_modules');if(!fs.existsSync(modules))throw new Error('AUTOBOT_SKIP_NPM_INSTALL requested but root node_modules is missing');fs.symlinkSync(modules,path.join(temp,'node_modules'),'junction');}
+    if(skipNpmInstall){const modules=path.join(root,'node_modules');if(!fs.existsSync(modules))throw new Error('AUTOBOT_SKIP_NPM_INSTALL requested but root node_modules is missing');fs.symlinkSync(modules,path.join(temp,'node_modules'),'dir');}
     execFileSync('git',['apply','--check',path.resolve(patch)],{cwd:temp,stdio:'inherit'});
     execFileSync('git',['apply','--whitespace=nowarn',path.resolve(patch)],{cwd:temp,stdio:'inherit'});
     execFileSync('git',['diff','--check'],{cwd:temp,stdio:'inherit'});
@@ -40,7 +40,7 @@ try{
   }else{
     execFileSync('git',['fetch','origin','+refs/heads/'+branch+':refs/remotes/origin/'+branch],{stdio:'inherit'});
     execFileSync('git',['worktree','add','--detach',temp,candidate],{stdio:'inherit'});
-    if(skipNpmInstall){const modules=path.join(root,'node_modules');if(!fs.existsSync(modules))throw new Error('AUTOBOT_SKIP_NPM_INSTALL requested but root node_modules is missing');fs.symlinkSync(modules,path.join(temp,'node_modules'),'junction');}
+    if(skipNpmInstall){const modules=path.join(root,'node_modules');if(!fs.existsSync(modules))throw new Error('AUTOBOT_SKIP_NPM_INSTALL requested but root node_modules is missing');fs.symlinkSync(modules,path.join(temp,'node_modules'),'dir');}
   }
   const files=execFileSync('git',['diff','--name-only',base,candidate],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean);
   const registry=JSON.parse(fs.readFileSync(path.join(root,'builder/brain/autobot-fleet.json'),'utf8'));
