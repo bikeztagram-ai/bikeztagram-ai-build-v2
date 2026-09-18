@@ -20,6 +20,8 @@ const queuePath=process.env.AUTOBOT_FAILURE_QUEUE_PATH||path.join(root,'builder'
 const repairRoot=process.env.AUTOBOT_REPAIR_WORKTREE_ROOT||path.join(os.tmpdir(),'bikeztagram-autobot-repairs');
 function normalizeAiderModel(value){const model=String(value||'').trim();return model?(model.includes('/')?model:`ollama_chat/${model}`):'ollama_chat/qwen2.5-coder:7b';}
 const model=normalizeAiderModel(process.env.AUTOBOT_AIDER_MODEL||process.env.LOCAL_AI_MODEL);
+const editFormat=String(process.env.AUTOBOT_REPAIR_EDIT_FORMAT||'udiff').trim().toLowerCase();
+if(!['udiff','diff','whole'].includes(editFormat))throw new Error(`unsupported Repair Bot Aider edit format: ${editFormat}`);
 const timeoutMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_REPAIR_TIMEOUT_MS||String(30*60*1000),10));
 const maxFiles=Math.max(1,Math.min(40,Number.parseInt(process.env.AUTOBOT_REPAIR_MAX_FILES||'12',10)));
 const maxChangedLines=Math.max(4,Math.min(200,Number.parseInt(process.env.AUTOBOT_REPAIR_MAX_CHANGED_LINES||'80',10)));
@@ -100,8 +102,8 @@ function runRepair(record,files){
   try{
     transitionFailure(record.id,'repairing',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit});
     const focused=files.length===1&&record.expected&&record.actual&&record.repairHint;
-    const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only'];
-    if(focused)args.push('--edit-format=diff','--no-git');
+    const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only',`--edit-format=${editFormat}`];
+    if(focused&&editFormat==='diff')args.push('--no-git');
     args.push('--message',promptFor(record,files),...files);
     const result=spawnSync('aider',args,{cwd:worktree,encoding:'utf8',stdio:['ignore','pipe','inherit'],timeout:timeoutMs});
     if(result.stdout)process.stderr.write(result.stdout);
@@ -127,7 +129,7 @@ function runRepair(record,files){
       : 'isolated repair passed diff, dependency install, build and product-quality verification; awaiting independent QA.';
     transitionFailure(record.id,'repaired',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit,repairCommit:commit,resolution});
     repaired=true;
-    return {ok:true,failureId:record.id,branch,baseCommit,commit,preservedAfterNonzero:Boolean(result.error||result.status!==0)};
+    return {ok:true,failureId:record.id,branch,baseCommit,commit,preservedAfterNonzero:Boolean(result.error||result.status!==0),editFormat};
   }finally{cleanup(worktree,branch,repaired);}
 }
 export function repairOne({failureId=null}={}){const record=claimOpenFailure(failureId);if(!record)return {ok:true,status:'no-open-failure'};try{return runRepair(record,validateFailure(record));}catch(error){try{transitionFailure(record.id,'blocked',{transitionedBy:'autobot-repair',resolution:error.message});}catch(transitionError){console.error(`[repair] failed to record BLOCKED state: ${transitionError.message}`);}throw error;}}
