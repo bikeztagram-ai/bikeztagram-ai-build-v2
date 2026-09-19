@@ -20,7 +20,7 @@ const structured=read('builder/runner/autobot-specialist-structured-fallback.mjs
 const deterministic=read('builder/runner/autobot-specialist-deterministic-fallback.mjs');
 const registry=JSON.parse(read('builder/brain/autobot-fleet.json'));
 const checks=[
- [workflow.includes('ref: \\${{ github.sha }}'),'persistent workflow must execute the exact dispatched workflow revision'],
+ [workflow.includes('ref: ${{ github.sha }}'),'persistent workflow must execute the exact dispatched workflow revision'],
  [specialist.includes('Math.floor(controllerMinutes / 20)')&&specialist.includes('AUTOBOT_MAX_FEATURE_CYCLES: String(maxFeatureCycles)'),'specialist Builder must inherit repeated audited feature cycles from the proven controller'],
  [engine.includes("import {appendAudit, verifyAuditLog} from '../quality/audit-log.mjs'")&&engine.includes("audit('iteration-started'")&&engine.includes("audit('planner-finished'")&&engine.includes("audit('verification-finished'")&&engine.includes("audit('iteration-finished'"),'persistent fleet must carry the proven audit/integrity trail across specialist stages'],
  [engine.includes('maxNoProgressCycles')&&engine.includes('consecutiveNoProgressCycles')&&engine.includes('CYCLE ${cycleNumber} failed; preserving base'),'specialist cycles must survive a recoverable failed cycle and re-plan from the last verified base'],
