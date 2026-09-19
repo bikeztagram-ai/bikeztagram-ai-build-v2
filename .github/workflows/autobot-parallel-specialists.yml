@@ -121,5 +121,6 @@ jobs:
           path: |
             builder/working/persistent-runtime-state.json
             builder/working/autobot-live-status.log
+            builder/working/autobot-final-handoff.json
             builder/working/persistent/**
           if-no-files-found: ignore
