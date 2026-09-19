@@ -64,7 +64,14 @@ function fallback(bot,library,completedTitles=new Set(),reservedTitles=new Set()
   for(const objective of objectivesFromLibrary(library)){
     const title=String(objective?.title||'').trim();
     if(!title)continue;
-    const targetFile=(Array.isArray(objective.files)?objective.files:[]).map(String).find(f=>owned.has(f)&&inv.has(f));
+    const objectiveFiles=(Array.isArray(objective.files)?objective.files:[]).map(String).filter(f=>owned.has(f)&&inv.has(f));
+    // Deterministic decomposition must target a file the specialist fallback can implement.
+    const preferredFiles=bot.id==='timeline-builder'
+      ? ['src/executableTimeline.js','src/editorialRhythm.js']
+      : bot.id==='director-builder'
+        ? ['src/director.js']
+        : [];
+    const targetFile=preferredFiles.find(f=>objectiveFiles.includes(f))||null;
     if(!targetFile)continue;
     for(const acceptance of (Array.isArray(objective.acceptance)?objective.acceptance:[])){
       const clause=String(acceptance||'').trim();
