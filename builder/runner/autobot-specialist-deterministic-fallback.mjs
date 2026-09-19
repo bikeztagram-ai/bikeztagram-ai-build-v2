@@ -37,7 +37,7 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
 } else if(specialist==='timeline-builder' && objective.includes('energy-aware motion intensity')){
   files=[replaceOnce(
     'src/executableTimeline.js',
-    "cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));",
+    "cut.motionStyle=motionFor(cut,role);cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));",
     "const energyText=intentText(cut,plan);const energy=/action|chase|race|speed|impact|ride|drive|energetic|fast/.test(energyText)?1.25:/calm|peaceful|emotional|beautiful|romantic|ambient/.test(energyText)?.75:1;cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*energy,.35,1.6).toFixed(2));",
     'energy-aware motion intensity'
   )];
@@ -81,7 +81,7 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
   if(!files.length){console.log(JSON.stringify({ok:false,status:'unsupported-objective',specialist,objective}));process.exit(2);}
 } else if(specialist==='timeline-builder'){
   const options=[
-    ["cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));","const roleMotion=role==='action'?1.15:role==='reveal'?1.06:role==='hero-ending'?.92:1;cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*roleMotion,.35,1.6).toFixed(2));","generic timeline role-aware motion"],
+    ["cut.motionStyle=motionFor(cut,role);cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));","cut.motionStyle=motionFor(cut,role);const roleMotion=role==='action'?1.15:role==='reveal'?1.06:role==='hero-ending'?.92:1;cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*roleMotion,.35,1.6).toFixed(2));","generic timeline role-aware motion"],
     ["const end=Number.isFinite(endRaw)&&endRaw>start?endRaw:start+duration;return{trimStart:Number(start.toFixed(3)),trimEnd:Number(end.toFixed(3))};","const available=number(cut?.sourceDuration,number(cut?.durationInSeconds,NaN));const proposed=Number.isFinite(endRaw)&&endRaw>start?endRaw:start+duration;const end=Number.isFinite(available)&&available>0?Math.max(start,Math.min(proposed,available)):proposed;return{trimStart:Number(start.toFixed(3)),trimEnd:Number(end.toFixed(3))};","generic timeline source-aware trim"],
     ["function transitionFor(cut,index,total,plan){if(cut?.transition&&cut.transition!=='hard-cut')return cut.transition;if(index===0)return'fade-in';","function transitionFor(cut,index,total,plan){if(cut?.transition&&cut.transition!=='hard-cut')return cut.transition;const cadenceDuration=number(cut?.duration,2);if(index>0&&index<total-1&&cadenceDuration<=.8)return index%2?'whip-right':'hard-cut';if(index===0)return'fade-in';","generic timeline cadence transition"]
   ];
