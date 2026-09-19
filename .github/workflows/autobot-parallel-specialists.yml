@@ -96,7 +96,7 @@ jobs:
 
       - name: Run persistent AutoBot engine
         env:
-          AUTOBOT_BASE_REF: main
+          AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
         run: node builder/runner/autobot-persistent-cycle-engine.mjs
 
