@@ -177,6 +177,11 @@ try {
   const fallbackReserveMinutes = Math.min(6, Math.max(4, requestedMinutes >= 30 ? 6 : 5));
   const controllerFinishGraceMinutes = Math.max(0, Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES || '5', 10));
   const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - fallbackReserveMinutes - controllerFinishGraceMinutes);
+  // Inherit the proven long-run controller's repeated feature-slice behaviour.
+  // Short staging runs stay bounded; longer specialist runs may revisit the same
+  // objective through multiple audited feature cycles instead of getting only one
+  // Aider pass before the outer fleet cycle restarts them.
+  const maxFeatureCycles = Math.max(1, Math.min(12, Math.floor(controllerMinutes / 20) || 1));
   const deadline = Date.now() + controllerMinutes * 60_000;
   const engineEnv = {
     ...process.env,
@@ -184,11 +189,11 @@ try {
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath, AUTOBOT_FEATURE_PROTOCOL: protocol,
     AUTOBOT_FEATURE_PASSES: String(passCount), AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline), AUTOBOT_AIDER_MODEL: model,
-    AUTOBOT_FEATURE_SLICE_MINUTES: String(controllerMinutes), AUTOBOT_MAX_FEATURE_CYCLES: '1',
+    AUTOBOT_FEATURE_SLICE_MINUTES: String(Math.min(20, controllerMinutes)), AUTOBOT_MAX_FEATURE_CYCLES: String(maxFeatureCycles),
     LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama_chat\//, ''),
     BUILDER_MAX_MINUTES: String(controllerMinutes), AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
-  console.log(`[autobot] specialist ${botId} entering Aider-first controller: ${controllerMinutes}m Aider budget + ${fallbackReserveMinutes}m structured fallback + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace (${model}, ${protocol})`);
+  console.log(`[autobot] specialist ${botId} entering proven long-run controller: ${controllerMinutes}m controller budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(20, controllerMinutes)}m max slice + ${fallbackReserveMinutes}m structured fallback + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace (${model}, ${protocol})`);
   const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], { cwd: worktree, stdio: 'inherit', env: engineEnv, timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000 });
   if (engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller ended with ${engine.error.message}; inspecting worktree before fallback`);
   if (engine.status !== 0 && engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller process status: ${engine.status ?? 'error'}`);
