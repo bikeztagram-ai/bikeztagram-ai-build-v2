@@ -247,7 +247,8 @@ async function main(){
       throw error;
     }
   }
-  ensureClean();
+  // Preserve builder/working evidence so the final handoff can include the
+  // actual QA/Reviewer artifacts from every verified cycle.
   checkoutBase(baseRef);
   writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'finished',nextCycle:cycleNumber,baseRef,audit,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes});
   writeFinalHandoff({status:'ready-for-review',baseRef,cycleNumber,audit});
