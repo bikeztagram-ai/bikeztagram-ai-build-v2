@@ -100,7 +100,7 @@ function fallback(bot,library,completedTitles=new Set(),reservedTitles=new Set()
     if(!targetFile)continue;
     for(const acceptance of (Array.isArray(objective.acceptance)?objective.acceptance:[])){
       const clause=String(acceptance||'').trim();
-      if(!clause)continue;
+      if(!clause||/^(verify|test|exercise|perform an adversarial|npm run build)\b/i.test(clause))continue;
       const generatedTitle=`${title} — ${clause}`;
       pool.push({
         title:generatedTitle,

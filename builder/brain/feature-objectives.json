@@ -69,7 +69,15 @@
       "implementationSignals": {
         "timeline preserves source identity and editorial roles": {
           "file": "src/executableTimeline.js",
-          "source": "cut.directorExecution={...(cut.directorExecution||{}),sourceId:source,role"
+          "source": "function sourceId(cut)"
+        },
+        "timing trims transforms speed and transitions remain executable": {
+          "file": "src/executableTimeline.js",
+          "source": "function normalizeTrim(cut)"
+        },
+        "duration budget is deterministic": {
+          "file": "src/executableTimeline.js",
+          "source": "function normalizeTimelineDuration(cuts,target)"
         }
       },
       "constraints": [
