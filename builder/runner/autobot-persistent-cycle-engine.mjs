@@ -227,7 +227,7 @@ function writeFinalHandoff({status,baseRef,cycleNumber,audit,error=null}) {
     baseRef:'main',
     finalRef:baseRef,
     finalCommit,
-    completedCycles:cycles.length,
+    completedCycles:cycles.filter(item=>item.status==='verified-and-carried-forward').length,
     nextCycle:cycleNumber,
     cycles,
     error,
