@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {spawn, spawnSync, execFileSync} from 'node:child_process';
+import {appendAudit, verifyAuditLog} from '../quality/audit-log.mjs';
 
 const root=process.cwd();
 const repo=process.env.GITHUB_REPOSITORY;
@@ -21,6 +22,7 @@ const startMs=Number.parseInt(process.env.AUTOBOT_RUN_STARTED_EPOCH_MS||String(D
 const normalDeadlineMs=startMs+totalMinutes*60_000;
 const hardDeadlineMs=normalDeadlineMs+finishGraceMinutes*60_000;
 const bots=['director-builder','timeline-builder'];
+const maxNoProgressCycles=Math.max(1,Number.parseInt(process.env.AUTOBOT_MAX_NO_PROGRESS_CYCLES||'2',10));
 const statusPath=path.join(root,'builder','working','autobot-live-status.log');
 function status(message){const line=`[${new Date().toISOString()}] ${message}`;console.log(`\\n${line}`);fs.mkdirSync(path.dirname(statusPath),{recursive:true});fs.appendFileSync(statusPath,line+'\\n');}
 
@@ -50,8 +52,15 @@ function writeJson(file,value){fs.mkdirSync(path.dirname(file),{recursive:true})
 function remainingMs(){return Math.max(0,hardDeadlineMs-Date.now());}
 function remainingNormalMs(){return Math.max(0,normalDeadlineMs-Date.now());}
 function log(message){console.log(`[autobot-persistent] ${message}`);}
+function audit(stage,data={}){appendAudit(stage,{...data,runId:process.env.GITHUB_RUN_ID||null});}
+function assertAudit(stage){const result=verifyAuditLog();if(!result.valid)fail(`audit integrity failure before ${stage}: ${result.error}`);}
 function ensureClean(){run('git',['reset','--hard']);run('git',['clean','-fd','builder/working']);}
 function checkoutBase(ref){
+  if(/^[0-9a-f]{40}$/i.test(String(ref))){
+    run('git',['fetch','origin',String(ref)]);
+    run('git',['checkout','--detach',String(ref)]);
+    return;
+  }
   run('git',['fetch','origin',`+refs/heads/${ref}:refs/remotes/origin/${ref}`]);
   run('git',['checkout','--detach',ref]);
 }
@@ -153,27 +162,35 @@ function integrate(cycle,baseRef,verified){
 
 async function cycle(cycleNumber,baseRef){
   setCycleEnv(cycleNumber);
+  assertAudit(`cycle-${cycleNumber}-start`);
+  audit('iteration-started',{cycle:cycleNumber,mode:'specialist-fleet',baseRef,remainingMinutes:Number((remainingMs()/60000).toFixed(2)),normalRemainingMinutes:Number((remainingNormalMs()/60000).toFixed(2)),specialists:bots});
   status(`===== CYCLE ${cycleNumber} =====`);
   log(`base=${baseRef}; remaining=${(remainingMs()/60000).toFixed(1)}m; specialist budget=${configuredCycleMinutes}m`);
   ensureClean();checkoutBase(baseRef);
   fs.rmSync(path.join(root,'builder','working','persistent',`cycle-${cycleNumber}`),{recursive:true,force:true});
   run('node',['builder/runner/autobot-parallel-planner.mjs']);
+  audit('planner-finished',{cycle:cycleNumber});
   const plan=readJson(path.join(root,'builder','working','autobot-parallel-plan.json'));
   if(!plan?.workers||plan.workers.length<2)fail('parallel planner did not produce two specialist packages');
   status(`PLANNER complete | Director=${plan.workers.find(x=>x.botId==='director-builder')?.title||'missing'} | Timeline=${plan.workers.find(x=>x.botId==='timeline-builder')?.title||'missing'}`);
   status('SPECIALISTS starting in parallel | Director + Timeline');
   await runSpecialists(cycleNumber,plan);
+  audit('specialists-finished',{cycle:cycleNumber});
   status('SPECIALISTS complete | candidate handoffs collected');
   status('REPAIR checking specialist failures');
   await runRepairs();
+  audit('repair-finished',{cycle:cycleNumber});
   status('REPAIR complete');
   status('QA + REVIEWER starting independent verification');
   const verified=await verifyCandidates(cycleNumber);
+  audit('verification-finished',{cycle:cycleNumber,passed:verified.filter(x=>x.check?.status==='pass').length,total:verified.length});
   status(`QA + REVIEWER complete | ${verified.filter(x=>x.check?.status==='pass').length}/${verified.length} passed`);
   const failures=verified.filter(x=>x.check?.status!=='pass');
   if(failures.length)fail(`independent candidate verification failed for: ${failures.map(x=>x.bot).join(', ')}`);
   status('CARRY-FORWARD integrating verified candidates');
   const nextRef=integrate(cycleNumber,baseRef,verified);
+  audit('iteration-finished',{cycle:cycleNumber,status:'verified-and-carried-forward',baseRef,nextRef});
+  assertAudit(`cycle-${cycleNumber}-finish`);
   status(`CYCLE ${cycleNumber} VERIFIED + CARRIED FORWARD | ${nextRef}`);
   return nextRef;
 }
@@ -210,7 +227,7 @@ function writeFinalHandoff({status,baseRef,cycleNumber,audit,error=null}) {
     baseRef:'main',
     finalRef:baseRef,
     finalCommit,
-    completedCycles:cycles.length,
+    completedCycles:cycles.filter(item=>item.status==='verified-and-carried-forward').length,
     nextCycle:cycleNumber,
     cycles,
     error,
@@ -225,7 +242,8 @@ async function main(){
   if(Number(registry?.coordination?.maxConcurrentWorkers||0)<2)fail('two specialist lanes are required');
   let baseRef=process.env.AUTOBOT_BASE_REF||'main';
   let cycleNumber=Number.parseInt(process.env.AUTOBOT_CYCLE_NUMBER||'1',10);
-  const audit=[];
+  const auditTrail=[];
+  let consecutiveNoProgressCycles=0;
   while(true){
     const remaining=remainingMs();
     const requiredStartMs=(configuredCycleMinutes+safetyMinutes)*60_000;
@@ -236,22 +254,30 @@ async function main(){
     try{
       const started=Date.now();
       baseRef=await cycle(cycleNumber,baseRef);
-      audit.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),status:'verified-and-carried-forward'});
+      consecutiveNoProgressCycles=0;
+      auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),status:'verified-and-carried-forward'});
       cycleNumber++;
       status(`NEXT CYCLE READY | cycle=${cycleNumber} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
-      writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'running',nextCycle:cycleNumber,baseRef,audit,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes});
+      writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'running',nextCycle:cycleNumber,baseRef,audit:auditTrail,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,consecutiveNoProgressCycles});
     }catch(error){
       const message=String(error?.message||error);
-      writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'blocked',nextCycle:cycleNumber,baseRef,audit,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,error:message});
-      writeFinalHandoff({status:'blocked',baseRef,cycleNumber,audit,error:message});
-      throw error;
+      consecutiveNoProgressCycles++;
+      audit('cycle-failed',{cycle:cycleNumber,baseRef,error:message,consecutiveNoProgressCycles,remainingMinutes:Number((remainingMs()/60000).toFixed(2))});
+      auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),status:'failed',error:message});
+      writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'recovering',nextCycle:cycleNumber,baseRef,audit:auditTrail,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,error:message,consecutiveNoProgressCycles});
+      if(consecutiveNoProgressCycles>=maxNoProgressCycles || remainingNormalMs() < (configuredCycleMinutes+safetyMinutes)*60_000){
+        writeFinalHandoff({status:'blocked',baseRef,cycleNumber,audit:auditTrail,error:message});
+        throw error;
+      }
+      status(`CYCLE ${cycleNumber} failed; preserving base ${baseRef} and replanning next cycle (${consecutiveNoProgressCycles}/${maxNoProgressCycles})`);
+      cycleNumber++;
     }
   }
   // Preserve builder/working evidence so the final handoff can include the
   // actual QA/Reviewer artifacts from every verified cycle.
   checkoutBase(baseRef);
-  writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'finished',nextCycle:cycleNumber,baseRef,audit,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes});
-  writeFinalHandoff({status:'ready-for-review',baseRef,cycleNumber,audit});
-  status(`FINISHED | ${audit.length} verified cycle(s) | final=${baseRef} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
+  writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'finished',nextCycle:cycleNumber,baseRef,audit:auditTrail,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,consecutiveNoProgressCycles});
+  writeFinalHandoff({status:'ready-for-review',baseRef,cycleNumber,audit:auditTrail});
+  status(`FINISHED | ${auditTrail.filter(x=>x.status==='verified-and-carried-forward').length} verified cycle(s) | final=${baseRef} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
 }
 main().catch(error=>{console.error(`[autobot-persistent] FATAL: ${error.message}`);process.exit(1);});
