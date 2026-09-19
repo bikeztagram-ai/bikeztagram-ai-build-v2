@@ -9,7 +9,7 @@ permissions: {contents: write, pull-requests: write, actions: read}
 concurrency: {group: autobot-cumulative-endurance, cancel-in-progress: false}
 jobs:
   cycle1:
-    uses: bikeztagram-ai/bikeztagram-ai-build-v2/.github/workflows/autobot-endurance-cycle.yml@e979821e583bff179aa742e2700f92461fa258d8
+    uses: ./.github/workflows/autobot-endurance-cycle.yml
     with:
       base_ref: main
       duration: ${{ inputs.duration }}
@@ -19,7 +19,7 @@ jobs:
   cycle2:
     needs: cycle1
     if: ${{ inputs.cycles != '1' && needs.cycle1.result == 'success' }}
-    uses: bikeztagram-ai/bikeztagram-ai-build-v2/.github/workflows/autobot-endurance-cycle.yml@e979821e583bff179aa742e2700f92461fa258d8
+    uses: ./.github/workflows/autobot-endurance-cycle.yml
     with:
       base_ref: ${{ needs.cycle1.outputs.cumulative_ref }}
       duration: ${{ inputs.duration }}
@@ -29,7 +29,7 @@ jobs:
   cycle3:
     needs: cycle2
     if: ${{ inputs.cycles == '3' && needs.cycle2.result == 'success' }}
-    uses: bikeztagram-ai/bikeztagram-ai-build-v2/.github/workflows/autobot-endurance-cycle.yml@e979821e583bff179aa742e2700f92461fa258d8
+    uses: ./.github/workflows/autobot-endurance-cycle.yml
     with:
       base_ref: ${{ needs.cycle2.outputs.cumulative_ref }}
       duration: ${{ inputs.duration }}
