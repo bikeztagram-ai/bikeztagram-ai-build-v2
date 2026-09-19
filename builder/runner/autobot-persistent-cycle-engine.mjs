@@ -156,7 +156,7 @@ async function cycle(cycleNumber,baseRef){
   status(`===== CYCLE ${cycleNumber} =====`);
   log(`base=${baseRef}; remaining=${(remainingMs()/60000).toFixed(1)}m; specialist budget=${configuredCycleMinutes}m`);
   ensureClean();checkoutBase(baseRef);
-  fs.rmSync(path.join(root,'builder','working','persistent'),{recursive:true,force:true});
+  fs.rmSync(path.join(root,'builder','working','persistent',`cycle-${cycleNumber}`),{recursive:true,force:true});
   run('node',['builder/runner/autobot-parallel-planner.mjs']);
   const plan=readJson(path.join(root,'builder','working','autobot-parallel-plan.json'));
   if(!plan?.workers||plan.workers.length<2)fail('parallel planner did not produce two specialist packages');
@@ -178,6 +178,45 @@ async function cycle(cycleNumber,baseRef){
   return nextRef;
 }
 
+function writeFinalHandoff({status,baseRef,cycleNumber,audit,error=null}) {
+  const handoffPath=path.join(root,'builder','working','autobot-final-handoff.json');
+  let finalCommit=null;
+  try {
+    finalCommit=git(['rev-parse',`origin/${baseRef}`]);
+  } catch {}
+  const cycles=(audit||[]).map(item=>{
+    const cycleDir=path.join(root,'builder','working','persistent',`cycle-${item.cycle}`);
+    const specialists=bots.map(bot=>{
+      const check=readJson(path.join(cycleDir,bot,'autobot-candidate-check.json'));
+      return {
+        botId:bot,
+        status:check?.status||'not-available',
+        integrationEligible:check?.integrationEligible===true,
+        baseCommit:check?.baseCommit||null,
+        candidateCommit:check?.candidateCommit||null,
+        branch:check?.branch||null,
+        changedFiles:check?.changedFiles||[],
+        recovered:check?.recovered===true
+      };
+    });
+    return {...item,specialists};
+  });
+  writeJson(handoffPath,{
+    schemaVersion:'autobot-final-handoff-v1',
+    status,
+    automaticMerge:false,
+    requiresAssistantReview:true,
+    requiresExplicitOperatorMerge:true,
+    baseRef:'main',
+    finalRef:baseRef,
+    finalCommit,
+    completedCycles:cycles.length,
+    nextCycle:cycleNumber,
+    cycles,
+    error,
+    generatedAt:new Date().toISOString()
+  });
+}
 async function main(){
   if(!repo)fail('GITHUB_REPOSITORY is required');
   if(totalMinutes<1)fail('invalid AutoBot total duration');
@@ -202,13 +241,17 @@ async function main(){
       status(`NEXT CYCLE READY | cycle=${cycleNumber} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
       writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'running',nextCycle:cycleNumber,baseRef,audit,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes});
     }catch(error){
-      writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'blocked',nextCycle:cycleNumber,baseRef,audit,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,error:String(error?.message||error)});
+      const message=String(error?.message||error);
+      writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'blocked',nextCycle:cycleNumber,baseRef,audit,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,error:message});
+      writeFinalHandoff({status:'blocked',baseRef,cycleNumber,audit,error:message});
       throw error;
     }
   }
-  ensureClean();
+  // Preserve builder/working evidence so the final handoff can include the
+  // actual QA/Reviewer artifacts from every verified cycle.
   checkoutBase(baseRef);
   writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'finished',nextCycle:cycleNumber,baseRef,audit,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes});
+  writeFinalHandoff({status:'ready-for-review',baseRef,cycleNumber,audit});
   status(`FINISHED | ${audit.length} verified cycle(s) | final=${baseRef} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
 }
 main().catch(error=>{console.error(`[autobot-persistent] FATAL: ${error.message}`);process.exit(1);});
