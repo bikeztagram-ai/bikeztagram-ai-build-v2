@@ -47,6 +47,7 @@ const checks=[
   [engine.includes('autobot-final-handoff.json')&&engine.includes('automaticMerge:false')&&engine.includes('requiresAssistantReview:true'),'persistent engine must emit a review-only final handoff manifest'],
  [workflow.includes('builder/working/autobot-final-handoff.json'),'persistent workflow must upload the final handoff manifest'],
  [engine.includes('Preserve builder/working evidence')&&!engine.includes("  ensureClean();\n  checkoutBase(baseRef);\n  writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'finished'"),'final handoff must preserve per-cycle evidence instead of deleting builder/working'],
+ [engine.includes('`cycle-${cycleNumber}`') && engine.includes("path.join(root,'builder','working','persistent'") ,'cycle cleanup must be scoped to the current cycle so prior verified evidence survives for the final handoff'],
  [workflow.includes('Ollama live status') || workflow.includes('AutoBot live status'),'workflow must capture readable live status evidence'],
  [workflow.includes('OLLAMA_HOST=127.0.0.1:11434 ollama ps'),'Ollama diagnostics must query the real server, not the chat proxy'],
  [engine.includes('finishGraceMinutes'),'finish grace must be enforced by the engine'],
