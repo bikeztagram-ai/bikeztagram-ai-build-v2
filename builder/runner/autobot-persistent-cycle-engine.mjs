@@ -156,7 +156,7 @@ async function cycle(cycleNumber,baseRef){
   status(`===== CYCLE ${cycleNumber} =====`);
   log(`base=${baseRef}; remaining=${(remainingMs()/60000).toFixed(1)}m; specialist budget=${configuredCycleMinutes}m`);
   ensureClean();checkoutBase(baseRef);
-  fs.rmSync(path.join(root,'builder','working','persistent'),{recursive:true,force:true});
+  fs.rmSync(path.join(root,'builder','working','persistent',`cycle-${cycleNumber}`),{recursive:true,force:true});
   run('node',['builder/runner/autobot-parallel-planner.mjs']);
   const plan=readJson(path.join(root,'builder','working','autobot-parallel-plan.json'));
   if(!plan?.workers||plan.workers.length<2)fail('parallel planner did not produce two specialist packages');
