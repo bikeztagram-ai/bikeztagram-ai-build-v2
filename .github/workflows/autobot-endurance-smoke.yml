@@ -1,0 +1,28 @@
+name: 🧪 AutoBot — single-cycle smoke test
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: Builder budget for the smoke cycle
+        required: true
+        default: 15m
+        type: choice
+        options: ['15m','30m']
+      local_model:
+        description: Local coding model
+        required: false
+        default: qwen2.5-coder:7b
+        type: string
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+jobs:
+  smoke:
+    uses: bikeztagram-ai/bikeztagram-ai-build-v2/.github/workflows/autobot-endurance-cycle.yml@main
+    with:
+      base_ref: main
+      duration: ${{ inputs.duration }}
+      cycle_number: '1'
+      local_model: ${{ inputs.local_model }}
+    secrets: inherit
