@@ -6,7 +6,11 @@
       "priority": 100,
       "title": "Improve cinematic edit quality end to end",
       "dependsOn": [],
-      "files": ["src/director.js", "src/aiEditPlanner.js", "src/renderer.js"],
+      "files": [
+        "src/director.js",
+        "src/aiEditPlanner.js",
+        "src/renderer.js"
+      ],
       "acceptance": [
         "auditable director decisions",
         "purposeful shot timing motion and transition intent",
@@ -30,8 +34,13 @@
       "id": "director-intelligence",
       "priority": 99,
       "title": "Build deterministic director story intelligence",
-      "dependsOn": ["cinematic-quality"],
-      "files": ["src/director.js", "src/aiEditPlanner.js"],
+      "dependsOn": [
+        "cinematic-quality"
+      ],
+      "files": [
+        "src/director.js",
+        "src/aiEditPlanner.js"
+      ],
       "acceptance": [
         "story count scales with useful media and target duration",
         "story roles reflect creative intent without becoming a fixed template",
@@ -55,8 +64,14 @@
       "id": "timeline-nle",
       "priority": 98,
       "title": "Strengthen the universal executable timeline",
-      "dependsOn": ["cinematic-quality"],
-      "files": ["src/executableTimeline.js", "src/editorialRhythm.js", "src/director.js"],
+      "dependsOn": [
+        "cinematic-quality"
+      ],
+      "files": [
+        "src/executableTimeline.js",
+        "src/editorialRhythm.js",
+        "src/director.js"
+      ],
       "acceptance": [
         "timeline preserves source identity and editorial roles",
         "timing trims transforms speed and transitions remain executable",
@@ -69,7 +84,15 @@
       "implementationSignals": {
         "timeline preserves source identity and editorial roles": {
           "file": "src/executableTimeline.js",
-          "source": "cut.directorExecution={...(cut.directorExecution||{}),sourceId:source,role"
+          "source": "function sourceId(cut)"
+        },
+        "timing trims transforms speed and transitions remain executable": {
+          "file": "src/executableTimeline.js",
+          "source": "function normalizeTrim(cut)"
+        },
+        "duration budget is deterministic": {
+          "file": "src/executableTimeline.js",
+          "source": "function normalizeTimelineDuration(cuts,target)"
         }
       },
       "constraints": [
@@ -82,8 +105,14 @@
       "id": "audio-intelligence",
       "priority": 97,
       "title": "Improve music arrangement and audio synchronisation",
-      "dependsOn": ["timeline-nle"],
-      "files": ["src/musicProvider.js", "src/musicArrangementRuntime.js", "src/aiAudioAnalysis.js"],
+      "dependsOn": [
+        "timeline-nle"
+      ],
+      "files": [
+        "src/musicProvider.js",
+        "src/musicArrangementRuntime.js",
+        "src/aiAudioAnalysis.js"
+      ],
       "acceptance": [
         "music structure follows edit rhythm",
         "beat or cue metadata can drive editorial timing",
@@ -104,7 +133,11 @@
       "priority": 96,
       "title": "Strengthen real AI generation runtime and provider handoff",
       "dependsOn": [],
-      "files": ["src/universalRenderRuntime.js", "src/aiVideoProvider.js", "src/promptOnlyVideoBatch.js"],
+      "files": [
+        "src/universalRenderRuntime.js",
+        "src/aiVideoProvider.js",
+        "src/promptOnlyVideoBatch.js"
+      ],
       "acceptance": [
         "moving-media requests use real video generation or truthful unavailable state",
         "generated assets are validated before editing",
@@ -126,8 +159,14 @@
       "id": "universal-creative-understanding",
       "priority": 95,
       "title": "Improve universal creative brief understanding and continuity",
-      "dependsOn": ["cinematic-quality"],
-      "files": ["src/creativeIntentCompiler.js", "src/universalCreativeEngine.js", "src/creativeBriefModel.js"],
+      "dependsOn": [
+        "cinematic-quality"
+      ],
+      "files": [
+        "src/creativeIntentCompiler.js",
+        "src/universalCreativeEngine.js",
+        "src/creativeBriefModel.js"
+      ],
       "acceptance": [
         "arbitrary subjects and worlds compile into coherent intent",
         "continuity is preserved across scenes",
@@ -149,7 +188,10 @@
       "priority": 90,
       "title": "Improve editor lifecycle reliability",
       "dependsOn": [],
-      "files": ["src/App.jsx", "src/projectPersistence.js"],
+      "files": [
+        "src/App.jsx",
+        "src/projectPersistence.js"
+      ],
       "acceptance": [
         "truthful loading error and recovery states",
         "saved metadata restores into real editor state",
@@ -168,8 +210,13 @@
       "id": "social-export",
       "priority": 85,
       "title": "Improve creator export delivery",
-      "dependsOn": ["editor-reliability"],
-      "files": ["src/socialExport.js", "src/App.jsx"],
+      "dependsOn": [
+        "editor-reliability"
+      ],
+      "files": [
+        "src/socialExport.js",
+        "src/App.jsx"
+      ],
       "acceptance": [
         "9:16 1:1 and 16:9 profiles are coherent",
         "deterministic output metadata and filenames",
@@ -188,8 +235,14 @@
       "id": "mobile-editor",
       "priority": 65,
       "title": "Improve Android/PWA editing usability",
-      "dependsOn": ["social-export", "timeline-nle"],
-      "files": ["src/App.jsx", "src/styles.css"],
+      "dependsOn": [
+        "social-export",
+        "timeline-nle"
+      ],
+      "files": [
+        "src/App.jsx",
+        "src/styles.css"
+      ],
       "acceptance": [
         "usable touch targets",
         "safe areas and responsive layout",
