@@ -273,6 +273,6 @@ async function main(){
   checkoutBase(baseRef);
   writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'finished',nextCycle:cycleNumber,baseRef,audit:auditTrail,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,consecutiveNoProgressCycles});
   writeFinalHandoff({status:'ready-for-review',baseRef,cycleNumber,audit:auditTrail});
-  status(`FINISHED | ${audit.length} verified cycle(s) | final=${baseRef} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
+  status(`FINISHED | ${auditTrail.filter(x=>x.status==='verified-and-carried-forward').length} verified cycle(s) | final=${baseRef} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
 }
 main().catch(error=>{console.error(`[autobot-persistent] FATAL: ${error.message}`);process.exit(1);});
