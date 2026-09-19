@@ -14,6 +14,7 @@ const specialist=read('builder/runner/autobot-specialist-builder.mjs');
 const recovery=read('builder/runner/autobot-specialist-recovery.mjs');
 const candidate=read('builder/runner/autobot-endurance-candidate-check.mjs');
 const planner=read('builder/runner/autobot-parallel-planner.mjs');
+const objectives=JSON.parse(read('builder/brain/feature-objectives.json'));
 const handoff=read('builder/runner/autobot-specialist-handoff.mjs');
 const structured=read('builder/runner/autobot-specialist-structured-fallback.mjs');
 const deterministic=read('builder/runner/autobot-specialist-deterministic-fallback.mjs');
@@ -70,6 +71,8 @@ const checks=[
  [candidate.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate reviewers must have isolated outputs'],
  [candidate.includes('AUTOBOT_SKIP_NPM_INSTALL'),'candidate QA must be able to reuse root node_modules'],
  [planner.includes('completedSpecialistTitles'),'Planner must avoid repeating completed specialist objectives'],
+ [planner.includes('implementationSignals')&&planner.includes('staleAcceptanceTitles')&&planner.includes('already satisfied by the current product runtime'),'Planner must reject acceptance slices already satisfied by the current runtime'],
+ [objectives.objectives?.some?.(o=>o.id==='timeline-nle'&&o.implementationSignals?.['timeline preserves source identity and editorial roles']?.source?.includes('cut.directorExecution')),'Timeline objective must declare a freshness signal for source identity/editorial-role work'],
  [planner.includes('deterministically decompose')&&planner.includes('objective.acceptance'),'Planner must have a product-library fallback when AI discovery is unavailable'],
  [planner.includes('completed.has(title)'),'Planner fallback must reject already-completed generated objectives'],
  [planner.includes("source='deterministic-product-gap-fallback'"),'Planner must record fallback provenance when AI discovery fails'],
