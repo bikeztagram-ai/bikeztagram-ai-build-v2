@@ -54,6 +54,7 @@ const checks=[
  [specialist.includes("runStructuredFallback(worktree, assignmentPath, model, base)")&&specialist.includes("git', ['reset', '--hard', base]"),'specialist fallback must reset failed Aider edits before retry'],
  [deterministic.includes("specialist==='director-builder'")&&deterministic.includes("generic director hook/payoff evidence")&&deterministic.includes("specialist==='timeline-builder'")&&deterministic.includes("generic timeline role-aware motion"),'deterministic fallback must have generic safe product paths for both specialist lanes'],
  [deterministic.includes("cut.motionStyle=motionFor(cut,role);const roleMotion=role==='action'?1.15"),'timeline deterministic fallback must anchor to the current executableTimeline runtime'],
+ [deterministic.includes("const roleMotion=role==='action'?1.2:role==='reveal'?1.08:role==='hero-ending'?.9:1;cut.motionStyle=motionFor(cut,role);"),'semantic timeline fallback must anchor to the current executableTimeline runtime'],
  [candidate.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate reviewers must have isolated outputs'],
  [candidate.includes('AUTOBOT_SKIP_NPM_INSTALL'),'candidate QA must be able to reuse root node_modules'],
  [planner.includes('completedSpecialistTitles'),'Planner must avoid repeating completed specialist objectives'],

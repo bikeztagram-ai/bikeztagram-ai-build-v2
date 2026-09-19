@@ -44,8 +44,8 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
 } else if(specialist==='timeline-builder' && (objective.includes('timing')||objective.includes('motion')||objective.includes('transition'))){
   files=[replaceOnce(
     'src/executableTimeline.js',
-    "cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));",
-    "const roleMotion=role==='action'?1.2:role==='reveal'?1.08:role==='hero-ending'?.9:1;cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*roleMotion,.35,1.6).toFixed(2));",
+    "cut.motionStyle=motionFor(cut,role);cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));",
+    "const roleMotion=role==='action'?1.2:role==='reveal'?1.08:role==='hero-ending'?.9:1;cut.motionStyle=motionFor(cut,role);cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*roleMotion,.35,1.6).toFixed(2));",
     'purposeful role-aware motion intensity'
   )];
 } else if(specialist==='timeline-builder' && objective.includes('source-aware trim continuity')){
