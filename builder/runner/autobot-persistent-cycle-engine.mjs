@@ -56,6 +56,11 @@ function audit(stage,data={}){appendAudit(stage,{...data,runId:process.env.GITHU
 function assertAudit(stage){const result=verifyAuditLog();if(!result.valid)fail(`audit integrity failure before ${stage}: ${result.error}`);}
 function ensureClean(){run('git',['reset','--hard']);run('git',['clean','-fd','builder/working']);}
 function checkoutBase(ref){
+  if(/^[0-9a-f]{40}$/i.test(String(ref))){
+    run('git',['fetch','origin',String(ref)]);
+    run('git',['checkout','--detach',String(ref)]);
+    return;
+  }
   run('git',['fetch','origin',`+refs/heads/${ref}:refs/remotes/origin/${ref}`]);
   run('git',['checkout','--detach',ref]);
 }
