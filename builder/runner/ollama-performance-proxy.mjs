@@ -15,7 +15,7 @@ const maxAttempts = Number(process.env.LOCAL_AI_PROXY_MAX_ATTEMPTS || 3);
 function clampBody(body) {
   const request = JSON.parse(body);
   request.stream = false;
-  request.keep_alive = request.keep_alive ?? '30m';
+  request.keep_alive = request.keep_alive ?? '6h';
   request.options = {
     ...(request.options || {}),
     temperature: 0,
