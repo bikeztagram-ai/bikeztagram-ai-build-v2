@@ -8,6 +8,7 @@ const assignmentPath=path.resolve(process.env.AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PA
 const assignment=JSON.parse(fs.readFileSync(assignmentPath,'utf8'));
 const specialist=assignment.specialist?.id;
 const objective=String(assignment.objective?.title||'').toLowerCase();
+const declaredFiles=new Set((assignment.objective?.files||[]).map(String));
 
 function replaceOnce(file,search,replacement,label){
   const full=path.join(root,file);
@@ -80,6 +81,10 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
   }
   if(!files.length){console.log(JSON.stringify({ok:false,status:'unsupported-objective',specialist,objective}));process.exit(2);}
 } else if(specialist==='timeline-builder'){
+  if(!declaredFiles.has('src/executableTimeline.js')){
+    console.log(JSON.stringify({ok:false,status:'unsupported-objective-file',specialist,objective,declaredFiles:[...declaredFiles]}));
+    process.exit(2);
+  }
   const options=[
     ["cut.motionStyle=motionFor(cut,role);cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));","cut.motionStyle=motionFor(cut,role);const roleMotion=role==='action'?1.15:role==='reveal'?1.06:role==='hero-ending'?.92:1;cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*roleMotion,.35,1.6).toFixed(2));","generic timeline role-aware motion"],
     ["const end=Number.isFinite(endRaw)&&endRaw>start?endRaw:start+duration;return{trimStart:Number(start.toFixed(3)),trimEnd:Number(end.toFixed(3))};","const available=number(cut?.sourceDuration,number(cut?.durationInSeconds,NaN));const proposed=Number.isFinite(endRaw)&&endRaw>start?endRaw:start+duration;const end=Number.isFinite(available)&&available>0?Math.max(start,Math.min(proposed,available)):proposed;return{trimStart:Number(start.toFixed(3)),trimEnd:Number(end.toFixed(3))};","generic timeline source-aware trim"],

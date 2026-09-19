@@ -15,6 +15,7 @@ const recovery=read('builder/runner/autobot-specialist-recovery.mjs');
 const candidate=read('builder/runner/autobot-endurance-candidate-check.mjs');
 const planner=read('builder/runner/autobot-parallel-planner.mjs');
 const handoff=read('builder/runner/autobot-specialist-handoff.mjs');
+const structured=read('builder/runner/autobot-specialist-structured-fallback.mjs');
 const deterministic=read('builder/runner/autobot-specialist-deterministic-fallback.mjs');
 const registry=JSON.parse(read('builder/brain/autobot-fleet.json'));
 const checks=[
@@ -60,6 +61,10 @@ const checks=[
  [recovery.includes('AUTOBOT_SKIP_NPM_INSTALL'),'Repair Bot must be able to reuse root node_modules'],
  [specialist.includes("runStructuredFallback(worktree, assignmentPath, model, base)")&&specialist.includes("git', ['reset', '--hard', base]"),'specialist fallback must reset failed Aider edits before retry'],
  [deterministic.includes("specialist==='director-builder'")&&deterministic.includes("generic director hook/payoff evidence")&&deterministic.includes("specialist==='timeline-builder'")&&deterministic.includes("generic timeline role-aware motion"),'deterministic fallback must have generic safe product paths for both specialist lanes'],
+ [planner.includes("preferredFiles=bot.id==='timeline-builder'")&&planner.includes("src/executableTimeline.js")&&planner.includes("if(!targetFile)continue"),'deterministic planner decomposition must avoid unsupported Timeline files such as thin renderer re-exports'],
+ [structured.includes("AUTOBOT_SPECIALIST_BASE_COMMIT")&&structured.includes("git',['reset','--hard',baseCommit]"),'deterministic fallback must restore the exact specialist base before retry'],
+ [specialist.includes("AUTOBOT_SPECIALIST_BASE_COMMIT: base"),'specialist Builder must propagate the exact specialist base to fallback recovery'],
+ [deterministic.includes("const declaredFiles=new Set")&&deterministic.includes("unsupported-objective-file")&&deterministic.includes("declaredFiles.has('src/executableTimeline.js')"),'deterministic Timeline fallback must never edit outside the assigned objective scope'],
  [deterministic.includes("cut.motionStyle=motionFor(cut,role);const roleMotion=role==='action'?1.15"),'timeline deterministic fallback must anchor to the current executableTimeline runtime'],
  [deterministic.includes("const roleMotion=role==='action'?1.2:role==='reveal'?1.08:role==='hero-ending'?.9:1;cut.motionStyle=motionFor(cut,role);"),'semantic timeline fallback must anchor to the current executableTimeline runtime'],
  [candidate.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate reviewers must have isolated outputs'],

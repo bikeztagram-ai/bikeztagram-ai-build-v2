@@ -88,6 +88,10 @@ try {
   if (result.error || result.status !== 0 || !hasProductChange) {
     const reason = result.error?.message || result.status || (hasProductChange ? 'unknown' : 'structured fallback produced no product change');
     console.warn(`[autobot] structured specialist fallback did not materialize an owned product change (${reason}); trying deterministic product fallback.`);
+    const baseCommit=String(process.env.AUTOBOT_SPECIALIST_BASE_COMMIT||'').trim();
+    if(!baseCommit)fail('deterministic fallback requires AUTOBOT_SPECIALIST_BASE_COMMIT');
+    const restore=spawnSync('git',['reset','--hard',baseCommit],{cwd:root,stdio:'inherit',env:process.env});
+    if(restore.error||restore.status!==0)fail(`unable to restore specialist base before deterministic fallback: ${restore.error?.message||restore.status}`);
     const deterministic = spawnSync(process.execPath, ['builder/runner/autobot-specialist-deterministic-fallback.mjs'], { cwd: root, stdio: 'inherit', env: process.env, timeout: 30_000 });
     if (deterministic.error || deterministic.status !== 0) fail(`structured and deterministic specialist fallbacks failed (${reason}; deterministic=${deterministic.error?.message || deterministic.status})`);
     console.log(JSON.stringify({ ok: true, engine: 'deterministic-specialist-fallback-v1', files }));

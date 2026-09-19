@@ -79,6 +79,7 @@ function runStructuredFallback(worktree, assignmentPath, model, base) {
     OLLAMA_HOST: process.env.OLLAMA_HOST || 'http://127.0.0.1:11434',
     AUTOBOT_ORCHESTRATOR_ENABLED: 'true',
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath,
+    AUTOBOT_SPECIALIST_BASE_COMMIT: base,
     AUTOBOT_FEATURE_ENGINE: 'structured',
     AUTOBOT_FEATURE_PROTOCOL: 'structured-search-replace-v3',
     AUTOBOT_FEATURE_PASSES: '1',
