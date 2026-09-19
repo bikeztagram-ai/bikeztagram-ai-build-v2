@@ -65,7 +65,13 @@
         "exercise short and rich timelines",
         "verify new timing or continuity logic is actually consumed by the executable timeline",
         "perform an adversarial second-pass review before declaring the objective complete"
-      ],
+      ],,
+      "implementationSignals": {
+        "timeline preserves source identity and editorial roles": {
+          "file": "src/executableTimeline.js",
+          "source": "cut.directorExecution={...(cut.directorExecution||{}),sourceId:source,role"
+        }
+      }
       "constraints": [
         "preserve existing timeline contracts",
         "do not invent source media",
