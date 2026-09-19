@@ -15,6 +15,7 @@ const recovery=read('builder/runner/autobot-specialist-recovery.mjs');
 const candidate=read('builder/runner/autobot-endurance-candidate-check.mjs');
 const planner=read('builder/runner/autobot-parallel-planner.mjs');
 const handoff=read('builder/runner/autobot-specialist-handoff.mjs');
+const structured=read('builder/runner/autobot-specialist-structured-fallback.mjs');
 const deterministic=read('builder/runner/autobot-specialist-deterministic-fallback.mjs');
 const registry=JSON.parse(read('builder/brain/autobot-fleet.json'));
 const checks=[
