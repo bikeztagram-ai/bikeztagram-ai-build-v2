@@ -21,6 +21,15 @@ const sourceFiles=fs.readdirSync(path.join(root,'src'),{withFileTypes:true}).fil
 function readJson(file,fallback){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return fallback;}}
 function parseJsonl(file){if(!fs.existsSync(file))return [];return fs.readFileSync(file,'utf8').split(/\r?\n/).filter(Boolean).map(line=>{try{return JSON.parse(line)}catch{return null}}).filter(Boolean);}
 function objectiveList(){const x=readJson(objectivePath,{objectives:[]});return Array.isArray(x)?x:(x.objectives||[]);}
+function sourceEvidence(){
+  const preferred=['src/director.js','src/executableTimeline.js','src/editorialRhythm.js','src/aiEditPlanner.js','src/renderer.js'];
+  return preferred.filter(file=>sourceFiles.includes(file)).map(file=>{
+    try{
+      const content=fs.readFileSync(path.join(root,file),'utf8');
+      return {file,lines:content.split(/\r?\n/).length,excerpt:content.slice(0,3200)};
+    }catch{return null;}
+  }).filter(Boolean);
+}
 function recentFailures(){
   const records=parseJsonl(queuePath), latest=new Map();
   for(const r of records)if(r.id)latest.set(r.id,r);
@@ -47,12 +56,14 @@ function deterministicBrief(reason){
 async function aiResearch(){
   const objectives=objectiveList().map(o=>({id:o.id,title:o.title,files:o.files,acceptance:o.acceptance,priority:o.priority})).slice(0,24);
   const failures=recentFailures();
+  const sourceState=sourceEvidence();
   const prompt=[
     'You are the Bikeztagram R&D analyst. Research the current product state using the supplied objective library and failure evidence.',
     'Return ONLY JSON with schema {"findings":[{"id":"","type":"product-gap|risk|opportunity","summary":"","evidence":[]}],"recommendations":[{"rank":1,"title":"","files":[],"whyNow":"","acceptanceHints":[],"evidence":[]}],"risks":[{"summary":"","evidence":[]}]}',
     'Find genuinely useful user-facing product improvements, not AutoBot infrastructure. Prefer capabilities that are implementable in the registered specialist scopes.',
     'Do not claim a feature exists unless evidence supports it. Do not invent media, providers or capabilities. Do not propose weakening tests or gates.',
     'Current source files: '+JSON.stringify(sourceFiles),
+    'Current production source evidence excerpts: '+JSON.stringify(sourceState),
     'Objective library: '+JSON.stringify(objectives),
     'Recent failure evidence: '+JSON.stringify(failures)
   ].join('\n');
@@ -70,7 +81,7 @@ async function aiResearch(){
 async function main(){
   let data,source='ai-research',failure=null;
   try{data=await aiResearch();}catch(error){failure=String(error?.message||error);console.warn(`[autobot-rnd] AI research unavailable: ${failure}; using deterministic evidence fallback`);data=deterministicBrief(failure);source='deterministic-evidence-fallback';}
-  const result={schemaVersion:'autobot-rnd-v1',source,generatedAt:new Date().toISOString(),researchQuestion:'What evidence-backed product work should the next specialist cycle pursue?',findings:data.findings.slice(0,8),recommendations:data.recommendations.slice(0,8),risks:data.risks.slice(0,8),fallbackReason:failure,requiresHumanReview:true};
+  const result={schemaVersion:'autobot-rnd-v1',source,generatedAt:new Date().toISOString(),researchQuestion:'What evidence-backed product work should the next specialist cycle pursue?',sourceEvidenceFiles:sourceEvidence().map(item=>item.file),findings:data.findings.slice(0,8),recommendations:data.recommendations.slice(0,8),risks:data.risks.slice(0,8),fallbackReason:failure,requiresHumanReview:true};
   fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(result,null,2)+'\n');
   console.log(JSON.stringify({ok:true,schemaVersion:result.schemaVersion,source,recommendations:result.recommendations.length,findings:result.findings.length,risks:result.risks.length,output}));
 }
