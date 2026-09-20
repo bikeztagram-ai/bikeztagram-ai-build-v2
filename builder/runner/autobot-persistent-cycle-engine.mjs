@@ -139,7 +139,7 @@ async function recoverCandidateFailures(results,cycle){
     run('git',['diff','--check',`${baseCommit}..${candidateCommit}`]);
     fs.writeFileSync(path.join(recoveryDir,'autobot-repair-base-commit.txt'),`${baseCommit}\n`);
     fs.writeFileSync(path.join(recoveryDir,'autobot-repair-commit.txt'),`${candidateCommit}\n`);
-    fs.writeFileSync(path.join(recoveryDir,'autobot-verified-candidate.json'),JSON.stringify({schemaVersion:1,botId:item.bot,status:'verified-candidate',baseCommit,candidateCommit,branch:branchName,changedFiles:recovery.qa?.changedFiles||[],recovered:true,recoveryTransport:'exact-commit',failureId},null,2)+'\n');
+    fs.writeFileSync(path.join(recoveryDir,'autobot-verified-candidate.json'),JSON.stringify({schemaVersion:1,botId:item.bot,status:'verified-candidate',baseCommit,candidateCommit,cycleBaseCommit:process.env.AUTOBOT_CYCLE_BASE_COMMIT||baseCommit,branch:branchName,changedFiles:recovery.qa?.changedFiles||[],recovered:true,recoveryTransport:'exact-commit',failureId},null,2)+'\n');
   }
 }
 
