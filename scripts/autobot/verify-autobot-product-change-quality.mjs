@@ -27,7 +27,7 @@ function duplicateTopLevelFunctionNames(source){
 }
 function assertNoDuplicateTopLevelFunctions(file){
   const duplicates=duplicateTopLevelFunctionNames(read(file));
-  assert(!duplicates.length,\`duplicate-function-declaration guard failed in \${file}: \${duplicates.map(item=>item.name+' x'+item.count).join(', ')}\`);
+  assert(!duplicates.length,`duplicate-function-declaration guard failed in ${file}: ${duplicates.map(item=>item.name+' x'+item.count).join(', ')}`);
 }
 function richMedia(){return Array.from({length:12},(_,index)=>({id:`rich-${index}`,type:index%2?'video/mp4':'image/jpeg',name:['wide mountain establishing','rider approaching road','motorcycle cornering action','cockpit detail close-up','mountain landscape journey','bike accelerating speed','sunset motorcycle reveal','hero motorcycle showcase','roadside landscape detail','rider departure movement','mountain road action','final motorcycle hero'][index],duration:index%2?4:0,width:1920,height:1080,score:75+index}));}
 function sparseMedia(count){return Array.from({length:count},(_,index)=>({id:`sparse-${index}`,type:'image/jpeg',name:index===0?'single hero motorcycle':'detail motorcycle',width:1920,height:1080,score:80-index}));}
