@@ -110,7 +110,8 @@ const checks=[
  [planner.includes("source='deterministic-product-gap-fallback'"),'Planner must record fallback provenance when AI discovery fails'],
  [handoff.includes('validateSpecialistHandoff'),'handoff schema validation must remain active'],
  [registry.enabled===true&&registry.coordination?.mode==='active','fleet activation gate must remain active'],
- [Number(registry.coordination?.maxConcurrentWorkers||0)>=2,'two specialist lanes must remain authorized']
+ [Number(registry.coordination?.maxConcurrentWorkers||0)>=2,'two specialist lanes must remain authorized'],
+ [registry.coordination?.rndRunner==='builder/runner/autobot-rnd.mjs'&&registry.coordination?.rndOutput==='builder/working/autobot-rnd-brief.json'&&registry.bots.some(b=>b.id==='rnd'&&b.entrypoint==='builder/runner/autobot-rnd.mjs'&&b.analysisOnly===true),'dedicated R&D runner/output must be registered as analysis-only'],
 ];
 for(const [ok,msg] of checks)assert(ok,msg);
 console.log(JSON.stringify({ok:true,checks:checks.length,chain:['Planner','Director + Timeline Specialists (parallel)','Repair','independent QA + Reviewer','Carry-forward','repeat in same runner'],restartPerCycle:false,githubJobCeilingMinutes:345},null,2));
