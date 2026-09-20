@@ -14,6 +14,20 @@ import {appendAudit, verifyAuditLog} from '../quality/audit-log.mjs';
 import {renderLiveSummary} from './autobot-live-dashboard.mjs';
 
 const root=process.cwd();
+function parseDuration(value){
+  const text=String(value||'').trim().toLowerCase();
+  const hm=text.match(/^(\\d+)h(\\d{1,2})m?$/);
+  if(hm){
+    const minutes=Number(hm[2]);
+    if(minutes>=60)throw new Error(\`Invalid duration: \${value}\`);
+    return Number(hm[1])*60+minutes;
+  }
+  const h=text.match(/^(\\d+)h$/);
+  if(h)return Number(h[1])*60;
+  const m=text.match(/^(\\d+)m$/);
+  if(m)return Number(m[1]);
+  throw new Error(\`Invalid duration: \${value}. Expected formats such as 15m, 1h, or 5h30.\`);
+}
 const repo=process.env.GITHUB_REPOSITORY;
 const totalMinutes=parseDuration(process.env.AUTOBOT_TOTAL_DURATION||'30m');
 const configuredCycleMinutes=Math.max(1,Number.parseInt(process.env.AUTOBOT_CYCLE_MINUTES||'15',10));
