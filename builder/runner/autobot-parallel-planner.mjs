@@ -100,7 +100,8 @@ function fallback(bot,library,inv,completedTitles=new Set(),reservedTitles=new S
     ]
   };
   const pool=[];
-  const invForRnd=new Set(inv);
+  const invSet=new Set(inv);
+  const invForRnd=invSet;
   const rndRecommendations=Array.isArray(rnd?.recommendations)?rnd.recommendations:[];
   for(const recommendation of rndRecommendations){
     const title=String(recommendation?.title||'').trim();
