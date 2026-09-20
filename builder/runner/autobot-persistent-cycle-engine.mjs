@@ -240,7 +240,7 @@ function writeFinalHandoff({status,baseRef,cycleNumber,audit,error=null}) {
   const handoffPath=path.join(root,'builder','working','autobot-final-handoff.json');
   let finalCommit=null;
   try {
-    finalCommit=git(['rev-parse',`origin/${baseRef}`]);
+    finalCommit=/^[0-9a-f]{40}$/i.test(String(baseRef)) ? String(baseRef) : git(['rev-parse',`origin/${baseRef}`]);
   } catch {}
   const cycles=(audit||[]).map(item=>{
     const cycleDir=path.join(root,'builder','working','persistent',`cycle-${item.cycle}`);
