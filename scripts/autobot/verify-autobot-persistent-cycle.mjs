@@ -26,6 +26,8 @@ const checks=[
  [engine.includes("import {appendAudit, verifyAuditLog} from '../quality/audit-log.mjs'")&&engine.includes("audit('iteration-started'")&&engine.includes("audit('planner-finished'")&&engine.includes("audit('verification-finished'")&&engine.includes("audit('iteration-finished'"),'persistent fleet must carry the proven audit/integrity trail across specialist stages'],
  [engine.includes('maxNoProgressCycles')&&engine.includes('consecutiveNoProgressCycles')&&engine.includes('CYCLE ${cycleNumber} failed; preserving base'),'specialist cycles must survive a recoverable failed cycle and re-plan from the last verified base'],
  [engine.includes('const cycleStartedMs=Date.now();\n    try{')&&engine.includes('Date.now()-cycleStartedMs')&&!engine.includes('const started=Date.now()'),'cycle recovery timer must remain in scope for both success and catch paths'],
+ [engine.includes('const cycleDurationsMs=[]')&&engine.includes('observedCycleMs')&&engine.includes('estimatedCycleMs')&&engine.includes('cycle launch budget'),'cycle launch gate must adapt to observed verified cycle runtime so recovery can cross the historical 30-minute boundary'],
+ 
  
  [engine.includes("status:'recovering'")&&engine.includes('auditTrail'),'failed specialist cycles must persist resumable runtime evidence before retrying'],
  [workflow.includes('workflow_dispatch:'),'persistent workflow must be manually dispatchable'],
