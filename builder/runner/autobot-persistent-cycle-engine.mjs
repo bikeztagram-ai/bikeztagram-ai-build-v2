@@ -270,7 +270,20 @@ async function cycle(cycleNumber,baseRef){
     audit('recovery-verification-finished',{cycle:cycleNumber,passed:verified.filter(x=>x.check?.status==='pass').length,total:verified.length,failedBots:failures.map(x=>x.bot)});
     status(`RECOVERY + RECHECK complete | ${verified.filter(x=>x.check?.status==='pass').length}/${verified.length} passed`);
   }
-  if(failures.length)fail(`independent candidate verification failed after Repair/Recovery: ${failures.map(x=>x.bot).join(', ')}`);
+  if(failures.length){
+    const passed=verified.filter(x=>x.check?.status==='pass');
+    if(passed.length){
+      status(`RECOVERY incomplete | ${failures.map(x=>x.bot).join(', ')} not recovered; preserving ${passed.map(x=>x.bot).join(', ')} and continuing`);
+      audit('partial-recovery',{cycle:cycleNumber,passedBots:passed.map(x=>x.bot),failedBots:failures.map(x=>x.bot),continueWithVerifiedWork:true});
+      status('CARRY-FORWARD integrating verified candidates only');
+      const nextRef=integrate(cycleNumber,baseRef,passed);
+      audit('iteration-finished',{cycle:cycleNumber,status:'partially-verified-and-carried-forward',baseRef,nextRef,passedBots:passed.map(x=>x.bot),failedBots:failures.map(x=>x.bot)});
+      assertAudit(`cycle-${cycleNumber}-partial-finish`);
+      status(`CYCLE ${cycleNumber} PARTIALLY VERIFIED + CARRIED FORWARD | ${nextRef}`);
+      return nextRef;
+    }
+    fail(`independent candidate verification failed after Repair/Recovery: ${failures.map(x=>x.bot).join(', ')}`);
+  }
   status('CARRY-FORWARD integrating verified candidates');
   const nextRef=integrate(cycleNumber,baseRef,verified);
   audit('iteration-finished',{cycle:cycleNumber,status:'verified-and-carried-forward',baseRef,nextRef});

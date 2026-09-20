@@ -107,7 +107,7 @@ function runRepair(record,files){
     const aiderCwd=allInSrc?path.join(worktree,'src'):worktree;
     const aiderFiles=allInSrc?files.map(file=>file.slice(4)):files;
     const mapTokens=allInSrc?0:256;
-    const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',`--map-tokens=${mapTokens}`,'--subtree-only',`--edit-format=${editFormat}`];
+    const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--no-git',`--edit-format=${editFormat}`];
     if(focused&&editFormat==='diff')args.push('--no-git');
     args.push('--message',promptFor(record,files),...aiderFiles);
     console.log(`[repair] focused=${focused} cwd=${allInSrc?'src':'repo-root'} files=${files.length} mapTokens=${mapTokens}`);
