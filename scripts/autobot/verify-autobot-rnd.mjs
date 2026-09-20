@@ -16,6 +16,7 @@ assert(rnd.includes('AUTOBOT_RND_OUTPUT'),'R&D output must be configurable');
 assert(rnd.includes('AUTOBOT_RND_MODEL'),'R&D model must be configurable');
 assert(rnd.includes('autobot-failure-queue.jsonl'),'R&D must consume durable failure evidence');
 assert(rnd.includes('feature-objectives.json'),'R&D must consume the product objective library');
+assert(rnd.includes('function sourceEvidence()')&&rnd.includes('excerpt:content.slice(0,3200)'),'R&D must inspect current production source evidence, not only filenames');
 assert(!rnd.includes('git commit')&&!rnd.includes('git push'),'R&D must not commit or push');
 assert(!rnd.includes('update_file')&&!rnd.includes('create_file'),'R&D must not contain repository write APIs');
 assert(planner.includes('autobot-rnd-brief.json'),'Planner must consume the R&D brief');
