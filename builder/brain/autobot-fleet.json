@@ -8,6 +8,8 @@
     "mode": "active",
     "coordinator": "builder/runner/autobot-coordinator.mjs",
     "recoveryRunner": "builder/runner/autobot-fleet-recovery.mjs",
+    "rndRunner": "builder/runner/autobot-rnd.mjs",
+    "rndOutput": "builder/working/autobot-rnd-brief.json",
     "specialistRecoveryRunner": "builder/runner/autobot-specialist-recovery.mjs",
     "recoveryWorkflow": ".github/workflows/autobot-fleet-recovery.yml",
     "recoveryDocumentation": "builder/brain/autobot-fleet-controlled-recovery.md",
@@ -128,6 +130,19 @@
         "anti-churn review"
       ],
       "protected": false
+    },
+    {
+      "id": "rnd",
+      "role": "evidence-first-research-and-development-analyst",
+      "entrypoint": "builder/runner/autobot-rnd.mjs",
+      "status": "verified",
+      "owns": [
+        "product research",
+        "evidence synthesis",
+        "next-cycle product opportunity discovery"
+      ],
+      "protected": false,
+      "analysisOnly": true
     },
     {
       "id": "self-improvement",
