@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "autobot-evolution-policy",
+  "purpose": "Study and improve AutoBot reliability without becoming part of the production critical path.",
+  "defaultApply": false,
+  "automaticMerge": false,
+  "productionDependency": false,
+  "promotion": "Human review is required before any evolution change reaches main.",
+  "allowedExperimentPaths": ["builder/runner/autobot-evolution-engineer.mjs","scripts/autobot/verify-autobot-evolution-engineer.mjs",".github/workflows/autobot-evolution-engineer.yml","builder/brain/autobot-evolution-policy.json"],
+  "neverTouch": ["src/","api/","public/","builder/runner/autobot-persistent-cycle-engine.mjs","builder/runner/autobot-specialist-builder.mjs","builder/runner/autobot-specialist-recovery.mjs","scripts/autobot/verify-autobot-persistent-cycle.mjs","builder/brain/autobot-fleet.json"]
+}
