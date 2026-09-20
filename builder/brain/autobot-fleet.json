@@ -27,7 +27,10 @@
     "requireHumanReviewBeforeProtectedIntegration": true,
     "enduranceWorkflow": ".github/workflows/autobot-endurance.yml",
     "enduranceCycleWorkflow": ".github/workflows/autobot-endurance-cycle.yml",
-    "cumulativeBranchPrefix": "autobot/endurance/cycle-"
+    "cumulativeBranchPrefix": "autobot/endurance/cycle-",
+    "evolutionRunner": "builder/runner/autobot-evolution-engineer.mjs",
+    "evolutionWorkflow": ".github/workflows/autobot-evolution-engineer.yml",
+    "evolutionPolicy": "builder/brain/autobot-evolution-policy.json"
   },
   "activationGate": {
     "requiredEnabled": true,
@@ -155,6 +158,20 @@
         "measured self-improvement"
       ],
       "protected": false
+    },
+    {
+      "id": "autobot-evolver",
+      "role": "autobot-evolution-engineer",
+      "entrypoint": "builder/runner/autobot-evolution-engineer.mjs",
+      "status": "verified-analysis-lane",
+      "owns": [
+        "AutoBot reliability observation",
+        "evolution hypotheses",
+        "isolated infrastructure experiments"
+      ],
+      "protected": false,
+      "analysisOnly": true,
+      "blocking": false
     }
   ],
   "handoffRules": [
@@ -175,6 +192,9 @@
     "The recovery runner may orchestrate Repair, QA and Reviewer only after the explicit fleet activation gate is enabled.",
     "The controlled recovery workflow must use the registered recovery runner and must never bypass the explicit enabled:true plus coordination.mode:'active' gate.",
     "Only durations listed in activationGate.allowedTestDurations may be used for controlled live shakedowns; larger waves require a separate operator-approved activation change.",
-    "Endurance cycles must consume the previous cycle's verified cumulative branch; main remains the protected starting point and final integration remains operator-controlled."
+    "Endurance cycles must consume the previous cycle's verified cumulative branch; main remains the protected starting point and final integration remains operator-controlled.",
+    "The Evolution Engineer runs outside the production specialist lane and may observe completed-run evidence but must never become a dependency of the persistent production workflow.",
+    "Evolution experiments are opt-in, infrastructure-only, non-merging and require human review before promotion.",
+    "Evolution work may not weaken validators, production gates, specialist scopes, the persistent engine or product source."
   ]
 }
