@@ -124,7 +124,7 @@ try{
     const qaBase=result.qa?.baseCommit;
     const repairCommit=result.qa?.repairCommit;
     if(!validCommit(qaBase)||!validCommit(repairCommit))throw new Error('verified recovery result is missing exact QA commit pair');
-    const patchOut=git(['diff','--binary',`${qaBase}..${repairCommit}`]);
+    const patchOut=execFileSync('git',['diff','--binary',`${qaBase}..${repairCommit}`],{cwd:recoveryRoot,encoding:'utf8'});
     if(!patchOut.trim())throw new Error('verified repair candidate contains no patch');
     const workingDir=path.join(recoveryRoot,'builder','working');
     fs.mkdirSync(workingDir,{recursive:true});
