@@ -15,7 +15,6 @@ const read=p=>fs.existsSync(p)?JSON.parse(fs.readFileSync(p,'utf8')):null;
 const h=read(path.join(specialistRoot,bot,'autobot-specialist-handoff.json'));
 const o=read(path.join(specialistRoot,bot,'autobot-specialist-outcome.json'));
 const r=read(path.join(specialistRoot,bot,'recovery','autobot-verified-candidate.json'));
-const patch=path.join(specialistRoot,bot,'recovery','autobot-repair-candidate.patch');
 let candidate=r?.candidateCommit||h?.candidateCommit;
 let base=r?.baseCommit||h?.baseCommit;
 let branch=r?.branch||h?.branch;
@@ -39,17 +38,16 @@ const temp=path.join(os.tmpdir(),'bikeztagram-endurance-'+bot+'-'+process.pid);
 let candidateFiles=[];
 try{
   if(r){
-    if(!fs.existsSync(patch))throw new Error('Recovered candidate is missing its verified patch');
-    execFileSync('git',['worktree','add','--detach',temp,base],{stdio:'inherit'});
+    // Recovery already produced an independently verified commit. Reconstruct
+    // the exact commit directly; never serialize/re-apply a generated patch.
+    // This removes a lossy handoff layer that previously produced "corrupt patch"
+    // failures even after Repair/QA/Reviewer had all passed.
+    execFileSync('git',['rev-parse',candidate],{stdio:'inherit'});
+    execFileSync('git',['worktree','add','--detach',temp,candidate],{stdio:'inherit'});
     if(skipNpmInstall){const modules=path.join(root,'node_modules');if(!fs.existsSync(modules))throw new Error('AUTOBOT_SKIP_NPM_INSTALL requested but root node_modules is missing');fs.symlinkSync(modules,path.join(temp,'node_modules'),'dir');}
-    execFileSync('git',['apply','--check',path.resolve(patch)],{cwd:temp,stdio:'inherit'});
-    execFileSync('git',['apply','--whitespace=nowarn',path.resolve(patch)],{cwd:temp,stdio:'inherit'});
-    execFileSync('git',['diff','--check'],{cwd:temp,stdio:'inherit'});
+    execFileSync('git',['diff','--check',`${base}..${candidate}`],{cwd:temp,stdio:'inherit'});
     branch='autobot/endurance/recovered-'+bot+'-'+process.env.GITHUB_RUN_ID;
-    execFileSync('git',['checkout','-b',branch],{cwd:temp,stdio:'inherit'});
-    execFileSync('git',['add','--','.'],{cwd:temp,stdio:'inherit'});
-    execFileSync('git',['commit','-m','chore(autobot): preserve verified recovery candidate'],{cwd:temp,stdio:'inherit'});
-    candidate=execFileSync('git',['rev-parse','HEAD'],{cwd:temp,encoding:'utf8'}).trim();
+    execFileSync('git',['checkout','-b',branch,candidate],{cwd:temp,stdio:'inherit'});
     execFileSync('git',['push','--set-upstream','origin',branch],{cwd:temp,stdio:'inherit'});
   }else{
     execFileSync('git',['fetch','origin','+refs/heads/'+branch+':refs/remotes/origin/'+branch],{stdio:'inherit'});
