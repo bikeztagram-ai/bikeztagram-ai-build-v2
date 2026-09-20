@@ -86,7 +86,7 @@ function validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,stal
   const banned=/\b(builder|workflow|github|vercel|autobot|orchestrat|repair bot|qa bot|reviewer|self-improvement|infrastructure|validator|gate|secret|credential)\b/i;if(banned.test(`${p.title} ${p.whyNow} ${p.acceptance.join(' ')}`))throw new Error(`${bot.id}: proposed non-product work`);
   seenTitles.add(p.title.toLowerCase());for(const f of p.files)seenFiles.add(f);return p;
 }
-function fallback(bot,library,completedTitles=new Set(),reservedTitles=new Set(),staleAcceptanceTitles=new Set()) {
+function fallback(bot,library,completedTitles=new Set(),reservedTitles=new Set(),staleAcceptanceTitles=new Set(),rnd={recommendations:[]}) {
   const existing=new Set(objectivesFromLibrary(library).map(o=>String(o?.title||'').trim().toLowerCase()));
   const completed=completedTitles instanceof Set?completedTitles:new Set(completedTitles);
   const candidates={
@@ -99,9 +99,26 @@ function fallback(bot,library,completedTitles=new Set(),reservedTitles=new Set()
       {title:'Energy-aware motion intensity',whyNow:'Tie executable motion intensity to editorial role and energy so action beats feel more dynamic while calmer beats retain controlled movement.',files:['src/executableTimeline.js'],acceptance:['motion intensity responds deterministically to role and creative intent','action and calm sequences produce different executable motion values','normalized motion remains within safe bounds','directorExecution carries the chosen intensity to rendering','npm run build passes'],constraints:['preserve timeline contracts','keep motion bounded','do not alter provider abstraction'],priority:91}
     ]
   };
-  const pool=[...(candidates[bot.id]||[])];
+  const pool=[];
+  const rndRecommendations=Array.isArray(rnd?.recommendations)?rnd.recommendations:[];
+  for(const recommendation of rndRecommendations){
+    const title=String(recommendation?.title||'').trim();
+    const files=(Array.isArray(recommendation?.files)?recommendation.files:[]).map(String).filter(Boolean);
+    const targetFile=files.find(file=>(bot.ownsFiles||[]).includes(file)&&invForRnd.has(file));
+    if(!title||!targetFile)continue;
+    pool.push({
+      title:`R&D — ${title}`,
+      whyNow:String(recommendation?.whyNow||'Evidence-first R&D identified this product opportunity; validate it against the current runtime before editing.').trim(),
+      files:[targetFile],
+      acceptance:(Array.isArray(recommendation?.acceptanceHints)?recommendation.acceptanceHints:[]).map(String).filter(Boolean).slice(0,4).concat(['the change affects the real production decision path rather than existing only as metadata','npm run build passes']),
+      constraints:['preserve existing product contracts','validate R&D claims against current source evidence','never weaken quality gates'],
+      priority:Math.max(60,100-(Number(recommendation?.rank)||8))
+    });
+  }
+  pool.push(...(candidates[bot.id]||[]));
   const owned=new Set((bot.ownsFiles||[]).map(String));
   const inv=new Set(inventory());
+  const invForRnd=inv;
 
   // After the small known fallbacks are exhausted, deterministically decompose
   // the product objective library into one acceptance slice at a time. This
@@ -163,8 +180,8 @@ async function main(){
   const bots=(registry.bots||[]).filter(b=>allowedBots.includes(b.id)&&b.specialistBuilder===true&&b.status==='verified');if(bots.length<2)throw new Error('at least two verified specialist Builders are required');
   const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const staleAcceptance=staleAcceptanceTitles(library);const completedTitles=new Set([...completedSpecialistTitles(),...completedObjectiveRegistry()]);const rnd=readJson(rndPath,{schemaVersion:'autobot-rnd-v1',findings:[],recommendations:[],risks:[]});let rawPackages=[];let source='ai-discovery';let aiFailure='';
   try{rawPackages=await aiPlan(bots,library,inv,completedTitles);if(!Array.isArray(rawPackages)||rawPackages.length<bots.length)throw new Error('AI planner returned too few packages');}
-  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library,completedTitles,new Set(),staleAcceptance));}
-  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{let item=byId.get(bot.id);if(!item){item=fallback(bot,library,completedTitles,seenTitles,staleAcceptance);}let validated=validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);return validated;});
+  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library,completedTitles,new Set(),staleAcceptance,rnd));}
+  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{let item=byId.get(bot.id);if(!item){item=fallback(bot,library,completedTitles,seenTitles,staleAcceptance,rnd);}let validated=validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);return validated;});
   const plan={schemaVersion:1,source,generatedAt:new Date().toISOString(),discovery:{model,aiFailure:aiFailure||null,completedSpecialistObjectives:Array.from(completedTitles),rndSource:rnd.source||null,rndRecommendationCount:Array.isArray(rnd.recommendations)?rnd.recommendations.length:0,rndRiskCount:Array.isArray(rnd.risks)?rnd.risks.length:0},workers:packages};fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(plan,null,2)+'\n');console.log(JSON.stringify({ok:true,status:'parallel-plan-created',source,workers:packages.map(p=>({botId:p.botId,title:p.title,files:p.files}))}));
 }
 main().catch(error=>{console.error(`[parallel-planner] ${error.message}`);process.exit(1);});
