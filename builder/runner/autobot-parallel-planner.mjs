@@ -188,7 +188,7 @@ async function main(){
       return validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);
     }catch(error){
       const aiError=String(error?.message||error);
-      if(source==='ai-discovery'){aiFailure=aiFailure?\`${aiFailure}; ${bot.id}: ${aiError}\`:\`${bot.id}: ${aiError}\`;}
+      if(source==='ai-discovery'){aiFailure=aiFailure?aiFailure+'; '+bot.id+': '+aiError:bot.id+': '+aiError;}
       const replacement=fallback(bot,library,inv,completedTitles,seenTitles,staleAcceptance,rnd);
       source=source==='ai-discovery'?'hybrid-ai-deterministic':source;
       return validate(replacement,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);
