@@ -81,6 +81,9 @@ jobs:
       - name: Run deep AutoBot contract audit
         run: node scripts/autobot/verify-autobot-persistent-cycle.mjs
 
+      - name: Run R&D contract audit
+        run: npm run verify:autobot-rnd
+
       - name: Verify planner model once
         run: |
           set -euo pipefail
@@ -122,5 +125,6 @@ jobs:
             builder/working/persistent-runtime-state.json
             builder/working/autobot-live-status.log
             builder/working/autobot-final-handoff.json
+            builder/working/autobot-rnd-brief.json
             builder/working/persistent/**
           if-no-files-found: ignore
