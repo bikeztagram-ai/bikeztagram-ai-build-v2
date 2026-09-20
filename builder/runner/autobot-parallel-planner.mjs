@@ -86,7 +86,7 @@ function validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,stal
   const banned=/\b(builder|workflow|github|vercel|autobot|orchestrat|repair bot|qa bot|reviewer|self-improvement|infrastructure|validator|gate|secret|credential)\b/i;if(banned.test(`${p.title} ${p.whyNow} ${p.acceptance.join(' ')}`))throw new Error(`${bot.id}: proposed non-product work`);
   seenTitles.add(p.title.toLowerCase());for(const f of p.files)seenFiles.add(f);return p;
 }
-function fallback(bot,library,completedTitles=new Set(),reservedTitles=new Set(),staleAcceptanceTitles=new Set(),rnd={recommendations:[]}) {
+function fallback(bot,library,inv,completedTitles=new Set(),reservedTitles=new Set(),staleAcceptanceTitles=new Set(),rnd={recommendations:[]}) {
   const existing=new Set(objectivesFromLibrary(library).map(o=>String(o?.title||'').trim().toLowerCase()));
   const completed=completedTitles instanceof Set?completedTitles:new Set(completedTitles);
   const candidates={
@@ -180,8 +180,8 @@ async function main(){
   const bots=(registry.bots||[]).filter(b=>allowedBots.includes(b.id)&&b.specialistBuilder===true&&b.status==='verified');if(bots.length<2)throw new Error('at least two verified specialist Builders are required');
   const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const staleAcceptance=staleAcceptanceTitles(library);const completedTitles=new Set([...completedSpecialistTitles(),...completedObjectiveRegistry()]);const rnd=readJson(rndPath,{schemaVersion:'autobot-rnd-v1',findings:[],recommendations:[],risks:[]});let rawPackages=[];let source='ai-discovery';let aiFailure='';
   try{rawPackages=await aiPlan(bots,library,inv,completedTitles,rnd);if(!Array.isArray(rawPackages)||rawPackages.length<bots.length)throw new Error('AI planner returned too few packages');}
-  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library,completedTitles,new Set(),staleAcceptance,rnd));}
-  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{let item=byId.get(bot.id);if(!item){item=fallback(bot,library,completedTitles,seenTitles,staleAcceptance,rnd);}let validated=validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);return validated;});
+  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library,inv,completedTitles,new Set(),staleAcceptance,rnd));}
+  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{let item=byId.get(bot.id);if(!item){item=fallback(bot,library,inv,completedTitles,seenTitles,staleAcceptance,rnd);}let validated=validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);return validated;});
   const plan={schemaVersion:1,source,generatedAt:new Date().toISOString(),discovery:{model,aiFailure:aiFailure||null,completedSpecialistObjectives:Array.from(completedTitles),rndSource:rnd.source||null,rndRecommendationCount:Array.isArray(rnd.recommendations)?rnd.recommendations.length:0,rndRiskCount:Array.isArray(rnd.risks)?rnd.risks.length:0},workers:packages};fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(plan,null,2)+'\n');console.log(JSON.stringify({ok:true,status:'parallel-plan-created',source,workers:packages.map(p=>({botId:p.botId,title:p.title,files:p.files}))}));
 }
 main().catch(error=>{console.error(`[parallel-planner] ${error.message}`);process.exit(1);});
