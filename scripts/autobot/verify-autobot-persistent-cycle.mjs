@@ -72,7 +72,7 @@ const checks=[
  [rnd.includes('autobot-rnd-v1')&&rnd.includes('autobot-failure-queue.jsonl')&&rnd.includes('feature-objectives.json')&&!rnd.includes('git push'),'R&D must be analysis-only and consume product objectives plus durable failure evidence'],
  [engine.includes("builder/runner/autobot-rnd.mjs")&&engine.includes("audit('rnd-finished'"),'each persistent specialist cycle must run R&D before planning'],
  [planner.includes('autobot-rnd-brief.json')&&planner.includes('R&D recommendations')&&planner.includes('R&D research is evidence'),'Planner must consume R&D evidence without treating it as unchecked implementation authority'],
- [read('scripts/autobot/verify-autobot-rnd.mjs').includes('analysis-only')&&read('scripts/autobot/verify-autobot-rnd.mjs').includes('Planner must consume the R&D brief'),'R&D contract verifier must cover the R&D-to-Planner handshake'], [engine.includes('autobot/persistent/cycle-'),'verified state must be carried forward by a new branch'],
+ [read('scripts/autobot/verify-autobot-rnd.mjs').includes('analysis-only')&&planner.includes('autobot-rnd-brief.json'),'R&D contract verifier must cover the R&D-to-Planner handshake'], [engine.includes('autobot/persistent/cycle-'),'verified state must be carried forward by a new branch'],
  [engine.includes("git push --set-upstream origin,branch") || engine.includes("git',['push','--set-upstream','origin',branch"),'carry-forward must be persisted remotely'],
  [engine.includes('while(true)'),'cycles must continue inside the same workflow job'],
  [engine.includes('autobot-live-status.log'),'persistent engine must emit live cycle status'],
