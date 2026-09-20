@@ -25,7 +25,7 @@ function recordCandidateFailure(error,files=[]){
   const allowed=new Set(registry.bots.find(x=>x.id===bot)?.ownsFiles||[]);
   const scopedFiles=[...new Set(files.filter(file=>allowed.has(file)))];
   if(!scopedFiles.length&&files.length)console.error(`[autobot-candidate-check] candidate failure had no repairable owned files for ${bot}; preserving failure evidence only.`);
-  const failure=appendFailure({source:'autobot-endurance-candidate-check',runId:process.env.GITHUB_RUN_ID||'local',stage:'candidate-verification',error:message,expected:'Specialist candidate passes independent QA and Reviewer verification',actual:message,files:scopedFiles,evidence:[path.join(specialistRoot,bot,'autobot-specialist-handoff.json'),path.join(specialistRoot,bot,'autobot-specialist-outcome.json')].filter(fs.existsSync),attempted:['candidate scope/build/product-quality/reviewer verification'],retryable:true,repairHint:'Repair the candidate from its exact candidate commit, then rerun independent QA and Reviewer.',metadata:{candidateFailure:true,specialistBotId:bot,specialistBaseCommit:base||null,candidateCommit:candidate||null,candidateBranch:branch||null,repairBaseCommit:candidate||base||null}});
+  const failure=appendFailure({source:'autobot-endurance-candidate-check',runId:process.env.GITHUB_RUN_ID||'local',stage:'candidate-verification',error:message,expected:'Specialist candidate passes independent QA and Reviewer verification',actual:message,files:scopedFiles,evidence:[path.join(specialistRoot,bot,'autobot-specialist-handoff.json'),path.join(specialistRoot,bot,'autobot-specialist-outcome.json'),reviewOutputPath].filter(fs.existsSync),attempted:['candidate scope/build/product-quality/reviewer verification'],retryable:true,repairHint:'Repair the candidate from its exact candidate commit, then rerun independent QA and Reviewer.',metadata:{candidateFailure:true,specialistBotId:bot,specialistBaseCommit:base||null,candidateCommit:candidate||null,candidateBranch:branch||null,repairBaseCommit:candidate||base||null}});
   const result={schemaVersion:1,botId:bot,status:'failure',integrationEligible:false,repairable:scopedFiles.length>0,failureId:failure.id,baseCommit:base,candidateCommit:candidate,branch,changedFiles:scopedFiles,error:message,recovered:Boolean(r),generatedAt:new Date().toISOString()};
   fs.mkdirSync(path.dirname(outputPath),{recursive:true});fs.writeFileSync(outputPath,JSON.stringify(result,null,2)+'\n');
   console.error(`[autobot-candidate-check] recoverable candidate failure recorded: ${failure.id}`);
@@ -63,7 +63,8 @@ try{
   if(unauthorized.length)throw new Error('candidate escaped scope: '+unauthorized.join(','));
   if(!skipNpmInstall && spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA dependency install failed');
   if(spawnSync('npm',['run','build'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA build failed');
-  if(spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA product-quality failed');
+  const qualityEnv={...process.env,AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT:base,AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT:candidate};
+  if(spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:temp,stdio:'inherit',env:qualityEnv}).status!==0)throw new Error('candidate QA product-quality failed');
   const reviewOutput=reviewOutputPath;
   let reviewStatus='pass';
   try{
