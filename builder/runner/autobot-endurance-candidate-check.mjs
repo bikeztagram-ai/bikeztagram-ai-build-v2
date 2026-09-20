@@ -32,6 +32,7 @@ if(!candidate||!base){recordCandidateFailure(new Error('Candidate handoff is inc
 if(!/^[0-9a-f]{40}$/i.test(candidate)||!/^[0-9a-f]{40}$/i.test(base)){recordCandidateFailure(new Error('Candidate/base must be full SHAs'),o?.files||[]);process.exit(2);}
 
 const temp=path.join(os.tmpdir(),'bikeztagram-endurance-'+bot+'-'+process.pid);
+let candidateFiles=[];
 try{
   if(r){
     if(!fs.existsSync(patch))throw new Error('Recovered candidate is missing its verified patch');
@@ -51,10 +52,10 @@ try{
     execFileSync('git',['worktree','add','--detach',temp,candidate],{stdio:'inherit'});
     if(skipNpmInstall){const modules=path.join(root,'node_modules');if(!fs.existsSync(modules))throw new Error('AUTOBOT_SKIP_NPM_INSTALL requested but root node_modules is missing');fs.symlinkSync(modules,path.join(temp,'node_modules'),'dir');}
   }
-  const files=execFileSync('git',['diff','--name-only',base,candidate],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean);
+  candidateFiles=execFileSync('git',['diff','--name-only',base,candidate],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean);
   const registry=JSON.parse(fs.readFileSync(path.join(root,'builder/brain/autobot-fleet.json'),'utf8'));
   const record=registry.bots.find(x=>x.id===bot);
-  const unauthorized=files.filter(x=>!(record?.ownsFiles||[]).includes(x));
+  const unauthorized=candidateFiles.filter(x=>!(record?.ownsFiles||[]).includes(x));
   if(unauthorized.length)throw new Error('candidate escaped scope: '+unauthorized.join(','));
   if(!skipNpmInstall && spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA dependency install failed');
   if(spawnSync('npm',['run','build'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA build failed');
@@ -66,10 +67,10 @@ try{
   }catch(e){reviewStatus=e.status===3?'needs-repair':'reject'}
   const review=fs.existsSync(reviewOutput)?JSON.parse(fs.readFileSync(reviewOutput,'utf8')):null;
   if(reviewStatus!=='pass'||review?.status!=='pass')throw new Error('Reviewer rejected candidate: '+(review?.status||reviewStatus));
-  const result={schemaVersion:1,botId:bot,status:'pass',integrationEligible:true,baseCommit:base,candidateCommit:candidate,branch,changedFiles:files,qa:{build:true,productQuality:true},review:{status:'pass',findings:review.findings||[]},recovered:Boolean(r),generatedAt:new Date().toISOString()};
+  const result={schemaVersion:1,botId:bot,status:'pass',integrationEligible:true,baseCommit:base,candidateCommit:candidate,branch,changedFiles:candidateFiles,qa:{build:true,productQuality:true},review:{status:'pass',findings:review.findings||[]},recovered:Boolean(r),generatedAt:new Date().toISOString()};
   fs.mkdirSync('builder/working',{recursive:true});
   fs.mkdirSync(path.dirname(outputPath),{recursive:true});
   fs.writeFileSync(outputPath,JSON.stringify(result,null,2)+'\n');
   console.log(JSON.stringify(result,null,2));
-}catch(error){recordCandidateFailure(error,typeof files!=='undefined'?files:[]);process.exitCode=2;
+}catch(error){recordCandidateFailure(error,candidateFiles);process.exitCode=2;
 }finally{try{execFileSync('git',['worktree','remove','--force',temp],{stdio:'ignore'});}catch{}}
