@@ -54,6 +54,8 @@ const checks=[
  [engine.includes('autobot-endurance-candidate-check.mjs'),'every candidate must receive independent QA/Reviewer verification'],
  [engine.includes('recoverCandidateFailures')&&engine.includes('recoverFleet({failureId})')&&engine.includes('RECOVERY + RECHECK complete'),'failed candidate verification must enter Repair/Recovery and be rechecked before a cycle can fail'],
  [candidate.includes('appendFailure')&&candidate.includes('candidateFailure:true')&&candidate.includes('repairBaseCommit:candidate'),'candidate verification failures must persist exact candidate identity for Repair Bot recovery'],
+ [candidate.includes('const allowed=new Set')&&candidate.includes('scopedFiles')&&candidate.includes('repairable:scopedFiles.length>0'),'candidate recovery must be limited to the specialist owned file scope'],
+ [engine.includes('AUTOBOT_REPAIR_TIMEOUT_MS')&&engine.includes('Math.min(30*60_000')&&engine.includes('remainingNormalMs()'),'Repair Bot timeout must be bounded by the remaining cumulative run budget'],
  [engine.includes('autobot/persistent/cycle-'),'verified state must be carried forward by a new branch'],
  [engine.includes("git push --set-upstream origin,branch") || engine.includes("git',['push','--set-upstream','origin',branch"),'carry-forward must be persisted remotely'],
  [engine.includes('while(true)'),'cycles must continue inside the same workflow job'],
