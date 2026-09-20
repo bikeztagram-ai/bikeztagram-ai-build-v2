@@ -251,11 +251,11 @@ async function main(){
       log(`stopping before cycle ${cycleNumber}: ${(remainingNormalMs()/60000).toFixed(1)}m remains in normal budget, ${(requiredStartMs/60000).toFixed(1)}m required to start safely; finish grace is reserved for the active final cycle and shutdown only`);
       break;
     }
+    const cycleStartedMs=Date.now();
     try{
-      const started=Date.now();
       baseRef=await cycle(cycleNumber,baseRef);
       consecutiveNoProgressCycles=0;
-      auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),status:'verified-and-carried-forward'});
+      auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-cycleStartedMs)/60000).toFixed(2)),status:'verified-and-carried-forward'});
       cycleNumber++;
       status(`NEXT CYCLE READY | cycle=${cycleNumber} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
       writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'running',nextCycle:cycleNumber,baseRef,audit:auditTrail,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,consecutiveNoProgressCycles});
@@ -263,7 +263,7 @@ async function main(){
       const message=String(error?.message||error);
       consecutiveNoProgressCycles++;
       audit('cycle-failed',{cycle:cycleNumber,baseRef,error:message,consecutiveNoProgressCycles,remainingMinutes:Number((remainingMs()/60000).toFixed(2))});
-      auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-started)/60000).toFixed(2)),status:'failed',error:message});
+      auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-cycleStartedMs)/60000).toFixed(2)),status:'failed',error:message});
       writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'recovering',nextCycle:cycleNumber,baseRef,audit:auditTrail,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,error:message,consecutiveNoProgressCycles});
       if(consecutiveNoProgressCycles>=maxNoProgressCycles || remainingNormalMs() < (configuredCycleMinutes+safetyMinutes)*60_000){
         writeFinalHandoff({status:'blocked',baseRef,cycleNumber,audit:auditTrail,error:message});
