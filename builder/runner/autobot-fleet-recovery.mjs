@@ -94,12 +94,14 @@ export async function recoverFleet({failureId=null}={}){
   // eagerly import it here. runReviewer supplies the exact full SHAs first
   // and executes the reviewer as a child process with that environment.
   const reviewerWorker=registeredWorker(registry,'reviewer');
-  const {module:repairModule}=await repairModulePromise;
-  const {module:qaModule}=await qaModulePromise;
+  const repairModule=await repairModulePromise;
+  const qaModule=await qaModulePromise;
   if(typeof repairModule.repairOne!=='function')fail(`Registered Repair Bot '${repairWorker.entrypoint}' does not export repairOne.`);
   if(typeof qaModule.qaOne!=='function')fail(`Registered QA Bot '${qaWorker.entrypoint}' does not export qaOne.`);
-  let failure=failureId?readFailures({status:'open'}).find(item=>item.id===failureId):null;
-  if(!failure)failure=readFailures({status:'open'})[0]||null;
+  const openFailures=readFailures({status:'open'});
+  let failure=failureId?openFailures.find(item=>item.id===failureId):null;
+  if(failureId&&!failure)fail('open recovery failure '+failureId+' was not found in the durable failure queue');
+  if(!failure)failure=openFailures[0]||null;
   if(!failure)return {ok:true,status:'no-open-failure'};
   writeState({schemaVersion:1,status:'repairing',failureId:failure.id});
 
@@ -122,6 +124,8 @@ export async function recoverFleet({failureId=null}={}){
   // reconstructed and verified by the same QA contract.
   if(failure.metadata?.preverifiedCandidate===true){
     const { transitionFailure }=await import('./autobot-failure-queue.mjs');
+    transitionFailure(failure.id,'claimed',{transitionedBy:'autobot-specialist-recovery',repairBranch:repair.branch,repairBaseCommit:repair.baseCommit,repairCommit:repair.commit,resolution:'specialist candidate passed recovery preflight; exact candidate claimed for independent QA.'});
+    transitionFailure(failure.id,'repairing',{transitionedBy:'autobot-specialist-recovery',repairBranch:repair.branch,repairBaseCommit:repair.baseCommit,repairCommit:repair.commit});
     transitionFailure(failure.id,'repaired',{transitionedBy:'autobot-specialist-recovery',repairBranch:repair.branch,repairBaseCommit:repair.baseCommit,repairCommit:repair.commit,resolution:'specialist candidate passed recovery preflight; exact candidate routed directly to independent QA.'});
   }
   writeState({schemaVersion:1,status:'qa',failureId:failure.id,repair});
