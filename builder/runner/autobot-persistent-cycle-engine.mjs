@@ -243,19 +243,25 @@ async function main(){
   let baseRef=process.env.AUTOBOT_BASE_REF||'main';
   let cycleNumber=Number.parseInt(process.env.AUTOBOT_CYCLE_NUMBER||'1',10);
   const auditTrail=[];
+  const cycleDurationsMs=[];
   let consecutiveNoProgressCycles=0;
   while(true){
     const remaining=remainingMs();
-    const requiredStartMs=(configuredCycleMinutes+safetyMinutes)*60_000;
+    const observedCycleMs=cycleDurationsMs.length?Math.max(...cycleDurationsMs):null;
+    const estimatedCycleMs=observedCycleMs?Math.min(configuredCycleMinutes*60_000,Math.max(5*60_000,Math.ceil(observedCycleMs*1.5))):configuredCycleMinutes*60_000;
+    const requiredStartMs=estimatedCycleMs+safetyMinutes*60_000;
     if(remainingNormalMs()<requiredStartMs){
-      log(`stopping before cycle ${cycleNumber}: ${(remainingNormalMs()/60000).toFixed(1)}m remains in normal budget, ${(requiredStartMs/60000).toFixed(1)}m required to start safely; finish grace is reserved for the active final cycle and shutdown only`);
+      log(`stopping before cycle ${cycleNumber}: ${(remainingNormalMs()/60000).toFixed(1)}m remains in normal budget, ${(requiredStartMs/60000).toFixed(1)}m required (estimated cycle ${(estimatedCycleMs/60000).toFixed(1)}m + ${safetyMinutes}m safety); finish grace is reserved for the active final cycle and shutdown only`);
       break;
     }
+    log(`cycle ${cycleNumber} launch budget: estimated ${(estimatedCycleMs/60000).toFixed(1)}m from ${cycleDurationsMs.length?`${cycleDurationsMs.length} observed cycle(s)`:'configured budget'}`);
     const cycleStartedMs=Date.now();
     try{
       baseRef=await cycle(cycleNumber,baseRef);
+      const elapsedMs=Date.now()-cycleStartedMs;
+      cycleDurationsMs.push(elapsedMs);
       consecutiveNoProgressCycles=0;
-      auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-cycleStartedMs)/60000).toFixed(2)),status:'verified-and-carried-forward'});
+      auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number((elapsedMs/60000).toFixed(2)),status:'verified-and-carried-forward'});
       cycleNumber++;
       status(`NEXT CYCLE READY | cycle=${cycleNumber} | remaining=${(remainingMs()/60000).toFixed(1)}m`);
       writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'running',nextCycle:cycleNumber,baseRef,audit:auditTrail,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,consecutiveNoProgressCycles});
@@ -263,9 +269,10 @@ async function main(){
       const message=String(error?.message||error);
       consecutiveNoProgressCycles++;
       audit('cycle-failed',{cycle:cycleNumber,baseRef,error:message,consecutiveNoProgressCycles,remainingMinutes:Number((remainingMs()/60000).toFixed(2))});
-      auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number(((Date.now()-cycleStartedMs)/60000).toFixed(2)),status:'failed',error:message});
+      const failedElapsedMs=Date.now()-cycleStartedMs;
+      auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number((failedElapsedMs/60000).toFixed(2)),status:'failed',error:message});
       writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'recovering',nextCycle:cycleNumber,baseRef,audit:auditTrail,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,error:message,consecutiveNoProgressCycles});
-      if(consecutiveNoProgressCycles>=maxNoProgressCycles || remainingNormalMs() < (configuredCycleMinutes+safetyMinutes)*60_000){
+      if(consecutiveNoProgressCycles>=maxNoProgressCycles || remainingNormalMs() < (estimatedCycleMs+safetyMinutes*60_000)){
         writeFinalHandoff({status:'blocked',baseRef,cycleNumber,audit:auditTrail,error:message});
         throw error;
       }
