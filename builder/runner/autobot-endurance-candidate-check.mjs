@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {execFileSync,spawnSync} from 'node:child_process';
+import {appendFailure} from './autobot-failure-queue.mjs';
 
 const root=process.cwd(), bot=process.argv[2];
 const specialistRoot=process.env.AUTOBOT_SPECIALIST_RESULTS_ROOT||'builder/working';
@@ -18,11 +19,24 @@ const patch=path.join(specialistRoot,bot,'recovery','autobot-repair-candidate.pa
 let candidate=r?.candidateCommit||h?.candidateCommit;
 let base=r?.baseCommit||h?.baseCommit;
 let branch=r?.branch||h?.branch;
-if(o?.status==='failure'&&!r)throw new Error('No verified recovery candidate exists for '+bot);
-if(!candidate||!base)throw new Error('Candidate handoff is incomplete for '+bot);
-if(!/^[0-9a-f]{40}$/i.test(candidate)||!/^[0-9a-f]{40}$/i.test(base))throw new Error('Candidate/base must be full SHAs');
+function recordCandidateFailure(error,files=[]){
+  const message=String(error?.message||error||'candidate verification failed');
+  const registry=JSON.parse(fs.readFileSync(path.join(root,'builder/brain/autobot-fleet.json'),'utf8'));
+  const allowed=new Set(registry.bots.find(x=>x.id===bot)?.ownsFiles||[]);
+  const scopedFiles=[...new Set(files.filter(file=>allowed.has(file)))];
+  if(!scopedFiles.length&&files.length)console.error(`[autobot-candidate-check] candidate failure had no repairable owned files for ${bot}; preserving failure evidence only.`);
+  const failure=appendFailure({source:'autobot-endurance-candidate-check',runId:process.env.GITHUB_RUN_ID||'local',stage:'candidate-verification',error:message,expected:'Specialist candidate passes independent QA and Reviewer verification',actual:message,files:scopedFiles,evidence:[path.join(specialistRoot,bot,'autobot-specialist-handoff.json'),path.join(specialistRoot,bot,'autobot-specialist-outcome.json')].filter(fs.existsSync),attempted:['candidate scope/build/product-quality/reviewer verification'],retryable:true,repairHint:'Repair the candidate from its exact candidate commit, then rerun independent QA and Reviewer.',metadata:{candidateFailure:true,specialistBotId:bot,specialistBaseCommit:base||null,candidateCommit:candidate||null,candidateBranch:branch||null,repairBaseCommit:candidate||base||null}});
+  const result={schemaVersion:1,botId:bot,status:'failure',integrationEligible:false,repairable:scopedFiles.length>0,failureId:failure.id,baseCommit:base,candidateCommit:candidate,branch,changedFiles:scopedFiles,error:message,recovered:Boolean(r),generatedAt:new Date().toISOString()};
+  fs.mkdirSync(path.dirname(outputPath),{recursive:true});fs.writeFileSync(outputPath,JSON.stringify(result,null,2)+'\n');
+  console.error(`[autobot-candidate-check] recoverable candidate failure recorded: ${failure.id}`);
+  return failure;
+}
+if(o?.status==='failure'&&!r){recordCandidateFailure(new Error('No verified recovery candidate exists for '+bot),o?.files||[]);process.exit(2);}
+if(!candidate||!base){recordCandidateFailure(new Error('Candidate handoff is incomplete for '+bot),o?.files||[]);process.exit(2);}
+if(!/^[0-9a-f]{40}$/i.test(candidate)||!/^[0-9a-f]{40}$/i.test(base)){recordCandidateFailure(new Error('Candidate/base must be full SHAs'),o?.files||[]);process.exit(2);}
 
 const temp=path.join(os.tmpdir(),'bikeztagram-endurance-'+bot+'-'+process.pid);
+let candidateFiles=[];
 try{
   if(r){
     if(!fs.existsSync(patch))throw new Error('Recovered candidate is missing its verified patch');
@@ -42,10 +56,10 @@ try{
     execFileSync('git',['worktree','add','--detach',temp,candidate],{stdio:'inherit'});
     if(skipNpmInstall){const modules=path.join(root,'node_modules');if(!fs.existsSync(modules))throw new Error('AUTOBOT_SKIP_NPM_INSTALL requested but root node_modules is missing');fs.symlinkSync(modules,path.join(temp,'node_modules'),'dir');}
   }
-  const files=execFileSync('git',['diff','--name-only',base,candidate],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean);
+  candidateFiles=execFileSync('git',['diff','--name-only',base,candidate],{encoding:'utf8'}).trim().split(/\r?\n/).filter(Boolean);
   const registry=JSON.parse(fs.readFileSync(path.join(root,'builder/brain/autobot-fleet.json'),'utf8'));
   const record=registry.bots.find(x=>x.id===bot);
-  const unauthorized=files.filter(x=>!(record?.ownsFiles||[]).includes(x));
+  const unauthorized=candidateFiles.filter(x=>!(record?.ownsFiles||[]).includes(x));
   if(unauthorized.length)throw new Error('candidate escaped scope: '+unauthorized.join(','));
   if(!skipNpmInstall && spawnSync('npm',['install','--no-audit','--no-fund','--no-package-lock'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA dependency install failed');
   if(spawnSync('npm',['run','build'],{cwd:temp,stdio:'inherit'}).status!==0)throw new Error('candidate QA build failed');
@@ -57,9 +71,10 @@ try{
   }catch(e){reviewStatus=e.status===3?'needs-repair':'reject'}
   const review=fs.existsSync(reviewOutput)?JSON.parse(fs.readFileSync(reviewOutput,'utf8')):null;
   if(reviewStatus!=='pass'||review?.status!=='pass')throw new Error('Reviewer rejected candidate: '+(review?.status||reviewStatus));
-  const result={schemaVersion:1,botId:bot,status:'pass',integrationEligible:true,baseCommit:base,candidateCommit:candidate,branch,changedFiles:files,qa:{build:true,productQuality:true},review:{status:'pass',findings:review.findings||[]},recovered:Boolean(r),generatedAt:new Date().toISOString()};
+  const result={schemaVersion:1,botId:bot,status:'pass',integrationEligible:true,baseCommit:base,candidateCommit:candidate,branch,changedFiles:candidateFiles,qa:{build:true,productQuality:true},review:{status:'pass',findings:review.findings||[]},recovered:Boolean(r),generatedAt:new Date().toISOString()};
   fs.mkdirSync('builder/working',{recursive:true});
   fs.mkdirSync(path.dirname(outputPath),{recursive:true});
   fs.writeFileSync(outputPath,JSON.stringify(result,null,2)+'\n');
   console.log(JSON.stringify(result,null,2));
+}catch(error){recordCandidateFailure(error,candidateFiles);process.exitCode=2;
 }finally{try{execFileSync('git',['worktree','remove','--force',temp],{stdio:'ignore'});}catch{}}

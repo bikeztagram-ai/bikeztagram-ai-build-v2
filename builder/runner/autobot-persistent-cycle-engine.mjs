@@ -88,7 +88,7 @@ async function runSpecialists(cycle,plan){
       AUTOBOT_SPECIALIST_FALLBACK_MODEL:process.env.AUTOBOT_SPECIALIST_FALLBACK_MODEL||'qwen2.5-coder:3b',
       AUTOBOT_AIDER_CALL_TIMEOUT_MS:'150000',
       AUTOBOT_FINISH_GRACE_MINUTES:'0',
-      BUILDER_MAX_MINUTES:String(configuredCycleMinutes),
+      BUILDER_MAX_MINUTES:String(Math.max(1,Math.min(configuredCycleMinutes,Math.max(1,Math.floor((remainingNormalMs()-safetyMinutes*60_000)/60_000))))),
       AUTOBOT_SPECIALIST_OUTCOME_PATH:path.join(dir,'autobot-specialist-outcome.json'),
       AUTOBOT_SPECIALIST_HANDOFF_PATH:path.join(dir,'autobot-specialist-handoff.json'),
       AUTOBOT_SPECIALIST_FAILURE_PATCH_PATH:path.join(dir,'autobot-specialist-failure.patch'),
@@ -108,6 +108,31 @@ async function runSpecialists(cycle,plan){
     }
   }
   return results;
+}
+
+async function recoverCandidateFailures(results,cycle){
+  const failed=results.filter(item=>item.check?.status!=='pass'&&item.check?.failureId&&item.check?.repairable===true);
+  if(!failed.length)return;
+  process.env.AUTOBOT_REPAIR_TIMEOUT_MS=String(Math.max(30_000,Math.min(30*60_000,Math.max(30_000,remainingNormalMs()-safetyMinutes*60_000))));
+  for(const item of failed){
+    const failureId=item.check.failureId;
+    status(`RECOVERY routing ${item.bot} candidate failure ${failureId}`);
+    const recoveryModule=await import(new URL('./autobot-fleet-recovery.mjs',import.meta.url));
+    const recovery=await recoveryModule.recoverFleet({failureId});
+    if(!recovery?.ok||recovery.status!=='verified-candidate')fail(`Repair/Recovery could not verify ${item.bot}: ${recovery?.status||'unknown'}`);
+    const baseCommit=recovery.qa?.baseCommit||recovery.repair?.baseCommit;
+    const candidateCommit=recovery.qa?.repairCommit||recovery.repair?.commit;
+    const branchName=recovery.repair?.branch;
+    if(!/^[0-9a-f]{40}$/i.test(String(baseCommit||''))||!/^[0-9a-f]{40}$/i.test(String(candidateCommit||''))||!branchName)fail(`Recovery for ${item.bot} did not return exact base/candidate/branch identifiers`);
+    const recoveryDir=path.join(root,'builder','working','persistent',`cycle-${cycle}`,item.bot,'recovery');
+    fs.mkdirSync(recoveryDir,{recursive:true});
+    const patch=git(['diff','--binary',`${baseCommit}..${candidateCommit}`]);
+    if(!patch.trim())fail(`Recovery for ${item.bot} produced no candidate patch`);
+    fs.writeFileSync(path.join(recoveryDir,'autobot-repair-candidate.patch'),patch);
+    fs.writeFileSync(path.join(recoveryDir,'autobot-repair-base-commit.txt'),`${baseCommit}\n`);
+    fs.writeFileSync(path.join(recoveryDir,'autobot-repair-commit.txt'),`${candidateCommit}\n`);
+    fs.writeFileSync(path.join(recoveryDir,'autobot-verified-candidate.json'),JSON.stringify({schemaVersion:1,botId:item.bot,status:'verified-candidate',baseCommit,candidateCommit,branch:branchName,changedFiles:recovery.qa?.changedFiles||[],recovered:true,failureId},null,2)+'\n');
+  }
 }
 
 async function runRepairs(){
@@ -182,11 +207,19 @@ async function cycle(cycleNumber,baseRef){
   audit('repair-finished',{cycle:cycleNumber});
   status('REPAIR complete');
   status('QA + REVIEWER starting independent verification');
-  const verified=await verifyCandidates(cycleNumber);
-  audit('verification-finished',{cycle:cycleNumber,passed:verified.filter(x=>x.check?.status==='pass').length,total:verified.length});
+  let verified=await verifyCandidates(cycleNumber);
+  let failures=verified.filter(x=>x.check?.status!=='pass');
+  audit('verification-finished',{cycle:cycleNumber,passed:verified.filter(x=>x.check?.status==='pass').length,total:verified.length,failedBots:failures.map(x=>x.bot)});
   status(`QA + REVIEWER complete | ${verified.filter(x=>x.check?.status==='pass').length}/${verified.length} passed`);
-  const failures=verified.filter(x=>x.check?.status!=='pass');
-  if(failures.length)fail(`independent candidate verification failed for: ${failures.map(x=>x.bot).join(', ')}`);
+  if(failures.length){
+    status(`RECOVERY starting | ${failures.map(x=>x.bot).join(', ')}`);
+    await recoverCandidateFailures(verified,cycleNumber);
+    verified=await verifyCandidates(cycleNumber);
+    failures=verified.filter(x=>x.check?.status!=='pass');
+    audit('recovery-verification-finished',{cycle:cycleNumber,passed:verified.filter(x=>x.check?.status==='pass').length,total:verified.length,failedBots:failures.map(x=>x.bot)});
+    status(`RECOVERY + RECHECK complete | ${verified.filter(x=>x.check?.status==='pass').length}/${verified.length} passed`);
+  }
+  if(failures.length)fail(`independent candidate verification failed after Repair/Recovery: ${failures.map(x=>x.bot).join(', ')}`);
   status('CARRY-FORWARD integrating verified candidates');
   const nextRef=integrate(cycleNumber,baseRef,verified);
   audit('iteration-finished',{cycle:cycleNumber,status:'verified-and-carried-forward',baseRef,nextRef});
@@ -249,12 +282,13 @@ async function main(){
     const remaining=remainingMs();
     const observedCycleMs=cycleDurationsMs.length?Math.max(...cycleDurationsMs):null;
     const estimatedCycleMs=observedCycleMs?Math.min(configuredCycleMinutes*60_000,Math.max(5*60_000,Math.ceil(observedCycleMs*1.5))):configuredCycleMinutes*60_000;
-    const requiredStartMs=estimatedCycleMs+safetyMinutes*60_000;
-    if(remainingNormalMs()<requiredStartMs){
-      log(`stopping before cycle ${cycleNumber}: ${(remainingNormalMs()/60000).toFixed(1)}m remains in normal budget, ${(requiredStartMs/60000).toFixed(1)}m required (estimated cycle ${(estimatedCycleMs/60000).toFixed(1)}m + ${safetyMinutes}m safety); finish grace is reserved for the active final cycle and shutdown only`);
+    const minimumRetryMs=5*60_000+safetyMinutes*60_000;
+    if(remainingNormalMs()<minimumRetryMs){
+      log(`stopping before cycle ${cycleNumber}: ${(remainingNormalMs()/60000).toFixed(1)}m remains, below the ${((minimumRetryMs)/60000).toFixed(1)}m minimum retry budget; finish grace is reserved for shutdown`);
       break;
     }
-    log(`cycle ${cycleNumber} launch budget: estimated ${(estimatedCycleMs/60000).toFixed(1)}m from ${cycleDurationsMs.length?`${cycleDurationsMs.length} observed cycle(s)`:'configured budget'}`);
+    const adaptiveCycleMs=Math.min(estimatedCycleMs,Math.max(minimumRetryMs,remainingNormalMs()-safetyMinutes*60_000));
+    log(`cycle ${cycleNumber} launch budget: up to ${(adaptiveCycleMs/60000).toFixed(1)}m from ${cycleDurationsMs.length?`${cycleDurationsMs.length} observed cycle(s)`:'configured budget'}`);
     const cycleStartedMs=Date.now();
     try{
       baseRef=await cycle(cycleNumber,baseRef);
@@ -272,7 +306,7 @@ async function main(){
       const failedElapsedMs=Date.now()-cycleStartedMs;
       auditTrail.push({cycle:cycleNumber,baseRef,elapsedMinutes:Number((failedElapsedMs/60000).toFixed(2)),status:'failed',error:message});
       writeJson(path.join(root,'builder','working','persistent-runtime-state.json'),{schemaVersion:1,status:'recovering',nextCycle:cycleNumber,baseRef,audit:auditTrail,normalDeadlineMs,hardDeadlineMs,finishGraceMinutes,error:message,consecutiveNoProgressCycles});
-      if(consecutiveNoProgressCycles>=maxNoProgressCycles || remainingNormalMs() < (estimatedCycleMs+safetyMinutes*60_000)){
+      if(consecutiveNoProgressCycles>=maxNoProgressCycles || remainingNormalMs() < minimumRetryMs){
         writeFinalHandoff({status:'blocked',baseRef,cycleNumber,audit:auditTrail,error:message});
         throw error;
       }

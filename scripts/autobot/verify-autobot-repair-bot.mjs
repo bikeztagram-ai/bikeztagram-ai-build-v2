@@ -20,7 +20,7 @@ assert(repair.includes("transitionFailure(record.id,'repairing'"),'Repair Bot mu
 assert(repair.includes("transitionFailure(record.id,'repaired'"),'Repair Bot must record verified isolated repair state');
 assert(repair.includes("transitionFailure(record.id,'blocked'"),'Repair Bot must hand off unrepaired failures as blocked');
 assert(repair.includes("git(['worktree','add','-b',branch,worktree,baseCommit])"),'Repair Bot must isolate repairs from the exact recorded base commit');
-assert(repair.includes("const baseCommit=git(['rev-parse','HEAD'])"),'Repair Bot must record the protected checkout base before editing');
+assert(repair.includes("const requestedBase=record.metadata?.repairBaseCommit")&&repair.includes("const baseCommit=validCommit(requestedBase)?requestedBase:git(['rev-parse','HEAD'])"),'Repair Bot must record and, when supplied, honor the exact protected candidate base before editing');
 assert(repair.includes('repairBaseCommit:baseCommit'),'Repair Bot must persist the exact base commit in repair handoff evidence');
 assert(repair.includes("'--no-auto-commits'"),'Aider must not auto-commit inside the Repair Bot');
 assert(repair.includes("const editFormat=String(process.env.AUTOBOT_REPAIR_EDIT_FORMAT||'udiff')"),'Repair Bot must default to compact unified-diff editing for reliable specialist repair materialisation');

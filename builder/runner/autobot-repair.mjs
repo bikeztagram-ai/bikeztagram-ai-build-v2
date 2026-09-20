@@ -29,6 +29,7 @@ const protectedPaths=['builder/runner/aider-feature-brain.mjs','builder/brain/fe
 function git(args,cwd=root){return execFileSync('git',args,{cwd,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();}
 function fail(message){throw new Error(message);}
 function selectFailure(id){const open=readFailures({status:'open'});return id?open.find(record=>record.id===id)||null:open[0]||null;}
+function validCommit(value){return /^[0-9a-f]{40}$/i.test(String(value||''));}
 function validateFailure(record){
   if(!record)fail('no OPEN failure is available for repair');
   if(!Array.isArray(record.files)||!record.files.length)fail(`failure ${record.id} has no repair file scope`);
@@ -97,7 +98,7 @@ function verifyCandidate(cwd,files,focused){
 }
 function runRepair(record,files){
   fs.mkdirSync(repairRoot,{recursive:true});
-  const branch=branchFor(record.id);const worktree=worktreeFor(record.id);const baseCommit=git(['rev-parse','HEAD']);
+  const branch=branchFor(record.id);const worktree=worktreeFor(record.id);const requestedBase=record.metadata?.repairBaseCommit;const baseCommit=validCommit(requestedBase)?requestedBase:git(['rev-parse','HEAD']);
   cleanup(worktree,branch);git(['worktree','add','-b',branch,worktree,baseCommit]);let repaired=false;
   try{
     transitionFailure(record.id,'repairing',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit});
