@@ -88,7 +88,7 @@ async function runSpecialists(cycle,plan){
       AUTOBOT_SPECIALIST_FALLBACK_MODEL:process.env.AUTOBOT_SPECIALIST_FALLBACK_MODEL||'qwen2.5-coder:3b',
       AUTOBOT_AIDER_CALL_TIMEOUT_MS:'150000',
       AUTOBOT_FINISH_GRACE_MINUTES:'0',
-      BUILDER_MAX_MINUTES:String(Math.max(1,Math.min(configuredCycleMinutes,Math.max(1,Math.floor((remainingNormalMs()-safetyMinutes*60_000)/60_000)))),
+      BUILDER_MAX_MINUTES:String(Math.max(1,Math.min(configuredCycleMinutes,Math.max(1,Math.floor((remainingNormalMs()-safetyMinutes*60_000)/60_000))))),
       AUTOBOT_SPECIALIST_OUTCOME_PATH:path.join(dir,'autobot-specialist-outcome.json'),
       AUTOBOT_SPECIALIST_HANDOFF_PATH:path.join(dir,'autobot-specialist-handoff.json'),
       AUTOBOT_SPECIALIST_FAILURE_PATCH_PATH:path.join(dir,'autobot-specialist-failure.patch'),
