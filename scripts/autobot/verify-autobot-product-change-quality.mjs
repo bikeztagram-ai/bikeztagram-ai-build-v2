@@ -5,7 +5,17 @@ import { execFileSync } from 'node:child_process';
 
 const root=process.cwd();
 const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/renderer.js','src/editorialRhythm.js','src/executableTimeline.js','src/captionPlanner.js']);
-function changedPaths(){const output=execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'});return output.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);}
+function changedPaths(){
+  const base=String(process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT||'').trim();
+  const candidate=String(process.env.AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT||'').trim();
+  if(base&&candidate&&/^[0-9a-f]{40}$/i.test(base)&&/^[0-9a-f]{40}$/i.test(candidate)){
+    try{
+      return execFileSync('git',['diff','--name-only',base,candidate],{cwd:root,encoding:'utf8'}).split(/\r?\n/).filter(Boolean).map(x=>x.trim()).filter(Boolean);
+    }catch(error){throw new Error('cannot inspect committed candidate diff '+base+'..'+candidate+': '+error.message);}
+  }
+  const output=execFileSync('git',['status','--short'],{cwd:root,encoding:'utf8'});
+  return output.split(/\r?\n/).filter(Boolean).map(line=>line.slice(3).trim()).filter(Boolean);
+}
 function read(path){return fs.readFileSync(`${root}/${path}`,'utf8');}
 function assert(condition,message){if(!condition)throw new Error(message);}
 function richMedia(){return Array.from({length:12},(_,index)=>({id:`rich-${index}`,type:index%2?'video/mp4':'image/jpeg',name:['wide mountain establishing','rider approaching road','motorcycle cornering action','cockpit detail close-up','mountain landscape journey','bike accelerating speed','sunset motorcycle reveal','hero motorcycle showcase','roadside landscape detail','rider departure movement','mountain road action','final motorcycle hero'][index],duration:index%2?4:0,width:1920,height:1080,score:75+index}));}
@@ -54,4 +64,4 @@ for(const helper of ['filterCaptionCues','normaliseCaptionTiming']){
   const references=srcFiles.reduce((count,path)=>count+(read(path).match(new RegExp(`${helper}\\s*\\(`,'g'))||[]).length,0);
   assert(references>=2,`dead-intelligence guard failed: ${helper} is exported but not consumed by production code`);
 }
-console.log(`autobot-product-change-quality: PASS cinematic guard; changed=${cinematicChanged.join(',')}; storyBeats=${storyLength??'not-applicable'}; production-path=${storyIntegrationRequested?'verified':'unchanged'}`);
+console.log(`autobot-product-change-quality: PASS cinematic guard; changed=${cinematicChanged.join(',')}; storyBeats=${storyLength??'not-applicable'}; production-path=${storyIntegrationRequested?'verified':'unchanged'}; diff-source=${process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT?'committed-candidate':'working-tree'}`);
