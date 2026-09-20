@@ -111,7 +111,9 @@ async function runSpecialists(cycle,plan){
 }
 
 async function recoverCandidateFailures(results,cycle){
-  const failed=results.filter(item=>item.check?.status!=='pass'&&item.check?.failureId);
+  const failed=results.filter(item=>item.check?.status!=='pass'&&item.check?.failureId&&item.check?.repairable===true);
+  if(!failed.length)return;
+  process.env.AUTOBOT_REPAIR_TIMEOUT_MS=String(Math.max(30_000,Math.min(30*60_000,Math.max(30_000,remainingNormalMs()-safetyMinutes*60_000))));
   for(const item of failed){
     const failureId=item.check.failureId;
     status(`RECOVERY routing ${item.bot} candidate failure ${failureId}`);
