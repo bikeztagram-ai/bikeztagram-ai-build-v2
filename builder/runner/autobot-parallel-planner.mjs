@@ -86,7 +86,7 @@ function validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,stal
   const banned=/\b(builder|workflow|github|vercel|autobot|orchestrat|repair bot|qa bot|reviewer|self-improvement|infrastructure|validator|gate|secret|credential)\b/i;if(banned.test(`${p.title} ${p.whyNow} ${p.acceptance.join(' ')}`))throw new Error(`${bot.id}: proposed non-product work`);
   seenTitles.add(p.title.toLowerCase());for(const f of p.files)seenFiles.add(f);return p;
 }
-function fallback(bot,library,inv,completedTitles=new Set(),reservedTitles=new Set(),staleAcceptanceTitles=new Set(),rnd={recommendations:[]}) {
+function fallback(bot,library,inventoryFiles,completedTitles=new Set(),reservedTitles=new Set(),staleAcceptanceTitles=new Set(),rnd={recommendations:[]}) {
   const existing=new Set(objectivesFromLibrary(library).map(o=>String(o?.title||'').trim().toLowerCase()));
   const completed=completedTitles instanceof Set?completedTitles:new Set(completedTitles);
   const candidates={
@@ -100,8 +100,8 @@ function fallback(bot,library,inv,completedTitles=new Set(),reservedTitles=new S
     ]
   };
   const pool=[];
-  const invSet=new Set(inv);
-  const invForRnd=invSet;
+  const availableFiles=new Set(Array.isArray(inventoryFiles)?inventoryFiles:[]);
+  const invForRnd=availableFiles;
   const rndRecommendations=Array.isArray(rnd?.recommendations)?rnd.recommendations:[];
   for(const recommendation of rndRecommendations){
     const title=String(recommendation?.title||'').trim();
@@ -127,7 +127,7 @@ function fallback(bot,library,inv,completedTitles=new Set(),reservedTitles=new S
   for(const objective of objectivesFromLibrary(library)){
     const title=String(objective?.title||'').trim();
     if(!title)continue;
-    const objectiveFiles=(Array.isArray(objective.files)?objective.files:[]).map(String).filter(f=>owned.has(f)&&inv.has(f));
+    const objectiveFiles=(Array.isArray(objective.files)?objective.files:[]).map(String).filter(f=>owned.has(f)&&availableFiles.has(f));
     // Deterministic decomposition must target a file the specialist fallback can implement.
     const preferredFiles=bot.id==='timeline-builder'
       ? ['src/executableTimeline.js','src/editorialRhythm.js']
