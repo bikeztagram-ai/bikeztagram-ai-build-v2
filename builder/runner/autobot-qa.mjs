@@ -74,7 +74,7 @@ function runQA(record){
     if(install.error||install.status!==0)fail(`QA isolated npm install failed with ${install.status??'error'}`);
     const build=spawnSync('npm',['run','build'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(120_000,timeoutMs)});
     if(build.error||build.status!==0)fail(`QA build failed with ${build.status??'error'}`);
-    const quality=spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(120_000,timeoutMs)});
+    const quality=spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:worktree,encoding:'utf8',stdio:'inherit',timeout:Math.min(120_000,timeoutMs),env:{...process.env,AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT:base,AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT:commit}});
     if(quality.error||quality.status!==0)fail(`QA product-quality verification failed with ${quality.status??'error'}`);
     transitionFailure(record.id,'verified',{transitionedBy:'autobot-qa',repairBranch:record.repairBranch,repairBaseCommit:base,repairCommit:commit,resolution:'independent QA reconstructed the repair from its recorded base and passed diff, dependency install, build and product-quality verification.'});
     return {ok:true,failureId:record.id,baseCommit:base,repairCommit:commit,changedFiles:changed};
