@@ -8,7 +8,7 @@ import {appendFailure} from './autobot-failure-queue.mjs';
 const root=process.cwd(), bot=process.argv[2];
 const specialistRoot=process.env.AUTOBOT_SPECIALIST_RESULTS_ROOT||'builder/working';
 const outputPath=process.env.AUTOBOT_CANDIDATE_CHECK_OUTPUT||'builder/working/autobot-endurance-candidate-check.json';
-const reviewOutputPath=process.env.AUTOBOT_CANDIDATE_REVIEW_OUTPUT||path.join(root,'builder/working','autobot-candidate-review.json');
+const reviewOutputPath=process.env.AUTOBOT_CANDIDATE_REVIEW_OUTPUT||path.join(root,'builder/working',`autobot-candidate-review-${bot}.json`);
 const skipNpmInstall=String(process.env.AUTOBOT_SKIP_NPM_INSTALL||'').toLowerCase()==='true';
 if(!bot)throw new Error('candidate check requires bot id');
 const read=p=>fs.existsSync(p)?JSON.parse(fs.readFileSync(p,'utf8')):null;
