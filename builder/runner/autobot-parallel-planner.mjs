@@ -44,13 +44,33 @@ function staleAcceptanceTitles(library){
   return out;
 }
 function completedSpecialistTitles(){
+  const titles=new Set();
   try{
-    const log=execFileSync('git',['log','-n','100','--format=%s'],{cwd:root,encoding:'utf8'});
-    return log.split(/\r?\n/).map(line=>{
-      const m=line.match(/^autobot\((?:director-builder|timeline-builder)\):\s*(.+?)(?:\s+\(#\d+\))?$/i);
-      return m?m[1].trim().toLowerCase():'';
-    }).filter(Boolean);
-  }catch{return [];}
+    const log=execFileSync('git',['log','-n','150','--format=%s'],{cwd:root,encoding:'utf8'});
+    for(const line of log.split(/\r?\n/)){
+      const m=line.match(/^autobot(?:-specialist)?\s*\((?:director-builder|timeline-builder)\):\s*(.+?)(?:\s+\(#\d+\))?$/i);
+      if(m)titles.add(m[1].trim().toLowerCase());
+    }
+  }catch{}
+  // Persistent runs may have valid specialist handoffs that are not yet
+  // represented by a conventional commit subject. Treat those objectives as
+  // attempted/consumed so deterministic planner fallback cannot churn the
+  // same objective after an AI-discovery timeout or recovery cycle.
+  try{
+    const persistentRoot=path.join(root,'builder','working','persistent');
+    if(fs.existsSync(persistentRoot)){
+      for(const cycle of fs.readdirSync(persistentRoot,{withFileTypes:true})){
+        if(!cycle.isDirectory()||!/^cycle-\d+$/.test(cycle.name))continue;
+        for(const bot of ['director-builder','timeline-builder']){
+          const handoff=path.join(persistentRoot,cycle.name,bot,'autobot-specialist-handoff.json');
+          const data=readJson(handoff,null);
+          const title=String(data?.objective?.title||data?.objectiveTitle||'').trim().toLowerCase();
+          if(title)titles.add(title);
+        }
+      }
+    }
+  }catch{}
+  return [...titles];
 }
 function completedObjectiveRegistry(){
   const data=readJson(completedObjectivesPath,{objectives:[]});
