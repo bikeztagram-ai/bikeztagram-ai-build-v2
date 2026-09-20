@@ -25,7 +25,15 @@ if(/no-progress|stale/i.test(raw))hypotheses.push({id:'evo-no-progress',priority
 if(/failure|blocked|rejected/i.test(raw))hypotheses.push({id:'evo-failure-patterns',priority:'medium',title:'Improve recurring failure classification',reason:'Production evidence contains failure or blocked signals.',measurement:'repeat rate of identical failure classes'});
 if(!hypotheses.length)hypotheses.push({id:'evo-observability',priority:'medium',title:'Increase AutoBot evidence coverage',reason:'No high-confidence recurring failure was found.',measurement:'required evidence fields present per run'});
 let aiSummary='deterministic-evidence';
+const before=git(['status','--porcelain']);
 if(!apply&&process.env.AUTOBOT_EVOLUTION_USE_AI==='true'){try{const prompt='Return one sentence identifying the highest-value AutoBot reliability improvement. Never suggest product changes or weakening gates. Evidence: '+raw;const r=await fetch(host+'/api/chat',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:2048,num_predict:80}})});if(r.ok){const j=await r.json();aiSummary=j.message?.content||j.response||aiSummary}}catch{}}
+if(apply){
+  const prompt='Make exactly one small reliability improvement to the AutoBot Evolution Engineer itself. Only edit builder/runner/autobot-evolution-engineer.mjs. Do not edit product source, production workflows, persistent engine, fleet registry, validators, or gates. Preserve the non-blocking design. Base the improvement on these hypotheses: '+JSON.stringify(hypotheses);
+  run('aider',['--no-git','--yes-always','--message',prompt,'builder/runner/autobot-evolution-engineer.mjs']);
+  const changed=git(['diff','--name-only']).split('\\n').filter(Boolean);
+  const bad=changed.find(f=>!allow.some(p=>p.endsWith('/')?f.startsWith(p):f===p)||protectedPaths.some(p=>p.endsWith('/')?f.startsWith(p):f===p));
+  if(bad){run('git',['reset','--hard']);run('git',['clean','-fd']);throw new Error('Evolution experiment violated scope: '+bad)}
+}
 const report={schemaVersion:'autobot-evolution-v1',generatedAt:new Date().toISOString(),mode:apply?'isolated-experiment-requested':'observe-and-propose',productionLane:{unchanged:true,blocking:false,workers:['director-builder','timeline-builder']},evidence:{metrics,handoff:!!ev.handoff,finalHandoff:!!ev.final,statusTail:ev.status.slice(-4000)},hypotheses,aiSummary,guardrails:{automaticMerge:false,productionDependency:false,protectedPaths,allow},experiment:{requested:apply,status:apply?'candidate-experiment-not-implemented-in-v1':'disabled-by-default',changedFiles:[]}};
 fs.mkdirSync(path.dirname(reportPath),{recursive:true});
 fs.writeFileSync(reportPath,JSON.stringify(report,null,2)+'\n');
