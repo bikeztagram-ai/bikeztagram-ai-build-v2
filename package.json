@@ -82,7 +82,8 @@
     "verify:cloud-agent-foundation": "node scripts/verify-cloud-agent-foundation.mjs",
     "verify:autobot-cumulative-endurance": "node scripts/autobot/verify-autobot-cumulative-endurance.mjs",
     "verify:autobot-persistent-cycle": "node scripts/autobot/verify-autobot-persistent-cycle.mjs",
-    "verify:autobot-rnd": "node scripts/autobot/verify-autobot-rnd.mjs"
+    "verify:autobot-rnd": "node scripts/autobot/verify-autobot-rnd.mjs",
+    "verify:autobot-evolution-engineer": "node scripts/autobot/verify-autobot-evolution-engineer.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
