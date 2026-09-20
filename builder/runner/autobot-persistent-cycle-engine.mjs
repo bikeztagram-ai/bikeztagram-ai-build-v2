@@ -122,8 +122,45 @@ async function recoverCandidateFailures(results,cycle){
     const failureId=item.check.failureId;
     status(`RECOVERY routing ${item.bot} candidate failure ${failureId}`);
     const recoveryModule=await import(new URL('./autobot-fleet-recovery.mjs',import.meta.url));
-    const recovery=await recoveryModule.recoverFleet({failureId});
-    if(!recovery?.ok||recovery.status!=='verified-candidate')fail(`Repair/Recovery could not verify ${item.bot}: ${recovery?.status||'unknown'}`);
+    let recovery;
+    try{
+      recovery=await recoveryModule.recoverFleet({failureId});
+    }catch(error){
+      const message=String(error?.message||error);
+      const recoveryDir=path.join(root,'builder','working','persistent',`cycle-${cycle}`,item.bot,'recovery');
+      fs.mkdirSync(recoveryDir,{recursive:true});
+      writeJson(path.join(recoveryDir,'autobot-recovery-failure.json'),{
+        schemaVersion:1,
+        botId:item.bot,
+        failureId,
+        status:'recovery-failed',
+        recoverableCycleFailure:true,
+        error:message,
+        preservedBase:true,
+        generatedAt:new Date().toISOString()
+      });
+      audit('recovery-attempt-failed',{cycle,bot:item.bot,failureId,error:message});
+      status(`RECOVERY bounded failure | ${item.bot} | ${message} | preserving verified base for next cycle`);
+      continue;
+    }
+    if(!recovery?.ok||recovery.status!=='verified-candidate'){
+      const message=String(recovery?.status||'unknown');
+      const recoveryDir=path.join(root,'builder','working','persistent',`cycle-${cycle}`,item.bot,'recovery');
+      fs.mkdirSync(recoveryDir,{recursive:true});
+      writeJson(path.join(recoveryDir,'autobot-recovery-failure.json'),{
+        schemaVersion:1,
+        botId:item.bot,
+        failureId,
+        status:'recovery-failed',
+        recoverableCycleFailure:true,
+        error:message,
+        preservedBase:true,
+        generatedAt:new Date().toISOString()
+      });
+      audit('recovery-attempt-failed',{cycle,bot:item.bot,failureId,error:message});
+      status(`RECOVERY bounded failure | ${item.bot} | ${message} | preserving verified base for next cycle`);
+      continue;
+    }
     const baseCommit=recovery.qa?.baseCommit||recovery.repair?.baseCommit;
     const candidateCommit=recovery.qa?.repairCommit||recovery.repair?.commit;
     const branchName=recovery.repair?.branch;

@@ -64,6 +64,10 @@ const checks=[
 
  [candidate.includes('const allowed=new Set')&&candidate.includes('scopedFiles')&&candidate.includes('repairable:scopedFiles.length>0'),'candidate recovery must be limited to the specialist owned file scope'],
  [engine.includes('AUTOBOT_REPAIR_TIMEOUT_MS')&&/Math\.min\(\d+\*60_000/.test(engine)&&engine.includes('remainingNormalMs()'),'Repair Bot timeout must be bounded by the remaining cumulative run budget'],
+ [engine.includes('recoverableCycleFailure:true')&&engine.includes("RECOVERY bounded failure")&&engine.includes('catch(error){')&&engine.includes('continue;'),'Repair/Recovery timeout or bounded failure must be recorded and returned to the outer cycle loop instead of terminating the persistent engine'],
+ [quality.includes('duplicateTopLevelFunctionNames')&&quality.includes('duplicate-function-declaration')&&quality.includes('assertNoDuplicateTopLevelFunctions'),'product-quality guard must reject duplicate top-level cinematic helper declarations'],
+ [read('builder/runner/aider-feature-brain.mjs').includes('`--map-tokens=${specialist?0:768}`')&&read('builder/runner/aider-feature-brain.mjs').includes("'--subtree-only'"),'focused specialist Aider runs must disable repo-map generation to avoid unnecessary repository context work'],
+
  [quality.includes('AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT')&&quality.includes('AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT'),'product-quality guard must inspect committed candidate diffs during independent QA/Reviewer instead of reporting clean committed work as not-applicable'],
  [candidate.includes('AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT:base')&&candidate.includes('AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT:candidate'),'candidate verification must pass the exact base/candidate pair into the product-quality guard'],
  [candidate.includes("git',['worktree','add','--detach',temp,candidate]")&&candidate.includes("git',['push','--set-upstream','origin',branch]")&&!candidate.includes("git',['apply','--check'")&&!candidate.includes("git',['apply','--whitespace=nowarn'"),'recovered candidates must be reconstructed from exact immutable commits, never serialized and replayed as patches'],
