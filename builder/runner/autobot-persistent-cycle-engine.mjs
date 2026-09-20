@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawn, spawnSync, execFileSync} from 'node:child_process';
 import {appendAudit, verifyAuditLog} from '../quality/audit-log.mjs';
+import {renderLiveSummary} from './autobot-live-dashboard.mjs';
 
 const root=process.cwd();
 const repo=process.env.GITHUB_REPOSITORY;
@@ -25,7 +26,7 @@ const bots=['director-builder','timeline-builder'];
 const maxNoProgressCycles=Math.max(1,Number.parseInt(process.env.AUTOBOT_MAX_NO_PROGRESS_CYCLES||'2',10));
 const repairTimeoutMs=Math.max(60_000,Math.min(12*60_000,Number.parseInt(process.env.AUTOBOT_REPAIR_TIMEOUT_MS||String(8*60_000),10)));
 const statusPath=path.join(root,'builder','working','autobot-live-status.log');
-function status(message){const line=`[${new Date().toISOString()}] ${message}`;console.log(`\\n${line}`);fs.mkdirSync(path.dirname(statusPath),{recursive:true});fs.appendFileSync(statusPath,line+'\\n');}
+function status(message){const line=`[${new Date().toISOString()}] ${message}`;console.log(`\\n${line}`);fs.mkdirSync(path.dirname(statusPath),{recursive:true});fs.appendFileSync(statusPath,line+'\\n');try{renderLiveSummary({stage:'LIVE',message,cycle:process.env.AUTOBOT_CYCLE_NUMBER||null,baseRef:process.env.AUTOBOT_CYCLE_BASE_COMMIT||process.env.AUTOBOT_BASE_REF||null});}catch(error){console.warn(`[autobot-dashboard] summary update skipped: ${error.message}`);}}
 
 function parseDuration(v){
   const value=String(v).trim().toLowerCase();
