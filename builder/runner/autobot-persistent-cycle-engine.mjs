@@ -77,7 +77,8 @@ function assertScope(bot,check){
 }
 function copyIfExists(from,to){if(fs.existsSync(from)){fs.mkdirSync(path.dirname(to),{recursive:true});fs.copyFileSync(from,to);return true;}return false;}
 
-async function runSpecialists(cycle,plan){
+async function runSpecialists(cycle,plan,cycleBudgetMs){
+  const specialistBudgetMinutes=Math.max(1,Math.min(configuredCycleMinutes,Math.floor(Math.min(cycleBudgetMs,Math.max(60_000,remainingNormalMs()-safetyMinutes*60_000))/60_000)));
   const jobs=bots.map(bot=>{
     const dir=resultDir(bot);fs.rmSync(dir,{recursive:true,force:true});fs.mkdirSync(dir,{recursive:true});
     return spawnLogged(process.execPath,['builder/runner/autobot-specialist-builder.mjs'],{
@@ -90,7 +91,8 @@ async function runSpecialists(cycle,plan){
       AUTOBOT_SPECIALIST_FALLBACK_MINUTES:process.env.AUTOBOT_SPECIALIST_FALLBACK_MINUTES||'4',
       AUTOBOT_AIDER_CALL_TIMEOUT_MS:'150000',
       AUTOBOT_FINISH_GRACE_MINUTES:'0',
-      BUILDER_MAX_MINUTES:String(Math.max(1,Math.min(configuredCycleMinutes,Math.max(1,Math.floor((remainingNormalMs()-safetyMinutes*60_000)/60_000))))),
+      BUILDER_MAX_MINUTES:String(specialistBudgetMinutes),
+      AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT:process.env.AUTOBOT_CYCLE_BASE_COMMIT||'',
       AUTOBOT_SPECIALIST_OUTCOME_PATH:path.join(dir,'autobot-specialist-outcome.json'),
       AUTOBOT_SPECIALIST_HANDOFF_PATH:path.join(dir,'autobot-specialist-handoff.json'),
       AUTOBOT_SPECIALIST_FAILURE_PATCH_PATH:path.join(dir,'autobot-specialist-failure.patch'),
@@ -174,7 +176,7 @@ async function recoverCandidateFailures(results,cycle){
     run('git',['diff','--check',`${baseCommit}..${candidateCommit}`]);
     fs.writeFileSync(path.join(recoveryDir,'autobot-repair-base-commit.txt'),`${baseCommit}\n`);
     fs.writeFileSync(path.join(recoveryDir,'autobot-repair-commit.txt'),`${candidateCommit}\n`);
-    fs.writeFileSync(path.join(recoveryDir,'autobot-verified-candidate.json'),JSON.stringify({schemaVersion:1,botId:item.bot,status:'verified-candidate',baseCommit,candidateCommit,branch:branchName,changedFiles:recovery.qa?.changedFiles||[],recovered:true,recoveryTransport:'exact-commit',failureId},null,2)+'\n');
+    fs.writeFileSync(path.join(recoveryDir,'autobot-verified-candidate.json'),JSON.stringify({schemaVersion:1,botId:item.bot,status:'verified-candidate',baseCommit,candidateCommit,cycleBaseCommit:process.env.AUTOBOT_CYCLE_BASE_COMMIT||baseCommit,branch:branchName,changedFiles:recovery.qa?.changedFiles||[],recovered:true,recoveryTransport:'exact-commit',failureId},null,2)+'\n');
   }
 }
 
@@ -216,6 +218,10 @@ function integrate(cycle,baseRef,verified){
   for(const item of verified){
     assertScope(item.bot,item.check);
     const candidateBranch=item.check.branch,candidate=item.check.candidateCommit;
+    const cycleBase=git(['rev-parse','HEAD']);
+    if(item.check.cycleBaseCommit && item.check.cycleBaseCommit!==cycleBase) fail(`cycle base mismatch for ${item.bot}: expected ${cycleBase}, candidate reports ${item.check.cycleBaseCommit}`);
+    const mergeBase=git(['merge-base',cycleBase,candidate]);
+    if(mergeBase!==cycleBase)fail(`candidate ${item.bot} is not based on the exact cycle base; merge-base=${mergeBase}`);
     run('git',['fetch','origin',`+refs/heads/${candidateBranch}:refs/remotes/origin/${candidateBranch}`]);
     const fetched=git(['rev-parse',`refs/remotes/origin/${candidateBranch}`]);
     if(fetched!==candidate)fail(`candidate SHA mismatch for ${item.bot}: expected ${candidate}, fetched ${fetched}`);
@@ -233,8 +239,9 @@ async function cycle(cycleNumber,baseRef){
   assertAudit(`cycle-${cycleNumber}-start`);
   audit('iteration-started',{cycle:cycleNumber,mode:'specialist-fleet',baseRef,remainingMinutes:Number((remainingMs()/60000).toFixed(2)),normalRemainingMinutes:Number((remainingNormalMs()/60000).toFixed(2)),specialists:bots});
   status(`===== CYCLE ${cycleNumber} =====`);
-  log(`base=${baseRef}; remaining=${(remainingMs()/60000).toFixed(1)}m; specialist budget=${configuredCycleMinutes}m`);
+  log(`base=${baseRef}; remaining=${(remainingMs()/60000).toFixed(1)}m; adaptive cycle budget=${(Number(process.env.AUTOBOT_ADAPTIVE_CYCLE_BUDGET_MS||configuredCycleMinutes*60_000)/60000).toFixed(1)}m`);
   ensureClean();checkoutBase(baseRef);
+  process.env.AUTOBOT_CYCLE_BASE_COMMIT=git(['rev-parse','HEAD']);
   fs.rmSync(path.join(root,'builder','working','persistent',`cycle-${cycleNumber}`),{recursive:true,force:true});
   const rndOutput=path.join(root,'builder','working','persistent',`cycle-${cycleNumber}`,'autobot-rnd-brief.json');
   fs.mkdirSync(path.dirname(rndOutput),{recursive:true});
@@ -250,7 +257,7 @@ async function cycle(cycleNumber,baseRef){
   if(plannedBots.length!==bots.length)fail(`parallel planner did not assign every active specialist: missing ${bots.filter(bot=>!plannedBots.includes(bot)).join(', ')}`);
   status(`PLANNER complete | Director=${plan.workers.find(x=>x.botId==='director-builder')?.title||'missing'} | Timeline=${plan.workers.find(x=>x.botId==='timeline-builder')?.title||'missing'}`);
   status('SPECIALISTS starting in parallel | Director + Timeline');
-  await runSpecialists(cycleNumber,plan);
+  await runSpecialists(cycleNumber,plan,Number(process.env.AUTOBOT_ADAPTIVE_CYCLE_BUDGET_MS||String(configuredCycleMinutes*60_000)));
   audit('specialists-finished',{cycle:cycleNumber});
   status('SPECIALISTS complete | candidate handoffs collected');
   status('REPAIR checking specialist failures');
@@ -355,6 +362,7 @@ async function main(){
     log(`cycle ${cycleNumber} launch budget: up to ${(adaptiveCycleMs/60000).toFixed(1)}m from ${cycleDurationsMs.length?`${cycleDurationsMs.length} observed cycle(s)`:'configured budget'}`);
     const cycleStartedMs=Date.now();
     try{
+      process.env.AUTOBOT_ADAPTIVE_CYCLE_BUDGET_MS=String(adaptiveCycleMs);
       baseRef=await cycle(cycleNumber,baseRef);
       const elapsedMs=Date.now()-cycleStartedMs;
       cycleDurationsMs.push(elapsedMs);

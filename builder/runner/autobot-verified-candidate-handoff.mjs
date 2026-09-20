@@ -40,6 +40,7 @@ const manifest={
   failureId:state.failureId,
   baseCommit:base,
   candidateCommit:repair,
+  cycleBaseCommit:process.env.AUTOBOT_CYCLE_BASE_COMMIT||base,
   changedFiles:review.changedFiles,
   productFiles:review.productFiles||[],
   gates:{builderCandidatePreserved:true,repair:true,qa:true,review:true},

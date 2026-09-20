@@ -133,10 +133,12 @@ try{
     fs.writeFileSync(path.join(workingDir,'autobot-repair-commit.txt'),`${repairCommit}\n`);
     process.env.AUTOBOT_REVIEW_OUTPUT=path.join(workingDir,'autobot-review.json');
     process.env.AUTOBOT_HANDOFF_OUTPUT=path.join(workingDir,'autobot-verified-candidate.json');
+    process.env.AUTOBOT_CYCLE_BASE_COMMIT=process.env.AUTOBOT_CYCLE_BASE_COMMIT||base;
     await import(pathToFileURL(path.join(recoveryRoot,'builder/runner/autobot-verified-candidate-handoff.mjs')).href);
     const handoffFiles=['autobot-verified-candidate.json','autobot-repair-candidate.patch','autobot-repair-base-commit.txt','autobot-repair-commit.txt','autobot-review.json'];
     const publishDir=path.join(originalRoot,'builder','working');
     fs.mkdirSync(publishDir,{recursive:true});
+    if(fs.existsSync(path.join(workingDir,'autobot-verified-candidate.json'))){const manifest=JSON.parse(fs.readFileSync(path.join(workingDir,'autobot-verified-candidate.json'),'utf8'));manifest.cycleBaseCommit=process.env.AUTOBOT_CYCLE_BASE_COMMIT||base;fs.writeFileSync(path.join(workingDir,'autobot-verified-candidate.json'),JSON.stringify(manifest,null,2)+'\n');}
     for(const name of handoffFiles){
       const source=path.join(workingDir,name);
       if(fs.existsSync(source))fs.copyFileSync(source,path.join(publishDir,name));
