@@ -27,9 +27,9 @@ function recordCandidateFailure(error,files=[]){
   console.error(`[autobot-candidate-check] recoverable candidate failure recorded: ${failure.id}`);
   return failure;
 }
-if(o?.status==='failure'&&!r)throw new Error('No verified recovery candidate exists for '+bot);
-if(!candidate||!base)throw new Error('Candidate handoff is incomplete for '+bot);
-if(!/^[0-9a-f]{40}$/i.test(candidate)||!/^[0-9a-f]{40}$/i.test(base))throw new Error('Candidate/base must be full SHAs');
+if(o?.status==='failure'&&!r){recordCandidateFailure(new Error('No verified recovery candidate exists for '+bot),o?.files||[]);process.exit(2);}
+if(!candidate||!base){recordCandidateFailure(new Error('Candidate handoff is incomplete for '+bot),o?.files||[]);process.exit(2);}
+if(!/^[0-9a-f]{40}$/i.test(candidate)||!/^[0-9a-f]{40}$/i.test(base)){recordCandidateFailure(new Error('Candidate/base must be full SHAs'),o?.files||[]);process.exit(2);}
 
 const temp=path.join(os.tmpdir(),'bikeztagram-endurance-'+bot+'-'+process.pid);
 try{
