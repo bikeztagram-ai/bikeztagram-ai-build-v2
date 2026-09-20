@@ -10,6 +10,11 @@ on:
       - 'builder/runner/autobot-endurance-candidate-check.mjs'
       - 'builder/runner/autobot-specialist-handoff.mjs'
       - 'builder/runner/autobot-parallel-planner.mjs'
+      - 'builder/runner/autobot-fleet-recovery.mjs'
+      - 'builder/runner/autobot-failure-queue.mjs'
+      - 'builder/runner/autobot-repair.mjs'
+      - 'builder/runner/autobot-qa.mjs'
+      - 'builder/runner/autobot-reviewer.mjs'
       - 'scripts/autobot/verify-autobot-persistent-cycle.mjs'
       - 'package.json'
   push:
@@ -33,7 +38,7 @@ jobs:
       - name: Parse AutoBot JavaScript
         run: |
           set -euo pipefail
-          for f in             builder/runner/autobot-persistent-cycle-engine.mjs             builder/runner/autobot-specialist-builder.mjs             builder/runner/autobot-specialist-recovery.mjs             builder/runner/autobot-endurance-candidate-check.mjs             builder/runner/autobot-specialist-handoff.mjs             builder/runner/autobot-parallel-planner.mjs             scripts/autobot/verify-autobot-persistent-cycle.mjs; do
+          for f in             builder/runner/autobot-persistent-cycle-engine.mjs             builder/runner/autobot-specialist-builder.mjs             builder/runner/autobot-specialist-recovery.mjs             builder/runner/autobot-endurance-candidate-check.mjs             builder/runner/autobot-specialist-handoff.mjs             builder/runner/autobot-parallel-planner.mjs             builder/runner/autobot-fleet-recovery.mjs             builder/runner/autobot-failure-queue.mjs             builder/runner/autobot-repair.mjs             builder/runner/autobot-qa.mjs             builder/runner/autobot-reviewer.mjs             scripts/autobot/verify-autobot-persistent-cycle.mjs; do
             node --check "$f"
           done
       - name: Run deep AutoBot chain audit

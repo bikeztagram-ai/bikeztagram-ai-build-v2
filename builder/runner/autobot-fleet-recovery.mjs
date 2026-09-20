@@ -85,7 +85,7 @@ async function runReviewer(reviewerWorker,baseCommit,candidateCommit){
 }
 function writeState(state){fs.writeFileSync(fleetStatePath,JSON.stringify({...state,updatedAt:new Date().toISOString()},null,2)+'\n');}
 export function captureBuilderFailure(){return captureFailure();}
-export async function recoverFleet({failureId=null}={}){
+export async function recoverFleet({failureId=null,recoveryDepth=0}={}){
   const registry=readJson(registryPath);
   if(registry.enabled!==true||registry.coordination?.mode!=='active')fail('AutoBot fleet execution is disabled; recovery orchestration must be explicitly activated after foundation verification.');
   const {worker:repairWorker,modulePromise:repairModulePromise}=loadWorker(registry,'repair');
@@ -94,12 +94,14 @@ export async function recoverFleet({failureId=null}={}){
   // eagerly import it here. runReviewer supplies the exact full SHAs first
   // and executes the reviewer as a child process with that environment.
   const reviewerWorker=registeredWorker(registry,'reviewer');
-  const {module:repairModule}=await repairModulePromise;
-  const {module:qaModule}=await qaModulePromise;
+  const repairModule=await repairModulePromise;
+  const qaModule=await qaModulePromise;
   if(typeof repairModule.repairOne!=='function')fail(`Registered Repair Bot '${repairWorker.entrypoint}' does not export repairOne.`);
   if(typeof qaModule.qaOne!=='function')fail(`Registered QA Bot '${qaWorker.entrypoint}' does not export qaOne.`);
-  let failure=failureId?readFailures({status:'open'}).find(item=>item.id===failureId):null;
-  if(!failure)failure=readFailures({status:'open'})[0]||null;
+  const openFailures=readFailures({status:'open'});
+  let failure=failureId?openFailures.find(item=>item.id===failureId):null;
+  if(failureId&&!failure)fail('open recovery failure '+failureId+' was not found in the durable failure queue');
+  if(!failure)failure=openFailures[0]||null;
   if(!failure)return {ok:true,status:'no-open-failure'};
   writeState({schemaVersion:1,status:'repairing',failureId:failure.id});
 
@@ -122,6 +124,8 @@ export async function recoverFleet({failureId=null}={}){
   // reconstructed and verified by the same QA contract.
   if(failure.metadata?.preverifiedCandidate===true){
     const { transitionFailure }=await import('./autobot-failure-queue.mjs');
+    transitionFailure(failure.id,'claimed',{transitionedBy:'autobot-specialist-recovery',repairBranch:repair.branch,repairBaseCommit:repair.baseCommit,repairCommit:repair.commit,resolution:'specialist candidate passed recovery preflight; exact candidate claimed for independent QA.'});
+    transitionFailure(failure.id,'repairing',{transitionedBy:'autobot-specialist-recovery',repairBranch:repair.branch,repairBaseCommit:repair.baseCommit,repairCommit:repair.commit});
     transitionFailure(failure.id,'repaired',{transitionedBy:'autobot-specialist-recovery',repairBranch:repair.branch,repairBaseCommit:repair.baseCommit,repairCommit:repair.commit,resolution:'specialist candidate passed recovery preflight; exact candidate routed directly to independent QA.'});
   }
   writeState({schemaVersion:1,status:'qa',failureId:failure.id,repair});
@@ -129,8 +133,21 @@ export async function recoverFleet({failureId=null}={}){
   if(!qa?.ok)fail('QA Bot did not verify the repaired handoff.');
   writeState({schemaVersion:1,status:'reviewing',failureId:failure.id,repair,qa});
   const review=await runReviewer(reviewerWorker,qa.baseCommit,qa.repairCommit);
+  if(review.status==='needs-repair'&&review.failureId){
+    const maxReviewerRecoveryDepth=2;
+    if(recoveryDepth>=maxReviewerRecoveryDepth){
+      const exhausted={ok:false,status:'review-recovery-exhausted',failureId:failure.id,repair,qa,review,protectedIntegration:false,recoveryDepth};
+      writeState(exhausted);
+      return exhausted;
+    }
+    status('REVIEWER requested repair; routing '+review.failureId+' through bounded Repair -> QA -> Reviewer recovery '+(recoveryDepth+1)+'/'+maxReviewerRecoveryDepth);
+    const reviewerRecovery=await recoverFleet({failureId:review.failureId,recoveryDepth:recoveryDepth+1});
+    const result={...reviewerRecovery,priorFailureId:failure.id,reviewerRecoveryDepth:recoveryDepth+1};
+    writeState(result);
+    return result;
+  }
   const finalStatus=review.status==='pass'?'verified-candidate':review.status==='needs-repair'?'review-needs-repair':'review-rejected';
-  const result={ok:review.status==='pass',status:finalStatus,failureId:failure.id,repair,qa,review,protectedIntegration:false};
+  const result={ok:review.status==='pass',status:finalStatus,failureId:failure.id,repair,qa,review,protectedIntegration:false,recoveryDepth};
   writeState(result);
   return result;
 }
