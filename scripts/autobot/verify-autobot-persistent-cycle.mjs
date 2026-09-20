@@ -5,9 +5,16 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import {execFileSync} from 'node:child_process';
 const root=process.cwd();
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const assert=(ok,msg)=>{if(!ok)throw new Error(msg)};
+const criticalEngineHelpers=['parseDuration','fail','git','run','spawnLogged','readJson','writeJson','remainingMs','remainingNormalMs','status','log','audit','assertAudit','ensureClean','checkoutBase','objectiveFor','resultDir','setCycleEnv','assertScope','copyIfExists'];
+for(const helper of criticalEngineHelpers){
+  assert(new RegExp(`(?:function|async function)\\s+${helper}\\s*\\(`).test(engine),`persistent engine helper missing: ${helper}`);
+}
+assert(engine.indexOf('function parseDuration')<engine.indexOf('const totalMinutes'),'duration parser must be defined before total duration is evaluated');
+for(const file of ['builder/runner/autobot-persistent-cycle-engine.mjs','builder/runner/autobot-specialist-builder.mjs','builder/runner/autobot-specialist-recovery.mjs','builder/runner/autobot-endurance-candidate-check.mjs','builder/runner/autobot-parallel-planner.mjs','builder/runner/autobot-live-dashboard.mjs']) execFileSync(process.execPath,['--check',file],{cwd:root,stdio:'inherit'});
 const workflow=read('.github/workflows/autobot-parallel-specialists.yml');
 const engine=read('builder/runner/autobot-persistent-cycle-engine.mjs');
 const specialist=read('builder/runner/autobot-specialist-builder.mjs');
