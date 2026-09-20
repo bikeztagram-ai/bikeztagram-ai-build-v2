@@ -25,6 +25,8 @@ const checks=[
  [specialist.includes('Math.floor(controllerMinutes / 20)')&&specialist.includes('AUTOBOT_MAX_FEATURE_CYCLES: String(maxFeatureCycles)'),'specialist Builder must inherit repeated audited feature cycles from the proven controller'],
  [engine.includes("import {appendAudit, verifyAuditLog} from '../quality/audit-log.mjs'")&&engine.includes("audit('iteration-started'")&&engine.includes("audit('planner-finished'")&&engine.includes("audit('verification-finished'")&&engine.includes("audit('iteration-finished'"),'persistent fleet must carry the proven audit/integrity trail across specialist stages'],
  [engine.includes('maxNoProgressCycles')&&engine.includes('consecutiveNoProgressCycles')&&engine.includes('CYCLE ${cycleNumber} failed; preserving base'),'specialist cycles must survive a recoverable failed cycle and re-plan from the last verified base'],
+ [engine.includes('const cycleStartedMs=Date.now();\n    try{')&&engine.includes('Date.now()-cycleStartedMs')&&!engine.includes('const started=Date.now()'),'cycle recovery timer must remain in scope for both success and catch paths'],
+ 
  [engine.includes("status:'recovering'")&&engine.includes('auditTrail'),'failed specialist cycles must persist resumable runtime evidence before retrying'],
  [workflow.includes('workflow_dispatch:'),'persistent workflow must be manually dispatchable'],
  [workflow.indexOf('Anchor cumulative deadline')<workflow.indexOf('Run persistent AutoBot engine'),'endurance clock must be anchored immediately before the persistent engine'],
