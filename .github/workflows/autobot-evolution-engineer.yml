@@ -1,0 +1,73 @@
+name: 🧬 AutoBot Evolution Engineer
+
+on:
+  workflow_run:
+    workflows: ["🧩 AutoBot Persistent Specialists"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      apply_experiment:
+        description: Run one bounded evolution experiment (observe-only is the default)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: autobot-evolution-engineer
+  cancel-in-progress: false
+
+jobs:
+  evolution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      AUTOBOT_EVOLUTION_APPLY: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_experiment || false }}
+      AUTOBOT_EVOLUTION_EVIDENCE_DIR: builder/working/evolution-evidence
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Download production evidence
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v6
+        with:
+          name: autobot-persistent-runtime-${{ github.event.workflow_run.id }}
+          path: builder/working/evolution-evidence
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install project dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Run Evolution Engineer
+        run: node builder/runner/autobot-evolution-engineer.mjs
+
+      - name: Verify Evolution Engineer contract
+        run: node scripts/autobot/verify-autobot-evolution-engineer.mjs
+
+      - name: Publish evolution report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git status --short
+          echo 'Evolution lane completed independently of production.'
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: autobot-evolution-report-${{ github.run_id }}
+          path: builder/working/autobot-evolution-report.json
+          if-no-files-found: ignore
