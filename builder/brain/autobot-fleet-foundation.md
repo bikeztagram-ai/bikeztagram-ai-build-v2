@@ -230,6 +230,28 @@ Package commands:
 
 The Reviewer produces an auditable `pass`, `needs-repair` or `reject` disposition and never merges or pushes. A `needs-repair` disposition enters the authoritative failure queue for isolated Repair Bot handling.
 
+## R&D Analyst
+
+The evidence-first R&D lane is implemented at:
+
+`builder/runner/autobot-rnd.mjs`
+
+R&D runs before each persistent specialist cycle. It is analysis-only: it consumes the current product objective library, source inventory and durable failure evidence, then writes:
+
+`builder/working/autobot-rnd-brief.json`
+
+The brief contains evidence-backed product findings, candidate opportunities and risks. It is passed into the Parallel Planner as research context. R&D does not edit product files, weaken validators, commit, push or merge. If local AI research is unavailable, it falls back to deterministic evidence from the existing objective library and failure queue so R&D cannot become a single point of failure.
+
+Verifier:
+
+`scripts/autobot/verify-autobot-rnd.mjs`
+
+Package command:
+
+`verify:autobot-rnd`
+
+The R&D-to-Planner handshake is covered by the persistent-cycle verifier and the dedicated contract workflow.
+
 ## Self-Improvement Bot
 
 The Self-Improvement worker is implemented at:

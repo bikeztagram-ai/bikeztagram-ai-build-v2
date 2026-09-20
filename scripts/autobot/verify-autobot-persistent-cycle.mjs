@@ -17,6 +17,8 @@ const planner=read('builder/runner/autobot-parallel-planner.mjs');
 const objectives=JSON.parse(read('builder/brain/feature-objectives.json'));
 const handoff=read('builder/runner/autobot-specialist-handoff.mjs');
 const structured=read('builder/runner/autobot-specialist-structured-fallback.mjs');
+const quality=read('scripts/autobot/verify-autobot-product-change-quality.mjs');
+const rnd=read('builder/runner/autobot-rnd.mjs');
 const deterministic=read('builder/runner/autobot-specialist-deterministic-fallback.mjs');
 const registry=JSON.parse(read('builder/brain/autobot-fleet.json'));
 const checks=[
@@ -62,7 +64,20 @@ const checks=[
 
  [candidate.includes('const allowed=new Set')&&candidate.includes('scopedFiles')&&candidate.includes('repairable:scopedFiles.length>0'),'candidate recovery must be limited to the specialist owned file scope'],
  [engine.includes('AUTOBOT_REPAIR_TIMEOUT_MS')&&engine.includes('Math.min(30*60_000')&&engine.includes('remainingNormalMs()'),'Repair Bot timeout must be bounded by the remaining cumulative run budget'],
- [engine.includes('autobot/persistent/cycle-'),'verified state must be carried forward by a new branch'],
+ [quality.includes('AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT')&&quality.includes('AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT'),'product-quality guard must inspect committed candidate diffs during independent QA/Reviewer instead of reporting clean committed work as not-applicable'],
+ [candidate.includes('AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT:base')&&candidate.includes('AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT:candidate'),'candidate verification must pass the exact base/candidate pair into the product-quality guard'],
+ [candidate.includes("git',['worktree','add','--detach',temp,candidate]")&&candidate.includes("git',['push','--set-upstream','origin',branch]")&&!candidate.includes("git',['apply','--check'")&&!candidate.includes("git',['apply','--whitespace=nowarn'"),'recovered candidates must be reconstructed from exact immutable commits, never serialized and replayed as patches'],
+ [engine.includes("recoveryTransport:'exact-commit'")&&engine.includes("git',['rev-parse','--verify',candidateCommit]")&&!engine.includes("--binary"),'persistent recovery handoff must persist exact commit identity and avoid generated patch transport'],
+ [read('builder/runner/autobot-qa.mjs').includes('AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT:base')&&read('builder/runner/autobot-qa.mjs').includes('AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT:commit'),'independent QA must pass the exact repair commit pair into the product-quality guard'],
+ [read('builder/runner/autobot-reviewer.mjs').includes('AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT:base')&&read('builder/runner/autobot-reviewer.mjs').includes('AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT:candidate'),'adversarial Reviewer must enforce the product-quality guard against the committed candidate'],
+ [read('builder/runner/autobot-repair.mjs').includes('const aiderCwd=allInSrc?path.join(worktree,\'src\'):worktree')&&read('builder/runner/autobot-repair.mjs').includes('const mapTokens=allInSrc?0:256')&&read('builder/runner/autobot-repair.mjs').includes('--subtree-only'),'Repair Bot must use focused subtree context and disable the repo map for src-only focused repairs'],
+ [read('builder/runner/autobot-specialist-recovery.mjs').includes("execFileSync('git',['diff','--binary'"),'legacy recovery patch generation must capture raw git diff bytes without the trimming git helper'],
+ [rnd.includes('autobot-rnd-v1')&&rnd.includes('autobot-failure-queue.jsonl')&&rnd.includes('feature-objectives.json')&&!rnd.includes('git push'),'R&D must be analysis-only and consume product objectives plus durable failure evidence'],
+ [engine.includes("builder/runner/autobot-rnd.mjs")&&engine.includes("audit('rnd-finished'"),'each persistent specialist cycle must run R&D before planning'],
+ [planner.includes('autobot-rnd-brief.json')&&planner.includes('R&D recommendations')&&planner.includes('R&D research is evidence'),'Planner must consume R&D evidence without treating it as unchecked implementation authority'],
+  [planner.includes('rndRecommendations')&&planner.includes('R&D — ${title}')&&planner.includes('fallback(bot,library,completedTitles,new Set(),staleAcceptance,rnd)'),'deterministic planner fallback must consume valid R&D recommendations when AI discovery is unavailable'],
+ [planner.includes('function completedSpecialistTitles')&&planner.includes("path.join(root,'builder','working','persistent')")&&planner.includes('autobot-specialist-handoff.json'),'Planner must consume prior specialist handoffs/history so deterministic fallback cannot repeat the same objective across persistent cycles'],
+ [read('scripts/autobot/verify-autobot-rnd.mjs').includes('analysis-only')&&planner.includes('autobot-rnd-brief.json'),'R&D contract verifier must cover the R&D-to-Planner handshake'], [engine.includes('autobot/persistent/cycle-'),'verified state must be carried forward by a new branch'],
  [engine.includes("git push --set-upstream origin,branch") || engine.includes("git',['push','--set-upstream','origin',branch"),'carry-forward must be persisted remotely'],
  [engine.includes('while(true)'),'cycles must continue inside the same workflow job'],
  [engine.includes('autobot-live-status.log'),'persistent engine must emit live cycle status'],
@@ -100,7 +115,8 @@ const checks=[
  [planner.includes("source='deterministic-product-gap-fallback'"),'Planner must record fallback provenance when AI discovery fails'],
  [handoff.includes('validateSpecialistHandoff'),'handoff schema validation must remain active'],
  [registry.enabled===true&&registry.coordination?.mode==='active','fleet activation gate must remain active'],
- [Number(registry.coordination?.maxConcurrentWorkers||0)>=2,'two specialist lanes must remain authorized']
+ [Number(registry.coordination?.maxConcurrentWorkers||0)>=2,'two specialist lanes must remain authorized'],
+ [registry.coordination?.rndRunner==='builder/runner/autobot-rnd.mjs'&&registry.coordination?.rndOutput==='builder/working/autobot-rnd-brief.json'&&registry.bots.some(b=>b.id==='rnd'&&b.entrypoint==='builder/runner/autobot-rnd.mjs'&&b.analysisOnly===true),'dedicated R&D runner/output must be registered as analysis-only'],
 ];
 for(const [ok,msg] of checks)assert(ok,msg);
 console.log(JSON.stringify({ok:true,checks:checks.length,chain:['Planner','Director + Timeline Specialists (parallel)','Repair','independent QA + Reviewer','Carry-forward','repeat in same runner'],restartPerCycle:false,githubJobCeilingMinutes:345},null,2));

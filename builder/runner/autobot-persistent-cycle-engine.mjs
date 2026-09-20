@@ -126,12 +126,14 @@ async function recoverCandidateFailures(results,cycle){
     if(!/^[0-9a-f]{40}$/i.test(String(baseCommit||''))||!/^[0-9a-f]{40}$/i.test(String(candidateCommit||''))||!branchName)fail(`Recovery for ${item.bot} did not return exact base/candidate/branch identifiers`);
     const recoveryDir=path.join(root,'builder','working','persistent',`cycle-${cycle}`,item.bot,'recovery');
     fs.mkdirSync(recoveryDir,{recursive:true});
-    const patch=git(['diff','--binary',`${baseCommit}..${candidateCommit}`]);
-    if(!patch.trim())fail(`Recovery for ${item.bot} produced no candidate patch`);
-    fs.writeFileSync(path.join(recoveryDir,'autobot-repair-candidate.patch'),patch);
+    // Persist exact immutable commit identity. The candidate checker reconstructs
+    // this commit directly in a detached worktree; no generated patch is used
+    // as an inter-process transport layer.
+    run('git',['rev-parse','--verify',candidateCommit]);
+    run('git',['diff','--check',`${baseCommit}..${candidateCommit}`]);
     fs.writeFileSync(path.join(recoveryDir,'autobot-repair-base-commit.txt'),`${baseCommit}\n`);
     fs.writeFileSync(path.join(recoveryDir,'autobot-repair-commit.txt'),`${candidateCommit}\n`);
-    fs.writeFileSync(path.join(recoveryDir,'autobot-verified-candidate.json'),JSON.stringify({schemaVersion:1,botId:item.bot,status:'verified-candidate',baseCommit,candidateCommit,branch:branchName,changedFiles:recovery.qa?.changedFiles||[],recovered:true,failureId},null,2)+'\n');
+    fs.writeFileSync(path.join(recoveryDir,'autobot-verified-candidate.json'),JSON.stringify({schemaVersion:1,botId:item.bot,status:'verified-candidate',baseCommit,candidateCommit,branch:branchName,changedFiles:recovery.qa?.changedFiles||[],recovered:true,recoveryTransport:'exact-commit',failureId},null,2)+'\n');
   }
 }
 
@@ -193,6 +195,12 @@ async function cycle(cycleNumber,baseRef){
   log(`base=${baseRef}; remaining=${(remainingMs()/60000).toFixed(1)}m; specialist budget=${configuredCycleMinutes}m`);
   ensureClean();checkoutBase(baseRef);
   fs.rmSync(path.join(root,'builder','working','persistent',`cycle-${cycleNumber}`),{recursive:true,force:true});
+  const rndOutput=path.join(root,'builder','working','persistent',`cycle-${cycleNumber}`,'autobot-rnd-brief.json');
+  fs.mkdirSync(path.dirname(rndOutput),{recursive:true});
+  run('node',['builder/runner/autobot-rnd.mjs'],{AUTOBOT_RND_OUTPUT:rndOutput,AUTOBOT_RND_MODEL:process.env.AUTOBOT_RND_MODEL||process.env.AUTOBOT_DISCOVERY_MODEL||'qwen2.5-coder:3b',AUTOBOT_RND_TIMEOUT_MS:'60000'});
+  copyIfExists(rndOutput,path.join(root,'builder','working','autobot-rnd-brief.json'));
+  audit('rnd-finished',{cycle:cycleNumber,rndOutput,recommendations:readJson(rndOutput,{recommendations:[]}).recommendations?.length||0});
+  status(`R&D complete | recommendations=${readJson(rndOutput,{recommendations:[]}).recommendations?.length||0}`);
   run('node',['builder/runner/autobot-parallel-planner.mjs']);
   audit('planner-finished',{cycle:cycleNumber});
   const plan=readJson(path.join(root,'builder','working','autobot-parallel-plan.json'));

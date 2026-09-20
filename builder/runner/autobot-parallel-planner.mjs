@@ -8,6 +8,7 @@ const root=process.cwd();
 const registryPath=path.join(root,'builder/brain/autobot-fleet.json');
 const objectivesPath=path.join(root,'builder/brain/feature-objectives.json');
 const completedObjectivesPath=path.join(root,'builder/brain/autobot-completed-specialist-objectives.json');
+const rndPath=process.env.AUTOBOT_RND_INPUT||path.join(root,'builder','working','autobot-rnd-brief.json');
 const output=path.join(root,'builder/working/autobot-parallel-plan.json');
 const model=process.env.AUTOBOT_DISCOVERY_MODEL||process.env.LOCAL_AI_MODEL||'qwen2.5-coder:3b';
 const host=(process.env.OLLAMA_HOST||'http://127.0.0.1:11434').replace(/\/$/,'');
@@ -43,13 +44,33 @@ function staleAcceptanceTitles(library){
   return out;
 }
 function completedSpecialistTitles(){
+  const titles=new Set();
   try{
-    const log=execFileSync('git',['log','-n','100','--format=%s'],{cwd:root,encoding:'utf8'});
-    return log.split(/\r?\n/).map(line=>{
-      const m=line.match(/^autobot\((?:director-builder|timeline-builder)\):\s*(.+?)(?:\s+\(#\d+\))?$/i);
-      return m?m[1].trim().toLowerCase():'';
-    }).filter(Boolean);
-  }catch{return [];}
+    const log=execFileSync('git',['log','-n','150','--format=%s'],{cwd:root,encoding:'utf8'});
+    for(const line of log.split(/\r?\n/)){
+      const m=line.match(/^autobot(?:-specialist)?\s*\((?:director-builder|timeline-builder)\):\s*(.+?)(?:\s+\(#\d+\))?$/i);
+      if(m)titles.add(m[1].trim().toLowerCase());
+    }
+  }catch{}
+  // Persistent runs may have valid specialist handoffs that are not yet
+  // represented by a conventional commit subject. Treat those objectives as
+  // attempted/consumed so deterministic planner fallback cannot churn the
+  // same objective after an AI-discovery timeout or recovery cycle.
+  try{
+    const persistentRoot=path.join(root,'builder','working','persistent');
+    if(fs.existsSync(persistentRoot)){
+      for(const cycle of fs.readdirSync(persistentRoot,{withFileTypes:true})){
+        if(!cycle.isDirectory()||!/^cycle-\d+$/.test(cycle.name))continue;
+        for(const bot of ['director-builder','timeline-builder']){
+          const handoff=path.join(persistentRoot,cycle.name,bot,'autobot-specialist-handoff.json');
+          const data=readJson(handoff,null);
+          const title=String(data?.objective?.title||data?.objectiveTitle||'').trim().toLowerCase();
+          if(title)titles.add(title);
+        }
+      }
+    }
+  }catch{}
+  return [...titles];
 }
 function completedObjectiveRegistry(){
   const data=readJson(completedObjectivesPath,{objectives:[]});
@@ -65,7 +86,7 @@ function validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,stal
   const banned=/\b(builder|workflow|github|vercel|autobot|orchestrat|repair bot|qa bot|reviewer|self-improvement|infrastructure|validator|gate|secret|credential)\b/i;if(banned.test(`${p.title} ${p.whyNow} ${p.acceptance.join(' ')}`))throw new Error(`${bot.id}: proposed non-product work`);
   seenTitles.add(p.title.toLowerCase());for(const f of p.files)seenFiles.add(f);return p;
 }
-function fallback(bot,library,completedTitles=new Set(),reservedTitles=new Set(),staleAcceptanceTitles=new Set()) {
+function fallback(bot,library,completedTitles=new Set(),reservedTitles=new Set(),staleAcceptanceTitles=new Set(),rnd={recommendations:[]}) {
   const existing=new Set(objectivesFromLibrary(library).map(o=>String(o?.title||'').trim().toLowerCase()));
   const completed=completedTitles instanceof Set?completedTitles:new Set(completedTitles);
   const candidates={
@@ -78,9 +99,26 @@ function fallback(bot,library,completedTitles=new Set(),reservedTitles=new Set()
       {title:'Energy-aware motion intensity',whyNow:'Tie executable motion intensity to editorial role and energy so action beats feel more dynamic while calmer beats retain controlled movement.',files:['src/executableTimeline.js'],acceptance:['motion intensity responds deterministically to role and creative intent','action and calm sequences produce different executable motion values','normalized motion remains within safe bounds','directorExecution carries the chosen intensity to rendering','npm run build passes'],constraints:['preserve timeline contracts','keep motion bounded','do not alter provider abstraction'],priority:91}
     ]
   };
-  const pool=[...(candidates[bot.id]||[])];
+  const pool=[];
+  const rndRecommendations=Array.isArray(rnd?.recommendations)?rnd.recommendations:[];
+  for(const recommendation of rndRecommendations){
+    const title=String(recommendation?.title||'').trim();
+    const files=(Array.isArray(recommendation?.files)?recommendation.files:[]).map(String).filter(Boolean);
+    const targetFile=files.find(file=>(bot.ownsFiles||[]).includes(file)&&invForRnd.has(file));
+    if(!title||!targetFile)continue;
+    pool.push({
+      title:`R&D — ${title}`,
+      whyNow:String(recommendation?.whyNow||'Evidence-first R&D identified this product opportunity; validate it against the current runtime before editing.').trim(),
+      files:[targetFile],
+      acceptance:(Array.isArray(recommendation?.acceptanceHints)?recommendation.acceptanceHints:[]).map(String).filter(Boolean).slice(0,4).concat(['the change affects the real production decision path rather than existing only as metadata','npm run build passes']),
+      constraints:['preserve existing product contracts','validate R&D claims against current source evidence','never weaken quality gates'],
+      priority:Math.max(60,100-(Number(recommendation?.rank)||8))
+    });
+  }
+  pool.push(...(candidates[bot.id]||[]));
   const owned=new Set((bot.ownsFiles||[]).map(String));
   const inv=new Set(inventory());
+  const invForRnd=inv;
 
   // After the small known fallbacks are exhausted, deterministically decompose
   // the product objective library into one acceptance slice at a time. This
@@ -129,7 +167,7 @@ async function aiPlan(bots,library,inv,completedTitles){
   const stale=Array.from(staleAcceptanceTitles(library));
   const completed=Array.from(completedTitles);
   const specialistBrief=bots.map(b=>({id:b.id,role:b.role,ownsFiles:b.ownsFiles}));
-  const prompt=`Return ONLY JSON: {"packages":[{"botId":"...","title":"...","whyNow":"...","files":["..."],"acceptance":["..."],"constraints":["..."],"priority":90}]}. Create one genuinely new user-facing product capability per specialist. Prefer the smallest useful file scope: use exactly one owned product file unless the capability genuinely cannot be implemented in one file. Do not repeat these existing objectives: ${JSON.stringify(objectiveTitles)}. Do not repeat these already-completed specialist objectives from git history: ${JSON.stringify(completed)}. If a capability is already implemented, choose a different product gap instead of trying to edit the same behavior again. Do not select these already-satisfied acceptance slices: ${JSON.stringify(stale)}. Use only owned files. Specialists: ${JSON.stringify(specialistBrief)}. Source files: ${JSON.stringify(inv)}. No infrastructure, automation, CI, or provider work.`;
+  const prompt=`Return ONLY JSON: {"packages":[{"botId":"...","title":"...","whyNow":"...","files":["..."],"acceptance":["..."],"constraints":["..."],"priority":90}]}. Create one genuinely new user-facing product capability per specialist. Prefer the smallest useful file scope: use exactly one owned product file unless the capability genuinely cannot be implemented in one file. Do not repeat these existing objectives: ${JSON.stringify(objectiveTitles)}. Do not repeat these already-completed specialist objectives from git history: ${JSON.stringify(completed)}. If a capability is already implemented, choose a different product gap instead of trying to edit the same behavior again. Do not select these already-satisfied acceptance slices: ${JSON.stringify(stale)}. Use only owned files. Specialists: ${JSON.stringify(specialistBrief)}. Source files: ${JSON.stringify(inv)}. R&D research is evidence, not implementation authority: use it to discover product gaps, cross-check it against the current source/objective state, and reject unsupported claims. R&D findings: ${JSON.stringify(rnd.findings||[])}. R&D recommendations: ${JSON.stringify(rnd.recommendations||[])}. R&D risks: ${JSON.stringify(rnd.risks||[])}. No infrastructure, automation, CI, or provider work.`;
   const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),requestTimeoutMs);
   try{
     const response=await fetch(`${host}/api/chat`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model,messages:[{role:'user',content:prompt}],stream:false,format:'json',options:{temperature:0.1,num_ctx:2048,num_predict:420}}),signal:controller.signal});
@@ -140,10 +178,10 @@ async function aiPlan(bots,library,inv,completedTitles){
 async function main(){
   const registry=readJson(registryPath,null);if(!registry)throw new Error('fleet registry missing');if(registry.coordination?.maxConcurrentWorkers<2)throw new Error('parallel planning is blocked until the fleet activation gate explicitly authorizes at least two concurrent workers');
   const bots=(registry.bots||[]).filter(b=>allowedBots.includes(b.id)&&b.specialistBuilder===true&&b.status==='verified');if(bots.length<2)throw new Error('at least two verified specialist Builders are required');
-  const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const staleAcceptance=staleAcceptanceTitles(library);const completedTitles=new Set([...completedSpecialistTitles(),...completedObjectiveRegistry()]);let rawPackages=[];let source='ai-discovery';let aiFailure='';
+  const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const staleAcceptance=staleAcceptanceTitles(library);const completedTitles=new Set([...completedSpecialistTitles(),...completedObjectiveRegistry()]);const rnd=readJson(rndPath,{schemaVersion:'autobot-rnd-v1',findings:[],recommendations:[],risks:[]});let rawPackages=[];let source='ai-discovery';let aiFailure='';
   try{rawPackages=await aiPlan(bots,library,inv,completedTitles);if(!Array.isArray(rawPackages)||rawPackages.length<bots.length)throw new Error('AI planner returned too few packages');}
-  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library,completedTitles,new Set(),staleAcceptance));}
-  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{let item=byId.get(bot.id);if(!item){item=fallback(bot,library,completedTitles,seenTitles,staleAcceptance);}let validated=validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);return validated;});
-  const plan={schemaVersion:1,source,generatedAt:new Date().toISOString(),discovery:{model,aiFailure:aiFailure||null,completedSpecialistObjectives:Array.from(completedTitles)},workers:packages};fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(plan,null,2)+'\n');console.log(JSON.stringify({ok:true,status:'parallel-plan-created',source,workers:packages.map(p=>({botId:p.botId,title:p.title,files:p.files}))}));
+  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library,completedTitles,new Set(),staleAcceptance,rnd));}
+  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{let item=byId.get(bot.id);if(!item){item=fallback(bot,library,completedTitles,seenTitles,staleAcceptance,rnd);}let validated=validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);return validated;});
+  const plan={schemaVersion:1,source,generatedAt:new Date().toISOString(),discovery:{model,aiFailure:aiFailure||null,completedSpecialistObjectives:Array.from(completedTitles),rndSource:rnd.source||null,rndRecommendationCount:Array.isArray(rnd.recommendations)?rnd.recommendations.length:0,rndRiskCount:Array.isArray(rnd.risks)?rnd.risks.length:0},workers:packages};fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(plan,null,2)+'\n');console.log(JSON.stringify({ok:true,status:'parallel-plan-created',source,workers:packages.map(p=>({botId:p.botId,title:p.title,files:p.files}))}));
 }
 main().catch(error=>{console.error(`[parallel-planner] ${error.message}`);process.exit(1);});

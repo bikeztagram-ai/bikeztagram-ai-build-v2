@@ -103,10 +103,15 @@ function runRepair(record,files){
   try{
     transitionFailure(record.id,'repairing',{transitionedBy:'autobot-repair',repairBranch:branch,repairBaseCommit:baseCommit});
     const focused=files.length===1&&record.expected&&record.actual&&record.repairHint;
-    const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings','--map-tokens=768','--subtree-only',`--edit-format=${editFormat}`];
+    const allInSrc=files.every(file=>file.startsWith('src/'));
+    const aiderCwd=allInSrc?path.join(worktree,'src'):worktree;
+    const aiderFiles=allInSrc?files.map(file=>file.slice(4)):files;
+    const mapTokens=allInSrc?0:256;
+    const args=[`--model=${model}`,`--timeout=${Math.floor(timeoutMs/1000)}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',`--map-tokens=${mapTokens}`,'--subtree-only',`--edit-format=${editFormat}`];
     if(focused&&editFormat==='diff')args.push('--no-git');
-    args.push('--message',promptFor(record,files),...files);
-    const result=spawnSync('aider',args,{cwd:worktree,encoding:'utf8',stdio:['ignore','pipe','inherit'],timeout:timeoutMs});
+    args.push('--message',promptFor(record,files),...aiderFiles);
+    console.log(`[repair] focused=${focused} cwd=${allInSrc?'src':'repo-root'} files=${files.length} mapTokens=${mapTokens}`);
+    const result=spawnSync('aider',args,{cwd:aiderCwd,encoding:'utf8',stdio:['ignore','pipe','inherit'],timeout:timeoutMs});
     if(result.stdout)process.stderr.write(result.stdout);
 
     // Proven specialist behaviour: an Aider timeout/non-zero exit does not

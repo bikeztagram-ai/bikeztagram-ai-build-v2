@@ -44,6 +44,12 @@ try{
   if(install.error||install.status!==0){finding('critical','dependency-install-failed','candidate dependency installation failed',[String(install.stderr||install.error?.message||install.status).slice(-1200)]);}
   else{
     try{build=run('npm',['run','build'],tempDir);}catch(error){finding('critical','build-failed','candidate build failed',[String(error.stdout||error.stderr||error.message).slice(-1200)]);}
+    if(!findings.some(f=>f.severity==='critical')){
+      const quality=spawnSync('npm',['run','verify:autobot-product-change-quality'],{cwd:tempDir,encoding:'utf8',stdio:'pipe',timeout:180_000,env:{...process.env,AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT:base,AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT:candidate}});
+      if(quality.error||quality.status!==0){
+        finding('critical','product-quality-failed','candidate product-quality guard failed',[String(quality.stderr||quality.error?.message||quality.status).slice(-1200)]);
+      }
+    }
   }
 }finally{try{git(['worktree','remove','--force',tempDir]);}catch{}}
 const status=findings.some(f=>f.severity==='critical')?'reject':findings.some(f=>f.severity==='high')?'needs-repair':'pass';
