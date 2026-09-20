@@ -100,6 +100,13 @@ jobs:
       - name: Anchor cumulative deadline
         run: echo "AUTOBOT_RUN_STARTED_EPOCH_MS=$(date +%s000)" >> "$GITHUB_ENV"
 
+      - name: Initialize AutoBot Mission Control
+        run: |
+          node builder/runner/autobot-live-dashboard.mjs
+        env:
+          AUTOBOT_DASHBOARD_STAGE: "SETUP COMPLETE"
+          AUTOBOT_DASHBOARD_MESSAGE: "Dependencies, Aider, local AI brain, performance proxy, contract audits and planner smoke test are complete. The persistent two-worker engine is next."
+
       - name: Run persistent AutoBot engine
         env:
           AUTOBOT_BASE_REF: ${{ github.sha }}
