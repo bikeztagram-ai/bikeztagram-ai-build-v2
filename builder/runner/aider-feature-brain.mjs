@@ -45,7 +45,7 @@ const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(r
 for(let pass=first;pass<=maxPasses;pass++){
   const rem=remainingMs();if(rem<35_000||normalRemainingMs()<35_000&&pass>first)break;
   state.runs=(state.runs||0)+1;const before=new Set(tracked());const snap=snapshot(files);const timeout=Math.min(perCallMaxMs,Math.max(30_000,rem-5_000));
-  const args=[`--model=${model}`,`--timeout=${Math.max(30,Math.floor(timeout/1000))}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',`--map-tokens=${specialist?0:768}`,'--subtree-only',`--edit-format=${specialist?'udiff':'whole'}`,'--message',promptFor(o,pass),...aiderFiles];
+  const args=[`--model=${model}`,`--timeout=${Math.max(30,Math.floor(timeout/1000))}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',...(specialist?['--no-git',`--edit-format=udiff`]:[`--map-tokens=768`,'--subtree-only','--edit-format=whole']),'--message',promptFor(o,pass),...aiderFiles];
   const result=spawnSync('aider',args,{cwd,encoding:'utf8',stdio:'inherit',timeout});
   const changed=hasChanges(o);
   if(result.error||result.status!==0){
