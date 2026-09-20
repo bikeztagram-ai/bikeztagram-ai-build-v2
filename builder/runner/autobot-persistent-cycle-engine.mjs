@@ -23,6 +23,7 @@ const normalDeadlineMs=startMs+totalMinutes*60_000;
 const hardDeadlineMs=normalDeadlineMs+finishGraceMinutes*60_000;
 const bots=['director-builder','timeline-builder'];
 const maxNoProgressCycles=Math.max(1,Number.parseInt(process.env.AUTOBOT_MAX_NO_PROGRESS_CYCLES||'2',10));
+const repairTimeoutMs=Math.max(60_000,Math.min(12*60_000,Number.parseInt(process.env.AUTOBOT_REPAIR_TIMEOUT_MS||String(8*60_000),10)));
 const statusPath=path.join(root,'builder','working','autobot-live-status.log');
 function status(message){const line=`[${new Date().toISOString()}] ${message}`;console.log(`\\n${line}`);fs.mkdirSync(path.dirname(statusPath),{recursive:true});fs.appendFileSync(statusPath,line+'\\n');}
 
@@ -86,6 +87,7 @@ async function runSpecialists(cycle,plan){
       AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK:'npm run verify:autobot-product-change-quality',
       AUTOBOT_SPECIALIST_FEATURE_ENGINE:'aider',
       AUTOBOT_SPECIALIST_FALLBACK_MODEL:process.env.AUTOBOT_SPECIALIST_FALLBACK_MODEL||'qwen2.5-coder:3b',
+      AUTOBOT_SPECIALIST_FALLBACK_MINUTES:process.env.AUTOBOT_SPECIALIST_FALLBACK_MINUTES||'4',
       AUTOBOT_AIDER_CALL_TIMEOUT_MS:'150000',
       AUTOBOT_FINISH_GRACE_MINUTES:'0',
       BUILDER_MAX_MINUTES:String(Math.max(1,Math.min(configuredCycleMinutes,Math.max(1,Math.floor((remainingNormalMs()-safetyMinutes*60_000)/60_000))))),
@@ -113,7 +115,9 @@ async function runSpecialists(cycle,plan){
 async function recoverCandidateFailures(results,cycle){
   const failed=results.filter(item=>item.check?.status!=='pass'&&item.check?.failureId&&item.check?.repairable===true);
   if(!failed.length)return;
-  process.env.AUTOBOT_REPAIR_TIMEOUT_MS=String(Math.max(30_000,Math.min(30*60_000,Math.max(30_000,remainingNormalMs()-safetyMinutes*60_000))));
+  const boundedRepairTimeout=Math.min(repairTimeoutMs,Math.max(60_000,remainingNormalMs()-safetyMinutes*60_000));
+  process.env.AUTOBOT_REPAIR_TIMEOUT_MS=String(boundedRepairTimeout);
+  status(`RECOVERY budget | ${Math.ceil(boundedRepairTimeout/60000)}m max Repair Aider window`);
   for(const item of failed){
     const failureId=item.check.failureId;
     status(`RECOVERY routing ${item.bot} candidate failure ${failureId}`);
@@ -205,6 +209,8 @@ async function cycle(cycleNumber,baseRef){
   audit('planner-finished',{cycle:cycleNumber});
   const plan=readJson(path.join(root,'builder','working','autobot-parallel-plan.json'));
   if(!plan?.workers||plan.workers.length<2)fail('parallel planner did not produce two specialist packages');
+  const plannedBots=bots.filter(bot=>plan.workers.some(worker=>worker.botId===bot));
+  if(plannedBots.length!==bots.length)fail(`parallel planner did not assign every active specialist: missing ${bots.filter(bot=>!plannedBots.includes(bot)).join(', ')}`);
   status(`PLANNER complete | Director=${plan.workers.find(x=>x.botId==='director-builder')?.title||'missing'} | Timeline=${plan.workers.find(x=>x.botId==='timeline-builder')?.title||'missing'}`);
   status('SPECIALISTS starting in parallel | Director + Timeline');
   await runSpecialists(cycleNumber,plan);
