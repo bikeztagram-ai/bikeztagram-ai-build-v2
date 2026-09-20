@@ -18,11 +18,23 @@ function changedPaths(){
 }
 function read(path){return fs.readFileSync(`${root}/${path}`,'utf8');}
 function assert(condition,message){if(!condition)throw new Error(message);}
+function duplicateTopLevelFunctionNames(source){
+  const counts=new Map();
+  const pattern=/^(?:export\\s+)?(?:async\\s+)?function\\s+([A-Za-z_$][\\w$]*)\\s*\\(/gm;
+  let match;
+  while((match=pattern.exec(source))!==null)counts.set(match[1],(counts.get(match[1])||0)+1);
+  return [...counts.entries()].filter(([,count])=>count>1).map(([name,count])=>({name,count}));
+}
+function assertNoDuplicateTopLevelFunctions(file){
+  const duplicates=duplicateTopLevelFunctionNames(read(file));
+  assert(!duplicates.length,\`duplicate-function-declaration guard failed in \${file}: \${duplicates.map(item=>item.name+' x'+item.count).join(', ')}\`);
+}
 function richMedia(){return Array.from({length:12},(_,index)=>({id:`rich-${index}`,type:index%2?'video/mp4':'image/jpeg',name:['wide mountain establishing','rider approaching road','motorcycle cornering action','cockpit detail close-up','mountain landscape journey','bike accelerating speed','sunset motorcycle reveal','hero motorcycle showcase','roadside landscape detail','rider departure movement','mountain road action','final motorcycle hero'][index],duration:index%2?4:0,width:1920,height:1080,score:75+index}));}
 function sparseMedia(count){return Array.from({length:count},(_,index)=>({id:`sparse-${index}`,type:'image/jpeg',name:index===0?'single hero motorcycle':'detail motorcycle',width:1920,height:1080,score:80-index}));}
 
 const changed=changedPaths();
 const cinematicChanged=changed.filter(path=>cinematicPaths.has(path));
+for(const file of cinematicChanged)assertNoDuplicateTopLevelFunctions(file);
 if(!cinematicChanged.length){console.log('autobot-product-change-quality: PASS not-applicable (no cinematic product files changed)');process.exit(0);}
 
 const planner=read('src/aiEditPlanner.js');
