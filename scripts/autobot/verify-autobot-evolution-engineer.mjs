@@ -7,7 +7,7 @@ const runner=read('builder/runner/autobot-evolution-engineer.mjs');
 const policy=json('builder/brain/autobot-evolution-policy.json');
 const fleet=json('builder/brain/autobot-fleet.json');
 const checks=[
-[wf.includes('workflow_run:')&&wf.includes('autobot-parallel-specialists.yml'),'Evolution must observe production completion, not run as a production job dependency'],
+[wf.includes('workflow_run:')&&wf.includes('🧩 AutoBot Persistent Specialists'),'Evolution must observe production completion, not run as a production job dependency'],
 [wf.includes('group: autobot-evolution-engineer')&&wf.includes('cancel-in-progress: false'),'Evolution must have isolated non-cancelling concurrency'],
 [wf.includes('actions/download-artifact')&&wf.includes('run-id:'),'Evolution must consume completed-run evidence'],
 [!wf.includes('needs: persistent-autobot'),'Evolution must not depend on the production job'],
