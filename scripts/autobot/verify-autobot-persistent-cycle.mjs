@@ -54,6 +54,10 @@ const checks=[
  [engine.includes('autobot-endurance-candidate-check.mjs'),'every candidate must receive independent QA/Reviewer verification'],
  [engine.includes('recoverCandidateFailures')&&engine.includes('recoverFleet({failureId})')&&engine.includes('RECOVERY + RECHECK complete'),'failed candidate verification must enter Repair/Recovery and be rechecked before a cycle can fail'],
  [candidate.includes('appendFailure')&&candidate.includes('candidateFailure:true')&&candidate.includes('repairBaseCommit:candidate'),'candidate verification failures must persist exact candidate identity for Repair Bot recovery'],
+ [read('builder/runner/autobot-failure-queue.mjs').includes('metadata:input.metadata===undefined?null:input.metadata')&&read('builder/runner/autobot-failure-queue.mjs').includes('metadata:input.metadata===undefined?current.metadata:input.metadata'),'failure queue must preserve specialist candidate recovery metadata across append and transition records'],
+ [read('builder/runner/autobot-fleet-recovery.mjs').includes('const repairModule=await repairModulePromise')&&read('builder/runner/autobot-fleet-recovery.mjs').includes('const qaModule=await qaModulePromise')&&!read('builder/runner/autobot-fleet-recovery.mjs').includes('const {module:repairModule}'),'fleet recovery must consume dynamic-import module namespaces directly'],
+ [read('builder/runner/autobot-fleet-recovery.mjs').includes('open recovery failure')&&read('builder/runner/autobot-fleet-recovery.mjs').includes('openFailures'),'fleet recovery must fail clearly when a requested durable failure id is missing instead of dereferencing an undefined failure'],
+
  [candidate.includes('const allowed=new Set')&&candidate.includes('scopedFiles')&&candidate.includes('repairable:scopedFiles.length>0'),'candidate recovery must be limited to the specialist owned file scope'],
  [engine.includes('AUTOBOT_REPAIR_TIMEOUT_MS')&&engine.includes('Math.min(30*60_000')&&engine.includes('remainingNormalMs()'),'Repair Bot timeout must be bounded by the remaining cumulative run budget'],
  [engine.includes('autobot/persistent/cycle-'),'verified state must be carried forward by a new branch'],
