@@ -193,6 +193,12 @@ async function cycle(cycleNumber,baseRef){
   log(`base=${baseRef}; remaining=${(remainingMs()/60000).toFixed(1)}m; specialist budget=${configuredCycleMinutes}m`);
   ensureClean();checkoutBase(baseRef);
   fs.rmSync(path.join(root,'builder','working','persistent',`cycle-${cycleNumber}`),{recursive:true,force:true});
+  const rndOutput=path.join(root,'builder','working','persistent',`cycle-${cycleNumber}`,'autobot-rnd-brief.json');
+  fs.mkdirSync(path.dirname(rndOutput),{recursive:true});
+  run('node',['builder/runner/autobot-rnd.mjs'],{AUTOBOT_RND_OUTPUT:rndOutput,AUTOBOT_RND_MODEL:process.env.AUTOBOT_RND_MODEL||process.env.AUTOBOT_DISCOVERY_MODEL||'qwen2.5-coder:3b',AUTOBOT_RND_TIMEOUT_MS:'60000'});
+  copyIfExists(rndOutput,path.join(root,'builder','working','autobot-rnd-brief.json'));
+  audit('rnd-finished',{cycle:cycleNumber,rndOutput,recommendations:readJson(rndOutput,{recommendations:[]}).recommendations?.length||0});
+  status(`R&D complete | recommendations=${readJson(rndOutput,{recommendations:[]}).recommendations?.length||0}`);
   run('node',['builder/runner/autobot-parallel-planner.mjs']);
   audit('planner-finished',{cycle:cycleNumber});
   const plan=readJson(path.join(root,'builder','working','autobot-parallel-plan.json'));
