@@ -51,6 +51,7 @@ if(!candidate||!base)throw new Error('Candidate handoff is incomplete for '+bot)
 if(!/^[0-9a-f]{40}$/i.test(candidate)||!/^[0-9a-f]{40}$/i.test(base))throw new Error('Candidate/base must be full SHAs');
 
 const temp=path.join(os.tmpdir(),'bikeztagram-endurance-'+bot+'-'+process.pid);
+async function main(){
 try{
   if(r){
     if(!fs.existsSync(patch))throw new Error('Recovered candidate is missing its verified patch');
@@ -97,3 +98,5 @@ try{
   fs.writeFileSync(outputPath,JSON.stringify(result,null,2)+'\n');
   console.log(JSON.stringify(result,null,2));
 }finally{try{execFileSync('git',['worktree','remove','--force',temp],{stdio:'ignore'});}catch{}}
+}
+main().catch(error=>{console.error(`[autobot-candidate-check] FATAL: ${error.message}`);process.exit(2);});
