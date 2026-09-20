@@ -41,7 +41,8 @@ export function appendFailure(input={}){
     attempted:Array.isArray(input.attempted)?input.attempted.filter(Boolean):[],
     evidence:Array.isArray(input.evidence)?input.evidence.filter(Boolean):[],
     retryable:Boolean(input.retryable),
-    repairHint:normalise(input.repairHint)
+    repairHint:normalise(input.repairHint),
+    metadata:input.metadata===undefined?null:input.metadata
   });
 }
 
@@ -63,7 +64,7 @@ export function transitionFailure(id,status,input={}){
   const current=readFailures().find(record=>record.id===id);
   if(!current)throw new Error(`failure not found: ${id}`);
   if(!ALLOWED_TRANSITIONS[current.status]?.has(status))throw new Error(`invalid failure transition: ${current.status} -> ${status}`);
-  return appendRecord({...current,status,updatedAt:new Date().toISOString(),transitionedBy:input.transitionedBy||'unknown',handoffTo:input.handoffTo===undefined?current.handoffTo:input.handoffTo,repairBranch:input.repairBranch===undefined?current.repairBranch:input.repairBranch,repairBaseCommit:input.repairBaseCommit===undefined?current.repairBaseCommit:input.repairBaseCommit,repairCommit:input.repairCommit===undefined?current.repairCommit:input.repairCommit,resolution:input.resolution===undefined?current.resolution:input.resolution});
+  return appendRecord({...current,status,updatedAt:new Date().toISOString(),transitionedBy:input.transitionedBy||'unknown',handoffTo:input.handoffTo===undefined?current.handoffTo:input.handoffTo,repairBranch:input.repairBranch===undefined?current.repairBranch:input.repairBranch,repairBaseCommit:input.repairBaseCommit===undefined?current.repairBaseCommit:input.repairBaseCommit,repairCommit:input.repairCommit===undefined?current.repairCommit:input.repairCommit,resolution:input.resolution===undefined?current.resolution:input.resolution,metadata:input.metadata===undefined?current.metadata:input.metadata});
 }
 
 export function queueSummary(){
