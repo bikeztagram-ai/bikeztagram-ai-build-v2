@@ -119,8 +119,7 @@ function fallback(bot,library,inv,completedTitles=new Set(),reservedTitles=new S
   }
   pool.push(...(candidates[bot.id]||[]));
   const owned=new Set((bot.ownsFiles||[]).map(String));
-  const invSet=new Set(inv);
-
+  
   // After the small known fallbacks are exhausted, deterministically decompose
   // the product objective library into one acceptance slice at a time. This
   // keeps long runs productive when local AI discovery is temporarily
