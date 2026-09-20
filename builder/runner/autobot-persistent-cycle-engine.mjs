@@ -26,33 +26,49 @@ const bots=['director-builder','timeline-builder'];
 const maxNoProgressCycles=Math.max(1,Number.parseInt(process.env.AUTOBOT_MAX_NO_PROGRESS_CYCLES||'2',10));
 const repairTimeoutMs=Math.max(60_000,Math.min(12*60_000,Number.parseInt(process.env.AUTOBOT_REPAIR_TIMEOUT_MS||String(8*60_000),10)));
 const statusPath=path.join(root,'builder','working','autobot-live-status.log');
-function status(message){const line=`[${new Date().toISOString()}] ${message}`;console.log(`\\n${line}`);fs.mkdirSync(path.dirname(statusPath),{recursive:true});fs.appendFileSync(statusPath,line+'\\n');try{renderLiveSummary({stage:'LIVE',message,cycle:process.env.AUTOBOT_CYCLE_NUMBER||null,baseRef:process.env.AUTOBOT_CYCLE_BASE_COMMIT||process.env.AUTOBOT_BASE_REF||null});}catch(error){console.warn(`[autobot-dashboard] summary update skipped: ${error.message}`);}}
-
-function parseDuration(v){
-  const value=String(v).trim().toLowerCase();
-  const hm=value.match(/^(\d+)h(\d{1,2})m?$/);
-  if(hm){const minutes=Number(hm[2]); if(minutes>=60)return 30; return Number(hm[1])*60+minutes;}
-  const m=value.match(/^(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?$/);
-  if(!m)return 30;
-  const n=Number(m[1]); return /h/.test(m[2]||'')?n*60:n;
+function status(message){
+  const now=Date.now();
+  const elapsedMs=Math.max(0,now-startMs);
+  const remainingNormal=Math.max(0,normalDeadlineMs-now);
+  const remainingHard=Math.max(0,hardDeadlineMs-now);
+  const cycle=process.env.AUTOBOT_CYCLE_NUMBER||'—';
+  const base=String(process.env.AUTOBOT_CYCLE_BASE_COMMIT||process.env.AUTOBOT_BASE_REF||'—');
+  const shortBase=/^[0-9a-f]{40}$/i.test(base)?base.slice(0,10):base;
+  const totalMs=Math.max(1,totalMinutes*60_000);
+  const progress=Math.max(0,Math.min(100,Math.round((elapsedMs/totalMs)*100)));
+  const width=24;
+  const filled=Math.round((progress/100)*width);
+  const bar='█'.repeat(filled)+'░'.repeat(width-filled);
+  const mins=ms=>Math.floor(Math.max(0,ms)/60000);
+  const line='['+new Date().toISOString()+'] '+message;
+  const stage=String(message).slice(0,43).padEnd(43,' ');
+  const dashboard=[
+    '',
+    '╔══════════════════════════════════════════════════════════════╗',
+    '║                 🤖 AUTOBOT MISSION CONTROL                  ║',
+    '╠══════════════════════════════════════════════════════════════╣',
+    '║ STATUS       🟢 RUNNING                                      ║',
+    '║ CYCLE        '+String(cycle).padEnd(44,' ')+'║',
+    '║ MODE         Persistent / endurance                         ║',
+    '║ WORKERS      🟢 Director Builder  |  🟢 Timeline Builder   ║',
+    '║ STAGE        '+stage+' ║',
+    '║ LINEAGE      '+String(shortBase).slice(0,43).padEnd(43,' ')+' ║',
+    '║ ELAPSED      '+String(mins(elapsedMs)).padStart(4,' ')+' min                                        ║',
+    '║ REMAINING    '+String(mins(remainingNormal)).padStart(4,' ')+' min normal / '+String(mins(remainingHard)).padStart(4,' ')+' min hard      ║',
+    '║ PROGRESS     '+bar+'  '+String(progress).padStart(3,' ')+'%             ║',
+    '╠══════════════════════════════════════════════════════════════╣',
+    '║ PIPELINE                                                     ║',
+    '║  Planner → Director ║ Timeline → Repair/Recovery            ║',
+    '║          → QA + Reviewer → Verified → Carry-forward         ║',
+    '╚══════════════════════════════════════════════════════════════╝',
+    ''
+  ].join('\\n');
+  console.log(dashboard);
+  console.log(line);
+  fs.mkdirSync(path.dirname(statusPath),{recursive:true});
+  fs.appendFileSync(statusPath,line+'\\n');
+  try{renderLiveSummary({stage:'LIVE',message,cycle,baseRef:base});}catch(error){console.warn('[autobot-dashboard] summary update skipped: '+error.message);}
 }
-function fail(msg){throw new Error(msg);}
-function git(args){return execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();}
-function run(command,args,env={}){
-  const r=spawnSync(command,args,{cwd:root,stdio:'inherit',env:{...process.env,...env}});
-  if(r.error||r.status!==0)fail(`${command} ${args.join(' ')} failed with status ${r.status??'error'}`);
-}
-function spawnLogged(command,args,env={}){
-  return new Promise(resolve=>{
-    const child=spawn(command,args,{cwd:root,stdio:'inherit',env:{...process.env,...env}});
-    child.on('error',error=>resolve({status:1,error}));
-    child.on('exit',(status,signal)=>resolve({status:status??1,signal}));
-  });
-}
-function readJson(file,fallback=null){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return fallback;}}
-function writeJson(file,value){fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value,null,2)+'\n');}
-function remainingMs(){return Math.max(0,hardDeadlineMs-Date.now());}
-function remainingNormalMs(){return Math.max(0,normalDeadlineMs-Date.now());}
 function log(message){console.log(`[autobot-persistent] ${message}`);}
 function audit(stage,data={}){appendAudit(stage,{...data,runId:process.env.GITHUB_RUN_ID||null});}
 function assertAudit(stage){const result=verifyAuditLog();if(!result.valid)fail(`audit integrity failure before ${stage}: ${result.error}`);}
