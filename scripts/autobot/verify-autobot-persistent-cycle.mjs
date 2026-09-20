@@ -42,7 +42,7 @@ const checks=[
  [workflow.includes('install-local-brain.sh'),'Ollama/model setup must happen once at workflow level'],
  [workflow.includes('OLLAMA_KEEP_ALIVE: 6h'),'endurance model keep-alive must not expire at the 30-minute cycle boundary'],
  [engine.includes("const totalMinutes=parseDuration(process.env.AUTOBOT_TOTAL_DURATION||'30m')")&&engine.includes('const normalDeadlineMs=startMs+totalMinutes*60_000'),'requested total duration must drive the cumulative deadline, not the per-cycle specialist budget'],
- [engine.includes('BUILDER_MAX_MINUTES:String(Math.max(1,Math.min(configuredCycleMinutes')&&engine.includes('AUTOBOT_TOTAL_DURATION'),'specialist budget must remain bounded by the configured cycle limit while shrinking to the remaining cumulative budget'],
+ [engine.includes('async function runSpecialists(cycle,plan,cycleBudgetMs)')&&engine.includes('const specialistBudgetMinutes=Math.max(1,Math.min(configuredCycleMinutes')&&engine.includes('cycleBudgetMs')&&engine.includes('remainingNormalMs()')&&engine.includes('AUTOBOT_TOTAL_DURATION'),'specialist budget must remain bounded by the configured cycle limit while shrinking to the remaining cumulative budget'],
  [workflow.includes('timeout-minutes: 345'),'5h30 plus 15-minute finish grace must fit exactly within the 345-minute job ceiling'],
  [workflow.includes('timeout-minutes: 345'),'final job ceiling must remain below GitHub six-hour cutoff'],
  [workflow.includes("'5h'"),'final 5h option must exist'],
