@@ -179,9 +179,21 @@ async function main(){
   const registry=readJson(registryPath,null);if(!registry)throw new Error('fleet registry missing');if(registry.coordination?.maxConcurrentWorkers<2)throw new Error('parallel planning is blocked until the fleet activation gate explicitly authorizes at least two concurrent workers');
   const bots=(registry.bots||[]).filter(b=>allowedBots.includes(b.id)&&b.specialistBuilder===true&&b.status==='verified');if(bots.length<2)throw new Error('at least two verified specialist Builders are required');
   const library=readJson(objectivesPath,{objectives:[]});const inv=inventory();const staleAcceptance=staleAcceptanceTitles(library);const completedTitles=new Set([...completedSpecialistTitles(),...completedObjectiveRegistry()]);const rnd=readJson(rndPath,{schemaVersion:'autobot-rnd-v1',findings:[],recommendations:[],risks:[]});let rawPackages=[];let source='ai-discovery';let aiFailure='';
-  try{rawPackages=await aiPlan(bots,library,inv,completedTitles,rnd);if(!Array.isArray(rawPackages)||rawPackages.length<bots.length)throw new Error('AI planner returned too few packages');}
-  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=bots.map(bot=>fallback(bot,library,inv,completedTitles,new Set(),staleAcceptance,rnd));}
-  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{let item=byId.get(bot.id);if(!item){item=fallback(bot,library,inv,completedTitles,seenTitles,staleAcceptance,rnd);}let validated=validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);return validated;});
+  try{rawPackages=await aiPlan(bots,library,inv,completedTitles,rnd);if(!Array.isArray(rawPackages)||!rawPackages.length)throw new Error('AI planner returned no usable packages');}
+  catch(error){aiFailure=String(error?.message||error);source='deterministic-product-gap-fallback';console.warn(`[parallel-planner] AI discovery unavailable: ${aiFailure}; using deterministic product-gap fallback`);rawPackages=[];}
+  const byId=new Map(rawPackages.map(p=>[String(p.botId),p]));const seenTitles=new Set(),seenFiles=new Set();const packages=bots.map(bot=>{
+    let item=byId.get(bot.id);
+    try{
+      if(!item)item=fallback(bot,library,inv,completedTitles,seenTitles,staleAcceptance,rnd);
+      return validate(item,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);
+    }catch(error){
+      const aiError=String(error?.message||error);
+      if(source==='ai-discovery'){aiFailure=aiFailure?\`${aiFailure}; ${bot.id}: ${aiError}\`:\`${bot.id}: ${aiError}\`;}
+      const replacement=fallback(bot,library,inv,completedTitles,seenTitles,staleAcceptance,rnd);
+      source=source==='ai-discovery'?'hybrid-ai-deterministic':source;
+      return validate(replacement,bot,seenTitles,seenFiles,inv,library,completedTitles,staleAcceptance);
+    }
+  });
   const plan={schemaVersion:1,source,generatedAt:new Date().toISOString(),discovery:{model,aiFailure:aiFailure||null,completedSpecialistObjectives:Array.from(completedTitles),rndSource:rnd.source||null,rndRecommendationCount:Array.isArray(rnd.recommendations)?rnd.recommendations.length:0,rndRiskCount:Array.isArray(rnd.risks)?rnd.risks.length:0},workers:packages};fs.mkdirSync(path.dirname(output),{recursive:true});fs.writeFileSync(output,JSON.stringify(plan,null,2)+'\n');console.log(JSON.stringify({ok:true,status:'parallel-plan-created',source,workers:packages.map(p=>({botId:p.botId,title:p.title,files:p.files}))}));
 }
 main().catch(error=>{console.error(`[parallel-planner] ${error.message}`);process.exit(1);});
