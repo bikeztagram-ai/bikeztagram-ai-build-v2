@@ -33,6 +33,9 @@ env:
   AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
   AUTOBOT_CYCLE_SAFETY_MINUTES: '1'
   AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
+  AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
+  AUTOBOT_REPAIR_TIMEOUT_MS: '480000'
+  AUTOBOT_MAX_NO_PROGRESS_CYCLES: '2'
 
 jobs:
   persistent-autobot:
