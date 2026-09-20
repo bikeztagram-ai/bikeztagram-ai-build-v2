@@ -85,7 +85,7 @@ async function runReviewer(reviewerWorker,baseCommit,candidateCommit){
 }
 function writeState(state){fs.writeFileSync(fleetStatePath,JSON.stringify({...state,updatedAt:new Date().toISOString()},null,2)+'\n');}
 export function captureBuilderFailure(){return captureFailure();}
-export async function recoverFleet({failureId=null}={}){
+export async function recoverFleet({failureId=null,recoveryDepth=0}={}){
   const registry=readJson(registryPath);
   if(registry.enabled!==true||registry.coordination?.mode!=='active')fail('AutoBot fleet execution is disabled; recovery orchestration must be explicitly activated after foundation verification.');
   const {worker:repairWorker,modulePromise:repairModulePromise}=loadWorker(registry,'repair');
@@ -133,8 +133,21 @@ export async function recoverFleet({failureId=null}={}){
   if(!qa?.ok)fail('QA Bot did not verify the repaired handoff.');
   writeState({schemaVersion:1,status:'reviewing',failureId:failure.id,repair,qa});
   const review=await runReviewer(reviewerWorker,qa.baseCommit,qa.repairCommit);
+  if(review.status==='needs-repair'&&review.failureId){
+    const maxReviewerRecoveryDepth=2;
+    if(recoveryDepth>=maxReviewerRecoveryDepth){
+      const exhausted={ok:false,status:'review-recovery-exhausted',failureId:failure.id,repair,qa,review,protectedIntegration:false,recoveryDepth};
+      writeState(exhausted);
+      return exhausted;
+    }
+    status('REVIEWER requested repair; routing '+review.failureId+' through bounded Repair -> QA -> Reviewer recovery '+(recoveryDepth+1)+'/'+maxReviewerRecoveryDepth);
+    const reviewerRecovery=await recoverFleet({failureId:review.failureId,recoveryDepth:recoveryDepth+1});
+    const result={...reviewerRecovery,priorFailureId:failure.id,reviewerRecoveryDepth:recoveryDepth+1};
+    writeState(result);
+    return result;
+  }
   const finalStatus=review.status==='pass'?'verified-candidate':review.status==='needs-repair'?'review-needs-repair':'review-rejected';
-  const result={ok:review.status==='pass',status:finalStatus,failureId:failure.id,repair,qa,review,protectedIntegration:false};
+  const result={ok:review.status==='pass',status:finalStatus,failureId:failure.id,repair,qa,review,protectedIntegration:false,recoveryDepth};
   writeState(result);
   return result;
 }
