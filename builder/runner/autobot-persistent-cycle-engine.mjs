@@ -126,12 +126,14 @@ async function recoverCandidateFailures(results,cycle){
     if(!/^[0-9a-f]{40}$/i.test(String(baseCommit||''))||!/^[0-9a-f]{40}$/i.test(String(candidateCommit||''))||!branchName)fail(`Recovery for ${item.bot} did not return exact base/candidate/branch identifiers`);
     const recoveryDir=path.join(root,'builder','working','persistent',`cycle-${cycle}`,item.bot,'recovery');
     fs.mkdirSync(recoveryDir,{recursive:true});
-    const patch=git(['diff','--binary',`${baseCommit}..${candidateCommit}`]);
-    if(!patch.trim())fail(`Recovery for ${item.bot} produced no candidate patch`);
-    fs.writeFileSync(path.join(recoveryDir,'autobot-repair-candidate.patch'),patch);
+    // Persist exact immutable commit identity. The candidate checker reconstructs
+    // this commit directly in a detached worktree; no generated patch is used
+    // as an inter-process transport layer.
+    run('git',['rev-parse','--verify',candidateCommit]);
+    run('git',['diff','--check',`${baseCommit}..${candidateCommit}`]);
     fs.writeFileSync(path.join(recoveryDir,'autobot-repair-base-commit.txt'),`${baseCommit}\n`);
     fs.writeFileSync(path.join(recoveryDir,'autobot-repair-commit.txt'),`${candidateCommit}\n`);
-    fs.writeFileSync(path.join(recoveryDir,'autobot-verified-candidate.json'),JSON.stringify({schemaVersion:1,botId:item.bot,status:'verified-candidate',baseCommit,candidateCommit,branch:branchName,changedFiles:recovery.qa?.changedFiles||[],recovered:true,failureId},null,2)+'\n');
+    fs.writeFileSync(path.join(recoveryDir,'autobot-verified-candidate.json'),JSON.stringify({schemaVersion:1,botId:item.bot,status:'verified-candidate',baseCommit,candidateCommit,branch:branchName,changedFiles:recovery.qa?.changedFiles||[],recovered:true,recoveryTransport:'exact-commit',failureId},null,2)+'\n');
   }
 }
 
