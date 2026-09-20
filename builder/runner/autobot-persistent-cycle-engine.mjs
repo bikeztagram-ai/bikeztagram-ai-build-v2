@@ -14,20 +14,6 @@ import {appendAudit, verifyAuditLog} from '../quality/audit-log.mjs';
 import {renderLiveSummary} from './autobot-live-dashboard.mjs';
 
 const root=process.cwd();
-function parseDuration(value){
-  const text=String(value||'').trim().toLowerCase();
-  const hm=text.match(/^(\\d+)h(\\d{1,2})m?$/);
-  if(hm){
-    const minutes=Number(hm[2]);
-    if(minutes>=60)throw new Error(\`Invalid duration: \${value}\`);
-    return Number(hm[1])*60+minutes;
-  }
-  const h=text.match(/^(\\d+)h$/);
-  if(h)return Number(h[1])*60;
-  const m=text.match(/^(\\d+)m$/);
-  if(m)return Number(m[1]);
-  throw new Error(\`Invalid duration: \${value}. Expected formats such as 15m, 1h, or 5h30.\`);
-}
 const repo=process.env.GITHUB_REPOSITORY;
 const totalMinutes=parseDuration(process.env.AUTOBOT_TOTAL_DURATION||'30m');
 const configuredCycleMinutes=Math.max(1,Number.parseInt(process.env.AUTOBOT_CYCLE_MINUTES||'15',10));
@@ -76,13 +62,30 @@ function status(message){
     '║          → QA + Reviewer → Verified → Carry-forward         ║',
     '╚══════════════════════════════════════════════════════════════╝',
     ''
-  ].join('\\n');
+  ].join('\n');
   console.log(dashboard);
   console.log(line);
   fs.mkdirSync(path.dirname(statusPath),{recursive:true});
-  fs.appendFileSync(statusPath,line+'\\n');
+  fs.appendFileSync(statusPath,line+'\n');
   try{renderLiveSummary({stage:'LIVE',message,cycle,baseRef:base});}catch(error){console.warn('[autobot-dashboard] summary update skipped: '+error.message);}
 }
+function fail(msg){throw new Error(msg);}
+function git(args){return execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();}
+function run(command,args,env={}){
+  const r=spawnSync(command,args,{cwd:root,stdio:'inherit',env:{...process.env,...env}});
+  if(r.error||r.status!==0)fail(`${command} ${args.join(' ')} failed with status ${r.status??'error'}`);
+}
+function spawnLogged(command,args,env={}){
+  return new Promise(resolve=>{
+    const child=spawn(command,args,{cwd:root,stdio:'inherit',env:{...process.env,...env}});
+    child.on('error',error=>resolve({status:1,error}));
+    child.on('exit',(status,signal)=>resolve({status:status??1,signal}));
+  });
+}
+function readJson(file,fallback=null){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return fallback;}}
+function writeJson(file,value){fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value,null,2)+'\n');}
+function remainingMs(){return Math.max(0,hardDeadlineMs-Date.now());}
+function remainingNormalMs(){return Math.max(0,normalDeadlineMs-Date.now());}
 function log(message){console.log(`[autobot-persistent] ${message}`);}
 function audit(stage,data={}){appendAudit(stage,{...data,runId:process.env.GITHUB_RUN_ID||null});}
 function assertAudit(stage){const result=verifyAuditLog();if(!result.valid)fail(`audit integrity failure before ${stage}: ${result.error}`);}
