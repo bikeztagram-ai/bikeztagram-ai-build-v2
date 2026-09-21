@@ -152,7 +152,7 @@ const report={
   schemaVersion:'autobot-evolution-v2',
   generatedAt:new Date().toISOString(),
   mode:apply?'bounded-learning-candidate':'observe-and-propose',
-  productionLane:{unchanged:true,blocking:false},
+  productionLane:{isolated:true,blocking:false},
   evidence:{
     metrics,
     fanInPresent:workers.length>0,
