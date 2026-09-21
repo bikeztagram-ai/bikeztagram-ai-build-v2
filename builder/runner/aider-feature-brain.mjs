@@ -55,8 +55,8 @@ for(let pass=first;pass<=maxPasses;pass++){
   const timeout=Math.min(architectureRequestCapMs,Math.max(30_000,Math.floor(rem/passesRemaining)-5_000));
   const modelSettingsPath=path.join(os.tmpdir(),`bikeztagram-aider-${process.pid}.model.settings.yml`);
   const modelSettings=specialist&&specialistArchitect
-    ? `- name: ${model}\n  edit_format: architect\n  editor_model_name: ${editorModel}\n  editor_edit_format: editor-diff\n  use_repo_map: false\n  extra_params:\n    num_ctx: 4096\n    num_predict: 768\n    temperature: 0.1\n`
-    : `- name: ${model}\n  edit_format: ${specialist?specialistEditFormat:'whole'}\n  extra_params:\n    num_ctx: 4096\n    num_predict: 1024\n    temperature: 0.05\n`;
+    ? `- name: ${model}\n  edit_format: architect\n  editor_model_name: ${editorModel}\n  editor_edit_format: editor-diff\n  use_repo_map: false\n  extra_params:\n    num_ctx: 32768\n    num_predict: 768\n    temperature: 0.1\n`
+    : `- name: ${model}\n  edit_format: ${specialist?specialistEditFormat:'whole'}\n  extra_params:\n    num_ctx: 32768\n    num_predict: 1024\n    temperature: 0.05\n`;
   fs.writeFileSync(modelSettingsPath,modelSettings);
   const specialistMapArg=specialist?'--map-tokens=0':`--map-tokens=768`;
   const args=[`--model=${model}`,`--timeout=${Math.max(30,Math.floor(timeout/1000))}`,'--model-settings-file',modelSettingsPath,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',...(specialist&&specialistArchitect?['--architect',`--editor-model=${editorModel}`,'--editor-edit-format=editor-diff','--auto-accept-architect',specialistMapArg,'--subtree-only']:(specialist?[specialistMapArg,'--subtree-only',`--edit-format=${specialistEditFormat}`]:[specialistMapArg,'--subtree-only','--edit-format=whole'])),'--message',promptFor(o,pass),...aiderFiles];
