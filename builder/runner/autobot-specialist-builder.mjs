@@ -132,7 +132,9 @@ const bot = registry.bots.find(item => item.id === botId);
 if (!bot) fail(`Unknown specialist Builder id: ${botId}`);
 if (!bot.specialistBuilder) fail(`Registry bot ${botId} is not marked specialistBuilder.`);
 if (bot.protected === true) fail('Specialist Builder cannot be protected infrastructure.');
-if (bot.status !== 'verified') fail(`Specialist Builder ${botId} is not verified.`);
+const experimentalWorker = String(process.env.AUTOBOT_EXPERIMENTAL_WORKER || '').trim().toLowerCase() === 'true';
+if (bot.status !== 'verified' && !(bot.status === 'experimental' && experimentalWorker)) fail(`Specialist Builder ${botId} is not activated for this execution lane.`);
+if (bot.status === 'experimental' && !experimentalWorker) fail(`Experimental specialist ${botId} requires AUTOBOT_EXPERIMENTAL_WORKER=true.`);
 if (bot.entrypoint !== 'builder/runner/autobot-specialist-builder.mjs') fail('Registry specialist Builder entrypoint does not match the executable.');
 if (!objectiveText) fail('AUTOBOT_SPECIALIST_OBJECTIVE is required.');
 
