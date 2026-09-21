@@ -4,6 +4,7 @@ import { buildCreativeSceneGraph } from './universalCreativeEngine.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const hash=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return h>>>0;};
 const rand=(seed,n)=>{let x=(seed+n*374761393)>>>0;x^=x<<13;x^=x>>>17;x^=x<<5;return((x>>>0)%10000)/10000;};
+const duration=10;
 
 export function buildCreativeScenePlan(prompt='',options={}){return buildCreativeSceneGraph(prompt,options);}
 
