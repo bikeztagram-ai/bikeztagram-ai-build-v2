@@ -3,7 +3,7 @@
    cue to each real edit shot. It never invents dialogue and never changes source media.
 */
 
-const num=(value,fallback=0)=>{const n=Number(value);return Number.isFinite(n)?n:fallback;};
+const num=(value,fallback=0)=>Number.isFinite(value)?Number(value):fallback;
 const text=(value)=>String(value??'').trim();
 
 function normaliseCue(cue,index){
