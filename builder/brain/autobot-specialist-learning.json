@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Evidence-driven tuning hints for isolated specialist editing. Human review is required before changes are promoted to main.",
+  "default": {
+    "mapTokens": 1024,
+    "editFormat": "diff",
+    "targetingMode": "symbol-first",
+    "maxTargetSymbols": 6
+  },
+  "bots": {},
+  "failureStrategies": {
+    "search-replace-no-exact-match": {
+      "retryEditFormat": "diff",
+      "targetingMode": "symbol-first",
+      "mapTokens": 1024,
+      "promptHint": "Use the target map and make the smallest patch against the named symbol or nearby anchor. Do not reconstruct unrelated sections."
+    },
+    "no-product-change": {
+      "targetingMode": "acceptance-first",
+      "promptHint": "Materialize one minimal owned-file change that directly satisfies one acceptance criterion; do not return prose."
+    },
+    "infrastructure": {
+      "targetingMode": "normal",
+      "promptHint": "Do not change code strategy for infrastructure failures; preserve the candidate and classify the infrastructure issue."
+    }
+  },
+  "learned": {
+    "runsAnalyzed": 0,
+    "lastUpdated": null,
+    "observations": []
+  }
+}
