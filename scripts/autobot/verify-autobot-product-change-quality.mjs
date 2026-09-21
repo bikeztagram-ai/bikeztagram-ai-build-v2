@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const root=process.cwd();
-const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/renderer.js','src/editorialRhythm.js','src/executableTimeline.js','src/captionPlanner.js']);
+const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/renderer.js','src/editorialRhythm.js','src/executableTimeline.js','src/captionPlanner.js','src/musicDirector.js','src/universalCreativeSceneEngine.js','src/cinematicRendererV3.js']);
 function changedPaths(){
   const base=String(process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT||'').trim();
   const candidate=String(process.env.AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT||'').trim();
@@ -29,12 +29,30 @@ function assertNoDuplicateTopLevelFunctions(file){
   const duplicates=duplicateTopLevelFunctionNames(read(file));
   assert(!duplicates.length,`duplicate-function-declaration guard failed in ${file}: ${duplicates.map(item=>item.name+' x'+item.count).join(', ')}`);
 }
+function assertNoUnusedAddedTopLevelConstants(file){
+  const base=String(process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT||'').trim();
+  const candidate=String(process.env.AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT||'').trim();
+  let diff='';
+  try{
+    const args=base&&candidate&&/^[0-9a-f]{40}$/i.test(base)&&/^[0-9a-f]{40}$/i.test(candidate)
+      ? ['diff','--unified=0',base,candidate,'--',file]
+      : ['diff','--unified=0','--',file];
+    diff=execFileSync('git',args,{cwd:root,encoding:'utf8'});
+  }catch{}
+  const additions=[...diff.matchAll(/^\+const\s+([A-Za-z_$][\w$]*)\s*=/gm)].map(match=>match[1]);
+  if(!additions.length)return;
+  const source=read(file);
+  for(const name of additions){
+    const uses=source.match(new RegExp('\\\\b'+name+'\\\\b','g'))||[];
+    assert(uses.length>=2,`dead-change guard failed in ${file}: added top-level constant ${name} is not consumed by the production file`);
+  }
+}
 function richMedia(){return Array.from({length:12},(_,index)=>({id:`rich-${index}`,type:index%2?'video/mp4':'image/jpeg',name:['wide mountain establishing','rider approaching road','motorcycle cornering action','cockpit detail close-up','mountain landscape journey','bike accelerating speed','sunset motorcycle reveal','hero motorcycle showcase','roadside landscape detail','rider departure movement','mountain road action','final motorcycle hero'][index],duration:index%2?4:0,width:1920,height:1080,score:75+index}));}
 function sparseMedia(count){return Array.from({length:count},(_,index)=>({id:`sparse-${index}`,type:'image/jpeg',name:index===0?'single hero motorcycle':'detail motorcycle',width:1920,height:1080,score:80-index}));}
 
 const changed=changedPaths();
 const cinematicChanged=changed.filter(path=>cinematicPaths.has(path));
-for(const file of cinematicChanged)assertNoDuplicateTopLevelFunctions(file);
+for(const file of cinematicChanged){assertNoDuplicateTopLevelFunctions(file);assertNoUnusedAddedTopLevelConstants(file);}
 if(!cinematicChanged.length){console.log('autobot-product-change-quality: PASS not-applicable (no cinematic product files changed)');process.exit(0);}
 
 const planner=read('src/aiEditPlanner.js');
