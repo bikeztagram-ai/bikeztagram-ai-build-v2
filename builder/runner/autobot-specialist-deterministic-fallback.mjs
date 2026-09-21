@@ -70,6 +70,20 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
     "const hookPayoffBoost=(role==='hook'||role==='hero-ending')?evidence*.08:0;const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;const finalScore=clamp(Math.round(roleScore+qualityBoost+hookPayoffBoost+promptBoost-diversityPenalty),0,100);",
     'evidence-weighted hook/payoff scoring'
   )];
+} else if(specialist==='music-builder' && (objective.includes('music')||objective.includes('energy')||objective.includes('style'))){
+  files=[replaceOnce(
+    'src/musicDirector.js',
+    "const energy=p.match(/calm|peaceful|relaxed/)?0.35:p.match(/aggressive|intense|energetic|epic|powerful/)?0.9:0.68;",
+    "const energy=p.match(/calm|peaceful|relaxed/)?0.35:p.match(/aggressive|intense|energetic|epic|powerful|driving|fast|action/)?0.9:0.68;",
+    'prompt-responsive music energy'
+  )];
+} else if(specialist==='scene-builder' && (objective.includes('scene')||objective.includes('continuity')||objective.includes('direction'))){
+  files=[replaceOnce(
+    'src/universalCreativeSceneEngine.js',
+    "const plan=buildCreativeSceneGraph(prompt,{duration,shots:Math.max(3,Math.ceil(duration/2))});",
+    "const shotCount=Math.max(3,Math.min(18,Math.ceil(Math.max(.5,Number(duration)||8)/2)));const plan=buildCreativeSceneGraph(prompt,{duration,shots:shotCount});",
+    'duration-bounded scene shot continuity'
+  )];
 } else if(specialist==='director-builder'){
   const options=[
     ["const hookPayoffBoost=(role==='hook'||role==='hero-ending')?evidence*.08:0;const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;","const hookPayoffBoost=(role==='hook'||role==='hero-ending')?evidence*.12:0;const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;","generic director hook/payoff evidence"],
