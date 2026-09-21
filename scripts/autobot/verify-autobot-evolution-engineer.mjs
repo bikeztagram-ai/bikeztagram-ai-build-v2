@@ -15,7 +15,7 @@ const checks=[
 [wf.includes('apply_experiment')&&wf.includes('default: false'),'Evolution experiments must be opt-in'],
 [runner.includes("productionLane:{isolated:true,blocking:false"),'Production specialist lane must remain isolated and non-blocking'],
 [runner.includes('automaticMerge:false')||runner.includes('humanReviewRequired:true'),'Evolution output must require human review'],
-[runner.includes('fanIn')&&runner.includes('search-replace-no-exact-match'),'Evolution must classify specialist editing failures'],
+[runner.includes('fanIn')&&runner.includes('search-replace-no-exact-match')&&runner.includes('aider-controller-no-change'),'Evolution must classify specialist editing failures including Aider non-materialization'],
 [runner.includes('autobot-specialist-learning.json')&&runner.includes('targetingMode'),'Evolution must generate bounded specialist targeting learning'],
 [policy?.defaultApply===false&&policy?.automaticMerge===false&&policy?.productionDependency===false,'Policy must default to observe-only and require human promotion'],
 [Array.isArray(policy?.allowedExperimentPaths)&&policy.allowedExperimentPaths.includes('builder/brain/autobot-specialist-learning.json'),'Learning profile must be an explicit allowed experiment path'],
