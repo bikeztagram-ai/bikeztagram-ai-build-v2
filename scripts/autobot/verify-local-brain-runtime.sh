@@ -60,6 +60,7 @@ EOF
 cd "$SMOKE_DIR"
 aider \
   --model "ollama_chat/${LOCAL_AI_MODEL}" \
+  --edit-format diff \
   --message "Change only SMOKE_STATUS from PENDING to READY in smoke.js. Do not modify anything else." \
   --yes-always \
   --no-git \
