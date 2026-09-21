@@ -25,20 +25,24 @@ const learningPath = path.join(root, 'builder/brain/autobot-specialist-learning.
 let learningProfile = { default: { mapTokens: 1024, editFormat: 'diff', targetingMode: 'symbol-first', maxTargetSymbols: 6 }, bots: {}, failureStrategies: {} };
 try { learningProfile = JSON.parse(fs.readFileSync(learningPath, 'utf8')); } catch {}
 const botLearning = () => ({ ...(learningProfile.default || {}), ...(learningProfile.bots?.[botId] || {}) });
-function buildTargetMap(files) {
+function buildTargetMap(files, objective) {
   const maxSymbols = Math.max(1, Number(learningProfile.default?.maxTargetSymbols || 6));
+  const keywords = String(objective || '').toLowerCase().match(/[a-z][a-z0-9_-]{3,}/g) || [];
   const out = [];
   for (const file of files) {
     try {
       const lines = fs.readFileSync(path.join(root, file), 'utf8').split(/\r?\n/);
       lines.forEach((line, index) => {
-        if (/^(?:export\\s+)?(?:async\\s+)?function\\s+|^(?:export\\s+)?class\\s+|^(?:export\\s+)?const\\s+[A-Za-z_$][\\w$]*\\s*=/.test(line.trim())) {
-          out.push({ file, line: index + 1, declaration: line.trim().slice(0, 180) });
+        const trimmed=line.trim();
+        if (/^(?:export\\s+)?(?:async\\s+)?function\\s+|^(?:export\\s+)?class\\s+|^(?:export\\s+)?const\\s+[A-Za-z_$][\\w$]*\\s*=/.test(trimmed)) {
+          const lower=trimmed.toLowerCase();
+          const score=keywords.reduce((n,k)=>n+(lower.includes(k)?1:0),0);
+          out.push({ file, line:index+1, score, declaration:trimmed.slice(0,180) });
         }
       });
     } catch {}
   }
-  return out.slice(0, maxSymbols);
+  return out.sort((a,b)=>b.score-a.score||a.line-b.line).slice(0,maxSymbols);
 }
 let aiderOutputTail = '';
 
@@ -186,7 +190,7 @@ try {
   const assignmentPath = path.join(worktree, 'builder/working/autobot-orchestrator-assignment.json');
   const objective = parseObjective(objectiveText, bot, files);
   const learned = botLearning();
-  const targetMap = buildTargetMap(files);
+  const targetMap = buildTargetMap(files, objectiveText);
   objective.constraints.push(`Editing strategy: ${learned.targetingMode || 'symbol-first'}. Use the supplied target map to pinpoint the smallest relevant symbol before editing.`);
   objective.constraints.push(`Preferred Aider map tokens: ${learned.mapTokens || 1024}. Preferred edit format: ${learned.editFormat || 'diff'}.`);
   if (learned.promptHint) objective.constraints.push(`Learned specialist hint: ${learned.promptHint}`);
