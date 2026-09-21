@@ -18,8 +18,8 @@ const deadline=Number.isFinite(configuredDeadline)&&configuredDeadline>Date.now(
 const normalDeadline=Number.parseInt(process.env.AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS||String(deadline),10);
 const perCallMaxMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_AIDER_CALL_TIMEOUT_MS||String(6*60*60*1000),10));
 const specialist=process.env.AUTOBOT_SPECIALIST_MODE==='true';
-const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'diff').trim().toLowerCase();
-const specialistArchitect=process.env.AUTOBOT_SPECIALIST_AIDER_ARCHITECT!=='false';
+const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'udiff').trim().toLowerCase();
+const specialistArchitect=process.env.AUTOBOT_SPECIALIST_AIDER_ARCHITECT==='true';
 const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'1024',10)||1024));
 if(specialist&&!['diff','udiff','whole'].includes(specialistEditFormat))throw new Error(`Unsupported specialist Aider edit format: ${specialistEditFormat}`);
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
@@ -56,7 +56,7 @@ for(let pass=first;pass<=maxPasses;pass++){
   const modelSettingsPath=path.join(os.tmpdir(),`bikeztagram-aider-${process.pid}.model.settings.yml`);
   const modelSettings=specialist&&specialistArchitect
     ? `- name: ${model}\n  edit_format: architect\n  editor_model_name: ${editorModel}\n  editor_edit_format: editor-diff\n  use_repo_map: false\n  extra_params:\n    num_ctx: 4096\n    num_predict: 768\n    temperature: 0.1\n`
-    : `- name: ${model}\n  edit_format: ${specialist?specialistEditFormat:'whole'}\n  extra_params:\n    num_ctx: 4096\n    num_predict: 768\n    temperature: 0.1\n`;
+    : `- name: ${model}\n  edit_format: ${specialist?specialistEditFormat:'whole'}\n  extra_params:\n    num_ctx: 4096\n    num_predict: 1024\n    temperature: 0.05\n`;
   fs.writeFileSync(modelSettingsPath,modelSettings);
   const specialistMapArg=specialist?'--map-tokens=0':`--map-tokens=768`;
   const args=[`--model=${model}`,`--timeout=${Math.max(30,Math.floor(timeout/1000))}`,'--model-settings-file',modelSettingsPath,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',...(specialist&&specialistArchitect?['--architect',`--editor-model=${editorModel}`,'--editor-edit-format=editor-diff','--auto-accept-architect',specialistMapArg,'--subtree-only']:(specialist?[specialistMapArg,'--subtree-only',`--edit-format=${specialistEditFormat}`]:[specialistMapArg,'--subtree-only','--edit-format=whole'])),'--message',promptFor(o,pass),...aiderFiles];
