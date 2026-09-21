@@ -66,7 +66,9 @@ function safeRelative(file) {
 }
 function normalizeAiderModel(value) {
   const model = String(value || '').trim();
-  return model ? (model.includes('/') ? model : `ollama_chat/${model}`) : 'ollama_chat/qwen2.5-coder:7b';
+  if (!model) return 'ollama/qwen2.5-coder:7b';
+  if (model.startsWith('ollama_chat/')) return `ollama/${model.slice('ollama_chat/'.length)}`;
+  return model.includes('/') ? model : `ollama/${model}`;
 }
 function parseDurationMinutes(value, fallback = 15) {
   const match = String(value || '').trim().toLowerCase().match(/^(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?$/);
@@ -237,7 +239,8 @@ try {
     AUTOBOT_FEATURE_PASSES: String(passCount), AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline), AUTOBOT_AIDER_MODEL: model,
     AUTOBOT_FEATURE_SLICE_MINUTES: String(Math.min(20, controllerMinutes)), AUTOBOT_MAX_FEATURE_CYCLES: String(maxFeatureCycles),
-    LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama_chat\//, ''),
+    LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama(?:_chat)?\//, ''),
+    AUTOBOT_AIDER_EDITOR_MODEL: process.env.AUTOBOT_AIDER_EDITOR_MODEL || model,
     BUILDER_MAX_MINUTES: String(controllerMinutes), AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
   console.log(`[autobot] specialist ${botId} entering proven long-run controller: ${controllerMinutes}m controller budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(20, controllerMinutes)}m max slice + ${fallbackReserveMinutes}m structured fallback + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace (${model}, ${protocol})`);
