@@ -11,6 +11,8 @@ if(!brain.includes("const specialistEditFormat=String(process.env.AUTOBOT_SPECIA
 if(!brain.includes("['diff','udiff','whole']")) throw new Error('specialist Aider edit-format validation missing');
 if(!brain.includes("const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'2048',10)||2048))")) throw new Error('specialist Aider map-token contract missing');
 if(!brain.includes("const specialistMapArg=specialist?`--map-tokens=${specialistMapTokens}`:`--map-tokens=768`")) throw new Error('specialist Aider must use the configured scoped map budget');
+if(brain.includes("specialist?'--map-tokens=0'")) throw new Error('specialist Aider must not disable the scoped repository map');
+if(brain.includes("'--model-settings-file'")) throw new Error('specialist direct Aider must not inject the architect/model-settings path');
 if(!brain.includes("const timeout=Math.min(perCallMaxMs")) throw new Error('specialist Aider must retain the shared bounded call timeout');
 if(!brain.includes("Use Aider as the editor: directly modify the supplied objective files now.")) throw new Error('specialist Aider direct editor instruction missing');
 if(!brain.includes("'--no-auto-commits'")||!brain.includes("'--no-dirty-commits'")) throw new Error('Aider safety flags missing');
