@@ -44,12 +44,12 @@ function hasChanges(o){const allowed=new Set(filesFor(o));return tracked().some(
 const o=objective();
 if(!o){console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective'}));process.exit(0);}
 const files=filesFor(o);if(!files.length){console.error(`[aider] objective ${o.id} has no scoped files`);process.exit(1);}
-const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;const prior=state.inProgress?.id===o.id?Math.max(0,Number(state.inProgress.completedPasses||0)):0;const first=Math.min(maxPasses,prior+1);let success=false;
+const cwd=root;const aiderFiles=files;const prior=state.inProgress?.id===o.id?Math.max(0,Number(state.inProgress.completedPasses||0)):0;const first=Math.min(maxPasses,prior+1);let success=false;
 for(let pass=first;pass<=maxPasses;pass++){
   const rem=remainingMs();if(rem<35_000||normalRemainingMs()<35_000&&pass>first)break;
   state.runs=(state.runs||0)+1;const before=new Set(tracked());const snap=snapshot(files);const passesRemaining=Math.max(1,maxPasses-pass+1);
   const timeout=Math.min(perCallMaxMs,Math.max(30_000,Math.floor(rem/passesRemaining)-5_000));
-  const specialistMapArg=specialist?`--map-tokens=${specialistMapTokens}`:`--map-tokens=768`;
+  const specialistMapArg=specialist?`--map-tokens=2048`:`--map-tokens=768`;
   const args=[`--model=${model}`,`--timeout=${Math.max(30,Math.floor(timeout/1000))}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',...(specialist?[specialistMapArg,'--subtree-only',`--edit-format=${specialistEditFormat}`]:[specialistMapArg,'--subtree-only','--edit-format=whole']),'--message',promptFor(o,pass),...aiderFiles];
   const result=spawnSync('aider',args,{cwd,encoding:'utf8',stdio:'inherit',timeout});
   const changed=hasChanges(o);
