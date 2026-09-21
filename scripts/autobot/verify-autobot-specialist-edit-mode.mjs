@@ -9,8 +9,12 @@ if(!specialistBuilder.includes("process.env.AUTOBOT_FEATURE_PROTOCOL || 'aider-d
 if(!specialistBuilder.includes("['config', 'user.name'")) throw new Error('specialist builder must configure an isolated git identity before committing');
 if(!brain.includes("const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'udiff')")) throw new Error('specialist Aider edit format setting missing');
 if(!brain.includes("['diff','udiff','whole']")) throw new Error('specialist Aider edit-format validation missing');
-if(!brain.includes("const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'2048',10)||2048))")) throw new Error('specialist Aider map-token contract missing');
+if(!brain.includes("const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'768',10)||768))")) throw new Error('specialist Aider map-token contract missing');
 if(!brain.includes("const specialistMapArg=specialist?`--map-tokens=${specialistMapTokens}`:`--map-tokens=768`")) throw new Error('specialist Aider must use the configured scoped map budget');
+if(!brain.includes("const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;")) throw new Error('specialist Aider must use the proven src-subtree working directory for src-owned lanes');
+if(specialistBuilder.includes('fallbackReserveMinutes')) throw new Error('specialist controller must not shorten Aider budget to pre-reserve fallback time');
+if(!specialistBuilder.includes('const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - controllerFinishGraceMinutes);')) throw new Error('specialist controller must preserve the proven full Aider budget');
+if(specialistBuilder.includes('AUTOBOT_SPECIALIST_REPO_MAP_TOKENS')) throw new Error('stale specialist repo-map environment contract must be removed');
 if(brain.includes("specialist?'--map-tokens=0'")) throw new Error('specialist Aider must not disable the scoped repository map');
 if(brain.includes("'--model-settings-file'")) throw new Error('specialist direct Aider must not inject the architect/model-settings path');
 if(!brain.includes("const timeout=Math.min(perCallMaxMs")) throw new Error('specialist Aider must retain the shared bounded call timeout');
@@ -18,4 +22,4 @@ if(!brain.includes("Use Aider as the editor: directly modify the supplied object
 if(!brain.includes("'--no-auto-commits'")||!brain.includes("'--no-dirty-commits'")) throw new Error('Aider safety flags missing');
 if(!brain.includes('preservedSpecialistChanges')) throw new Error('candidate preservation missing');
 if(!brain.includes('Aider completed without materializing a scoped product change')) throw new Error('no-change guard missing');
-console.log('PASS: specialist Aider direct-editor contract');
+console.log('PASS: specialist Aider proven direct-editor budget/scope contract');
