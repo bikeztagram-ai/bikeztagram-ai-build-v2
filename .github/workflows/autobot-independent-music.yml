@@ -69,6 +69,8 @@ jobs:
           AUTOBOT_EXPERIMENTAL_WORKER: 'true'
           AUTOBOT_BASE_REF: ${{ inputs.base_ref }}
           AUTOBOT_AIDER_MODEL: ${{ inputs.local_model }}
+          AUTOBOT_FEATURE_PROTOCOL: aider-diff-v5
+          AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT: diff
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
