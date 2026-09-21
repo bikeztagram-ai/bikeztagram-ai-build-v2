@@ -28,9 +28,11 @@ has(/writeSpecialistHandoff\(/,'Specialist Builder must emit the durable handoff
 has(/status\s*:\s*['"]verified-candidate['"]/,'Specialist Builder must label verified candidates explicitly.');
 has(/AUTOBOT_FEATURE_PASSES/,'Specialist Builder must pass its feature-pass budget to the shared controller.');
 has(/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'Specialist Builder must pass its verification deadline to the shared controller.');
+has(/export\\s\+|function\\s\+|class\\s\+|const\\s\+/,'Specialist Builder target-map symbol matcher must use real regex whitespace tokens.');
+has(/buildTargetMap\(/,'Specialist Builder must build a scoped target map for focused editing.');
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 const productionSpecialists=specialists.filter(b=>b.status==='verified');
-assert(productionSpecialists.length===6,'Exactly two verified specialist Builders are authorised by the current gate.');
+assert(productionSpecialists.length===6,'Exactly six verified specialist Builders are authorised by the current gate.');
 assert(JSON.stringify(productionSpecialists.map(b=>b.id))===JSON.stringify(['director-builder','timeline-builder','music-builder','scene-builder','rhythm-builder','render-builder']),'Production specialist set changed.');
 const scopes={
   'director-builder':['src/director.js'],
