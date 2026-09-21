@@ -43,7 +43,7 @@ function assertNoUnusedAddedTopLevelConstants(file){
   if(!additions.length)return;
   const source=read(file);
   for(const name of additions){
-    const uses=source.match(new RegExp('\\\\b'+name+'\\\\b','g'))||[];
+    const uses=source.match(new RegExp('\\b'+name+'\\b','g'))||[];
     assert(uses.length>=2,`dead-change guard failed in ${file}: added top-level constant ${name} is not consumed by the production file`);
   }
 }
