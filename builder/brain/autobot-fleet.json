@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "status": "isolated-specialist-swarm-v3",
   "enabled": true,
-  "purpose": "Run all six production specialists in their own GitHub runner, worktree, Aider process and local AI brain, with central evidence fan-in and operator-controlled integration.",
+  "purpose": "Run all eight production specialists in their own GitHub runner, worktree, Aider process and local AI brain, with central evidence fan-in and operator-controlled integration.",
   "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving isolated specialist ownership, truthful verification and protected integration.",
   "coordination": {
     "mode": "active",
@@ -21,7 +21,7 @@
     "completedWorkManifest": "builder/working/autobot-completed-work.json",
     "completedWorkRunner": "builder/runner/autobot-completed-work.mjs",
     "completedWorkArtifactPrefix": "autobot-completed-work-",
-    "maxConcurrentWorkers": 6,
+    "maxConcurrentWorkers": 8,
     "requireIsolatedWorker": true,
     "requireVerificationBeforeHandoff": true,
     "requireHumanReviewBeforeProtectedIntegration": true,
@@ -34,7 +34,7 @@
     "independentWorkerContract": "builder/brain/autobot-independent-worker-contract.json",
     "fanInLedger": "builder/working/autobot-fan-in-ledger.json",
     "fanInRunner": "builder/runner/autobot-independent-fan-in.mjs",
-    "maxConcurrentWorkersDescription": "Six disjoint production specialist lanes: Director, Timeline, Music, Scene, Rhythm and Render."
+    "maxConcurrentWorkersDescription": "Eight disjoint production specialist lanes: Director, Timeline, Music, Scene, Rhythm, Render, Media Intelligence and Caption."
   },
   "activationGate": {
     "requiredEnabled": true,
@@ -55,9 +55,11 @@
       "music-builder",
       "scene-builder",
       "rhythm-builder",
-      "render-builder"
+      "render-builder",
+      "media-intelligence-builder",
+      "caption-builder"
     ],
-    "operatorControl": "Controlled live activation for six isolated production specialist workers. Each worker owns exactly one product file, runs in its own GitHub runner/worktree/Aider/local AI environment, verifies its candidate independently, and fans evidence into one central ledger. Protected integration remains operator-controlled."
+    "operatorControl": "Controlled live activation for eight isolated production specialist workers. Each worker owns exactly one product file, runs in its own GitHub runner/worktree/Aider/local AI environment, verifies its candidate independently, and fans evidence into one central ledger. Protected integration remains operator-controlled."
   },
   "bots": [
     {
@@ -241,6 +243,38 @@
       ],
       "ownsFiles": [
         "src/cinematicRendererV3.js"
+      ],
+      "specialistBuilder": true,
+      "protected": false
+    },
+    {
+      "id": "media-intelligence-builder",
+      "role": "specialist-media-intelligence-builder",
+      "entrypoint": "builder/runner/autobot-specialist-builder.mjs",
+      "status": "verified",
+      "owns": [
+        "source-aware edit intelligence",
+        "analysis-to-plan weighting",
+        "media evidence normalization"
+      ],
+      "ownsFiles": [
+        "src/aiEditPlanner.js"
+      ],
+      "specialistBuilder": true,
+      "protected": false
+    },
+    {
+      "id": "caption-builder",
+      "role": "specialist-caption-editorial-builder",
+      "entrypoint": "builder/runner/autobot-specialist-builder.mjs",
+      "status": "verified",
+      "owns": [
+        "speech caption timing",
+        "caption-safe overlays",
+        "caption editorial mapping"
+      ],
+      "ownsFiles": [
+        "src/captionPlanner.js"
       ],
       "specialistBuilder": true,
       "protected": false

@@ -28,7 +28,7 @@ env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
   AUTOBOT_DISCOVERY_TIMEOUT_MS: 180000
-  AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder,music-builder,scene-builder,rhythm-builder,render-builder
+  AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder,music-builder,scene-builder,rhythm-builder,render-builder,media-intelligence-builder,caption-builder
   AUTOBOT_TOTAL_DURATION: ${{ inputs.duration }}
   AUTOBOT_CYCLE_MINUTES: ${{ inputs.duration == '15m' && '10' || inputs.duration == '30m' && '15' || '30' }}
   AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
@@ -462,11 +462,143 @@ jobs:
             builder/working/autobot-specialist-failure.patch
           if-no-files-found: ignore
 
-  # FAN-IN — records all four isolated specialist lanes into the same
+  # MEDIA INTELLIGENCE — isolated production specialist owning the analysis-to-edit planning boundary.
+  experimental-media-intelligence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Media Intelligence lane dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Install Media Intelligence lane Aider
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - name: Start isolated Media Intelligence AI brain
+        run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_DISCOVERY_MODEL: ${{ env.AUTOBOT_DISCOVERY_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
+          OLLAMA_CONTEXT_LENGTH: 4096
+          OLLAMA_NUM_PARALLEL: 1
+          OLLAMA_MAX_QUEUE: 4
+          OLLAMA_LOAD_TIMEOUT: 20m
+          OLLAMA_KEEP_ALIVE: 90m
+      - name: Run Media Intelligence specialist
+        id: execute
+        env:
+          AUTOBOT_SPECIALIST_BOT_ID: media-intelligence-builder
+          AUTOBOT_SPECIALIST_OBJECTIVE: "Production Media Intelligence lane: improve analysis-to-edit planning quality in src/aiEditPlanner.js with one minimal, production-safe change. Preserve existing APIs and source media behavior. Acceptance:
+- source evidence or cinematic quality contributes more meaningfully to edit planning
+- only the owned file is changed
+- syntax, build and product-quality verification pass
+- leave a candidate when valid."
+          AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_BASE_REF: ${{ github.sha }}
+          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
+          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
+        run: node builder/runner/autobot-specialist-builder.mjs
+      - name: Publish Media Intelligence candidate branch
+        if: steps.execute.outcome == 'success'
+        run: |
+          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
+          git push --set-upstream origin "$b"
+      - name: Upload Media Intelligence worker evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-persistent-experimental-media-intelligence-${{ github.run_id }}
+          path: |
+            builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-specialist-outcome.json
+            builder/working/autobot-specialist-failure.patch
+          if-no-files-found: ignore
+
+  # CAPTION — isolated production specialist owning the speech-caption editorial boundary.
+  experimental-caption:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Caption lane dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Install Caption lane Aider
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - name: Start isolated Caption AI brain
+        run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_DISCOVERY_MODEL: ${{ env.AUTOBOT_DISCOVERY_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
+          OLLAMA_CONTEXT_LENGTH: 4096
+          OLLAMA_NUM_PARALLEL: 1
+          OLLAMA_MAX_QUEUE: 4
+          OLLAMA_LOAD_TIMEOUT: 20m
+          OLLAMA_KEEP_ALIVE: 90m
+      - name: Run Caption specialist
+        id: execute
+        env:
+          AUTOBOT_SPECIALIST_BOT_ID: caption-builder
+          AUTOBOT_SPECIALIST_OBJECTIVE: "Production Caption lane: improve caption-safe overlay handling in src/captionPlanner.js with one minimal, production-safe change. Preserve verified speech timing and never invent dialogue. Acceptance:
+- caption text remains time-aligned, confidence-aware and visually safe
+- only the owned file is changed
+- syntax, build and product-quality verification pass
+- leave a candidate when valid."
+          AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_BASE_REF: ${{ github.sha }}
+          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
+          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
+        run: node builder/runner/autobot-specialist-builder.mjs
+      - name: Publish Caption candidate branch
+        if: steps.execute.outcome == 'success'
+        run: |
+          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
+          git push --set-upstream origin "$b"
+      - name: Upload Caption worker evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-persistent-experimental-caption-${{ github.run_id }}
+          path: |
+            builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-specialist-outcome.json
+            builder/working/autobot-specialist-failure.patch
+          if-no-files-found: ignore
+
+  # FAN-IN — records all eight isolated specialist lanes into the same
   # coordination ledger. It never merges product code and never gates the
   # production persistent-autobot job.
   experimental-fan-in:
-    needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render]
+    needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -515,6 +647,20 @@ jobs:
           name: autobot-persistent-experimental-rhythm-${{ github.run_id }}
           path: builder/working/experimental/rhythm
 
+      - name: Download Media Intelligence evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-persistent-experimental-media-intelligence-${{ github.run_id }}
+          path: builder/working/experimental/media-intelligence
+
+      - name: Download Caption evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-persistent-experimental-caption-${{ github.run_id }}
+          path: builder/working/experimental/caption
+
       - name: Download Render evidence
         uses: actions/download-artifact@v7
         continue-on-error: true
@@ -528,7 +674,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p builder/working/fan-in
-          for bot in director timeline music scene rhythm render; do
+          for bot in director timeline music scene rhythm render media-intelligence caption; do
             dir="builder/working/experimental/$bot"
             handoff="$(find "$dir" -name autobot-specialist-handoff.json -print -quit 2>/dev/null || true)"
             outcome="$(find "$dir" -name autobot-specialist-outcome.json -print -quit 2>/dev/null || true)"
@@ -560,7 +706,7 @@ jobs:
           done
           cat builder/working/fan-in/autobot-fan-in-ledger.json
 
-      - name: Upload unified six-specialist fan-in evidence
+      - name: Upload unified eight-specialist fan-in evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:

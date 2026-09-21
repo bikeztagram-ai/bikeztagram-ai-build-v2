@@ -10,7 +10,7 @@ const checks=[
 [wf.includes('workflow_run:')&&wf.includes('🧩 AutoBot Persistent Specialists'),'Evolution must observe production completion, not run as a production job dependency'],
 [wf.includes('group: autobot-evolution-engineer')&&wf.includes('cancel-in-progress: false'),'Evolution must have isolated non-cancelling concurrency'],
 [wf.includes('actions/download-artifact')&&wf.includes('run-id:'),'Evolution must consume completed-run evidence'],
-[wf.includes('autobot-persistent-experimental-fan-in-'),'Evolution must consume the six-specialist fan-in artifact'],
+[wf.includes('autobot-persistent-experimental-fan-in-'),'Evolution must consume the eight-specialist fan-in artifact'],
 [!wf.includes('needs: persistent-autobot'),'Evolution must not depend on the production job'],
 [wf.includes('apply_experiment')&&wf.includes('default: false'),'Evolution experiments must be opt-in'],
 [runner.includes("productionLane:{isolated:true,blocking:false"),'Production specialist lane must remain isolated and non-blocking'],

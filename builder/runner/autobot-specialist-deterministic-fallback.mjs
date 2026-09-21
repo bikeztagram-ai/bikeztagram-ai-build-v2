@@ -91,6 +91,20 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
     "else if(m.includes('orbit')||m.includes('parallax')){scale=1.11;x=Math.sin(e*Math.PI*2)*w*.045*i;y=Math.cos(e*Math.PI*2)*h*.025*i;r=Math.sin(e*Math.PI*2)*.008*i}else if(m.includes('cinematic')){scale=1.065+e*.04*i}else if(m==='static')scale=1.015;",
     'visible cinematic motion finish'
   )];
+} else if(specialist==='media-intelligence-builder' && (objective.includes('media intelligence')||objective.includes('analysis-to-edit')||objective.includes('planning quality'))){
+  files=[replaceOnce(
+    'src/aiEditPlanner.js',
+    "const qualityScore=Math.round(critique.after.score*.75+rhythm.score*.25);",
+    "const sourceEvidenceScore=Number.isFinite(Number(cinematicQuality?.score))?Number(cinematicQuality.score):0;const qualityScore=Math.round(critique.after.score*.7+rhythm.score*.2+sourceEvidenceScore*.1);",
+    'analysis-aware cinematic quality weighting'
+  )];
+} else if(specialist==='caption-builder' && (objective.includes('caption')||objective.includes('overlay')||objective.includes('speech'))){
+  files=[replaceOnce(
+    'src/captionPlanner.js',
+    "const maxChars=Number.isFinite(Number(options.maxChars))?Number(options.maxChars):72;",
+    "const maxChars=Number.isFinite(Number(options.maxChars))?Number(options.maxChars):64;",
+    'caption-safe overlay length'
+  )];
 } else if(specialist==='scene-builder' && (objective.includes('scene')||objective.includes('continuity')||objective.includes('direction'))){
   files=[replaceOnce(
     'src/universalCreativeSceneEngine.js',

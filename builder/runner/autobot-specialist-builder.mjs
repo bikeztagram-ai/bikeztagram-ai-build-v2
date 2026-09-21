@@ -4,7 +4,9 @@
  * Specialist identity and ownership remain independent while execution is
  * delegated to the proven long-run AutoBot controller and Aider feature brain.
  * If Aider cannot materialize an owned product change, the older proven
- * structured search/replace brain gets a bounded second chance.
+ * structured search/replace brain gets a bounded second chance; if that fallback
+ * produces a candidate rejected by the product-quality guard, the deterministic
+ * specialist fallback gets the final bounded recovery attempt.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -36,8 +38,10 @@ function buildTargetMap(files, objective) {
         const trimmed=line.trim();
         if (/^(?:export\s+)?(?:async\s+)?function\s+|^(?:export\s+)?class\s+|^(?:export\s+)?const\s+[A-Za-z_$][\w$]*\s*=/.test(trimmed)) {
           const lower=trimmed.toLowerCase();
-          const score=keywords.reduce((n,k)=>n+(lower.includes(k)?1:0),0);
-          out.push({ file, line:index+1, score, declaration:trimmed.slice(0,180) });
+          const context=lines.slice(Math.max(0,index-3),Math.min(lines.length,index+4)).join('\n');
+          const contextLower=context.toLowerCase();
+          const score=keywords.reduce((n,k)=>n+(lower.includes(k)?3:0)+(contextLower.includes(k)?1:0),0);
+          out.push({ file, line:index+1, score, declaration:trimmed.slice(0,180), context:context.slice(0,1400) });
         }
       });
     } catch {}
@@ -191,7 +195,8 @@ try {
   const objective = parseObjective(objectiveText, bot, files);
   const learned = botLearning();
   const targetMap = buildTargetMap(files, objectiveText);
-  objective.constraints.push(`Editing strategy: ${learned.targetingMode || 'symbol-first'}. Use the supplied target map to pinpoint the smallest relevant symbol before editing.`);
+  if (!targetMap.length) fail(`Specialist Builder target map is empty for ${botId}; refusing to spend the AI editing budget without symbol-level anchors.`);
+  objective.constraints.push(`Editing strategy: ${learned.targetingMode || 'symbol-first'}. Use the supplied target map, including exact source context, to pinpoint the smallest relevant symbol before editing.`);
   objective.constraints.push(`Preferred Aider map tokens: ${learned.mapTokens || 1024}. Preferred edit format: ${learned.editFormat || 'diff'}.`);
   if (learned.promptHint) objective.constraints.push(`Learned specialist hint: ${learned.promptHint}`);
   fs.mkdirSync(path.dirname(assignmentPath), { recursive: true });
@@ -210,7 +215,7 @@ try {
   const learnedMapTokens = Math.max(512, Math.min(4096, Number(learned.mapTokens || 1024)));
   const learnedEditFormat = ['diff','udiff','whole'].includes(String(learned.editFormat || 'diff')) ? String(learned.editFormat) : 'diff';
   const configuredPasses = Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '', 10);
-  const passCount = Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 120 ? 2 : 1;
+  const passCount = Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 30 ? 2 : 1;
   const verificationReserveMinutes = requestedMinutes >= 60 ? 5 : requestedMinutes >= 30 ? 3 : Math.min(2, Math.max(1, requestedMinutes - 1));
   const fallbackReserveMinutes = Math.min(6, Math.max(4, requestedMinutes >= 30 ? 6 : 5));
   const controllerFinishGraceMinutes = Math.max(0, Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES || '5', 10));
@@ -253,7 +258,30 @@ try {
   const productQuality = String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK || 'npm run verify:autobot-product-change-quality').trim();
   if (!skipNpmInstall) run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
   run('npm', ['run', 'build'], worktree);
-  run('sh', ['-lc', productQuality], worktree);
+  try {
+    run('sh', ['-lc', productQuality], worktree);
+  } catch (qualityError) {
+    console.warn(`[autobot] structured fallback candidate failed product-quality guard; resetting to base and invoking deterministic specialist fallback: ${qualityError.message}`);
+    run('git', ['reset', '--hard', base], worktree);
+    const deterministic = spawnSync(process.execPath, ['builder/runner/autobot-specialist-deterministic-fallback.mjs'], {
+      cwd: worktree,
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath,
+        AUTOBOT_SPECIALIST_BASE_COMMIT: base
+      }
+    });
+    if (deterministic.error || deterministic.status !== 0) {
+      fail(`Specialist Builder product-quality recovery failed after structured fallback rejection (deterministic status ${deterministic.status ?? 'error'}).`);
+    }
+    candidateFiles = ownedProductFiles(base, worktree, files);
+    candidatePatch = captureBasePatch(base, worktree, files);
+    if (!candidateFiles.length || !candidatePatch.trim()) fail('Deterministic specialist fallback produced no owned product change after structured fallback rejection.');
+    run('git', ['diff', base, '--check'], worktree);
+    run('npm', ['run', 'build'], worktree);
+    run('sh', ['-lc', productQuality], worktree);
+  }
   const headBeforeCommit = git(['rev-parse', 'HEAD'], worktree);
   if (headBeforeCommit !== base) run('git', ['reset', '--soft', base], worktree);
   run('git', ['add', '--', ...candidateFiles], worktree);
