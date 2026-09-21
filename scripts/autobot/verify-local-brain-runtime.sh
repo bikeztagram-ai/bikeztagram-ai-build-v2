@@ -62,7 +62,7 @@ cd "$SMOKE_DIR"
 export OLLAMA_HOST="http://127.0.0.1:11434"
 export OLLAMA_API_BASE="http://127.0.0.1:11434"
 aider \
-  --model "ollama_chat/\${LOCAL_AI_MODEL}" \
+  --model "ollama_chat/${LOCAL_AI_MODEL}" \
   --message "Change only SMOKE_STATUS from PENDING to READY in smoke.js. Directly materialize the edit in smoke.js now. Do not modify anything else." \
   --yes-always \
   --no-git \
