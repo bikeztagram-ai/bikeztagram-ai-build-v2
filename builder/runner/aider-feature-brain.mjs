@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Bikeztagram AutoBot — Aider-backed feature engineer. */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { loadAiderState, saveAiderState } from './aider-state-store.mjs';
@@ -49,7 +50,11 @@ for(let pass=first;pass<=maxPasses;pass++){
   const rem=remainingMs();if(rem<35_000||normalRemainingMs()<35_000&&pass>first)break;
   state.runs=(state.runs||0)+1;const before=new Set(tracked());const snap=snapshot(files);const passesRemaining=Math.max(1,maxPasses-pass+1);
   const timeout=Math.min(perCallMaxMs,Math.max(30_000,Math.floor(rem/passesRemaining)-5_000));
-  const args=[`--model=${model}`,`--timeout=${Math.max(30,Math.floor(timeout/1000))}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',...(specialist?[`--map-tokens=${specialistMapTokens}`,'--subtree-only',`--edit-format=${specialistEditFormat}`]:[`--map-tokens=768`,'--subtree-only','--edit-format=whole']),'--message',promptFor(o,pass),...aiderFiles];
+  const modelSettingsPath=path.join(os.tmpdir(),`bikeztagram-aider-${process.pid}.model.settings.yml`);
+  const modelSettings=`- name: ${model}\n  edit_format: ${specialist?specialistEditFormat:'whole'}\n  extra_params:\n    num_ctx: 4096\n    num_predict: 768\n    temperature: 0.1\n`;
+  fs.writeFileSync(modelSettingsPath,modelSettings);
+  const specialistMapArg=specialist?'--map-tokens=0':`--map-tokens=768`;
+  const args=[`--model=${model}`,`--timeout=${Math.max(30,Math.floor(timeout/1000))}`,'--model-settings-file',modelSettingsPath,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',...(specialist?[specialistMapArg,'--subtree-only',`--edit-format=${specialistEditFormat}`]:[specialistMapArg,'--subtree-only','--edit-format=whole']),'--message',promptFor(o,pass),...aiderFiles];
   const result=spawnSync('aider',args,{cwd,encoding:'utf8',stdio:'inherit',timeout});
   const changed=hasChanges(o);
   if(result.error||result.status!==0){
