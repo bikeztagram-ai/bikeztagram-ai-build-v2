@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "name": "independent-autobot-worker-contract-v1",
+  "purpose": "Fan-out specialist execution into independent GitHub Actions workflow runs while preserving the proven specialist edit, verification, recovery and handoff contracts.",
+  "productionLane": {
+    "preserved": true,
+    "workflows": [
+      ".github/workflows/autobot-parallel-specialists.yml",
+      ".github/workflows/autobot-endurance.yml"
+    ],
+    "workers": [
+      "director-builder",
+      "timeline-builder"
+    ],
+    "changePolicy": "No automatic dependency on experimental workers."
+  },
+  "fanOut": {
+    "dispatcher": "planner/coordination layer chooses bot, objective, baseRef and coordinationId",
+    "isolation": "Each specialist gets its own workflow run, isolated worktree, candidate branch, Aider execution and failure boundary.",
+    "requiredInputs": [
+      "botId",
+      "objective",
+      "baseRef",
+      "coordinationId"
+    ],
+    "branchPattern": "autobot-independent/<botId>/<coordinationId>-<runId>"
+  },
+  "workerLifecycle": [
+    "planner assignment",
+    "isolated checkout",
+    "owned-file Aider edit",
+    "verification",
+    "candidate branch publication",
+    "structured handoff",
+    "fan-in ledger"
+  ],
+  "fanIn": {
+    "ledger": "builder/working/autobot-fan-in-ledger.json",
+    "statuses": [
+      "pending",
+      "completed",
+      "review",
+      "recovery",
+      "failed"
+    ],
+    "rule": "Every dispatched worker must produce exactly one ledger record; failed workers remain visible and are never silently dropped.",
+    "codeMerge": "Candidate branches remain separate until a verified integration controller explicitly merges them against the recorded base SHA."
+  },
+  "resourceIsolation": {
+    "aider": "one Aider process per worker workflow",
+    "model": "worker workflows may use independent local model processes; the current production two-worker run is untouched.",
+    "failureBoundary": "worker failure does not cancel sibling worker workflows."
+  },
+  "activation": {
+    "experimentalWorkers": [
+      "music-builder",
+      "scene-builder"
+    ],
+    "productionPlannerDispatch": false,
+    "protectedIntegration": false
+  }
+}

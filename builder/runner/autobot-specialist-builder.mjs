@@ -16,6 +16,7 @@ const root = process.cwd();
 const registry = JSON.parse(fs.readFileSync(path.join(root, 'builder/brain/autobot-fleet.json'), 'utf8'));
 const botId = String(process.env.AUTOBOT_SPECIALIST_BOT_ID || '').trim();
 const objectiveText = String(process.env.AUTOBOT_SPECIALIST_OBJECTIVE || '').trim();
+const coordinationId = String(process.env.AUTOBOT_COORDINATION_ID || '').trim();
 const enabled = String(process.env.AUTOBOT_SPECIALIST_BUILDER_ENABLED || '').trim().toLowerCase() === 'true';
 const outcomePath = process.env.AUTOBOT_SPECIALIST_OUTCOME_PATH || path.join(root, 'builder/working/autobot-specialist-outcome.json');
 const handoffPath = process.env.AUTOBOT_SPECIALIST_HANDOFF_PATH || path.join(root, 'builder/working/autobot-specialist-handoff.json');
@@ -109,7 +110,7 @@ function writeFailureOutcome({ error, base, worktree, files, candidatePatch = ''
   const classification = classifyFailure(error, Boolean(patchPath));
   fs.mkdirSync(path.dirname(outcomePath), { recursive: true });
   fs.writeFileSync(outcomePath, JSON.stringify({
-    schemaVersion: 'autobot-specialist-outcome-v1', botId, objective: objectiveText,
+    schemaVersion: 'autobot-specialist-outcome-v1', botId, coordinationId: coordinationId || null, objective: objectiveText,
     status: 'failure', category: classification.category, repairable: classification.repairable,
     files, baseCommit: base || null, patchPath,
     evidence: ['GitHub Actions specialist execution logs', patchPath].filter(Boolean),
@@ -132,9 +133,12 @@ const bot = registry.bots.find(item => item.id === botId);
 if (!bot) fail(`Unknown specialist Builder id: ${botId}`);
 if (!bot.specialistBuilder) fail(`Registry bot ${botId} is not marked specialistBuilder.`);
 if (bot.protected === true) fail('Specialist Builder cannot be protected infrastructure.');
-if (bot.status !== 'verified') fail(`Specialist Builder ${botId} is not verified.`);
+const experimentalWorker = String(process.env.AUTOBOT_EXPERIMENTAL_WORKER || '').trim().toLowerCase() === 'true';
+if (bot.status !== 'verified' && !(bot.status === 'experimental' && experimentalWorker)) fail(`Specialist Builder ${botId} is not activated for this execution lane.`);
+if (bot.status === 'experimental' && !experimentalWorker) fail(`Experimental specialist ${botId} requires AUTOBOT_EXPERIMENTAL_WORKER=true.`);
 if (bot.entrypoint !== 'builder/runner/autobot-specialist-builder.mjs') fail('Registry specialist Builder entrypoint does not match the executable.');
 if (!objectiveText) fail('AUTOBOT_SPECIALIST_OBJECTIVE is required.');
+if (String(process.env.AUTOBOT_EXPERIMENTAL_WORKER || '').trim().toLowerCase() === 'true' && !coordinationId) fail('AUTOBOT_COORDINATION_ID is required for independent experimental workers.');
 
 const files = Array.isArray(bot.ownsFiles) ? bot.ownsFiles.map(safeRelative).filter(Boolean) : [];
 if (!files.length) fail(`Specialist Builder ${botId} has no declared ownsFiles scope.`);
@@ -223,9 +227,9 @@ try {
   if (!staged.length) fail('Specialist Builder produced no product change.');
   run('git', ['commit', '-m', `autobot(${botId}): ${objective.title.slice(0, 72)}`], worktree);
   const candidate = git(['rev-parse', 'HEAD'], worktree);
-  const handoffFile = writeSpecialistHandoff({ schemaVersion: 'autobot-specialist-handoff-v1', botId, objective: objectiveText, baseCommit: base, candidateCommit: candidate, branch, ownsFiles: staged, productQualityCheck: productQuality, status: 'verified-candidate', downstream: { reviewContract: 'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT' } }, handoffPath);
+  const handoffFile = writeSpecialistHandoff({ schemaVersion: 'autobot-specialist-handoff-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, baseCommit: base, candidateCommit: candidate, branch, ownsFiles: staged, productQualityCheck: productQuality, status: 'verified-candidate', downstream: { reviewContract: 'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT' } }, handoffPath);
   fs.mkdirSync(path.dirname(outcomePath), { recursive: true });
-  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffFile], engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
+  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffFile], engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
   keepBranch = true;
   console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath: handoffFile }));
 } catch (error) {
