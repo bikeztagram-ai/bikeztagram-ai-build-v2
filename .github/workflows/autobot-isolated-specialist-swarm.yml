@@ -37,6 +37,7 @@ jobs:
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
+      max-parallel: 6
       matrix:
         include:
           - bot: director-builder
@@ -103,7 +104,6 @@ jobs:
               - leave a verified candidate handoff when valid
 
     runs-on: ubuntu-24.04
-    max-parallel: 6
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
