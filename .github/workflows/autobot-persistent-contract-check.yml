@@ -1,10 +1,9 @@
-name: AutoBot Persistent Contract Check
+name: AutoBot Isolated Specialist Contract Check
 
 on:
   pull_request:
     paths:
       - '.github/workflows/autobot-parallel-specialists.yml'
-      - 'builder/runner/autobot-persistent-cycle-engine.mjs'
       - 'builder/runner/autobot-specialist-builder.mjs'
       - 'builder/runner/autobot-specialist-recovery.mjs'
       - 'builder/runner/autobot-endurance-candidate-check.mjs'
@@ -18,7 +17,13 @@ on:
       - 'builder/runner/autobot-rnd.mjs'
       - 'scripts/autobot/verify-autobot-product-change-quality.mjs'
       - 'scripts/autobot/verify-autobot-rnd.mjs'
-      - 'scripts/autobot/verify-autobot-persistent-cycle.mjs'
+      - 'builder/runner/autobot-independent-fan-in.mjs'
+      - 'builder/runner/autobot-specialist-deterministic-fallback.mjs'
+      - 'builder/runner/autobot-evolution-engineer.mjs'
+      - 'scripts/autobot/verify-independent-worker-contract.mjs'
+      - 'scripts/autobot/verify-autobot-parallel-fleet.mjs'
+      - 'scripts/autobot/verify-autobot-fleet-foundation.mjs'
+      - 'scripts/autobot/verify-autobot-evolution-engineer.mjs'
       - 'package.json'
   push:
     branches:
@@ -41,10 +46,16 @@ jobs:
       - name: Parse AutoBot JavaScript
         run: |
           set -euo pipefail
-          for f in             builder/runner/autobot-persistent-cycle-engine.mjs             builder/runner/autobot-specialist-builder.mjs             builder/runner/autobot-specialist-recovery.mjs             builder/runner/autobot-endurance-candidate-check.mjs             builder/runner/autobot-specialist-handoff.mjs             builder/runner/autobot-parallel-planner.mjs             builder/runner/autobot-fleet-recovery.mjs             builder/runner/autobot-failure-queue.mjs             builder/runner/autobot-repair.mjs             builder/runner/autobot-qa.mjs             builder/runner/autobot-reviewer.mjs             builder/runner/autobot-rnd.mjs             scripts/autobot/verify-autobot-product-change-quality.mjs             scripts/autobot/verify-autobot-rnd.mjs             scripts/autobot/verify-autobot-persistent-cycle.mjs; do
+          for f in             builder/runner/autobot-specialist-builder.mjs             builder/runner/autobot-specialist-recovery.mjs             builder/runner/autobot-endurance-candidate-check.mjs             builder/runner/autobot-specialist-handoff.mjs             builder/runner/autobot-parallel-planner.mjs             builder/runner/autobot-fleet-recovery.mjs             builder/runner/autobot-failure-queue.mjs             builder/runner/autobot-repair.mjs             builder/runner/autobot-qa.mjs             builder/runner/autobot-reviewer.mjs             builder/runner/autobot-rnd.mjs             scripts/autobot/verify-autobot-product-change-quality.mjs             scripts/autobot/verify-autobot-rnd.mjs             builder/runner/autobot-independent-fan-in.mjs             builder/runner/autobot-specialist-deterministic-fallback.mjs             builder/runner/autobot-evolution-engineer.mjs             scripts/autobot/verify-independent-worker-contract.mjs             scripts/autobot/verify-autobot-parallel-fleet.mjs             scripts/autobot/verify-autobot-fleet-foundation.mjs             scripts/autobot/verify-autobot-evolution-engineer.mjs; do
             node --check "$f"
           done
       - name: Run deep R&D audit
         run: npm run verify:autobot-rnd
-      - name: Run deep AutoBot chain audit
-        run: npm run verify:autobot-persistent-cycle
+      - name: Run isolated worker contract audit
+        run: npm run verify:autobot-independent-workers
+      - name: Run six-lane fleet audit
+        run: node scripts/autobot/verify-autobot-parallel-fleet.mjs
+      - name: Run fleet foundation audit
+        run: npm run verify:autobot-fleet-foundation
+      - name: Run Evolution Engineer audit
+        run: npm run verify:autobot-evolution-engineer
