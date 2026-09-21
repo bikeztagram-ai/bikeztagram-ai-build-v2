@@ -62,9 +62,9 @@ cd "$SMOKE_DIR"
 export OLLAMA_HOST="http://127.0.0.1:11434"
 export OLLAMA_API_BASE="http://127.0.0.1:11434"
 cat > "$SMOKE_DIR/model-settings.yml" <<EOF
-- name: ollama/${LOCAL_AI_MODEL}
+- name: ollama_chat/${LOCAL_AI_MODEL}
   edit_format: architect
-  editor_model_name: ollama/${LOCAL_AI_MODEL}
+  editor_model_name: ollama_chat/${LOCAL_AI_MODEL}
   editor_edit_format: editor-diff
   use_repo_map: false
   extra_params:
@@ -74,10 +74,10 @@ cat > "$SMOKE_DIR/model-settings.yml" <<EOF
 EOF
 
 aider \
-  --model "ollama/${LOCAL_AI_MODEL}" \
+  --model "ollama_chat/${LOCAL_AI_MODEL}" \
   --model-settings-file "$SMOKE_DIR/model-settings.yml" \
   --architect \
-  --editor-model "ollama/${LOCAL_AI_MODEL}" \
+  --editor-model "ollama_chat/${LOCAL_AI_MODEL}" \
   --editor-edit-format editor-diff \
   --auto-accept-architect \
   --message "Change only SMOKE_STATUS from PENDING to READY in smoke.js. The architect may explain the plan internally, but the editor MUST materialize the change in smoke.js. Do not modify anything else." \
