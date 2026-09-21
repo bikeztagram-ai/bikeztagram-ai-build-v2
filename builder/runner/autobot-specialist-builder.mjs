@@ -207,7 +207,6 @@ try {
   }
   const model = normalizeAiderModel(process.env.AUTOBOT_AIDER_MODEL || process.env.LOCAL_AI_MODEL);
   const protocol = String(process.env.AUTOBOT_FEATURE_PROTOCOL || 'aider-diff-v5').trim();
-  const learned = botLearning();
   const learnedMapTokens = Math.max(512, Math.min(4096, Number(learned.mapTokens || 1024)));
   const learnedEditFormat = ['diff','udiff','whole'].includes(String(learned.editFormat || 'diff')) ? String(learned.editFormat) : 'diff';
   const configuredPasses = Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '', 10);
