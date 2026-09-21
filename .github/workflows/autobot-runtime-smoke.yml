@@ -1,6 +1,12 @@
 name: 🧪 AutoBot Runtime Smoke
 
 on:
+  pull_request:
+    paths:
+      - 'builder/runner/aider-feature-brain.mjs'
+      - 'builder/runner/autobot-specialist-builder.mjs'
+      - 'scripts/autobot/verify-local-brain-runtime.sh'
+      - '.github/workflows/autobot-runtime-smoke.yml'
   workflow_dispatch:
     inputs:
       local_model:
