@@ -66,9 +66,10 @@ function safeRelative(file) {
 }
 function normalizeAiderModel(value) {
   const model = String(value || '').trim();
-  if (!model) return 'ollama/qwen2.5-coder:7b';
-  if (model.startsWith('ollama_chat/')) return `ollama/${model.slice('ollama_chat/'.length)}`;
-  return model.includes('/') ? model : `ollama/${model}`;
+  if (!model) return 'ollama_chat/qwen2.5-coder:7b';
+  if (model.startsWith('ollama/')) return `ollama_chat/${model.slice('ollama/'.length)}`;
+  if (model.startsWith('ollama_chat/')) return model;
+  return model.includes('/') ? model : `ollama_chat/${model}`;
 }
 function parseDurationMinutes(value, fallback = 15) {
   const match = String(value || '').trim().toLowerCase().match(/^(\d+)\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)?$/);
@@ -239,7 +240,7 @@ try {
     AUTOBOT_FEATURE_PASSES: String(passCount), AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline), AUTOBOT_AIDER_MODEL: model,
     AUTOBOT_FEATURE_SLICE_MINUTES: String(Math.min(20, controllerMinutes)), AUTOBOT_MAX_FEATURE_CYCLES: String(maxFeatureCycles),
-    LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama(?:_chat)?\//, ''),
+    LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama_chat\//, '').replace(/^ollama\//, ''),
     AUTOBOT_AIDER_EDITOR_MODEL: process.env.AUTOBOT_AIDER_EDITOR_MODEL || model,
     BUILDER_MAX_MINUTES: String(controllerMinutes), AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
