@@ -182,7 +182,11 @@ jobs:
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: music-builder
-          AUTOBOT_SPECIALIST_OBJECTIVE: "Experimental Music lane: make one minimal, production-safe improvement to original music direction/structure in src/musicDirector.js. Preserve existing APIs and contracts; actually edit the owned file, verify it, and leave a candidate when valid."
+          AUTOBOT_SPECIALIST_OBJECTIVE: "Experimental Music lane: improve prompt-responsive music energy in src/musicDirector.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
+- energy responds to driving/fast/action creative intent
+- only the owned file is changed
+- syntax, build and product-quality verification pass
+- leave a candidate when valid."
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
           AUTOBOT_EXPERIMENTAL_WORKER: 'true'
           AUTOBOT_BASE_REF: ${{ github.sha }}
@@ -250,7 +254,11 @@ jobs:
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: scene-builder
-          AUTOBOT_SPECIALIST_OBJECTIVE: "Experimental Scene lane: make one minimal, production-safe improvement to generated-scene direction/continuity in src/universalCreativeSceneEngine.js. Preserve existing APIs and contracts; actually edit the owned file, verify it, and leave a candidate when valid."
+          AUTOBOT_SPECIALIST_OBJECTIVE: "Experimental Scene lane: improve duration-bounded scene shot continuity in src/universalCreativeSceneEngine.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
+- scene shot count remains bounded and scales with duration
+- only the owned file is changed
+- syntax, build and product-quality verification pass
+- leave a candidate when valid."
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
           AUTOBOT_EXPERIMENTAL_WORKER: 'true'
           AUTOBOT_BASE_REF: ${{ github.sha }}
