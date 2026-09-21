@@ -38,8 +38,9 @@ function buildTargetMap(files, objective) {
         const trimmed=line.trim();
         if (/^(?:export\s+)?(?:async\s+)?function\s+|^(?:export\s+)?class\s+|^(?:export\s+)?const\s+[A-Za-z_$][\w$]*\s*=/.test(trimmed)) {
           const lower=trimmed.toLowerCase();
-          const score=keywords.reduce((n,k)=>n+(lower.includes(k)?1:0),0);
           const context=lines.slice(Math.max(0,index-3),Math.min(lines.length,index+4)).join('\n');
+          const contextLower=context.toLowerCase();
+          const score=keywords.reduce((n,k)=>n+(lower.includes(k)?3:0)+(contextLower.includes(k)?1:0),0);
           out.push({ file, line:index+1, score, declaration:trimmed.slice(0,180), context:context.slice(0,1400) });
         }
       });
