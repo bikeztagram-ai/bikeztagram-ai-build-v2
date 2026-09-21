@@ -251,6 +251,7 @@ async function verifyCandidates(cycle){
       AUTOBOT_SPECIALIST_RESULTS_ROOT:path.join(root,'builder','working','persistent',`cycle-${cycle}`),
       AUTOBOT_CANDIDATE_CHECK_OUTPUT:path.join(dir,'autobot-candidate-check.json'),
       AUTOBOT_CANDIDATE_REVIEW_OUTPUT:path.join(dir,'autobot-candidate-review.json'),
+      AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT:process.env.AUTOBOT_CYCLE_BASE_COMMIT||'',
       AUTOBOT_SKIP_NPM_INSTALL:'true',
     });
   });
