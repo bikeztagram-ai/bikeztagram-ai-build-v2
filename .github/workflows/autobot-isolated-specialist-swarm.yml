@@ -81,7 +81,29 @@ jobs:
               - syntax, build and product-quality verification pass
               - leave a verified candidate handoff when valid
 
+          - bot: rhythm-builder
+            name: 🥁 Rhythm AutoBot
+            objective: |
+              Production Rhythm lane: improve beat-aware editorial pacing in src/editorialRhythm.js with a minimal safe change.
+              Preserve existing APIs and contracts.
+              Acceptance:
+              - improve duration distribution or creative-intent pacing without exceeding the requested target budget
+              - only src/editorialRhythm.js may be a product-file change
+              - syntax, build and product-quality verification pass
+              - leave a verified candidate handoff when valid
+          - bot: render-builder
+            name: 🎞️ Render AutoBot
+            objective: |
+              Production Render lane: improve visible cinematic rendering behaviour in src/cinematicRendererV3.js with a minimal safe change.
+              Preserve existing APIs and contracts.
+              Acceptance:
+              - improve transition, motion or visual finishing quality while preserving source decoding and recording reliability
+              - only src/cinematicRendererV3.js may be a product-file change
+              - syntax, build and product-quality verification pass
+              - leave a verified candidate handoff when valid
+
     runs-on: ubuntu-24.04
+    max-parallel: 6
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
@@ -201,13 +223,27 @@ jobs:
         with:
           name: autobot-isolated-specialist-scene-builder-${{ github.run_id }}
           path: builder/working/isolated/scene
-      - name: Build canonical four-bot fan-in ledger
+
+      - name: Download Rhythm evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-isolated-specialist-rhythm-builder-${{ github.run_id }}
+          path: builder/working/isolated/rhythm
+
+      - name: Download Render evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-isolated-specialist-render-builder-${{ github.run_id }}
+          path: builder/working/isolated/render
+      - name: Build canonical six-bot fan-in ledger
         env:
           COORDINATION_ID: isolated-swarm-${{ github.run_id }}
         run: |
           set -euo pipefail
           mkdir -p builder/working/fan-in
-          for bot in director timeline music scene; do
+          for bot in director timeline music scene rhythm render; do
             dir="builder/working/isolated/$bot"
             mkdir -p "$dir"
             handoff="$(find "$dir" -name autobot-specialist-handoff.json -print -quit 2>/dev/null || true)"

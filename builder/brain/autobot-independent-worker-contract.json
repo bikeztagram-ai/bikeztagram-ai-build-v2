@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "independent-autobot-worker-contract-v1",
-  "purpose": "Fan-out production specialist execution into independent GitHub runners while preserving isolated edit, verification, recovery, handoff and operator-controlled integration contracts.",
+  "purpose": "Fan-out six production specialist lanes into independent GitHub runners while preserving isolated edit, verification, recovery, handoff and operator-controlled integration contracts.",
   "productionLane": {
     "preserved": true,
     "workflows": [
@@ -11,7 +11,9 @@
       "director-builder",
       "timeline-builder",
       "music-builder",
-      "scene-builder"
+      "scene-builder",
+      "rhythm-builder",
+      "render-builder"
     ],
     "changePolicy": "No specialist candidate is automatically merged; central fan-in records every result and protected integration remains operator-controlled."
   },
@@ -50,7 +52,7 @@
   "resourceIsolation": {
     "aider": "one Aider process per worker workflow",
     "model": "Each production specialist owns its own local model process; sibling workers never share an Aider/Ollama workspace.",
-    "failureBoundary": "worker failure does not cancel sibling worker workflows."
+    "failureBoundary": "A failure in one specialist job must not cancel or contaminate sibling specialist jobs."
   },
   "activation": {
     "experimentalWorkers": [],
