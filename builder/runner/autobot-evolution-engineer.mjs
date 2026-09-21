@@ -45,6 +45,7 @@ function classify(worker){
   if(/searchreplacenoexactmatch|search block failed to exactly match|no exact match/.test(text))return 'search-replace-no-exact-match';
   if(/no product change|without materializing|did not materialize/.test(text))return 'no-product-change';
   if(/timeout|timed out|network|fetch failed|connection|503|502|504/.test(text))return 'infrastructure';
+  if(/"ok":false|preservedspecialistchanges":false|0 completed objectives/.test(text)&&/aider|specialist/.test(text))return 'aider-controller-no-change';
   if(worker.status==='completed')return 'success';
   return 'unknown';
 }
@@ -120,6 +121,16 @@ if(counts['no-product-change']){
   };
 }
 
+if(counts['aider-controller-no-change']){
+  profile.failureStrategies['aider-controller-no-change']={
+    ...(profile.failureStrategies['aider-controller-no-change']||{}),
+    targetingMode:'symbol-first',
+    mapTokens:1024,
+    editFormat:'diff',
+    promptHint:'Treat an Aider ok:false/no-materialization result as a failed editing attempt, preserve the fallback candidate separately, and use the target map for the next focused attempt.'
+  };
+}
+
 const hypotheses=[];
 if(counts['search-replace-no-exact-match'])hypotheses.push({
   id:'evo-targeted-editing',
@@ -134,6 +145,13 @@ if(counts['no-product-change'])hypotheses.push({
   title:'Strengthen acceptance-first materialization prompts',
   reason:`Observed ${counts['no-product-change']} no-product-change result(s).`,
   measurement:'no-product-change rate'
+});
+if(counts['aider-controller-no-change'])hypotheses.push({
+  id:'evo-aider-materialization',
+  priority:'high',
+  title:'Distinguish Aider controller non-materialization from a clean specialist success',
+  reason:`Observed ${counts['aider-controller-no-change']} specialist Aider attempt(s) that ended without materializing a change before fallback.`,
+  measurement:'Aider non-materialization rate before fallback'
 });
 if(!hypotheses.length)hypotheses.push({
   id:'evo-observability',

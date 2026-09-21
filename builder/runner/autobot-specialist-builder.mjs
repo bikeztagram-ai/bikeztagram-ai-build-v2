@@ -34,7 +34,7 @@ function buildTargetMap(files, objective) {
       const lines = fs.readFileSync(path.join(root, file), 'utf8').split(/\r?\n/);
       lines.forEach((line, index) => {
         const trimmed=line.trim();
-        if (/^(?:export\\s+)?(?:async\\s+)?function\\s+|^(?:export\\s+)?class\\s+|^(?:export\\s+)?const\\s+[A-Za-z_$][\\w$]*\\s*=/.test(trimmed)) {
+        if (/^(?:export\s+)?(?:async\s+)?function\s+|^(?:export\s+)?class\s+|^(?:export\s+)?const\s+[A-Za-z_$][\w$]*\s*=/.test(trimmed)) {
           const lower=trimmed.toLowerCase();
           const score=keywords.reduce((n,k)=>n+(lower.includes(k)?1:0),0);
           out.push({ file, line:index+1, score, declaration:trimmed.slice(0,180) });
