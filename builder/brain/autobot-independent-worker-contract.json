@@ -1,18 +1,19 @@
 {
   "schemaVersion": 1,
   "name": "independent-autobot-worker-contract-v1",
-  "purpose": "Fan-out specialist execution into independent GitHub Actions workflow runs while preserving the proven specialist edit, verification, recovery and handoff contracts.",
+  "purpose": "Fan-out production specialist execution into independent GitHub runners while preserving isolated edit, verification, recovery, handoff and operator-controlled integration contracts.",
   "productionLane": {
     "preserved": true,
     "workflows": [
-      ".github/workflows/autobot-parallel-specialists.yml",
-      ".github/workflows/autobot-endurance.yml"
+      ".github/workflows/autobot-isolated-specialist-swarm.yml"
     ],
     "workers": [
       "director-builder",
-      "timeline-builder"
+      "timeline-builder",
+      "music-builder",
+      "scene-builder"
     ],
-    "changePolicy": "No automatic dependency on experimental workers."
+    "changePolicy": "No specialist candidate is automatically merged; central fan-in records every result and protected integration remains operator-controlled."
   },
   "fanOut": {
     "dispatcher": "planner/coordination layer chooses bot, objective, baseRef and coordinationId",
@@ -48,14 +49,11 @@
   },
   "resourceIsolation": {
     "aider": "one Aider process per worker workflow",
-    "model": "worker workflows may use independent local model processes; the current production two-worker run is untouched.",
+    "model": "Each production specialist owns its own local model process; sibling workers never share an Aider/Ollama workspace.",
     "failureBoundary": "worker failure does not cancel sibling worker workflows."
   },
   "activation": {
-    "experimentalWorkers": [
-      "music-builder",
-      "scene-builder"
-    ],
+    "experimentalWorkers": [],
     "productionPlannerDispatch": false,
     "protectedIntegration": false
   }

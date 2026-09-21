@@ -52,7 +52,6 @@ Owns:
 Exact product scope:
 
 `src/director.js`
-`src/aiEditPlanner.js`
 
 ### Timeline Builder
 
@@ -74,10 +73,28 @@ Owns:
 Exact product scope:
 
 `src/executableTimeline.js`
-`src/editorialRhythm.js`
-`src/renderer.js`
 
-These are complementary specialist Builders rather than competing copies of the protected Builder. Their scopes are intentionally narrow enough to permit future isolated parallelism without allowing two workers to silently edit the same product surface.
+These are complementary specialist Builders rather than competing copies of the protected Builder. Every production specialist now owns exactly one declared product file. Each specialist is launched in its own GitHub job/runner, worktree, Aider process and local AI brain; results are recorded through the central fan-in ledger before any protected integration is considered.
+
+### Music Builder
+
+Registry id: `music-builder`
+
+Role: `experimental-specialist-original-music-builder` (promoted to verified production specialist)
+
+Exact product scope:
+
+`src/musicDirector.js`
+
+### Scene Builder
+
+Registry id: `scene-builder`
+
+Role: `experimental-specialist-scene-generation-builder` (promoted to verified production specialist)
+
+Exact product scope:
+
+`src/universalCreativeSceneEngine.js`
 
 ## Specialist Builder Handoff
 
@@ -156,7 +173,7 @@ The production Builder workflow is connected to the `capture` operation on failu
 
 The recovery runner can capture a durable Builder failure from `builder/working/deterministic-autobot.json` and the failing task's declared file scope, then, after activation, invoke the existing isolated Repair Bot, independent QA and explicit base/candidate Reviewer handoff. It never merges or pushes the candidate and reports `protectedIntegration:false` until a separate human-reviewed integration stage is introduced.
 
-The recovery operation is **behind the same explicit fleet activation gate** as the specialist workers: the registry must be `enabled:true` with `coordination.mode:'active'`. The current foundation remains disabled and plan-only.
+The recovery operation is **behind the same explicit fleet activation gate** as the specialist workers: the registry must be `enabled:true` with `coordination.mode:'active'`. The current foundation remains operator-controlled; protected integration remains disabled and candidate promotion is still subject to independent verification and human review.
 
 Verifier:
 
@@ -330,8 +347,9 @@ A removed or renamed item must not remain discoverable through stale active word
 6. Prove the Fleet Recovery Orchestrator's Builder failure -> Repair -> QA -> Reviewer handoff.
 7. Run the dedicated Foundation Validation Workflow and require all foundation contracts plus the production build to pass.
 8. Add coordinator scheduling only after every worker contract is independently verified.
-9. Add controlled parallelism only where `ownsFiles` scopes do not conflict and isolation is guaranteed.
-10. Allow measured self-improvement proposals through a human-reviewed improvement lane.
-11. Only then consider continuous autonomous orchestration.
+9. Run the four production specialists as independent jobs using `.github/workflows/autobot-isolated-specialist-swarm.yml`; each job owns one product file and its own Aider/local AI environment.
+10. Add controlled parallelism only where `ownsFiles` scopes do not conflict and isolation is guaranteed.
+11. Allow measured self-improvement proposals through a human-reviewed improvement lane.
+12. Only then consider continuous autonomous orchestration.
 
 No stage may weaken production gates, safety, rollback, audit or protected workflow controls merely to make the fleet appear successful.
