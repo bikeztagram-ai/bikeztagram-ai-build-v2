@@ -5,7 +5,7 @@
   "productionLane": {
     "preserved": true,
     "workflows": [
-      ".github/workflows/autobot-isolated-specialist-swarm.yml"
+      ".github/workflows/autobot-parallel-specialists.yml"
     ],
     "workers": [
       "director-builder",

@@ -28,7 +28,7 @@ env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
   AUTOBOT_DISCOVERY_TIMEOUT_MS: 180000
-  AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder
+  AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder,music-builder,scene-builder,rhythm-builder,render-builder
   AUTOBOT_TOTAL_DURATION: ${{ inputs.duration }}
   AUTOBOT_CYCLE_MINUTES: ${{ inputs.duration == '15m' && '10' || inputs.duration == '30m' && '15' || '30' }}
   AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
@@ -39,28 +39,25 @@ env:
   AUTOBOT_MAX_NO_PROGRESS_CYCLES: '2'
 
 jobs:
-  # PRODUCTION LANE — unchanged. The proven Director + Timeline engine owns
-  # its own fan-out, recovery, QA and protected integration lifecycle.
-  persistent-autobot:
+  # ISOLATED PRODUCTION FAN-OUT — all six product specialists run as separate GitHub jobs/runners. Each owns one disjoint product file, its own worktree, Aider process and local AI brain. A failure is contained to that specialist; all results converge through the canonical fan-in ledger.
+  # DIRECTOR — fully isolated production specialist. Its runner/worktree/Aider
+  # stack is independent of every other specialist.
+  experimental-director:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Install project dependencies once
+      - name: Install Director lane dependencies
         run: npm install --no-audit --no-fund --no-package-lock
-
-      - name: Install Aider engine once
+      - name: Install Director lane Aider
         run: python -m pip install --disable-pip-version-check --no-input aider-chat
-
-      - name: Start local AI brain once
+      - name: Start isolated Director AI brain
         run: bash scripts/autobot/install-local-brain.sh
         env:
           LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
@@ -70,83 +67,113 @@ jobs:
           LOCAL_AI_PROXY_NUM_PREDICT: 900
           OLLAMA_CONTEXT_LENGTH: 4096
           OLLAMA_NUM_PARALLEL: 1
-          OLLAMA_MAX_QUEUE: 8
+          OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 6h
-
-      - name: Start performance proxy once
-        run: |
-          nohup node builder/runner/ollama-performance-proxy.mjs >/tmp/bikeztagram-ollama-proxy.log 2>&1 &
-          for i in $(seq 1 30); do
-            curl -fsS http://127.0.0.1:11435/health >/dev/null 2>&1 && break
-            sleep 1
-          done
-          curl -fsS http://127.0.0.1:11435/health >/dev/null
-          echo 'OLLAMA_HOST=http://127.0.0.1:11435' >> "$GITHUB_ENV"
-
-      - name: Run deep AutoBot contract audit
-        run: node scripts/autobot/verify-autobot-persistent-cycle.mjs
-
-      - name: Run R&D contract audit
-        run: npm run verify:autobot-rnd
-
-      - name: Verify planner model once
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --max-time 120 \
-            http://127.0.0.1:11435/api/chat \
-            -H 'Content-Type: application/json' \
-            -d "{\"model\":\"${AUTOBOT_DISCOVERY_MODEL}\",\"stream\":false,\"messages\":[{\"role\":\"user\",\"content\":\"Reply with READY only.\"}],\"options\":{\"num_ctx\":2048,\"num_predict\":16}}" \
-            >/tmp/bikeztagram-planner-smoke.json
-          node -e "const x=require('/tmp/bikeztagram-planner-smoke.json'); if(!x.message?.content && !x.response) process.exit(1); console.log('[autobot] planner model smoke test passed')"
-
-      - name: Anchor cumulative deadline
-        run: echo "AUTOBOT_RUN_STARTED_EPOCH_MS=$(date +%s000)" >> "$GITHUB_ENV"
-
-      - name: Initialize AutoBot Mission Control
-        run: |
-          node builder/runner/autobot-live-dashboard.mjs
+          OLLAMA_KEEP_ALIVE: 90m
+      - name: Run Director specialist
+        id: execute
         env:
-          AUTOBOT_DASHBOARD_STAGE: "SETUP COMPLETE"
-          AUTOBOT_DASHBOARD_MESSAGE: "Dependencies, Aider, local AI brain, performance proxy, contract audits and planner smoke test are complete. The persistent two-worker engine is next; four isolated product specialists fan out alongside it."
-
-      - name: Run persistent AutoBot engine
-        env:
+          AUTOBOT_SPECIALIST_BOT_ID: director-builder
+          AUTOBOT_SPECIALIST_OBJECTIVE: "Production Director lane: improve hook-to-payoff shot selection or creative-intent weighting in src/director.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
+- shot selection responds to creative intent while preserving evidence scoring and diversity
+- only the owned file is changed
+- syntax, build and product-quality verification pass
+- leave a candidate when valid."
+          AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
           AUTOBOT_BASE_REF: ${{ github.sha }}
+          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
+          AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-        run: node builder/runner/autobot-persistent-cycle-engine.mjs
-
-      - name: Capture persistent runtime evidence
-        if: always()
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
+        run: node builder/runner/autobot-specialist-builder.mjs
+      - name: Publish Director candidate branch
+        if: steps.execute.outcome == 'success'
         run: |
-          echo '--- persistent runtime state ---'
-          cat builder/working/persistent-runtime-state.json 2>/dev/null || true
-          echo '--- AutoBot live status ---'
-          cat builder/working/autobot-live-status.log 2>/dev/null || true
-          echo '--- Ollama processes ---'
-          OLLAMA_HOST=127.0.0.1:11434 ollama ps || true
-          echo '--- Ollama server log ---'
-          if [ -f /tmp/bikeztagram-ollama.log ]; then tail -n 200 /tmp/bikeztagram-ollama.log; else echo 'Ollama is using an existing service; no local server log file was created.'; fi
-          echo '--- performance proxy log ---'
-          tail -n 200 /tmp/bikeztagram-ollama-proxy.log || true
-
-      - uses: actions/upload-artifact@v7
+          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
+          git push --set-upstream origin "$b"
+      - name: Upload Director worker evidence
         if: always()
+        uses: actions/upload-artifact@v7
         with:
-          name: autobot-persistent-runtime-${{ github.run_id }}
+          name: autobot-persistent-experimental-director-${{ github.run_id }}
           path: |
-            builder/working/persistent-runtime-state.json
-            builder/working/autobot-live-status.log
-            builder/working/autobot-final-handoff.json
-            builder/working/autobot-rnd-brief.json
-            builder/working/persistent/**
+            builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-specialist-outcome.json
+            builder/working/autobot-specialist-failure.patch
           if-no-files-found: ignore
 
-  # EXPERIMENTAL FAN-OUT — these are separate GitHub jobs/runners. Each job
-  # owns its own Aider process, local model server and worktree, so neither
-  # experimental lane can share state with or block the production lane. Music,
-  # Scene, Rhythm and Render each own one disjoint product file and one isolated
-  # runner/worktree/Aider/local-AI stack.
+  # TIMELINE — fully isolated production specialist. Its runner/worktree/Aider
+  # stack is independent of every other specialist.
+  experimental-timeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Timeline lane dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Install Timeline lane Aider
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - name: Start isolated Timeline AI brain
+        run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_DISCOVERY_MODEL: ${{ env.AUTOBOT_DISCOVERY_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
+          OLLAMA_CONTEXT_LENGTH: 4096
+          OLLAMA_NUM_PARALLEL: 1
+          OLLAMA_MAX_QUEUE: 4
+          OLLAMA_LOAD_TIMEOUT: 20m
+          OLLAMA_KEEP_ALIVE: 90m
+      - name: Run Timeline specialist
+        id: execute
+        env:
+          AUTOBOT_SPECIALIST_BOT_ID: timeline-builder
+          AUTOBOT_SPECIALIST_OBJECTIVE: "Production Timeline lane: improve source-aware timing, role-aware motion or transition cadence in src/executableTimeline.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
+- timeline execution preserves source identity and editorial roles while improving motion or timing
+- only the owned file is changed
+- syntax, build and product-quality verification pass
+- leave a candidate when valid."
+          AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_BASE_REF: ${{ github.sha }}
+          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
+          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
+        run: node builder/runner/autobot-specialist-builder.mjs
+      - name: Publish Timeline candidate branch
+        if: steps.execute.outcome == 'success'
+        run: |
+          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
+          git push --set-upstream origin "$b"
+      - name: Upload Timeline worker evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-persistent-experimental-timeline-${{ github.run_id }}
+          path: |
+            builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-specialist-outcome.json
+            builder/working/autobot-specialist-failure.patch
+          if-no-files-found: ignore
+
   experimental-music:
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -439,7 +466,7 @@ jobs:
   # coordination ledger. It never merges product code and never gates the
   # production persistent-autobot job.
   experimental-fan-in:
-    needs: [experimental-music, experimental-scene, experimental-rhythm, experimental-render]
+    needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -452,6 +479,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Download Director evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-persistent-experimental-director-${{ github.run_id }}
+          path: builder/working/experimental/director
+
+      - name: Download Timeline evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-persistent-experimental-timeline-${{ github.run_id }}
+          path: builder/working/experimental/timeline
 
       - name: Download Music evidence
         uses: actions/download-artifact@v7
@@ -487,7 +528,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p builder/working/fan-in
-          for bot in music scene rhythm render; do
+          for bot in director timeline music scene rhythm render; do
             dir="builder/working/experimental/$bot"
             handoff="$(find "$dir" -name autobot-specialist-handoff.json -print -quit 2>/dev/null || true)"
             outcome="$(find "$dir" -name autobot-specialist-outcome.json -print -quit 2>/dev/null || true)"
@@ -519,7 +560,7 @@ jobs:
           done
           cat builder/working/fan-in/autobot-fan-in-ledger.json
 
-      - name: Upload unified experimental fan-in evidence
+      - name: Upload unified six-specialist fan-in evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:

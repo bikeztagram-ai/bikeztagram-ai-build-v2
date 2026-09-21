@@ -34,17 +34,6 @@ jobs:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      - name: Download production runtime evidence
-        if: github.event_name == 'workflow_run'
-        uses: actions/download-artifact@v6
-        continue-on-error: true
-        with:
-          name: autobot-persistent-runtime-${{ github.event.workflow_run.id }}
-          path: builder/working/evolution-evidence
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ github.event.workflow_run.id }}
-
       - name: Download specialist fan-in evidence
         if: github.event_name == 'workflow_run'
         uses: actions/download-artifact@v6
