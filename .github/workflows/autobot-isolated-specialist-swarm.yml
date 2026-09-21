@@ -25,16 +25,16 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  LOCAL_AI_MODEL: ${{ inputs.local_model }
+  LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
   AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
   AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
   AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
-  AUTOBOT_COORDINATION_ID: isolated-swarm-${{ github.run_id }
+  AUTOBOT_COORDINATION_ID: isolated-swarm-${{ github.run_id }}
 
 jobs:
   isolated-specialists:
-    name: ${{ matrix.name }
+    name: ${{ matrix.name }}
     strategy:
       fail-fast: false
       matrix:
@@ -86,7 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
@@ -100,9 +100,9 @@ jobs:
       - name: Start isolated specialist AI brain
         run: bash scripts/autobot/install-local-brain.sh
         env:
-          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }
-          AUTOBOT_DISCOVERY_MODEL: ${{ env.AUTOBOT_DISCOVERY_MODEL }
-          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_DISCOVERY_MODEL: ${{ env.AUTOBOT_DISCOVERY_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           LOCAL_AI_PROXY_NUM_CTX: 4096
           LOCAL_AI_PROXY_NUM_PREDICT: 900
           OLLAMA_CONTEXT_LENGTH: 4096
@@ -122,19 +122,19 @@ jobs:
       - name: Run isolated specialist
         id: execute
         env:
-          AUTOBOT_SPECIALIST_BOT_ID: ${{ matrix.bot }
-          AUTOBOT_SPECIALIST_OBJECTIVE: ${{ matrix.objective }
+          AUTOBOT_SPECIALIST_BOT_ID: ${{ matrix.bot }}
+          AUTOBOT_SPECIALIST_OBJECTIVE: ${{ matrix.objective }}
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
           AUTOBOT_EXPERIMENTAL_WORKER: 'false'
-          AUTOBOT_BASE_REF: ${{ github.sha }
-          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }
-          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: ${{ env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK }
-          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }
-          AUTOBOT_SPECIALIST_FALLBACK_MINUTES: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MINUTES }
+          AUTOBOT_BASE_REF: ${{ github.sha }}
+          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: ${{ env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK }}
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MINUTES: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MINUTES }}
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_COORDINATION_ID: ${{ env.AUTOBOT_COORDINATION_ID }
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }
+          AUTOBOT_COORDINATION_ID: ${{ env.AUTOBOT_COORDINATION_ID }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
         run: node builder/runner/autobot-specialist-builder.mjs
       - name: Publish isolated candidate branch
         if: steps.execute.outcome == 'success'
@@ -145,7 +145,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: autobot-isolated-specialist-${{ matrix.bot }-${{ github.run_id }
+          name: autobot-isolated-specialist-${{ matrix.bot }}-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
@@ -172,7 +172,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
@@ -181,29 +181,29 @@ jobs:
         uses: actions/download-artifact@v7
         continue-on-error: true
         with:
-          name: autobot-isolated-specialist-director-builder-${{ github.run_id }
+          name: autobot-isolated-specialist-director-builder-${{ github.run_id }}
           path: builder/working/isolated/director
       - name: Download Timeline evidence
         uses: actions/download-artifact@v7
         continue-on-error: true
         with:
-          name: autobot-isolated-specialist-timeline-builder-${{ github.run_id }
+          name: autobot-isolated-specialist-timeline-builder-${{ github.run_id }}
           path: builder/working/isolated/timeline
       - name: Download Music evidence
         uses: actions/download-artifact@v7
         continue-on-error: true
         with:
-          name: autobot-isolated-specialist-music-builder-${{ github.run_id }
+          name: autobot-isolated-specialist-music-builder-${{ github.run_id }}
           path: builder/working/isolated/music
       - name: Download Scene evidence
         uses: actions/download-artifact@v7
         continue-on-error: true
         with:
-          name: autobot-isolated-specialist-scene-builder-${{ github.run_id }
+          name: autobot-isolated-specialist-scene-builder-${{ github.run_id }}
           path: builder/working/isolated/scene
       - name: Build canonical four-bot fan-in ledger
         env:
-          COORDINATION_ID: isolated-swarm-${{ github.run_id }
+          COORDINATION_ID: isolated-swarm-${{ github.run_id }}
         run: |
           set -euo pipefail
           mkdir -p builder/working/fan-in
@@ -236,6 +236,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: autobot-isolated-specialist-fan-in-${{ github.run_id }
+          name: autobot-isolated-specialist-fan-in-${{ github.run_id }}
           path: builder/working/fan-in/autobot-fan-in-ledger.json
           if-no-files-found: ignore
