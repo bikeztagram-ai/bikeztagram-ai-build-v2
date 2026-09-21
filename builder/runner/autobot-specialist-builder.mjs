@@ -49,6 +49,9 @@ function buildTargetMap(files, objective) {
   return out.sort((a,b)=>b.score-a.score||a.line-b.line).slice(0,maxSymbols);
 }
 let aiderOutputTail = '';
+let candidateOrigin = 'none';
+let aiderAttempted = false;
+let aiderMaterialized = false;
 
 function fail(message) { throw new Error(message); }
 function run(command, args, cwd, options = {}) {
@@ -98,6 +101,7 @@ function ownedProductFiles(base, worktree, files) {
   return changedFromBase(base, worktree).filter(file => files.includes(file));
 }
 function runStructuredFallback(worktree, assignmentPath, model, base) {
+  candidateOrigin = 'structured-fallback';
   run('git', ['reset', '--hard', base], worktree);
   const fallbackModel = String(process.env.AUTOBOT_SPECIALIST_FALLBACK_MODEL || 'qwen2.5-coder:3b').trim();
   const fallbackMinutes = Math.max(1, Number.parseInt(process.env.AUTOBOT_SPECIALIST_FALLBACK_MINUTES || '5', 10));
@@ -143,7 +147,7 @@ function writeFailureOutcome({ error, base, worktree, files, candidatePatch = ''
     files, baseCommit: base || null, patchPath,
     evidence: ['GitHub Actions specialist execution logs', patchPath].filter(Boolean),
     error: String(error?.message || error || 'unknown specialist failure'),
-    aiderOutputTail: String(aiderOutput || aiderOutputTail || '').slice(-12000)
+    aiderOutputTail: String(aiderOutput || aiderOutputTail || '').slice(-12000), candidateOrigin, aiderAttempted, aiderMaterialized
   }, null, 2) + '\n');
 }
 function parseObjective(text, bot, files) {
@@ -238,6 +242,7 @@ try {
   };
   console.log(`[autobot] specialist ${botId} entering proven long-run controller: ${controllerMinutes}m controller budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(20, controllerMinutes)}m max slice + ${fallbackReserveMinutes}m structured fallback + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace (${model}, ${protocol})`);
   const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], { cwd: worktree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: engineEnv, timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000 });
+  aiderAttempted = true;
   aiderOutputTail = `${engine.stdout || ''}\n${engine.stderr || ''}`.slice(-12000);
   if (aiderOutputTail) process.stdout.write(aiderOutputTail + '\n');
   if (engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller ended with ${engine.error.message}; inspecting worktree before fallback`);
@@ -245,6 +250,8 @@ try {
 
   let candidateFiles = ownedProductFiles(base, worktree, files);
   candidatePatch = captureBasePatch(base, worktree, files);
+  aiderMaterialized = Boolean(candidateFiles.length && candidatePatch.trim());
+  if (aiderMaterialized) candidateOrigin = 'aider';
   if (!candidateFiles.length || !candidatePatch.trim()) {
     const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model, base);
     candidateFiles = ownedProductFiles(base, worktree, files);
@@ -263,6 +270,7 @@ try {
   } catch (qualityError) {
     console.warn(`[autobot] structured fallback candidate failed product-quality guard; resetting to base and invoking deterministic specialist fallback: ${qualityError.message}`);
     run('git', ['reset', '--hard', base], worktree);
+    candidateOrigin = 'deterministic-fallback';
     const deterministic = spawnSync(process.execPath, ['builder/runner/autobot-specialist-deterministic-fallback.mjs'], {
       cwd: worktree,
       stdio: 'inherit',
@@ -291,11 +299,12 @@ try {
   if (!staged.length) fail('Specialist Builder produced no product change.');
   run('git', ['commit', '-m', `autobot(${botId}): ${objective.title.slice(0, 72)}`], worktree);
   const candidate = git(['rev-parse', 'HEAD'], worktree);
-  const handoffFile = writeSpecialistHandoff({ schemaVersion: 'autobot-specialist-handoff-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, baseCommit: base, candidateCommit: candidate, branch, ownsFiles: staged, productQualityCheck: productQuality, status: 'verified-candidate', downstream: { reviewContract: 'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT' } }, handoffPath);
+  candidateOrigin = aiderMaterialized ? 'aider' : candidateOrigin;
+  const handoffFile = writeSpecialistHandoff({ schemaVersion: 'autobot-specialist-handoff-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, baseCommit: base, candidateCommit: candidate, branch, ownsFiles: staged, productQualityCheck: productQuality, status: 'verified-candidate', candidateOrigin, aiderAttempted, aiderMaterialized, downstream: { reviewContract: 'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT' } }, handoffPath);
   fs.mkdirSync(path.dirname(outcomePath), { recursive: true });
   fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffFile], engine: 'aider-first-with-structured-fallback', learnedMapTokens, learnedEditFormat, targetMap, aiderOutputTail: aiderOutputTail.slice(-12000), featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
   keepBranch = true;
-  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath: handoffFile }));
+  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', candidateOrigin, aiderAttempted, aiderMaterialized, fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath: handoffFile }));
 } catch (error) {
   writeFailureOutcome({ error, base, worktree, files, candidatePatch, aiderOutput: aiderOutputTail });
   throw error;
