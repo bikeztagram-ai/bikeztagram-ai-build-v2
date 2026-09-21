@@ -1,0 +1,75 @@
+name: 🧲 AutoBot — independent worker fan-in
+on:
+  workflow_run:
+    workflows:
+      - "🎵 AutoBot — independent Music Specialist"
+      - "🎬 AutoBot — independent Scene Specialist"
+    types: [completed]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: autobot-fan-in-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+jobs:
+  fan-in:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Download worker evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          case "${{ github.event.workflow_run.name }}" in
+            "🎵 AutoBot — independent Music Specialist") ARTIFACT="autobot-independent-music-${{ github.event.workflow_run.id }}" ;;
+            "🎬 AutoBot — independent Scene Specialist") ARTIFACT="autobot-independent-scene-${{ github.event.workflow_run.id }}" ;;
+            *) echo "Unsupported worker workflow"; exit 1 ;;
+          esac
+          mkdir -p builder/working/independent-worker-result
+          gh run download "${{ github.event.workflow_run.id }}" -n "$ARTIFACT" -D builder/working/independent-worker-result
+      - name: Resolve worker result and fan-in
+        id: resolve
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs'),path=require('path');
+          const root='builder/working/independent-worker-result';
+          const files=fs.readdirSync(root).map(x=>path.join(root,x));
+          const handoff=files.find(x=>x.endsWith('autobot-specialist-handoff.json'));
+          const outcome=files.find(x=>x.endsWith('autobot-specialist-outcome.json'));
+          const source=handoff||outcome;
+          if(!source) throw new Error('Independent worker artifact contains no handoff or outcome JSON');
+          const x=JSON.parse(fs.readFileSync(source,'utf8'));
+          if(!x.coordinationId) throw new Error('Worker result has no coordinationId');
+          fs.writeFileSync(process.env.GITHUB_OUTPUT,'coordination_id='+x.coordinationId+'\n');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,'bot_id='+x.botId+'\n');
+          NODE
+      - name: Update canonical fan-in ledger
+        env:
+          COORDINATION_ID: ${{ steps.resolve.outputs.coordination_id }}
+        run: |
+          set -euo pipefail
+          safe="$(printf '%s' "$COORDINATION_ID" | tr -c 'A-Za-z0-9._-' '-')"
+          branch="autobot/fan-in/$safe"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch origin "$branch:$branch"
+            git checkout "$branch"
+          else
+            git checkout -b "$branch" main
+          fi
+          node builder/runner/autobot-independent-fan-in.mjs --coordination-id "$COORDINATION_ID" --handoff "$(find builder/working/independent-worker-result -name 'autobot-specialist-handoff.json' -print -quit)" --outcome "$(find builder/working/independent-worker-result -name 'autobot-specialist-outcome.json' -print -quit)" --ledger builder/working/autobot-fan-in-ledger.json
+          git add builder/working/autobot-fan-in-ledger.json
+          git config user.name 'Bikeztagram AutoBot Fan-In'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "autobot(fan-in): record $COORDINATION_ID / ${{ steps.resolve.outputs.bot_id }}" || true
+          git push --set-upstream origin "$branch"
+      - name: Publish fan-in evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-fan-in-${{ github.event.workflow_run.id }}
+          path: builder/working/autobot-fan-in-ledger.json
+          if-no-files-found: error
