@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "independent-autobot-worker-contract-v1",
-  "purpose": "Fan-out six production specialist lanes into independent GitHub runners while preserving isolated edit, verification, recovery, handoff and operator-controlled integration contracts.",
+  "purpose": "Fan-out eight production specialist lanes into independent GitHub runners while preserving isolated edit, verification, recovery, handoff and operator-controlled integration contracts.",
   "productionLane": {
     "preserved": true,
     "workflows": [
@@ -13,7 +13,9 @@
       "music-builder",
       "scene-builder",
       "rhythm-builder",
-      "render-builder"
+      "render-builder",
+      "media-intelligence-builder",
+      "caption-builder"
     ],
     "changePolicy": "No specialist candidate is automatically merged; central fan-in records every result and protected integration remains operator-controlled."
   },
