@@ -54,7 +54,11 @@ const record = {
   repairable: source.repairable === true,
   category: source.category || (status === 'completed' ? 'completed' : 'unknown'),
   evidence: Array.isArray(source.evidence) ? source.evidence : [],
-  error: source.error || null
+  error: source.error || null,
+  aiderOutputTail: source.aiderOutputTail || null,
+  learnedMapTokens: source.learnedMapTokens || null,
+  learnedEditFormat: source.learnedEditFormat || null,
+  targetMap: Array.isArray(source.targetMap) ? source.targetMap : []
 };
 
 fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
