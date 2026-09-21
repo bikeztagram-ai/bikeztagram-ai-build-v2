@@ -9,14 +9,10 @@ if(!specialistBuilder.includes("process.env.AUTOBOT_FEATURE_PROTOCOL || 'aider-d
 if(!specialistBuilder.includes("['config', 'user.name'")) throw new Error('specialist builder must configure an isolated git identity before committing');
 if(!brain.includes("const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'udiff')")) throw new Error('specialist Aider edit format setting missing');
 if(!brain.includes("['diff','udiff','whole']")) throw new Error('specialist Aider edit-format validation missing');
-if(!brain.includes("const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'udiff')")) throw new Error('specialist Aider must default to unified diff editing');
-if(!brain.includes("`--edit-format=${specialistEditFormat}`")) throw new Error('specialist Aider must pass the unified diff edit format');
-if(!brain.includes("'--architect'")) throw new Error('optional specialist architect mode wiring missing');
-if(!brain.includes('`--editor-model=${editorModel}`')) throw new Error('specialist Aider must provide a dedicated editor model');
-if(!brain.includes("'--editor-edit-format=editor-diff'")) throw new Error('specialist Aider must use editor-diff in architect mode');
-if(!brain.includes("architectureRequestCapMs=specialist&&specialistArchitect?300_000:perCallMaxMs")) throw new Error('specialist architect/editor requests must have bounded per-call time');
-if(!brain.includes('`--edit-format=${specialistEditFormat}`')) throw new Error('direct specialist edit mode must remain available as an explicit fallback mode');
-if(!brain.includes('Use Aider as the editor: directly modify the supplied objective files now.')) throw new Error('specialist Aider direct editor instruction missing');
+if(!brain.includes("const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'2048',10)||2048))")) throw new Error('specialist Aider map-token contract missing');
+if(!brain.includes("const specialistMapArg=specialist?`--map-tokens=${specialistMapTokens}`:`--map-tokens=768`")) throw new Error('specialist Aider must use the configured scoped map budget');
+if(!brain.includes("const timeout=Math.min(perCallMaxMs")) throw new Error('specialist Aider must retain the shared bounded call timeout');
+if(!brain.includes("Use Aider as the editor: directly modify the supplied objective files now.")) throw new Error('specialist Aider direct editor instruction missing');
 if(!brain.includes("'--no-auto-commits'")||!brain.includes("'--no-dirty-commits'")) throw new Error('Aider safety flags missing');
 if(!brain.includes('preservedSpecialistChanges')) throw new Error('candidate preservation missing');
 if(!brain.includes('Aider completed without materializing a scoped product change')) throw new Error('no-change guard missing');
