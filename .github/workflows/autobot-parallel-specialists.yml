@@ -80,7 +80,7 @@ jobs:
 - syntax, build and product-quality verification pass
 - leave a candidate when valid."
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
           AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
@@ -147,7 +147,7 @@ jobs:
 - syntax, build and product-quality verification pass
 - leave a candidate when valid."
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
           AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
@@ -217,7 +217,7 @@ jobs:
 - syntax, build and product-quality verification pass
 - leave a candidate when valid."
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
           AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
@@ -289,7 +289,7 @@ jobs:
 - syntax, build and product-quality verification pass
 - leave a candidate when valid."
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
           AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
@@ -361,7 +361,7 @@ jobs:
 - syntax, build and product-quality verification pass
 - leave a candidate when valid."
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
           AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
@@ -433,7 +433,7 @@ jobs:
 - syntax, build and product-quality verification pass
 - leave a candidate when valid."
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
           AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
@@ -501,7 +501,7 @@ jobs:
 - syntax, build and product-quality verification pass
 - leave a candidate when valid."
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
           AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
@@ -567,7 +567,7 @@ jobs:
 - syntax, build and product-quality verification pass
 - leave a candidate when valid."
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
           AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
