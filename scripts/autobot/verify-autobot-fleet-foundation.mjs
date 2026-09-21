@@ -16,7 +16,7 @@ assert(registry.schemaVersion===1,'fleet registry schema must be v1');
 const live=registry.enabled===true&&registry.coordination?.mode==='active';
 const foundation=registry.enabled===false&&registry.coordination?.mode==='plan-only';
 assert(live||foundation,'fleet must be active under an explicit live-test gate or disabled/plan-only');
-assert(Number.isInteger(registry.coordination?.maxConcurrentWorkers)&&registry.coordination.maxConcurrentWorkers>=1&&registry.coordination.maxConcurrentWorkers<=4,'fleet worker limit must remain bounded at four');
+assert(Number.isInteger(registry.coordination?.maxConcurrentWorkers)&&registry.coordination.maxConcurrentWorkers>=1&&registry.coordination.maxConcurrentWorkers<=6,'fleet worker limit must remain bounded at four');
 if(live){
  assert(registry.activationGate?.requiredEnabled===true&&registry.activationGate?.requiredMode==='active','live activation contract changed');
  assert(registry.activationGate?.protectedIntegration===false,'protected integration must remain disabled');
@@ -25,7 +25,7 @@ if(live){
  assert(registry.coordination?.requireHumanReviewBeforeProtectedIntegration===true,'human review boundary missing');
  const approved=['15m','30m','1h','4h','5h','5h30'];
  assert(approved.includes(registry.activationGate?.testDuration),'live test duration must be bounded to an approved window');
- assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(['director-builder','timeline-builder','music-builder','scene-builder']),'parallel activation must name exactly Director and Timeline specialists');
+ assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(['director-builder','timeline-builder','music-builder','scene-builder','rhythm-builder','render-builder']),'parallel activation must name exactly Director and Timeline specialists');
  assert((registry.activationGate?.allowedTestDurations||[]).every(d=>approved.includes(d)),'activation duration list contains an unapproved duration');
  assert((registry.activationGate?.allowedTestDurations||[]).includes('5h'),'five-and-a-half-hour overnight activation must be explicitly registered');
 }
@@ -38,9 +38,9 @@ for(const bot of registry.bots){assert(bot.id&&bot.role&&bot.entrypoint&&bot.sta
 for(const [id,entrypoint] of [['repair',paths.repair],['qa',paths.qa],['reviewer',paths.reviewer],['self-improvement',paths.selfImprovement]]){const bot=registry.bots.find(b=>b.id===id);assert(bot?.entrypoint===entrypoint&&bot.status==='verified',`${id} registry contract must match its verified implementation`);assert(fs.existsSync(path.join(root,entrypoint)),`${id} implementation missing: ${entrypoint}`);}
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 const productionSpecialists=specialists.filter(b=>b.status==='verified');
-assert(productionSpecialists.length===4,'exactly four verified specialist Builders are authorised by the current live gate');
+assert(productionSpecialists.length===6,'exactly four verified specialist Builders are authorised by the current live gate');
 assert(JSON.stringify(productionSpecialists.map(b=>b.id))===JSON.stringify(['director-builder','timeline-builder','music-builder','scene-builder']),'production specialist activation set changed');
-const scopes={'director-builder':['src/director.js'],'timeline-builder':['src/executableTimeline.js'],'music-builder':['src/musicDirector.js'],'scene-builder':['src/universalCreativeSceneEngine.js']};
+const scopes={'director-builder':['src/director.js'],'timeline-builder':['src/executableTimeline.js'],'music-builder':['src/musicDirector.js'],'scene-builder':['src/universalCreativeSceneEngine.js'],'rhythm-builder':['src/editorialRhythm.js'],'render-builder':['src/cinematicRendererV3.js']};
 for(const bot of specialists){assert(bot.entrypoint===paths.specialist&&['verified','experimental'].includes(bot.status)&&bot.protected===false,`specialist registry contract invalid: ${bot.id}`);if(bot.status==='experimental')assert(bot.experimental===true,`experimental specialist must declare experimental:true: ${bot.id}`);assert(JSON.stringify(bot.ownsFiles)===JSON.stringify(scopes[bot.id]),`specialist scope invalid: ${bot.id}`);for(const file of bot.ownsFiles){assert(!path.isAbsolute(file)&&!file.includes('..')&&!file.startsWith('.')&&!file.includes('\\'),`unsafe specialist scope: ${bot.id}:${file}`);assert(fs.existsSync(path.join(root,file)),`specialist scope file missing: ${file}`);}}
 has(specialist,/AUTOBOT_SPECIALIST_BOT_ID/,'specialist id contract missing');has(specialist,/AUTOBOT_SPECIALIST_OBJECTIVE/,'specialist objective contract missing');has(specialist,/AUTOBOT_SPECIALIST_BUILDER_ENABLED/,'specialist activation flag missing');has(specialist,/bot\.specialistBuilder/,'specialist registry-role guard missing');has(specialist,/ownsFiles/,'specialist registry scope guard missing');has(specialist,/candidateCommit/,'specialist candidate handoff wiring missing');has(specialist,/writeSpecialistHandoff\(/,'specialist handoff producer missing');has(specialist,/status\s*:\s*['"]verified-candidate['"]/,'verified candidate handoff missing');has(specialist,/AUTOBOT_FEATURE_PASSES/,'specialist feature-pass budget missing');has(specialist,/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'specialist verification deadline missing');has(specialist,/no-auto-commits/,'Aider auto-commits must remain disabled');has(specialist,/no-dirty-commits/,'Aider dirty commits must remain disabled');has(specialist,/Do not merge or push/,'specialist must not merge or push');
 has(coordinator,/specialistBotId/,'coordinator specialist discovery missing');has(coordinator,/specialistObjective/,'coordinator specialist objective missing');has(coordinator,/specialist-builder-required/,'coordinator specialist decision missing');
