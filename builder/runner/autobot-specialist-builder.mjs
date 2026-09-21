@@ -152,6 +152,8 @@ let keepBranch = false;
 let candidatePatch = '';
 try {
   run('git', ['worktree', 'add', '-b', branch, worktree, base], root);
+  run('git', ['config', 'user.name', process.env.AUTOBOT_GIT_USER_NAME || 'Bikeztagram AutoBot'], worktree);
+  run('git', ['config', 'user.email', process.env.AUTOBOT_GIT_USER_EMAIL || 'autobot@users.noreply.github.com'], worktree);
   const skipNpmInstall = String(process.env.AUTOBOT_SKIP_NPM_INSTALL || '').toLowerCase() === 'true';
   if (skipNpmInstall) {
     const modules = path.join(root, 'node_modules');
@@ -174,7 +176,7 @@ try {
     } catch { requestedMinutes = 15; }
   }
   const model = normalizeAiderModel(process.env.AUTOBOT_AIDER_MODEL || process.env.LOCAL_AI_MODEL);
-  const protocol = String(process.env.AUTOBOT_FEATURE_PROTOCOL || 'aider-repo-map-v4').trim();
+  const protocol = String(process.env.AUTOBOT_FEATURE_PROTOCOL || 'aider-diff-v5').trim();
   const configuredPasses = Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '', 10);
   const passCount = Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 120 ? 2 : 1;
   const verificationReserveMinutes = requestedMinutes >= 60 ? 5 : requestedMinutes >= 30 ? 3 : Math.min(2, Math.max(1, requestedMinutes - 1));
