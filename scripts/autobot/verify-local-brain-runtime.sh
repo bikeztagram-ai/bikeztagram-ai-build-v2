@@ -58,7 +58,10 @@ console.log(SMOKE_STATUS);
 EOF
 
 cd "$SMOKE_DIR"
-# Production specialist Aider sessions use Ollama directly on 11434; the 11435 proxy is intentionally limited to chat/health.\nexport OLLAMA_HOST="http://127.0.0.1:11434"\nexport OLLAMA_API_BASE="http://127.0.0.1:11434"\ncat > "$SMOKE_DIR/model-settings.yml" <<EOF
+# Production specialist Aider sessions use Ollama directly on 11434; the 11435 proxy is intentionally limited to chat/health.
+export OLLAMA_HOST="http://127.0.0.1:11434"
+export OLLAMA_API_BASE="http://127.0.0.1:11434"
+cat > "$SMOKE_DIR/model-settings.yml" <<EOF
 - name: ollama/${LOCAL_AI_MODEL}
   edit_format: architect
   editor_model_name: ollama/${LOCAL_AI_MODEL}
