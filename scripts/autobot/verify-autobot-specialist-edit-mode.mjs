@@ -7,7 +7,7 @@ execFileSync(process.execPath,['--check','builder/runner/aider-feature-brain.mjs
 execFileSync(process.execPath,['--check','builder/runner/autobot-specialist-builder.mjs'],{stdio:'inherit'});
 if(!specialistBuilder.includes("process.env.AUTOBOT_FEATURE_PROTOCOL || 'aider-diff-v5'")) throw new Error('specialist builder must default to the live aider-diff-v5 protocol');
 if(!specialistBuilder.includes("['config', 'user.name'")) throw new Error('specialist builder must configure an isolated git identity before committing');
-if(!brain.includes("const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'diff')")) throw new Error('specialist Aider edit format setting missing');
+if(!brain.includes("const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'udiff')")) throw new Error('specialist Aider edit format setting missing');
 if(!brain.includes("const specialistArchitect=process.env.AUTOBOT_SPECIALIST_AIDER_ARCHITECT==='true'")) throw new Error('specialist Aider architect/editor mode must be explicitly opt-in');
 if(!brain.includes("['diff','udiff','whole']")) throw new Error('specialist Aider edit-format validation missing');
 if(!brain.includes("const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'udiff')")) throw new Error('specialist Aider must default to unified diff editing');
