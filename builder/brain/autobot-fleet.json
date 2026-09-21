@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "status": "parallel-two-worker-live-test",
+  "status": "independent-worker-fanout-prototype",
   "enabled": true,
-  "purpose": "Run controlled two-worker AutoBot specialist shakedowns and an operator-approved four-to-five-hour overnight endurance validation before any larger parallel wave.",
+  "purpose": "Keep the proven Director and Timeline endurance lane intact while introducing isolated experimental specialist workers and a central fan-in contract.",
   "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving the protected proven builder and truthful verification.",
   "coordination": {
     "mode": "active",
@@ -30,7 +30,10 @@
     "cumulativeBranchPrefix": "autobot/endurance/cycle-",
     "evolutionRunner": "builder/runner/autobot-evolution-engineer.mjs",
     "evolutionWorkflow": ".github/workflows/autobot-evolution-engineer.yml",
-    "evolutionPolicy": "builder/brain/autobot-evolution-policy.json"
+    "evolutionPolicy": "builder/brain/autobot-evolution-policy.json",
+    "independentWorkerContract": "builder/brain/autobot-independent-worker-contract.json",
+    "fanInLedger": "builder/working/autobot-fan-in-ledger.json",
+    "fanInRunner": "builder/runner/autobot-independent-fan-in.mjs"
   },
   "activationGate": {
     "requiredEnabled": true,
@@ -172,6 +175,40 @@
       "protected": false,
       "analysisOnly": true,
       "blocking": false
+    },
+    {
+      "id": "music-builder",
+      "role": "experimental-specialist-original-music-builder",
+      "entrypoint": "builder/runner/autobot-specialist-builder.mjs",
+      "status": "experimental",
+      "owns": [
+        "music direction",
+        "arrangement",
+        "beat-aware music integration"
+      ],
+      "ownsFiles": [
+        "src/musicDirector.js"
+      ],
+      "specialistBuilder": true,
+      "experimental": true,
+      "protected": false
+    },
+    {
+      "id": "scene-builder",
+      "role": "experimental-specialist-scene-generation-builder",
+      "entrypoint": "builder/runner/autobot-specialist-builder.mjs",
+      "status": "experimental",
+      "owns": [
+        "generated scene direction",
+        "scene continuity",
+        "generation runtime"
+      ],
+      "ownsFiles": [
+        "src/universalCreativeSceneEngine.js"
+      ],
+      "specialistBuilder": true,
+      "experimental": true,
+      "protected": false
     }
   ],
   "handoffRules": [
@@ -195,6 +232,11 @@
     "Endurance cycles must consume the previous cycle's verified cumulative branch; main remains the protected starting point and final integration remains operator-controlled.",
     "The Evolution Engineer runs outside the production specialist lane and may observe completed-run evidence but must never become a dependency of the persistent production workflow.",
     "Evolution experiments are opt-in, infrastructure-only, non-merging and require human review before promotion.",
-    "Evolution work may not weaken validators, production gates, specialist scopes, the persistent engine or product source."
+    "Evolution work may not weaken validators, production gates, specialist scopes, the persistent engine or product source.",
+    "Experimental specialist workers must run in their own workflow run and branch; they must never become dependencies of the proven Director/Timeline endurance workflow.",
+    "Experimental specialist workers may execute only when explicitly requested by their dedicated workflow; the production planner must not dispatch them until their status is promoted from experimental to verified.",
+    "Independent worker results must fan in through one central run ledger before any integration candidate is assembled.",
+    "A worker branch is an implementation workspace, not the source of truth; the canonical handoff is its verified base/candidate metadata plus central ledger record.",
+    "Fan-in must classify every worker as completed, review, recovery, failed or pending so no result becomes an orphaned pot."
   ]
 }
