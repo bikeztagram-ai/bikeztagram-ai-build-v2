@@ -21,6 +21,26 @@ const enabled = String(process.env.AUTOBOT_SPECIALIST_BUILDER_ENABLED || '').tri
 const outcomePath = process.env.AUTOBOT_SPECIALIST_OUTCOME_PATH || path.join(root, 'builder/working/autobot-specialist-outcome.json');
 const handoffPath = process.env.AUTOBOT_SPECIALIST_HANDOFF_PATH || path.join(root, 'builder/working/autobot-specialist-handoff.json');
 const failurePatchPath = process.env.AUTOBOT_SPECIALIST_FAILURE_PATCH_PATH || path.join(root, 'builder/working/autobot-specialist-failure.patch');
+const learningPath = path.join(root, 'builder/brain/autobot-specialist-learning.json');
+let learningProfile = { default: { mapTokens: 1024, editFormat: 'diff', targetingMode: 'symbol-first', maxTargetSymbols: 6 }, bots: {}, failureStrategies: {} };
+try { learningProfile = JSON.parse(fs.readFileSync(learningPath, 'utf8')); } catch {}
+const botLearning = () => ({ ...(learningProfile.default || {}), ...(learningProfile.bots?.[botId] || {}) });
+function buildTargetMap(files) {
+  const maxSymbols = Math.max(1, Number(learningProfile.default?.maxTargetSymbols || 6));
+  const out = [];
+  for (const file of files) {
+    try {
+      const lines = fs.readFileSync(path.join(root, file), 'utf8').split(/\r?\n/);
+      lines.forEach((line, index) => {
+        if (/^(?:export\\s+)?(?:async\\s+)?function\\s+|^(?:export\\s+)?class\\s+|^(?:export\\s+)?const\\s+[A-Za-z_$][\\w$]*\\s*=/.test(line.trim())) {
+          out.push({ file, line: index + 1, declaration: line.trim().slice(0, 180) });
+        }
+      });
+    } catch {}
+  }
+  return out.slice(0, maxSymbols);
+}
+let aiderOutputTail = '';
 
 function fail(message) { throw new Error(message); }
 function run(command, args, cwd, options = {}) {
@@ -99,7 +119,7 @@ function runStructuredFallback(worktree, assignmentPath, model, base) {
   if (result.error || result.status !== 0) return result.error ? 1 : (result.status ?? 1);
   return 0;
 }
-function writeFailureOutcome({ error, base, worktree, files, candidatePatch = '' }) {
+function writeFailureOutcome({ error, base, worktree, files, candidatePatch = '', aiderOutput = '' }) {
   const patch = candidatePatch || captureBasePatch(base, worktree, files);
   let patchPath = null;
   if (patch.trim()) {
@@ -114,7 +134,8 @@ function writeFailureOutcome({ error, base, worktree, files, candidatePatch = ''
     status: 'failure', category: classification.category, repairable: classification.repairable,
     files, baseCommit: base || null, patchPath,
     evidence: ['GitHub Actions specialist execution logs', patchPath].filter(Boolean),
-    error: String(error?.message || error || 'unknown specialist failure')
+    error: String(error?.message || error || 'unknown specialist failure'),
+    aiderOutputTail: String(aiderOutput || aiderOutputTail || '').slice(-12000)
   }, null, 2) + '\n');
 }
 function parseObjective(text, bot, files) {
@@ -164,8 +185,13 @@ try {
   }
   const assignmentPath = path.join(worktree, 'builder/working/autobot-orchestrator-assignment.json');
   const objective = parseObjective(objectiveText, bot, files);
+  const learned = botLearning();
+  const targetMap = buildTargetMap(files);
+  objective.constraints.push(`Editing strategy: ${learned.targetingMode || 'symbol-first'}. Use the supplied target map to pinpoint the smallest relevant symbol before editing.`);
+  objective.constraints.push(`Preferred Aider map tokens: ${learned.mapTokens || 1024}. Preferred edit format: ${learned.editFormat || 'diff'}.`);
+  if (learned.promptHint) objective.constraints.push(`Learned specialist hint: ${learned.promptHint}`);
   fs.mkdirSync(path.dirname(assignmentPath), { recursive: true });
-  fs.writeFileSync(assignmentPath, JSON.stringify({ schemaVersion: 'autobot-orchestrator-assignment-v1', specialist: { id: botId, role: bot.role }, objective, source: 'parallel-specialist-workflow' }, null, 2) + '\n');
+  fs.writeFileSync(assignmentPath, JSON.stringify({ schemaVersion: 'autobot-orchestrator-assignment-v1', specialist: { id: botId, role: bot.role }, objective, targetMap, learning: learned, source: 'parallel-specialist-workflow' }, null, 2) + '\n');
 
   let requestedMinutes = Math.max(1, Number.parseInt(process.env.BUILDER_MAX_MINUTES || '', 10));
   if (!Number.isFinite(requestedMinutes)) {
@@ -177,6 +203,9 @@ try {
   }
   const model = normalizeAiderModel(process.env.AUTOBOT_AIDER_MODEL || process.env.LOCAL_AI_MODEL);
   const protocol = String(process.env.AUTOBOT_FEATURE_PROTOCOL || 'aider-diff-v5').trim();
+  const learned = botLearning();
+  const learnedMapTokens = Math.max(512, Math.min(4096, Number(learned.mapTokens || 1024)));
+  const learnedEditFormat = ['diff','udiff','whole'].includes(String(learned.editFormat || 'diff')) ? String(learned.editFormat) : 'diff';
   const configuredPasses = Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '', 10);
   const passCount = Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 120 ? 2 : 1;
   const verificationReserveMinutes = requestedMinutes >= 60 ? 5 : requestedMinutes >= 30 ? 3 : Math.min(2, Math.max(1, requestedMinutes - 1));
@@ -191,7 +220,7 @@ try {
   const deadline = Date.now() + controllerMinutes * 60_000;
   const engineEnv = {
     ...process.env,
-    AUTOBOT_SPECIALIST_MODE: 'true', AUTOBOT_FEATURE_ENGINE: 'aider', AUTOBOT_ORCHESTRATOR_ENABLED: 'true',
+    AUTOBOT_SPECIALIST_MODE: 'true', AUTOBOT_FEATURE_ENGINE: 'aider', AUTOBOT_ORCHESTRATOR_ENABLED: 'true', AUTOBOT_SPECIALIST_MAP_TOKENS: String(learnedMapTokens), AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT: learnedEditFormat,
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath, AUTOBOT_FEATURE_PROTOCOL: protocol,
     AUTOBOT_FEATURE_PASSES: String(passCount), AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline), AUTOBOT_AIDER_MODEL: model,
@@ -200,7 +229,9 @@ try {
     BUILDER_MAX_MINUTES: String(controllerMinutes), AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
   console.log(`[autobot] specialist ${botId} entering proven long-run controller: ${controllerMinutes}m controller budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(20, controllerMinutes)}m max slice + ${fallbackReserveMinutes}m structured fallback + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace (${model}, ${protocol})`);
-  const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], { cwd: worktree, stdio: 'inherit', env: engineEnv, timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000 });
+  const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], { cwd: worktree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: engineEnv, timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000 });
+  aiderOutputTail = `${engine.stdout || ''}\n${engine.stderr || ''}`.slice(-12000);
+  if (aiderOutputTail) process.stdout.write(aiderOutputTail + '\n');
   if (engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller ended with ${engine.error.message}; inspecting worktree before fallback`);
   if (engine.status !== 0 && engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller process status: ${engine.status ?? 'error'}`);
 
@@ -231,11 +262,11 @@ try {
   const candidate = git(['rev-parse', 'HEAD'], worktree);
   const handoffFile = writeSpecialistHandoff({ schemaVersion: 'autobot-specialist-handoff-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, baseCommit: base, candidateCommit: candidate, branch, ownsFiles: staged, productQualityCheck: productQuality, status: 'verified-candidate', downstream: { reviewContract: 'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT' } }, handoffPath);
   fs.mkdirSync(path.dirname(outcomePath), { recursive: true });
-  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffFile], engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
+  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffFile], engine: 'aider-first-with-structured-fallback', learnedMapTokens, learnedEditFormat, targetMap, aiderOutputTail: aiderOutputTail.slice(-12000), featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
   keepBranch = true;
   console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath: handoffFile }));
 } catch (error) {
-  writeFailureOutcome({ error, base, worktree, files, candidatePatch });
+  writeFailureOutcome({ error, base, worktree, files, candidatePatch, aiderOutput: aiderOutputTail });
   throw error;
 } finally {
   try { run('git', ['worktree', 'remove', '--force', worktree], root); } catch {}
