@@ -18,6 +18,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: read
 
 concurrency:
   group: autobot-persistent-specialists
@@ -38,6 +39,8 @@ env:
   AUTOBOT_MAX_NO_PROGRESS_CYCLES: '2'
 
 jobs:
+  # PRODUCTION LANE — unchanged. The proven Director + Timeline engine owns
+  # its own fan-out, recovery, QA and protected integration lifecycle.
   persistent-autobot:
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -137,4 +140,221 @@ jobs:
             builder/working/autobot-final-handoff.json
             builder/working/autobot-rnd-brief.json
             builder/working/persistent/**
+          if-no-files-found: ignore
+
+  # EXPERIMENTAL FAN-OUT — these are separate GitHub jobs/runners. Each job
+  # owns its own Aider process, local model server and worktree, so neither
+  # experimental lane can share state with or block the production lane.
+  experimental-music:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Music lane dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Install Music lane Aider
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+
+      - name: Start isolated Music AI brain
+        run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_DISCOVERY_MODEL: ${{ env.AUTOBOT_DISCOVERY_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
+          OLLAMA_CONTEXT_LENGTH: 4096
+          OLLAMA_NUM_PARALLEL: 1
+          OLLAMA_MAX_QUEUE: 4
+          OLLAMA_LOAD_TIMEOUT: 20m
+          OLLAMA_KEEP_ALIVE: 90m
+
+      - name: Run Music specialist
+        id: execute
+        env:
+          AUTOBOT_SPECIALIST_BOT_ID: music-builder
+          AUTOBOT_SPECIALIST_OBJECTIVE: "Experimental Music lane: make one minimal, production-safe improvement to original music direction/structure in src/musicDirector.js. Preserve existing APIs and contracts; actually edit the owned file, verify it, and leave a candidate when valid."
+          AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_BASE_REF: ${{ github.sha }}
+          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
+          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
+        run: node builder/runner/autobot-specialist-builder.mjs
+
+      - name: Publish Music candidate branch
+        if: steps.execute.outcome == 'success'
+        run: |
+          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
+          git push --set-upstream origin "$b"
+
+      - name: Upload Music worker evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-persistent-experimental-music-${{ github.run_id }}
+          path: |
+            builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-specialist-outcome.json
+            builder/working/autobot-specialist-failure.patch
+          if-no-files-found: ignore
+
+  experimental-scene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Scene lane dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+
+      - name: Install Scene lane Aider
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+
+      - name: Start isolated Scene AI brain
+        run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_DISCOVERY_MODEL: ${{ env.AUTOBOT_DISCOVERY_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
+          OLLAMA_CONTEXT_LENGTH: 4096
+          OLLAMA_NUM_PARALLEL: 1
+          OLLAMA_MAX_QUEUE: 4
+          OLLAMA_LOAD_TIMEOUT: 20m
+          OLLAMA_KEEP_ALIVE: 90m
+
+      - name: Run Scene specialist
+        id: execute
+        env:
+          AUTOBOT_SPECIALIST_BOT_ID: scene-builder
+          AUTOBOT_SPECIALIST_OBJECTIVE: "Experimental Scene lane: make one minimal, production-safe improvement to generated-scene direction/continuity in src/universalCreativeSceneEngine.js. Preserve existing APIs and contracts; actually edit the owned file, verify it, and leave a candidate when valid."
+          AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'true'
+          AUTOBOT_BASE_REF: ${{ github.sha }}
+          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
+          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
+        run: node builder/runner/autobot-specialist-builder.mjs
+
+      - name: Publish Scene candidate branch
+        if: steps.execute.outcome == 'success'
+        run: |
+          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
+          git push --set-upstream origin "$b"
+
+      - name: Upload Scene worker evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-persistent-experimental-scene-${{ github.run_id }}
+          path: |
+            builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-specialist-outcome.json
+            builder/working/autobot-specialist-failure.patch
+          if-no-files-found: ignore
+
+  # EXPERIMENTAL FAN-IN — records both experimental lanes into the same
+  # coordination ledger. It never merges product code and never gates the
+  # production persistent-autobot job.
+  experimental-fan-in:
+    needs: [experimental-music, experimental-scene]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download Music evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-persistent-experimental-music-${{ github.run_id }}
+          path: builder/working/experimental/music
+
+      - name: Download Scene evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-persistent-experimental-scene-${{ github.run_id }}
+          path: builder/working/experimental/scene
+
+      - name: Build canonical fan-in ledger
+        env:
+          COORDINATION_ID: persistent-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p builder/working/fan-in
+          for bot in music scene; do
+            dir="builder/working/experimental/$bot"
+            handoff="$(find "$dir" -name autobot-specialist-handoff.json -print -quit 2>/dev/null || true)"
+            outcome="$(find "$dir" -name autobot-specialist-outcome.json -print -quit 2>/dev/null || true)"
+            if [ -z "$handoff" ] && [ -z "$outcome" ]; then
+              cat > "$dir/autobot-specialist-outcome.json" <<EOF
+          {
+            "botId": "${bot}-builder",
+            "status": "failure",
+            "category": "workflow-failure",
+            "repairable": true,
+            "coordinationId": "$COORDINATION_ID",
+            "error": "No worker evidence artifact was produced."
+          }
+          EOF
+              outcome="$dir/autobot-specialist-outcome.json"
+            fi
+            if [ -n "$handoff" ]; then
+              node builder/runner/autobot-independent-fan-in.mjs \
+                --coordination-id "$COORDINATION_ID" \
+                --handoff "$handoff" \
+                --outcome "$outcome" \
+                --ledger builder/working/fan-in/autobot-fan-in-ledger.json
+            else
+              node builder/runner/autobot-independent-fan-in.mjs \
+                --coordination-id "$COORDINATION_ID" \
+                --outcome "$outcome" \
+                --ledger builder/working/fan-in/autobot-fan-in-ledger.json
+            fi
+          done
+          cat builder/working/fan-in/autobot-fan-in-ledger.json
+
+      - name: Upload unified experimental fan-in evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-persistent-experimental-fan-in-${{ github.run_id }}
+          path: builder/working/fan-in/autobot-fan-in-ledger.json
           if-no-files-found: ignore

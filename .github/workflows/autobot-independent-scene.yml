@@ -30,7 +30,7 @@ permissions:
   contents: write
   actions: read
 concurrency:
-  group: autobot-independent-music-${{ inputs.coordination_id }}
+  group: autobot-independent-scene-${{ inputs.coordination_id }}
   cancel-in-progress: false
 jobs:
   scene-builder:
@@ -61,9 +61,9 @@ jobs:
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
           OLLAMA_KEEP_ALIVE: 90m
-      - name: Run independent Music specialist
+      - name: Run independent Scene specialist
         env:
-          AUTOBOT_SPECIALIST_BOT_ID: music-builder
+          AUTOBOT_SPECIALIST_BOT_ID: scene-builder
           AUTOBOT_SPECIALIST_OBJECTIVE: ${{ inputs.objective }}
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
           AUTOBOT_EXPERIMENTAL_WORKER: 'true'
@@ -86,7 +86,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: autobot-independent-music-${{ github.run_id }}
+          name: autobot-independent-scene-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
