@@ -30,6 +30,10 @@ has(/AUTOBOT_FEATURE_PASSES/,'Specialist Builder must pass its feature-pass budg
 has(/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'Specialist Builder must pass its verification deadline to the shared controller.');
 has(/export\\s\+|function\\s\+|class\\s\+|const\\s\+/,'Specialist Builder target-map symbol matcher must use real regex whitespace tokens.');
 has(/buildTargetMap\(/,'Specialist Builder must build a scoped target map for focused editing.');
+has(/num_ctx:\s*4096/,'Specialist Aider model settings must bound Ollama context for CPU-safe targeted editing.');
+has(/num_predict:\s*768/,'Specialist Aider model settings must bound output generation for CPU-safe targeted editing.');
+has(/--model-settings-file/,'Specialist Aider must load the bounded local model settings.');
+has(/specialist\s*\?\s*'--map-tokens=0'/,'Specialist Aider must disable the broad repository map and rely on exact target anchors.');
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 const productionSpecialists=specialists.filter(b=>b.status==='verified');
 assert(productionSpecialists.length===8,'Exactly eight verified specialist Builders are authorised by the current gate.');
