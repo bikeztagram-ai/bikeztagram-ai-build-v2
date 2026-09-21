@@ -84,7 +84,8 @@
     "verify:autobot-persistent-cycle": "node scripts/autobot/verify-autobot-persistent-cycle.mjs",
     "verify:autobot-rnd": "node scripts/autobot/verify-autobot-rnd.mjs",
     "verify:autobot-evolution-engineer": "node scripts/autobot/verify-autobot-evolution-engineer.mjs",
-    "verify:autobot-independent-workers": "node scripts/autobot/verify-independent-worker-contract.mjs"
+    "verify:autobot-independent-workers": "node scripts/autobot/verify-independent-worker-contract.mjs",
+    "verify:autobot-specialist-edit-mode": "node scripts/autobot/verify-autobot-specialist-edit-mode.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
