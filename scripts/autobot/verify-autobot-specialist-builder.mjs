@@ -33,7 +33,7 @@ has(/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'Specialist Builder must pass its verifi
 has(/export\\s\+|function\\s\+|class\\s\+|const\\s\+/,'Specialist Builder target-map symbol matcher must use real regex whitespace tokens.');
 has(/buildTargetMap\(/,'Specialist Builder must build a scoped target map for focused editing.');
 hasAider(/const srcOnly=files\.every\(f=>f\.startsWith\('src\/'\)\)/,'Specialist Aider must use the proven src-subtree scope for src-owned lanes.');
-hasAider(/const specialistMapTokens=.*\|\|'768'/,'Specialist Aider must use the proven 768-token scoped map default.');
+hasAider(/const specialistMapArg=specialist\?`--map-tokens=2048`/,'Specialist Aider must use the proven 2048-token scoped map.');
 hasAider(/--subtree-only/,'Specialist Aider must keep editing scoped to the supplied subtree.');
 hasAider(/`--edit-format=\$\{specialistEditFormat\}`/,'Specialist Aider must pass the configured direct edit format.');
 assert(!aider.includes('--model-settings-file'),'Specialist Aider must not reintroduce generated model-settings/architect wiring into the direct path.');
