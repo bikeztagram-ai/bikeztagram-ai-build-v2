@@ -8,7 +8,7 @@ import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 const root=process.cwd();
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
-const assert=(ok,msg)=>{if(!ok)throw new Error(msg)};
+const auditFailures=[];const assert=(ok,msg)=>{if(!ok)auditFailures.push(msg)};
 const workflow=read('.github/workflows/autobot-parallel-specialists.yml');
 const engine=read('builder/runner/autobot-persistent-cycle-engine.mjs');
 const specialist=read('builder/runner/autobot-specialist-builder.mjs');
@@ -51,8 +51,8 @@ const checks=[
  [workflow.includes('OLLAMA_KEEP_ALIVE: 6h'),'endurance model keep-alive must not expire at the 30-minute cycle boundary'],
  [engine.includes("const totalMinutes=parseDuration(process.env.AUTOBOT_TOTAL_DURATION||'30m')")&&engine.includes('const normalDeadlineMs=startMs+totalMinutes*60_000'),'requested total duration must drive the cumulative deadline, not the per-cycle specialist budget'],
  [engine.includes('async function runSpecialists(cycle,plan,cycleBudgetMs)')&&engine.includes('const specialistBudgetMinutes=Math.max(1,Math.min(configuredCycleMinutes')&&engine.includes('cycleBudgetMs')&&engine.includes('remainingNormalMs()')&&engine.includes('AUTOBOT_TOTAL_DURATION'),'specialist budget must remain bounded by the configured cycle limit while shrinking to the remaining cumulative budget'],
- [workflow.includes('timeout-minutes: 345'),'5h30 plus 15-minute finish grace must fit exactly within the 345-minute job ceiling'],
- [workflow.includes('timeout-minutes: 345'),'final job ceiling must remain below GitHub six-hour cutoff'],
+ [workflow.includes('timeout-minutes: 360'),'5h30 plus 15-minute finish grace must leave setup headroom inside the 360-minute GitHub job ceiling'],
+ [workflow.includes('timeout-minutes: 360'),'final job ceiling must remain at or below GitHub six-hour cutoff'],
  [workflow.includes("'5h'"),'final 5h option must exist'],
  [workflow.includes("'5h30'") && registry.activationGate?.allowedTestDurations?.includes('5h30'),'5h30 workflow option must be explicitly authorised by the fleet activation gate'],
  [engine.includes("const hm=text.match(/^(\\d+)h(\\d{1,2})m?$/)")&&engine.includes('Number(hm[1])*60+minutes')&&engine.includes("if(hm){"),'engine must parse compact hour-minute durations such as 5h30'],
@@ -81,9 +81,10 @@ const checks=[
 
  [quality.includes('AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT')&&quality.includes('AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT'),'product-quality guard must inspect committed candidate diffs during independent QA/Reviewer instead of reporting clean committed work as not-applicable'],
  [candidate.includes('AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT:base')&&candidate.includes('AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT:candidate'),'candidate verification must pass the exact base/candidate pair into the product-quality guard'],
+ [engine.includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT:process.env.AUTOBOT_CYCLE_BASE_COMMIT||\'\''),'candidate verification must receive the exact cycle base from the persistent engine'],
  [candidate.includes("git',['worktree','add','--detach',temp,candidate]")&&candidate.includes("git',['push','--set-upstream','origin',branch]")&&!candidate.includes("git',['apply','--check'")&&!candidate.includes("git',['apply','--whitespace=nowarn'"),'recovered candidates must be reconstructed from exact immutable commits, never serialized and replayed as patches'],
  [engine.includes("recoveryTransport:'exact-commit'")&&engine.includes("git',['rev-parse','--verify',candidateCommit]")&&!engine.includes("--binary"),'persistent recovery handoff must persist exact commit identity and avoid generated patch transport'],
- [engine.includes('cycleBaseCommit:process.env.AUTOBOT_CYCLE_BASE_COMMIT||baseCommit')&&engine.includes('cycleBaseCommit:expectedCycleBase||base'),'recovery and candidate handoff evidence must preserve the original cycle base separately from the immediate repair base'],
+ [engine.includes('cycleBaseCommit:process.env.AUTOBOT_CYCLE_BASE_COMMIT||baseCommit')&&candidate.includes('cycleBaseCommit:expectedCycleBase||base'),'recovery and candidate handoff evidence must preserve the original cycle base separately from the immediate repair base'],
  [read('builder/runner/autobot-qa.mjs').includes('AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT:base')&&read('builder/runner/autobot-qa.mjs').includes('AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT:commit'),'independent QA must pass the exact repair commit pair into the product-quality guard'],
  [read('builder/runner/autobot-reviewer.mjs').includes('AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT:base')&&read('builder/runner/autobot-reviewer.mjs').includes('AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT:candidate'),'adversarial Reviewer must enforce the product-quality guard against the committed candidate'],
  [read('builder/runner/autobot-repair.mjs').includes("'--no-git'")&&read('builder/runner/aider-feature-brain.mjs').includes("specialist?['--no-git',`--edit-format=udiff`]")&&read('builder/runner/autobot-repair.mjs').includes("--edit-format=${editFormat}"),'specialist and Repair Aider sessions must disable Aider git/repo scanning; the outer AutoBot owns git state, scope, commits and verification'],
@@ -138,4 +139,5 @@ const checks=[
  [registry.coordination?.rndRunner==='builder/runner/autobot-rnd.mjs'&&registry.coordination?.rndOutput==='builder/working/autobot-rnd-brief.json'&&registry.bots.some(b=>b.id==='rnd'&&b.entrypoint==='builder/runner/autobot-rnd.mjs'&&b.analysisOnly===true),'dedicated R&D runner/output must be registered as analysis-only'],
 ];
 for(const [ok,msg] of checks)assert(ok,msg);
+if(auditFailures.length){console.error(JSON.stringify({ok:false,checks:checks.length,failures:auditFailures},null,2));process.exit(1);}
 console.log(JSON.stringify({ok:true,checks:checks.length,chain:['Planner','Director + Timeline Specialists (parallel)','Repair','independent QA + Reviewer','Carry-forward','repeat in same runner'],restartPerCycle:false,githubJobCeilingMinutes:345},null,2));
