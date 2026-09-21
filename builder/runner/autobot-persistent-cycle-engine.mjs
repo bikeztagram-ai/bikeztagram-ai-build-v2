@@ -264,10 +264,14 @@ function integrate(cycle,baseRef,verified){
   checkoutBase(baseRef);
   const branch=`autobot/persistent/cycle-${cycle}-${process.env.GITHUB_RUN_ID||Date.now()}`;
   run('git',['checkout','-b',branch]);
+  // All parallel specialist candidates in this cycle must be validated against
+  // the same immutable cycle base. Do not recompute the baseline after merging
+  // the first sibling candidate, or the second sibling will appear to have the
+  // wrong lineage even though both candidates correctly descend from the cycle base.
+  const cycleBase=git(['rev-parse','HEAD']);
   for(const item of verified){
     assertScope(item.bot,item.check);
     const candidateBranch=item.check.branch,candidate=item.check.candidateCommit;
-    const cycleBase=git(['rev-parse','HEAD']);
     if(item.check.cycleBaseCommit && item.check.cycleBaseCommit!==cycleBase) fail(`cycle base mismatch for ${item.bot}: expected ${cycleBase}, candidate reports ${item.check.cycleBaseCommit}`);
     const mergeBase=git(['merge-base',cycleBase,candidate]);
     if(mergeBase!==cycleBase)fail(`candidate ${item.bot} is not based on the exact cycle base; merge-base=${mergeBase}`);
