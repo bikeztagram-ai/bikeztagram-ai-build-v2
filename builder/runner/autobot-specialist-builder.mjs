@@ -242,6 +242,7 @@ try {
   };
   console.log(`[autobot] specialist ${botId} entering proven long-run controller: ${controllerMinutes}m controller budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(20, controllerMinutes)}m max slice + ${fallbackReserveMinutes}m structured fallback + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace (${model}, ${protocol})`);
   const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], { cwd: worktree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: engineEnv, timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000 });
+  aiderAttempted = true;
   aiderOutputTail = `${engine.stdout || ''}\n${engine.stderr || ''}`.slice(-12000);
   if (aiderOutputTail) process.stdout.write(aiderOutputTail + '\n');
   if (engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller ended with ${engine.error.message}; inspecting worktree before fallback`);
@@ -249,6 +250,8 @@ try {
 
   let candidateFiles = ownedProductFiles(base, worktree, files);
   candidatePatch = captureBasePatch(base, worktree, files);
+  aiderMaterialized = Boolean(candidateFiles.length && candidatePatch.trim());
+  if (aiderMaterialized) candidateOrigin = 'aider';
   if (!candidateFiles.length || !candidatePatch.trim()) {
     const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model, base);
     candidateFiles = ownedProductFiles(base, worktree, files);
@@ -267,6 +270,7 @@ try {
   } catch (qualityError) {
     console.warn(`[autobot] structured fallback candidate failed product-quality guard; resetting to base and invoking deterministic specialist fallback: ${qualityError.message}`);
     run('git', ['reset', '--hard', base], worktree);
+    candidateOrigin = 'deterministic-fallback';
     const deterministic = spawnSync(process.execPath, ['builder/runner/autobot-specialist-deterministic-fallback.mjs'], {
       cwd: worktree,
       stdio: 'inherit',
