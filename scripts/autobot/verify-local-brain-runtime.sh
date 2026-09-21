@@ -70,7 +70,27 @@ aider \
   --timeout 180 \
   --edit-format udiff \
   smoke.js >/tmp/bikeztagram-aider-runtime-smoke.log 2>&1
-grep -q "SMOKE_STATUS = 'READY'" smoke.js
+grep -q "console\.log('READY');" smoke.js
+node smoke.js | grep -q '^READY
+
+echo '[autobot-smoke] Aider provider/edit request passed'
+
+# Confirm exactly one listener exists and reject the duplicate-bind signature
+# that caused the previous endurance run to fail.
+listener_count="$(ss -ltn 2>/dev/null | awk '$4 ~ /127\.0\.0\.1:11434$/ {count++} END {print count+0}')"
+if [[ "$listener_count" != "1" ]]; then
+  echo "[autobot-smoke] expected exactly one Ollama listener on 11434; found $listener_count" >&2
+  exit 1
+fi
+
+if grep -Eq 'bind: address already in use|address already in use' /tmp/bikeztagram-ollama.log 2>/dev/null; then
+  echo '[autobot-smoke] duplicate Ollama bind detected in server log' >&2
+  tail -n 120 /tmp/bikeztagram-ollama.log >&2 || true
+  exit 1
+fi
+
+echo '[autobot-smoke] PASS: Ollama lifecycle, proxy, model, Aider, and single-listener checks all passed.'
+
 
 echo '[autobot-smoke] Aider provider/edit request passed'
 
