@@ -39,7 +39,8 @@ function buildTargetMap(files, objective) {
         if (/^(?:export\s+)?(?:async\s+)?function\s+|^(?:export\s+)?class\s+|^(?:export\s+)?const\s+[A-Za-z_$][\w$]*\s*=/.test(trimmed)) {
           const lower=trimmed.toLowerCase();
           const score=keywords.reduce((n,k)=>n+(lower.includes(k)?1:0),0);
-          out.push({ file, line:index+1, score, declaration:trimmed.slice(0,180) });
+          const context=lines.slice(Math.max(0,index-3),Math.min(lines.length,index+4)).join('\n');
+          out.push({ file, line:index+1, score, declaration:trimmed.slice(0,180), context:context.slice(0,1400) });
         }
       });
     } catch {}
@@ -193,7 +194,8 @@ try {
   const objective = parseObjective(objectiveText, bot, files);
   const learned = botLearning();
   const targetMap = buildTargetMap(files, objectiveText);
-  objective.constraints.push(`Editing strategy: ${learned.targetingMode || 'symbol-first'}. Use the supplied target map to pinpoint the smallest relevant symbol before editing.`);
+  if (!targetMap.length) fail(`Specialist Builder target map is empty for ${botId}; refusing to spend the AI editing budget without symbol-level anchors.`);
+  objective.constraints.push(`Editing strategy: ${learned.targetingMode || 'symbol-first'}. Use the supplied target map, including exact source context, to pinpoint the smallest relevant symbol before editing.`);
   objective.constraints.push(`Preferred Aider map tokens: ${learned.mapTokens || 1024}. Preferred edit format: ${learned.editFormat || 'diff'}.`);
   if (learned.promptHint) objective.constraints.push(`Learned specialist hint: ${learned.promptHint}`);
   fs.mkdirSync(path.dirname(assignmentPath), { recursive: true });
@@ -212,7 +214,7 @@ try {
   const learnedMapTokens = Math.max(512, Math.min(4096, Number(learned.mapTokens || 1024)));
   const learnedEditFormat = ['diff','udiff','whole'].includes(String(learned.editFormat || 'diff')) ? String(learned.editFormat) : 'diff';
   const configuredPasses = Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '', 10);
-  const passCount = Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 120 ? 2 : 1;
+  const passCount = Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 30 ? 2 : 1;
   const verificationReserveMinutes = requestedMinutes >= 60 ? 5 : requestedMinutes >= 30 ? 3 : Math.min(2, Math.max(1, requestedMinutes - 1));
   const fallbackReserveMinutes = Math.min(6, Math.max(4, requestedMinutes >= 30 ? 6 : 5));
   const controllerFinishGraceMinutes = Math.max(0, Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES || '5', 10));
