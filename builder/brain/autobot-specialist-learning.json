@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "purpose": "Evidence-driven tuning hints for isolated specialist editing. Human review is required before changes are promoted to main.",
   "default": {
-    "mapTokens": 2048,
+    "mapTokens": 768,
     "editFormat": "udiff",
     "targetingMode": "symbol-first",
     "maxTargetSymbols": 6
@@ -12,7 +12,7 @@
     "search-replace-no-exact-match": {
       "retryEditFormat": "udiff",
       "targetingMode": "symbol-first",
-      "mapTokens": 2048,
+      "mapTokens": 768,
       "promptHint": "Use the target map's exact source context and make the smallest patch against the named symbol. If an anchor differs, re-read the current target context and adapt rather than guessing."
     },
     "no-product-change": {
