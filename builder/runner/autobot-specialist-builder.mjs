@@ -24,7 +24,7 @@ const outcomePath = process.env.AUTOBOT_SPECIALIST_OUTCOME_PATH || path.join(roo
 const handoffPath = process.env.AUTOBOT_SPECIALIST_HANDOFF_PATH || path.join(root, 'builder/working/autobot-specialist-handoff.json');
 const failurePatchPath = process.env.AUTOBOT_SPECIALIST_FAILURE_PATCH_PATH || path.join(root, 'builder/working/autobot-specialist-failure.patch');
 const learningPath = path.join(root, 'builder/brain/autobot-specialist-learning.json');
-let learningProfile = { default: { mapTokens: 1024, editFormat: 'diff', targetingMode: 'symbol-first', maxTargetSymbols: 6 }, bots: {}, failureStrategies: {} };
+let learningProfile = { default: { mapTokens: 768, editFormat: 'udiff', targetingMode: 'symbol-first', maxTargetSymbols: 6 }, bots: {}, failureStrategies: {} };
 try { learningProfile = JSON.parse(fs.readFileSync(learningPath, 'utf8')); } catch {}
 const botLearning = () => ({ ...(learningProfile.default || {}), ...(learningProfile.bots?.[botId] || {}) });
 function buildTargetMap(files, objective) {
