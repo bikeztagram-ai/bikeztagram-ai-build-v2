@@ -29,8 +29,8 @@ function readOptional(file) {
 }
 const handoff = readOptional(handoffPath);
 const outcome = readOptional(outcomePath);
-const source = handoff || outcome;
-if (!source) fail('No worker handoff/outcome could be read.');
+const source = { ...(outcome || {}), ...(handoff || {}) };
+if (!handoff && !outcome) fail('No worker handoff/outcome could be read.');
 
 const botId = String(source.botId || '').trim();
 if (!botId) fail('Worker result is missing botId.');
@@ -58,7 +58,10 @@ const record = {
   aiderOutputTail: source.aiderOutputTail || null,
   learnedMapTokens: source.learnedMapTokens || null,
   learnedEditFormat: source.learnedEditFormat || null,
-  targetMap: Array.isArray(source.targetMap) ? source.targetMap : []
+  targetMap: Array.isArray(source.targetMap) ? source.targetMap : [],
+  candidateOrigin: source.candidateOrigin || null,
+  aiderAttempted: source.aiderAttempted === true,
+  aiderMaterialized: source.aiderMaterialized === true
 };
 
 fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });

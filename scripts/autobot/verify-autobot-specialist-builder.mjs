@@ -6,11 +6,13 @@ const root=process.cwd();
 const runnerPath='builder/runner/autobot-specialist-builder.mjs';
 const registryPath='builder/brain/autobot-fleet.json';
 const runner=fs.readFileSync(path.join(root,runnerPath),'utf8');
+const aider=fs.readFileSync(path.join(root,'builder/runner/aider-feature-brain.mjs'),'utf8');
 const registry=JSON.parse(fs.readFileSync(path.join(root,registryPath),'utf8'));
 const suite=fs.readFileSync(path.join(root,'scripts/verify-main-suite.mjs'),'utf8');
 const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 function assert(ok,message){if(!ok)throw new Error(message);}
 function has(pattern,message){assert(pattern.test(runner),message);}
+function hasAider(pattern,message){assert(pattern.test(aider),message);}
 assert(fs.existsSync(path.join(root,runnerPath)),'Specialist Builder runner is missing.');
 has(/AUTOBOT_SPECIALIST_BOT_ID/,'Specialist Builder must discover its registry bot id.');
 has(/AUTOBOT_SPECIALIST_OBJECTIVE/,'Specialist Builder must receive an explicit objective.');
@@ -30,6 +32,10 @@ has(/AUTOBOT_FEATURE_PASSES/,'Specialist Builder must pass its feature-pass budg
 has(/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'Specialist Builder must pass its verification deadline to the shared controller.');
 has(/export\\s\+|function\\s\+|class\\s\+|const\\s\+/,'Specialist Builder target-map symbol matcher must use real regex whitespace tokens.');
 has(/buildTargetMap\(/,'Specialist Builder must build a scoped target map for focused editing.');
+hasAider(/num_ctx:\s*4096/,'Specialist Aider model settings must bound Ollama context for CPU-safe targeted editing.');
+hasAider(/num_predict:\s*768/,'Specialist Aider model settings must bound output generation for CPU-safe targeted editing.');
+hasAider(/--model-settings-file/,'Specialist Aider must load the bounded local model settings.');
+hasAider(/specialist\s*\?\s*'--map-tokens=0'/,'Specialist Aider must disable the broad repository map and rely on exact target anchors.');
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 const productionSpecialists=specialists.filter(b=>b.status==='verified');
 assert(productionSpecialists.length===8,'Exactly eight verified specialist Builders are authorised by the current gate.');
