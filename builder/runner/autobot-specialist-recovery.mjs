@@ -92,13 +92,17 @@ try{
   if(!files.length)throw new Error('repairable specialist failure has no file scope');
   const changed=git(['diff','--name-only']).split(/\r?\n/).filter(Boolean);
   if(changed.some(file=>!files.includes(file)))throw new Error(`restored specialist patch escaped declared scope: ${changed.filter(file=>!files.includes(file)).join(', ')}`);
+  // Queue the failure only after the exact base/patch have been restored. The
+  // candidate commit is intentionally created later, after recovery preflight;
+  // never reference that later value from this earlier queue-record construction.
+  let restoredCommit=null;
   const queueRecord=appendFailure({
     source:'autobot-specialist-builder',runId:process.env.GITHUB_RUN_ID||'local',objectiveId:`specialist:${outcome.botId}`,taskId:`specialist:${outcome.botId}`,
     stage:'specialist-builder',error:outcome.error,
     expected:`Specialist objective completes with build and product-quality verification: ${outcome.objective}`,
     actual:outcome.error,files,evidence:outcome.evidence||[],attempted:[`Specialist ${outcome.botId} execution`],retryable:true,
-    repairHint:`Repair the failed ${outcome.botId} candidate from restored commit ${restoredCommit}.`,
-    metadata:{specialistBotId:outcome.botId,objective:outcome.objective,specialistBaseCommit:base,restoredCandidateCommit:restoredCommit,restoredRecoveryBranch:branch}
+    repairHint:`Repair the failed ${outcome.botId} candidate from exact restored base ${base}; preserve its declared file scope.`,
+    metadata:{specialistBotId:outcome.botId,objective:outcome.objective,specialistBaseCommit:base,restoredCandidateCommit:null,restoredRecoveryBranch:branch}
   });
 
   const preflight=verifyCandidateTree(recoveryRoot);
@@ -106,7 +110,6 @@ try{
   if(registry.enabled!==true||registry.coordination?.mode!=='active')throw new Error('fleet recovery gate is not active');
 
   let result;
-  let restoredCommit=null;
   if(preflight.ok){
     run(['add','--',...files]);
     run(['commit','-m',`chore(autobot): restore failed ${outcome.botId} candidate`]);
