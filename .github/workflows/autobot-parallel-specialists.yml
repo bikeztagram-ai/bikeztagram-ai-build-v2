@@ -336,11 +336,18 @@ jobs:
           EOF
               outcome="$dir/autobot-specialist-outcome.json"
             fi
-            node builder/runner/autobot-independent-fan-in.mjs \
-              --coordination-id "$COORDINATION_ID" \
-              ${handoff:+--handoff "$handoff"} \
-              --outcome "$outcome" \
-              --ledger builder/working/fan-in/autobot-fan-in-ledger.json
+            if [ -n "$handoff" ]; then
+              node builder/runner/autobot-independent-fan-in.mjs \
+                --coordination-id "$COORDINATION_ID" \
+                --handoff "$handoff" \
+                --outcome "$outcome" \
+                --ledger builder/working/fan-in/autobot-fan-in-ledger.json
+            else
+              node builder/runner/autobot-independent-fan-in.mjs \
+                --coordination-id "$COORDINATION_ID" \
+                --outcome "$outcome" \
+                --ledger builder/working/fan-in/autobot-fan-in-ledger.json
+            fi
           done
           cat builder/working/fan-in/autobot-fan-in-ledger.json
 
