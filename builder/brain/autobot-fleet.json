@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "status": "independent-worker-fanout-prototype",
+  "status": "isolated-specialist-swarm-v1",
   "enabled": true,
-  "purpose": "Keep the proven Director and Timeline endurance lane intact while introducing isolated experimental specialist workers and a central fan-in contract.",
+  "purpose": "Run each product specialist in its own GitHub runner, worktree, Aider process and local AI brain, with central evidence fan-in and operator-controlled integration.",
   "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving the protected proven builder and truthful verification.",
   "coordination": {
     "mode": "active",
@@ -21,7 +21,7 @@
     "completedWorkManifest": "builder/working/autobot-completed-work.json",
     "completedWorkRunner": "builder/runner/autobot-completed-work.mjs",
     "completedWorkArtifactPrefix": "autobot-completed-work-",
-    "maxConcurrentWorkers": 2,
+    "maxConcurrentWorkers": 4,
     "requireIsolatedWorker": true,
     "requireVerificationBeforeHandoff": true,
     "requireHumanReviewBeforeProtectedIntegration": true,
@@ -50,9 +50,11 @@
     ],
     "parallelWorkers": [
       "director-builder",
-      "timeline-builder"
+      "timeline-builder",
+      "music-builder",
+      "scene-builder"
     ],
-    "operatorControl": "Temporary live activation for exactly two isolated specialist workers during controlled fifteen-minute, thirty-minute, one-hour, four-hour, five-hour, or five-and-a-half-hour endurance runs. Protected integration remains disabled and requires operator-controlled review. Larger waves require a separate operator-approved activation change."
+    "operatorControl": "Controlled live activation for four isolated specialist workers. Each worker has one declared product file, its own runner/worktree/Aider/local AI brain, independent verification and candidate handoff. Protected integration remains operator-controlled."
   },
   "bots": [
     {
@@ -94,9 +96,7 @@
         "transition and motion execution"
       ],
       "ownsFiles": [
-        "src/executableTimeline.js",
-        "src/editorialRhythm.js",
-        "src/renderer.js"
+        "src/executableTimeline.js"
       ],
       "specialistBuilder": true,
       "protected": false
@@ -180,7 +180,7 @@
       "id": "music-builder",
       "role": "experimental-specialist-original-music-builder",
       "entrypoint": "builder/runner/autobot-specialist-builder.mjs",
-      "status": "experimental",
+      "status": "verified",
       "owns": [
         "music direction",
         "arrangement",
@@ -190,14 +190,13 @@
         "src/musicDirector.js"
       ],
       "specialistBuilder": true,
-      "experimental": true,
       "protected": false
     },
     {
       "id": "scene-builder",
       "role": "experimental-specialist-scene-generation-builder",
       "entrypoint": "builder/runner/autobot-specialist-builder.mjs",
-      "status": "experimental",
+      "status": "verified",
       "owns": [
         "generated scene direction",
         "scene continuity",
@@ -207,7 +206,6 @@
         "src/universalCreativeSceneEngine.js"
       ],
       "specialistBuilder": true,
-      "experimental": true,
       "protected": false
     }
   ],
