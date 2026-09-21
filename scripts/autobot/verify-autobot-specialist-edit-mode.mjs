@@ -12,8 +12,8 @@ if(!specialistBuilder.includes("['config', 'user.name'")) throw new Error('speci
 if(!brain.includes("const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'udiff')")) throw new Error('specialist Aider edit format setting missing');
 if(!brain.includes("['diff','udiff','whole']")) throw new Error('specialist Aider edit-format validation missing');
 if(!brain.includes("const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'768',10)||768))")) throw new Error('specialist Aider map-token contract missing');
-if(!brain.includes("const specialistMapArg=specialist?`--map-tokens=${specialistMapTokens}`:`--map-tokens=768`")) throw new Error('specialist Aider must use the configured scoped map budget');
-if(!brain.includes("const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;")) throw new Error('specialist Aider must use the proven src-subtree working directory for src-owned lanes');
+if(!brain.includes("const specialistMapArg=specialist?`--map-tokens=2048`:`--map-tokens=768`")) throw new Error('specialist Aider must use the configured scoped map budget');
+if(!brain.includes("const cwd=root;const aiderFiles=files;")) throw new Error('specialist Aider must run from the worktree root with full objective paths');
 if(specialistBuilder.includes('fallbackReserveMinutes')) throw new Error('specialist controller must not shorten Aider budget to pre-reserve fallback time');
 if(!specialistBuilder.includes('const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - controllerFinishGraceMinutes);')) throw new Error('specialist controller must preserve the proven full Aider budget');
 if(specialistBuilder.includes('AUTOBOT_SPECIALIST_REPO_MAP_TOKENS')) throw new Error('stale specialist repo-map environment contract must be removed');
