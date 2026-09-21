@@ -36,7 +36,7 @@ for(const bot of production){
 }
 
 assert(workflow.includes('workflow_dispatch:'),'isolated specialist swarm must be manually activated');
-assert(workflow.includes('strategy:'),'isolated specialist swarm must use separate matrix jobs');
+assert(expected.every(id=>workflow.includes(`experimental-${id.replace('-builder','')}:`)),'isolated specialist swarm must define a separate job for every production specialist');
 assert(workflow.includes('fail-fast: false'),'one specialist failure must not cancel siblings');
 assert(workflow.includes("AUTOBOT_EXPERIMENTAL_WORKER: 'false'"),'production swarm must not rely on experimental-worker mode');
 assert(workflow.includes('actions/upload-artifact@v7'),'specialist jobs must publish structured evidence');
