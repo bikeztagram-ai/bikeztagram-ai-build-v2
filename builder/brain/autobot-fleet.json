@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "status": "isolated-specialist-swarm-v2",
+  "status": "isolated-specialist-swarm-v3",
   "enabled": true,
-  "purpose": "Run each product specialist in its own GitHub runner, worktree, Aider process and local AI brain, with central evidence fan-in and operator-controlled integration.",
-  "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving the protected proven builder and truthful verification.",
+  "purpose": "Run all six production specialists in their own GitHub runner, worktree, Aider process and local AI brain, with central evidence fan-in and operator-controlled integration.",
+  "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving isolated specialist ownership, truthful verification and protected integration.",
   "coordination": {
     "mode": "active",
     "coordinator": "builder/runner/autobot-coordinator.mjs",
@@ -33,7 +33,8 @@
     "evolutionPolicy": "builder/brain/autobot-evolution-policy.json",
     "independentWorkerContract": "builder/brain/autobot-independent-worker-contract.json",
     "fanInLedger": "builder/working/autobot-fan-in-ledger.json",
-    "fanInRunner": "builder/runner/autobot-independent-fan-in.mjs"
+    "fanInRunner": "builder/runner/autobot-independent-fan-in.mjs",
+    "maxConcurrentWorkersDescription": "Six disjoint production specialist lanes: Director, Timeline, Music, Scene, Rhythm and Render."
   },
   "activationGate": {
     "requiredEnabled": true,
@@ -56,7 +57,7 @@
       "rhythm-builder",
       "render-builder"
     ],
-    "operatorControl": "Controlled live activation for six isolated specialist workers. Each worker owns exactly one product file, runs in its own GitHub runner/worktree/Aider/local AI environment, verifies its candidate independently, and fans evidence into one central ledger. Protected integration remains operator-controlled."
+    "operatorControl": "Controlled live activation for six isolated production specialist workers. Each worker owns exactly one product file, runs in its own GitHub runner/worktree/Aider/local AI environment, verifies its candidate independently, and fans evidence into one central ledger. Protected integration remains operator-controlled."
   },
   "bots": [
     {
@@ -267,8 +268,8 @@
     "The Evolution Engineer runs outside the production specialist lane and may observe completed-run evidence but must never become a dependency of the persistent production workflow.",
     "Evolution experiments are opt-in, infrastructure-only, non-merging and require human review before promotion.",
     "Evolution work may not weaken validators, production gates, specialist scopes, the persistent engine or product source.",
-    "Experimental specialist workers must run in their own workflow run and branch; they must never become dependencies of the proven Director/Timeline endurance workflow.",
-    "Experimental specialist workers may execute only when explicitly requested by their dedicated workflow; the production planner must not dispatch them until their status is promoted from experimental to verified.",
+    "Production specialist workers must run as six independent jobs in the dedicated specialist workflow; they must never share a production workspace or become dependencies of one another.",
+    "All six production specialist workers may execute only when the dedicated specialist workflow is explicitly dispatched; the production specialist contract remains registry-gated and protected integration remains operator-controlled.",
     "Independent worker results must fan in through one central run ledger before any integration candidate is assembled.",
     "A worker branch is an implementation workspace, not the source of truth; the canonical handoff is its verified base/candidate metadata plus central ledger record.",
     "Fan-in must classify every worker as completed, review, recovery, failed or pending so no result becomes an orphaned pot.",
