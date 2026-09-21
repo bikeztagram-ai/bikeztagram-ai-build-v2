@@ -61,30 +61,14 @@ cd "$SMOKE_DIR"
 # Production specialist Aider sessions use Ollama directly on 11434; the 11435 proxy is intentionally limited to chat/health.
 export OLLAMA_HOST="http://127.0.0.1:11434"
 export OLLAMA_API_BASE="http://127.0.0.1:11434"
-cat > "$SMOKE_DIR/model-settings.yml" <<EOF
-- name: ollama_chat/${LOCAL_AI_MODEL}
-  edit_format: architect
-  editor_model_name: ollama_chat/${LOCAL_AI_MODEL}
-  editor_edit_format: editor-diff
-  use_repo_map: false
-  extra_params:
-    num_ctx: 4096
-    num_predict: 768
-    temperature: 0.1
-EOF
-
 aider \
-  --model "ollama_chat/${LOCAL_AI_MODEL}" \
-  --model-settings-file "$SMOKE_DIR/model-settings.yml" \
-  --architect \
-  --editor-model "ollama_chat/${LOCAL_AI_MODEL}" \
-  --editor-edit-format editor-diff \
-  --auto-accept-architect \
-  --message "Change only SMOKE_STATUS from PENDING to READY in smoke.js. The architect may explain the plan internally, but the editor MUST materialize the change in smoke.js. Do not modify anything else." \
+  --model "ollama_chat/\${LOCAL_AI_MODEL}" \
+  --message "Change only SMOKE_STATUS from PENDING to READY in smoke.js. Directly materialize the edit in smoke.js now. Do not modify anything else." \
   --yes-always \
   --no-git \
   --no-show-model-warnings \
   --timeout 180 \
+  --edit-format udiff \
   smoke.js >/tmp/bikeztagram-aider-runtime-smoke.log 2>&1
 grep -q "SMOKE_STATUS = 'READY'" smoke.js
 
