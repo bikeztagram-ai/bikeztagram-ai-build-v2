@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Deterministic last-resort specialist fallback for the two active product lanes. */
+/** Deterministic last-resort specialist fallback for all isolated production specialist lanes. */
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -76,6 +76,20 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
     "const energy=p.match(/calm|peaceful|relaxed/)?0.35:p.match(/aggressive|intense|energetic|epic|powerful/)?0.9:0.68;",
     "const energy=p.match(/calm|peaceful|relaxed/)?0.35:p.match(/aggressive|intense|energetic|epic|powerful|driving|fast|action/)?0.9:0.68;",
     'prompt-responsive music energy'
+  )];
+} else if(specialist==='rhythm-builder' && (objective.includes('rhythm')||objective.includes('pacing')||objective.includes('cadence')||objective.includes('duration'))){
+  files=[replaceOnce(
+    'src/editorialRhythm.js',
+    "if(intentValue.fast)d-=.15;if(intentValue.calm)d+=.25;if(intentValue.trailer&&(r==='hook'||r==='reveal'))d-=.05;",
+    "if(intentValue.fast)d-=.15;if(intentValue.calm)d+=.25;if(intentValue.dramatic)d-=.08;if(intentValue.trailer&&(r==='hook'||r==='reveal'))d-=.05;",
+    'dramatic editorial pacing'
+  )];
+} else if(specialist==='render-builder' && (objective.includes('render')||objective.includes('motion')||objective.includes('transition')||objective.includes('finishing'))){
+  files=[replaceOnce(
+    'src/cinematicRendererV3.js',
+    "else if(m.includes('orbit')||m.includes('parallax')){scale=1.11;x=Math.sin(e*Math.PI*2)*w*.045*i;y=Math.cos(e*Math.PI*2)*h*.025*i;r=Math.sin(e*Math.PI*2)*.008*i}else if(m==='static')scale=1.015;",
+    "else if(m.includes('orbit')||m.includes('parallax')){scale=1.11;x=Math.sin(e*Math.PI*2)*w*.045*i;y=Math.cos(e*Math.PI*2)*h*.025*i;r=Math.sin(e*Math.PI*2)*.008*i}else if(m.includes('cinematic')){scale=1.065+e*.04*i}else if(m==='static')scale=1.015;",
+    'visible cinematic motion finish'
   )];
 } else if(specialist==='scene-builder' && (objective.includes('scene')||objective.includes('continuity')||objective.includes('direction'))){
   files=[replaceOnce(
