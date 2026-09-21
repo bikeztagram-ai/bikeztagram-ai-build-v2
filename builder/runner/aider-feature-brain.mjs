@@ -17,7 +17,7 @@ const normalDeadline=Number.parseInt(process.env.AUTOBOT_FEATURE_NORMAL_DEADLINE
 const perCallMaxMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_AIDER_CALL_TIMEOUT_MS||String(6*60*60*1000),10));
 const specialist=process.env.AUTOBOT_SPECIALIST_MODE==='true';
 const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'udiff').trim().toLowerCase();
-const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'2048',10)||2048));
+const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'768',10)||768));
 if(specialist&&!['diff','udiff','whole'].includes(specialistEditFormat))throw new Error(`Unsupported specialist Aider edit format: ${specialistEditFormat}`);
 const statePath=path.join(root,'builder/working/aider-feature-brain-state.json');
 const directivePath=path.join(root,'builder/brain/autobot-product-directive.md');
@@ -44,7 +44,7 @@ function hasChanges(o){const allowed=new Set(filesFor(o));return tracked().some(
 const o=objective();
 if(!o){console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective'}));process.exit(0);}
 const files=filesFor(o);if(!files.length){console.error(`[aider] objective ${o.id} has no scoped files`);process.exit(1);}
-const cwd=root;const aiderFiles=files;const prior=state.inProgress?.id===o.id?Math.max(0,Number(state.inProgress.completedPasses||0)):0;const first=Math.min(maxPasses,prior+1);let success=false;
+const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;const prior=state.inProgress?.id===o.id?Math.max(0,Number(state.inProgress.completedPasses||0)):0;const first=Math.min(maxPasses,prior+1);let success=false;
 for(let pass=first;pass<=maxPasses;pass++){
   const rem=remainingMs();if(rem<35_000||normalRemainingMs()<35_000&&pass>first)break;
   state.runs=(state.runs||0)+1;const before=new Set(tracked());const snap=snapshot(files);const passesRemaining=Math.max(1,maxPasses-pass+1);
