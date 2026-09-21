@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "isolated-specialist-swarm-v1",
+  "status": "isolated-specialist-swarm-v2",
   "enabled": true,
   "purpose": "Run each product specialist in its own GitHub runner, worktree, Aider process and local AI brain, with central evidence fan-in and operator-controlled integration.",
   "northStar": "Continuously improve Bikeztagram toward a polished, reliable creative editing product while preserving the protected proven builder and truthful verification.",
@@ -21,7 +21,7 @@
     "completedWorkManifest": "builder/working/autobot-completed-work.json",
     "completedWorkRunner": "builder/runner/autobot-completed-work.mjs",
     "completedWorkArtifactPrefix": "autobot-completed-work-",
-    "maxConcurrentWorkers": 4,
+    "maxConcurrentWorkers": 6,
     "requireIsolatedWorker": true,
     "requireVerificationBeforeHandoff": true,
     "requireHumanReviewBeforeProtectedIntegration": true,
@@ -52,9 +52,11 @@
       "director-builder",
       "timeline-builder",
       "music-builder",
-      "scene-builder"
+      "scene-builder",
+      "rhythm-builder",
+      "render-builder"
     ],
-    "operatorControl": "Controlled live activation for four isolated specialist workers. Each worker has one declared product file, its own runner/worktree/Aider/local AI brain, independent verification and candidate handoff. Protected integration remains operator-controlled."
+    "operatorControl": "Controlled live activation for six isolated specialist workers. Each worker owns exactly one product file, runs in its own GitHub runner/worktree/Aider/local AI environment, verifies its candidate independently, and fans evidence into one central ledger. Protected integration remains operator-controlled."
   },
   "bots": [
     {
@@ -207,6 +209,40 @@
       ],
       "specialistBuilder": true,
       "protected": false
+    },
+    {
+      "id": "rhythm-builder",
+      "role": "specialist-editorial-rhythm-builder",
+      "entrypoint": "builder/runner/autobot-specialist-builder.mjs",
+      "status": "verified",
+      "owns": [
+        "editorial rhythm",
+        "beat-aware pacing",
+        "duration distribution",
+        "creative pacing"
+      ],
+      "ownsFiles": [
+        "src/editorialRhythm.js"
+      ],
+      "specialistBuilder": true,
+      "protected": false
+    },
+    {
+      "id": "render-builder",
+      "role": "specialist-cinematic-render-builder",
+      "entrypoint": "builder/runner/autobot-specialist-builder.mjs",
+      "status": "verified",
+      "owns": [
+        "render motion",
+        "transition effects",
+        "visual finishing",
+        "render playback continuity"
+      ],
+      "ownsFiles": [
+        "src/cinematicRendererV3.js"
+      ],
+      "specialistBuilder": true,
+      "protected": false
     }
   ],
   "handoffRules": [
@@ -235,6 +271,7 @@
     "Experimental specialist workers may execute only when explicitly requested by their dedicated workflow; the production planner must not dispatch them until their status is promoted from experimental to verified.",
     "Independent worker results must fan in through one central run ledger before any integration candidate is assembled.",
     "A worker branch is an implementation workspace, not the source of truth; the canonical handoff is its verified base/candidate metadata plus central ledger record.",
-    "Fan-in must classify every worker as completed, review, recovery, failed or pending so no result becomes an orphaned pot."
+    "Fan-in must classify every worker as completed, review, recovery, failed or pending so no result becomes an orphaned pot.",
+    "Every production specialist must own exactly one disjoint product file; overlapping file ownership is a hard activation failure."
   ]
 }
