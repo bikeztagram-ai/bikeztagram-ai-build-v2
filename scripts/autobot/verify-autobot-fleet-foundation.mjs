@@ -25,7 +25,7 @@ if(live){
  assert(registry.coordination?.requireHumanReviewBeforeProtectedIntegration===true,'human review boundary missing');
  const approved=['15m','30m','1h','4h','5h','5h30'];
  assert(approved.includes(registry.activationGate?.testDuration),'live test duration must be bounded to an approved window');
- assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(['director-builder','timeline-builder','music-builder','scene-builder','rhythm-builder','render-builder','media-intelligence-builder','caption-builder']),'parallel activation must name exactly the six isolated production specialists');
+ assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(['director-builder','timeline-builder','music-builder','scene-builder','rhythm-builder','render-builder','media-intelligence-builder','caption-builder']),'parallel activation must name exactly the eight isolated production specialists');
  assert((registry.activationGate?.allowedTestDurations||[]).every(d=>approved.includes(d)),'activation duration list contains an unapproved duration');
  assert((registry.activationGate?.allowedTestDurations||[]).includes('5h'),'five-and-a-half-hour overnight activation must be explicitly registered');
 }

@@ -4,7 +4,9 @@
  * Specialist identity and ownership remain independent while execution is
  * delegated to the proven long-run AutoBot controller and Aider feature brain.
  * If Aider cannot materialize an owned product change, the older proven
- * structured search/replace brain gets a bounded second chance.
+ * structured search/replace brain gets a bounded second chance; if that fallback
+ * produces a candidate rejected by the product-quality guard, the deterministic
+ * specialist fallback gets the final bounded recovery attempt.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -253,7 +255,30 @@ try {
   const productQuality = String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK || 'npm run verify:autobot-product-change-quality').trim();
   if (!skipNpmInstall) run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
   run('npm', ['run', 'build'], worktree);
-  run('sh', ['-lc', productQuality], worktree);
+  try {
+    run('sh', ['-lc', productQuality], worktree);
+  } catch (qualityError) {
+    console.warn(`[autobot] structured fallback candidate failed product-quality guard; resetting to base and invoking deterministic specialist fallback: ${qualityError.message}`);
+    run('git', ['reset', '--hard', base], worktree);
+    const deterministic = spawnSync(process.execPath, ['builder/runner/autobot-specialist-deterministic-fallback.mjs'], {
+      cwd: worktree,
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath,
+        AUTOBOT_SPECIALIST_BASE_COMMIT: base
+      }
+    });
+    if (deterministic.error || deterministic.status !== 0) {
+      fail(`Specialist Builder product-quality recovery failed after structured fallback rejection (deterministic status ${deterministic.status ?? 'error'}).`);
+    }
+    candidateFiles = ownedProductFiles(base, worktree, files);
+    candidatePatch = captureBasePatch(base, worktree, files);
+    if (!candidateFiles.length || !candidatePatch.trim()) fail('Deterministic specialist fallback produced no owned product change after structured fallback rejection.');
+    run('git', ['diff', base, '--check'], worktree);
+    run('npm', ['run', 'build'], worktree);
+    run('sh', ['-lc', productQuality], worktree);
+  }
   const headBeforeCommit = git(['rev-parse', 'HEAD'], worktree);
   if (headBeforeCommit !== base) run('git', ['reset', '--soft', base], worktree);
   run('git', ['add', '--', ...candidateFiles], worktree);
