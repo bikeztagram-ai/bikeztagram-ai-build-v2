@@ -331,9 +331,13 @@ jobs:
             handoff="$(find "$dir" -name autobot-specialist-handoff.json -print -quit 2>/dev/null || true)"
             outcome="$(find "$dir" -name autobot-specialist-outcome.json -print -quit 2>/dev/null || true)"
             if [ -z "$handoff" ] && [ -z "$outcome" ]; then
+              bot_id="$bot"
+              case "$bot" in
+                director|timeline|music|scene|rhythm|render|media-intelligence|caption) bot_id="$bot-builder" ;;
+              esac
               cat > "$dir/autobot-specialist-outcome.json" <<EOF
           {
-            "botId": "$bot-builder",
+            "botId": "$bot_id",
             "status": "failure",
             "category": "workflow-failure",
             "repairable": true,
