@@ -18,6 +18,7 @@ const root = process.cwd();
 const registry = JSON.parse(fs.readFileSync(path.join(root, 'builder/brain/autobot-fleet.json'), 'utf8'));
 const botId = String(process.env.AUTOBOT_SPECIALIST_BOT_ID || '').trim();
 const objectiveText = String(process.env.AUTOBOT_SPECIALIST_OBJECTIVE || '').trim();
+const editStrategy = String(process.env.AUTOBOT_SPECIALIST_EDIT_STRATEGY || 'adaptive').trim().toLowerCase();
 const coordinationId = String(process.env.AUTOBOT_COORDINATION_ID || '').trim();
 const enabled = String(process.env.AUTOBOT_SPECIALIST_BUILDER_ENABLED || '').trim().toLowerCase() === 'true';
 const outcomePath = process.env.AUTOBOT_SPECIALIST_OUTCOME_PATH || path.join(root, 'builder/working/autobot-specialist-outcome.json');
@@ -238,7 +239,7 @@ try {
   const deadline = Date.now() + controllerMinutes * 60_000;
   const engineEnv = {
     ...process.env,
-    AUTOBOT_SPECIALIST_MODE: 'true', AUTOBOT_FEATURE_ENGINE: 'aider', AUTOBOT_ORCHESTRATOR_ENABLED: 'true', AUTOBOT_SPECIALIST_MAP_TOKENS: String(learnedMapTokens), AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT: learnedEditFormat,
+    AUTOBOT_SPECIALIST_MODE: 'true', AUTOBOT_FEATURE_ENGINE: 'aider', AUTOBOT_SPECIALIST_EDIT_STRATEGY: editStrategy, AUTOBOT_ORCHESTRATOR_ENABLED: 'true', AUTOBOT_SPECIALIST_MAP_TOKENS: String(learnedMapTokens), AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT: learnedEditFormat,
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath, AUTOBOT_FEATURE_PROTOCOL: protocol,
     AUTOBOT_FEATURE_PASSES: String(passCount), AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline), AUTOBOT_AIDER_MODEL: model,
@@ -247,7 +248,7 @@ try {
     AUTOBOT_AIDER_EDITOR_MODEL: process.env.AUTOBOT_AIDER_EDITOR_MODEL || model,
     BUILDER_MAX_MINUTES: String(controllerMinutes), AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
-  console.log(`[autobot] specialist ${botId} entering proven long-run controller: ${controllerMinutes}m Aider budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(20, controllerMinutes)}m max slice + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace; fallback is recovery after Aider (${model}, ${protocol})`);
+  console.log(`[autobot] specialist ${botId} using edit strategy ${editStrategy}; entering proven long-run controller: ${controllerMinutes}m Aider budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(20, controllerMinutes)}m max slice + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace; fallback is recovery after Aider (${model}, ${protocol})`);
   const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], { cwd: worktree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: engineEnv, timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000 });
   aiderAttempted = true;
   aiderOutputTail = `${engine.stdout || ''}\n${engine.stderr || ''}`.slice(-12000);
@@ -309,9 +310,9 @@ try {
   candidateOrigin = aiderMaterialized ? 'aider' : candidateOrigin;
   const handoffFile = writeSpecialistHandoff({ schemaVersion: 'autobot-specialist-handoff-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, baseCommit: base, candidateCommit: candidate, branch, ownsFiles: staged, productQualityCheck: productQuality, status: 'verified-candidate', candidateOrigin, aiderAttempted, aiderMaterialized, downstream: { reviewContract: 'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT' } }, handoffPath);
   fs.mkdirSync(path.dirname(outcomePath), { recursive: true });
-  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffFile], engine: 'aider-first-with-structured-fallback', learnedMapTokens, learnedEditFormat, targetMap, aiderOutputTail: aiderOutputTail.slice(-12000), featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
+  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffFile], engine: 'aider-first-with-structured-fallback', editStrategy, learnedMapTokens, learnedEditFormat, targetMap, aiderOutputTail: aiderOutputTail.slice(-12000), featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
   keepBranch = true;
-  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', candidateOrigin, aiderAttempted, aiderMaterialized, fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath: handoffFile }));
+  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', editStrategy, candidateOrigin, aiderAttempted, aiderMaterialized, fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath: handoffFile }));
 } catch (error) {
   writeFailureOutcome({ error, base, worktree, files, candidatePatch, aiderOutput: aiderOutputTail });
   throw error;
