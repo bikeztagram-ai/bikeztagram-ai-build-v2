@@ -87,7 +87,7 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
@@ -171,7 +171,7 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
@@ -258,7 +258,7 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
@@ -347,7 +347,7 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
@@ -436,7 +436,7 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
@@ -525,7 +525,7 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
@@ -610,7 +610,7 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
@@ -693,7 +693,7 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
@@ -780,7 +780,7 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
@@ -868,7 +868,7 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
