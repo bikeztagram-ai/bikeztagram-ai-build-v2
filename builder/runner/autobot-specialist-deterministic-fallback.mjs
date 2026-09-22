@@ -95,7 +95,7 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
   files=[replaceOnce(
     'src/aiEditPlanner.js',
     "const qualityScore=Math.round(critique.after.score*.75+rhythm.score*.25);",
-    "const sourceEvidenceScore=Number.isFinite(Number(cinematicQuality?.score))?Number(cinematicQuality.score):0;const qualityScore=Math.round(critique.after.score*.7+rhythm.score*.2+sourceEvidenceScore*.1);",
+    "const draft={cuts,targetDuration,creativePrompt:text(options.creativePrompt)};const cinematicQuality=evaluateCinematicOutput(draft,{duration});const sourceEvidenceScore=Number.isFinite(Number(cinematicQuality?.score))?Number(cinematicQuality.score):0;const qualityScore=Math.round(critique.after.score*.7+rhythm.score*.2+sourceEvidenceScore*.1);",
     'analysis-aware cinematic quality weighting'
   )];
 } else if(specialist==='caption-builder' && (objective.includes('caption')||objective.includes('overlay')||objective.includes('speech'))){
