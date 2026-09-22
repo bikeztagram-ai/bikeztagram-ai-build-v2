@@ -32,10 +32,12 @@ has(/AUTOBOT_FEATURE_PASSES/,'Specialist Builder must pass its feature-pass budg
 has(/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'Specialist Builder must pass its verification deadline to the shared controller.');
 has(/export\\s\+|function\\s\+|class\\s\+|const\\s\+/,'Specialist Builder target-map symbol matcher must use real regex whitespace tokens.');
 has(/buildTargetMap\(/,'Specialist Builder must build a scoped target map for focused editing.');
-hasAider(/num_ctx:\s*4096/,'Specialist Aider model settings must bound Ollama context for CPU-safe targeted editing.');
-hasAider(/num_predict:\s*768/,'Specialist Aider model settings must bound output generation for CPU-safe targeted editing.');
-hasAider(/--model-settings-file/,'Specialist Aider must load the bounded local model settings.');
-hasAider(/specialist\s*\?\s*'--map-tokens=0'/,'Specialist Aider must disable the broad repository map and rely on exact target anchors.');
+hasAider(/const specialistMapTokens=Math\.max\(512,Math\.min\(4096,Number\.parseInt\(process\.env\.AUTOBOT_SPECIALIST_MAP_TOKENS\|\|'2048',10\)\|\|2048\)/,'Specialist Aider must use the configured scoped map-token budget.');
+hasAider(/const specialistMapArg=specialist\?`--map-tokens=\$\{specialistMapTokens\}`/,'Specialist Aider must pass the scoped map-token budget.');
+assert(!aider.includes("'--model-settings-file'"),'Specialist direct Aider must not inject the architect/model-settings path.');
+assert(!aider.includes("specialist?'--map-tokens=0'"),'Specialist Aider must not disable the scoped repository map.');
+hasAider(/const timeout=Math\.min\(perCallMaxMs/,'Specialist Aider must retain the shared bounded call timeout.');
+hasAider(/Use Aider as the editor: directly modify the supplied objective files now\./,'Specialist Aider must use direct-editor instructions.');
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 const productionSpecialists=specialists.filter(b=>b.status==='verified');
 assert(productionSpecialists.length===8,'Exactly eight verified specialist Builders are authorised by the current gate.');
