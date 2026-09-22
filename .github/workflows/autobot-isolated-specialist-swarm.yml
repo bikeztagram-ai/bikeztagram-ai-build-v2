@@ -42,6 +42,7 @@ jobs:
         include:
           - bot: director-builder
             name: 🎬 Director AutoBot
+            strategy: udiff-src
             objective: |
               Production Director lane: improve cinematic story intelligence in src/director.js with a minimal safe change.
               Preserve existing APIs and contracts.
@@ -52,6 +53,7 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: timeline-builder
             name: ⏱️ Timeline AutoBot
+            strategy: whole-src
             objective: |
               Production Timeline lane: improve executable timeline behaviour in src/executableTimeline.js with a minimal safe change.
               Preserve existing APIs and contracts.
@@ -63,6 +65,7 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: music-builder
             name: 🎵 Music AutoBot
+            strategy: udiff-root
             objective: |
               Production Music lane: improve prompt-responsive music energy in src/musicDirector.js with one minimal production-safe change.
               Preserve existing APIs and contracts.
@@ -73,6 +76,7 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: scene-builder
             name: 🎥 Scene AutoBot
+            strategy: whole-root
             objective: |
               Production Scene lane: improve duration-bounded scene shot continuity in src/universalCreativeSceneEngine.js with one minimal production-safe change.
               Preserve existing APIs and contracts.
@@ -84,6 +88,7 @@ jobs:
 
           - bot: rhythm-builder
             name: 🥁 Rhythm AutoBot
+            strategy: diff-root
             objective: |
               Production Rhythm lane: improve beat-aware editorial pacing in src/editorialRhythm.js with a minimal safe change.
               Preserve existing APIs and contracts.
@@ -94,6 +99,7 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: render-builder
             name: 🎞️ Render AutoBot
+            strategy: udiff-nomap
             objective: |
               Production Render lane: improve visible cinematic rendering behaviour in src/cinematicRendererV3.js with a minimal safe change.
               Preserve existing APIs and contracts.
@@ -145,6 +151,7 @@ jobs:
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: ${{ matrix.bot }}
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: ${{ matrix.strategy }}
           AUTOBOT_SPECIALIST_OBJECTIVE: ${{ matrix.objective }}
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
           AUTOBOT_EXPERIMENTAL_WORKER: 'false'
