@@ -53,7 +53,7 @@ jobs:
         run: npm run verify:autobot-rnd
       - name: Run isolated worker contract audit
         run: npm run verify:autobot-independent-workers
-      - name: Run six-lane fleet audit
+      - name: Run ten-lane fleet audit
         run: node scripts/autobot/verify-autobot-parallel-fleet.mjs
       - name: Run fleet foundation audit
         run: npm run verify:autobot-fleet-foundation
