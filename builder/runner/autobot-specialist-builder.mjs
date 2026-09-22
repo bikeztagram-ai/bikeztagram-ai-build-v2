@@ -255,7 +255,7 @@ try {
     AUTOBOT_AIDER_EDITOR_MODEL: process.env.AUTOBOT_AIDER_EDITOR_MODEL || model,
     BUILDER_MAX_MINUTES: String(controllerMinutes), AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
-  console.log(`[autobot] specialist ${botId} using edit strategy ${editStrategy}; entering proven long-run controller: ${controllerMinutes}m Aider budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(20, controllerMinutes)}m max slice + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace; fallback is recovery after Aider (${model}, ${protocol})`);
+  console.log(`[autobot] specialist ${botId} using edit strategy ${editStrategy}; entering proven long-run controller: ${controllerMinutes}m Aider budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(singleEditStrategy ? 25 : 20, controllerMinutes)}m max slice + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace; fallback is recovery after Aider (${model}, ${protocol})`);
   const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], { cwd: worktree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: engineEnv, timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000 });
   aiderAttempted = true;
   aiderOutputTail = `${engine.stdout || ''}\n${engine.stderr || ''}`.slice(-12000);
