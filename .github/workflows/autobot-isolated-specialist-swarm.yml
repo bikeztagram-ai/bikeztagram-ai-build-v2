@@ -42,7 +42,7 @@ jobs:
         include:
           - bot: director-builder
             name: 🎬 Director AutoBot
-            strategy: diff-root-single
+            strategy: whole-src-single
             objective: |
               Production Director lane: make exactly one minimal cinematic story-intelligence behaviour improvement in src/director.js.
               Preserve existing APIs and contracts.
@@ -65,7 +65,7 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: music-builder
             name: 🎵 Music AutoBot
-            strategy: udiff-root-single
+            strategy: whole-src-single
             objective: |
               Production Music lane: make exactly one minimal prompt-responsive music-energy behaviour improvement in src/musicDirector.js.
               Preserve existing APIs and contracts.
@@ -76,7 +76,7 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: scene-builder
             name: 🎥 Scene AutoBot
-            strategy: diff-src-single
+            strategy: whole-src-single
             objective: |
               Production Scene lane: make exactly one minimal duration-bounded scene-shot continuity behaviour improvement in src/universalCreativeSceneEngine.js.
               Preserve existing APIs and contracts.
@@ -99,7 +99,7 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: media-intelligence-builder
             name: 🧠 Media Intelligence AutoBot
-            strategy: udiff-nomap
+            strategy: diff-root-single
             objective: |
               Production Media Intelligence lane: make exactly one minimal media-analysis behaviour improvement in src/aiEditPlanner.js.
               Preserve existing APIs and contracts.
@@ -111,7 +111,7 @@ jobs:
 
           - bot: caption-builder
             name: 📝 Caption AutoBot
-            strategy: adaptive-single
+            strategy: diff-root-single
             objective: |
               Production Caption lane: make exactly one minimal caption-planning behaviour improvement in src/captionPlanner.js.
               Preserve existing APIs and contracts.
@@ -123,9 +123,9 @@ jobs:
 
           - bot: experimental-media-whole-root
             name: 🧪 Experimental Media Whole-Root AutoBot
-            strategy: whole-root-single
+            strategy: diff-root-single
             objective: |
-              Experimental Aider lane: test whole-file root editing against src/aiEditPlanner.js using exactly one minimal media-analysis behaviour improvement.
+              Experimental Aider lane: test root-scoped diff editing against src/aiEditPlanner.js using exactly one minimal media-analysis behaviour improvement.
               This is a disposable experiment to compare Aider materialization mechanics with the production Media Intelligence lane.
               Preserve existing APIs and contracts.
               Acceptance:
@@ -149,7 +149,7 @@ jobs:
 
           - bot: render-builder
             name: 🎞️ Render AutoBot
-            strategy: udiff-src-single
+            strategy: whole-src-single
             objective: |
               Production Render lane: make exactly one minimal visible cinematic-rendering behaviour improvement in src/cinematicRendererV3.js.
               Preserve existing APIs and contracts.
