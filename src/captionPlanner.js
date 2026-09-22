@@ -9,9 +9,7 @@ const text=(value)=>String(value??'').trim();
 function normaliseCue(cue,index){
   const start=Math.max(0,num(cue?.start));
   const end=Math.max(start+0.05,num(cue?.end,start+0.05));
-  const value=text(cue?.text||cue?.caption||cue?.transcript);
-  if(!value)return null;
-  return {index,start,end,text:value,confidence:Math.max(0,Math.min(1,num(cue?.confidence,1)))};
+  return {index, start, end, text: text(cue?.text || cue?.caption || cue?.transcript), confidence: Math.max(0, Math.min(1, num(cue?.confidence, 1)))};
 }
 
 export function normaliseSpeechCaptions(captions){
