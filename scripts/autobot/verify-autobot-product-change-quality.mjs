@@ -39,6 +39,27 @@ function assertNoDuplicateTopLevelBindings(file){
   const duplicates=duplicateTopLevelBindingNames(read(file));
   assert(!duplicates.length,`duplicate-top-level-binding guard failed in ${file}: ${duplicates.map(item=>item.name+' x'+item.count).join(', ')}`);
 }
+function publicExportNames(source){
+  const names=new Set();
+  const patterns=[
+    /\\bexport\\s+(?:async\\s+)?function\\s+([A-Za-z_$][\\w$]*)/g,
+    /\\bexport\\s+(?:const|let|var|class)\\s+([A-Za-z_$][\\w$]*)/g,
+    /\\bexport\\s+default\\b/g
+  ];
+  for(const pattern of patterns){let match;while((match=pattern.exec(source))!==null)names.add(match[1]||'default');}
+  for(const match of source.matchAll(/\\bexport\\s*\\{([^}]+)\\}/g)){
+    for(const entry of match[1].split(',')){const name=entry.trim().split(/\\s+as\\s+/i)[0].trim();if(name)names.add(name);}
+  }
+  return names;
+}
+function assertPublicExportsPreserved(file){
+  const base=String(process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT||'').trim();
+  if(!base||!/^[0-9a-f]{40}$/i.test(base))return;
+  let baseSource='';
+  try{baseSource=execFileSync('git',['show',`${base}:${file}`],{cwd:root,encoding:'utf8'});}catch{return;}
+  const missing=[...publicExportNames(baseSource)].filter(name=>!publicExportNames(read(file)).has(name));
+  assert(!missing.length,`public-export guard failed in ${file}: existing exports removed: ${missing.join(', ')}`);
+}
 function assertNoUnusedAddedTopLevelConstants(file){
   const base=String(process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT||'').trim();
   const candidate=String(process.env.AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT||'').trim();
@@ -62,7 +83,7 @@ function sparseMedia(count){return Array.from({length:count},(_,index)=>({id:`sp
 
 const changed=changedPaths();
 const cinematicChanged=changed.filter(path=>cinematicPaths.has(path));
-for(const file of cinematicChanged){assertNoDuplicateTopLevelFunctions(file);assertNoDuplicateTopLevelBindings(file);assertNoUnusedAddedTopLevelConstants(file);}
+for(const file of cinematicChanged){assertNoDuplicateTopLevelFunctions(file);assertNoDuplicateTopLevelBindings(file);assertNoUnusedAddedTopLevelConstants(file);assertPublicExportsPreserved(file);}
 if(!cinematicChanged.length){console.log('autobot-product-change-quality: PASS not-applicable (no cinematic product files changed)');process.exit(0);}
 
 const planner=read('src/aiEditPlanner.js');
