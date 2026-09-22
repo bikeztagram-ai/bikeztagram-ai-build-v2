@@ -512,7 +512,7 @@ jobs:
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: render-builder
-          AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-src-single
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-root-single
           AUTOBOT_SPECIALIST_OBJECTIVE: "Production Render lane: improve visible cinematic motion, transitions or finishing in src/cinematicRendererV3.js with one minimal, production-safe change. Preserve source decoding, recording and existing renderer APIs. Acceptance:
 - the change improves a visible cinematic behavior without destabilizing render reliability
 - only the owned file is changed
