@@ -18,13 +18,14 @@ const root = process.cwd();
 const registry = JSON.parse(fs.readFileSync(path.join(root, 'builder/brain/autobot-fleet.json'), 'utf8'));
 const botId = String(process.env.AUTOBOT_SPECIALIST_BOT_ID || '').trim();
 const objectiveText = String(process.env.AUTOBOT_SPECIALIST_OBJECTIVE || '').trim();
+const editStrategy = String(process.env.AUTOBOT_SPECIALIST_EDIT_STRATEGY || 'adaptive').trim().toLowerCase();
 const coordinationId = String(process.env.AUTOBOT_COORDINATION_ID || '').trim();
 const enabled = String(process.env.AUTOBOT_SPECIALIST_BUILDER_ENABLED || '').trim().toLowerCase() === 'true';
 const outcomePath = process.env.AUTOBOT_SPECIALIST_OUTCOME_PATH || path.join(root, 'builder/working/autobot-specialist-outcome.json');
 const handoffPath = process.env.AUTOBOT_SPECIALIST_HANDOFF_PATH || path.join(root, 'builder/working/autobot-specialist-handoff.json');
 const failurePatchPath = process.env.AUTOBOT_SPECIALIST_FAILURE_PATCH_PATH || path.join(root, 'builder/working/autobot-specialist-failure.patch');
 const learningPath = path.join(root, 'builder/brain/autobot-specialist-learning.json');
-let learningProfile = { default: { mapTokens: 1024, editFormat: 'diff', targetingMode: 'symbol-first', maxTargetSymbols: 6 }, bots: {}, failureStrategies: {} };
+let learningProfile = { default: { mapTokens: 768, editFormat: 'udiff', targetingMode: 'symbol-first', maxTargetSymbols: 6 }, bots: {}, failureStrategies: {} };
 try { learningProfile = JSON.parse(fs.readFileSync(learningPath, 'utf8')); } catch {}
 const botLearning = () => ({ ...(learningProfile.default || {}), ...(learningProfile.bots?.[botId] || {}) });
 function buildTargetMap(files, objective) {
@@ -102,6 +103,31 @@ function captureBasePatch(base, worktree, files) {
 }
 function ownedProductFiles(base, worktree, files) {
   return changedFromBase(base, worktree).filter(file => files.includes(file));
+}
+function normalizeNestedSrcDuplicate(worktree, files) {
+  // Aider can emit src/<file> while running from src/, creating src/src/<file>.
+  // Salvage only this exact duplicate-prefix case; never rewrite arbitrary paths.
+  for (const file of files) {
+    if (!file.startsWith('src/')) continue;
+    const nested = path.join(worktree, 'src', file);
+    const canonical = path.join(worktree, file);
+    if (!fs.existsSync(nested) || !fs.existsSync(canonical)) continue;
+    const nestedText = fs.readFileSync(nested, 'utf8');
+    const canonicalText = fs.readFileSync(canonical, 'utf8');
+    if (nestedText === canonicalText) { try { fs.rmSync(nested, { force: true }); } catch {} continue; }
+    let canonicalChanged = false;
+    try { canonicalChanged = Boolean(execFileSync('git', ['diff', '--', file], { cwd: worktree, encoding: 'utf8' }).trim()); } catch {}
+    if (canonicalChanged) continue;
+    fs.copyFileSync(nested, canonical);
+    fs.rmSync(nested, { force: true });
+    console.warn('[autobot] normalized Aider duplicate src/ prefix: ' + path.relative(worktree, nested) + ' -> ' + file);
+  }
+}
+function hasMeaningfulProductPatch(base, worktree, files) {
+  try {
+    const semantic = execFileSync('git', ['diff', '--ignore-all-space', '--ignore-blank-lines', base, '--', ...files], { cwd: worktree, encoding: 'utf8' });
+    return Boolean(semantic.trim());
+  } catch { return false; }
 }
 function runStructuredFallback(worktree, assignmentPath, model, base) {
   candidateOrigin = 'structured-fallback';
@@ -222,11 +248,15 @@ try {
   const learnedMapTokens = Math.max(512, Math.min(4096, Number(learned.mapTokens || 1024)));
   const learnedEditFormat = ['diff','udiff','whole'].includes(String(learned.editFormat || 'diff')) ? String(learned.editFormat) : 'diff';
   const configuredPasses = Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '', 10);
-  const passCount = Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 30 ? 2 : 1;
+  const singleEditStrategy = /single$/.test(editStrategy);
+  const passCount = singleEditStrategy ? 1 : (Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 30 ? 2 : 1);
   const verificationReserveMinutes = requestedMinutes >= 60 ? 5 : requestedMinutes >= 30 ? 3 : Math.min(2, Math.max(1, requestedMinutes - 1));
-  const fallbackReserveMinutes = Math.min(6, Math.max(4, requestedMinutes >= 30 ? 6 : 5));
   const controllerFinishGraceMinutes = Math.max(0, Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES || '5', 10));
-  const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - fallbackReserveMinutes - controllerFinishGraceMinutes);
+  // Give Aider the controller budget. Historical Run #65 showed that reserving
+  // another 5 minutes for fallback left only ~7 minutes for Qwen 7B to edit,
+  // while the model was still reasoning. Fallback is recovery, not the primary
+  // budget; it must not be purchased by shortening the Aider window.
+  const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - controllerFinishGraceMinutes);
   // Inherit the proven long-run controller's repeated feature-slice behaviour.
   // Short staging runs stay bounded; longer specialist runs may revisit the same
   // objective through multiple audited feature cycles instead of getting only one
@@ -235,16 +265,16 @@ try {
   const deadline = Date.now() + controllerMinutes * 60_000;
   const engineEnv = {
     ...process.env,
-    AUTOBOT_SPECIALIST_MODE: 'true', AUTOBOT_FEATURE_ENGINE: 'aider', AUTOBOT_ORCHESTRATOR_ENABLED: 'true', AUTOBOT_SPECIALIST_MAP_TOKENS: String(learnedMapTokens), AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT: learnedEditFormat, AUTOBOT_SPECIALIST_REPO_MAP_TOKENS: '0',
+    AUTOBOT_SPECIALIST_MODE: 'true', AUTOBOT_FEATURE_ENGINE: 'aider', AUTOBOT_SPECIALIST_EDIT_STRATEGY: editStrategy, AUTOBOT_ORCHESTRATOR_ENABLED: 'true', AUTOBOT_SPECIALIST_MAP_TOKENS: String(learnedMapTokens), AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT: learnedEditFormat,
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath, AUTOBOT_FEATURE_PROTOCOL: protocol,
     AUTOBOT_FEATURE_PASSES: String(passCount), AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline), AUTOBOT_AIDER_MODEL: model,
-    AUTOBOT_FEATURE_SLICE_MINUTES: String(Math.min(20, controllerMinutes)), AUTOBOT_MAX_FEATURE_CYCLES: String(maxFeatureCycles),
+    AUTOBOT_FEATURE_SLICE_MINUTES: String(Math.min(singleEditStrategy ? 25 : 20, controllerMinutes)), AUTOBOT_MAX_FEATURE_CYCLES: String(maxFeatureCycles),
     LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama_chat\//, '').replace(/^ollama\//, ''),
     AUTOBOT_AIDER_EDITOR_MODEL: process.env.AUTOBOT_AIDER_EDITOR_MODEL || model,
     BUILDER_MAX_MINUTES: String(controllerMinutes), AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
-  console.log(`[autobot] specialist ${botId} entering proven long-run controller: ${controllerMinutes}m controller budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(20, controllerMinutes)}m max slice + ${fallbackReserveMinutes}m structured fallback + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace (${model}, ${protocol})`);
+  console.log(`[autobot] specialist ${botId} using edit strategy ${editStrategy}; entering proven long-run controller: ${controllerMinutes}m Aider budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(singleEditStrategy ? 25 : 20, controllerMinutes)}m max slice + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace; fallback is recovery after Aider (${model}, ${protocol})`);
   const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], { cwd: worktree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: engineEnv, timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000 });
   aiderAttempted = true;
   aiderOutputTail = `${engine.stdout || ''}\n${engine.stderr || ''}`.slice(-12000);
@@ -252,12 +282,15 @@ try {
   if (engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller ended with ${engine.error.message}; inspecting worktree before fallback`);
   if (engine.status !== 0 && engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller process status: ${engine.status ?? 'error'}`);
 
+  normalizeNestedSrcDuplicate(worktree, files);
   let candidateFiles = ownedProductFiles(base, worktree, files);
   candidatePatch = captureBasePatch(base, worktree, files);
-  aiderMaterialized = Boolean(candidateFiles.length && candidatePatch.trim());
+  aiderMaterialized = Boolean(candidateFiles.length && candidatePatch.trim() && hasMeaningfulProductPatch(base, worktree, files));
+  if (candidateFiles.length && candidatePatch.trim() && !aiderMaterialized) console.warn('[autobot] Aider changed only formatting/whitespace; not counting that as materialization, so recovery may continue.');
   if (aiderMaterialized) candidateOrigin = 'aider';
   if (!candidateFiles.length || !candidatePatch.trim()) {
     const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model, base);
+    normalizeNestedSrcDuplicate(worktree, files);
     candidateFiles = ownedProductFiles(base, worktree, files);
     candidatePatch = captureBasePatch(base, worktree, files);
     if (fallbackStatus !== 0 && (!candidateFiles.length || !candidatePatch.trim())) fail(`Specialist Builder produced no product change after Aider and structured fallback (fallback status ${fallbackStatus}).`);
@@ -306,9 +339,9 @@ try {
   candidateOrigin = aiderMaterialized ? 'aider' : candidateOrigin;
   const handoffFile = writeSpecialistHandoff({ schemaVersion: 'autobot-specialist-handoff-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, baseCommit: base, candidateCommit: candidate, branch, ownsFiles: staged, productQualityCheck: productQuality, status: 'verified-candidate', candidateOrigin, aiderAttempted, aiderMaterialized, downstream: { reviewContract: 'AUTOBOT_REVIEW_BASE_COMMIT + AUTOBOT_REVIEW_COMMIT' } }, handoffPath);
   fs.mkdirSync(path.dirname(outcomePath), { recursive: true });
-  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffFile], engine: 'aider-first-with-structured-fallback', learnedMapTokens, learnedEditFormat, targetMap, aiderOutputTail: aiderOutputTail.slice(-12000), featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
+  fs.writeFileSync(outcomePath, JSON.stringify({ schemaVersion: 'autobot-specialist-outcome-v1', botId, coordinationId: coordinationId || null, objective: objectiveText, status: 'success', category: 'completed', repairable: false, files: staged, baseCommit: base, patchPath: null, evidence: [handoffFile], engine: 'aider-first-with-structured-fallback', editStrategy, learnedMapTokens, learnedEditFormat, targetMap, aiderOutputTail: aiderOutputTail.slice(-12000), featureEngine: 'builder/runner/aider-feature-brain.mjs', fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback.mjs', passes: passCount, protocol }, null, 2) + '\n');
   keepBranch = true;
-  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', candidateOrigin, aiderAttempted, aiderMaterialized, fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath: handoffFile }));
+  console.log(JSON.stringify({ ok: true, botId, baseCommit: base, candidateCommit: candidate, branch, files: staged, engine: 'aider-first-with-structured-fallback', featureEngine: 'builder/runner/aider-feature-brain', editStrategy, candidateOrigin, aiderAttempted, aiderMaterialized, fallbackEngine: 'builder/runner/autobot-specialist-structured-fallback', passes: passCount, protocol, handoffPath: handoffFile }));
 } catch (error) {
   writeFailureOutcome({ error, base, worktree, files, candidatePatch, aiderOutput: aiderOutputTail });
   throw error;

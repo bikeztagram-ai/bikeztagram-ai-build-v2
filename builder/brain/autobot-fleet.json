@@ -34,7 +34,9 @@
     "independentWorkerContract": "builder/brain/autobot-independent-worker-contract.json",
     "fanInLedger": "builder/working/autobot-fan-in-ledger.json",
     "fanInRunner": "builder/runner/autobot-independent-fan-in.mjs",
-    "maxConcurrentWorkersDescription": "Eight disjoint production specialist lanes: Director, Timeline, Music, Scene, Rhythm, Render, Media Intelligence and Caption."
+    "maxConcurrentWorkersDescription": "Eight disjoint production specialist lanes: Director, Timeline, Music, Scene, Rhythm, Render, Media Intelligence and Caption.",
+    "experimentalConcurrentWorkers": 2,
+    "experimentalWorkersDescription": "Two disposable Aider strategy lanes used only for materialization experiments; never part of protected production activation."
   },
   "activationGate": {
     "requiredEnabled": true,
@@ -277,6 +279,36 @@
         "src/captionPlanner.js"
       ],
       "specialistBuilder": true,
+      "protected": false
+    },
+    {
+      "id": "experimental-media-whole-root",
+      "role": "experimental-aider-whole-root-media-builder",
+      "entrypoint": "builder/runner/autobot-specialist-builder.mjs",
+      "status": "experimental",
+      "owns": [
+        "Aider whole-file root materialization experiment against media intelligence"
+      ],
+      "ownsFiles": [
+        "src/aiEditPlanner.js"
+      ],
+      "specialistBuilder": true,
+      "experimental": true,
+      "protected": false
+    },
+    {
+      "id": "experimental-caption-diff-root",
+      "role": "experimental-aider-diff-root-caption-builder",
+      "entrypoint": "builder/runner/autobot-specialist-builder.mjs",
+      "status": "experimental",
+      "owns": [
+        "Aider root-scoped diff materialization experiment against caption planning"
+      ],
+      "ownsFiles": [
+        "src/captionPlanner.js"
+      ],
+      "specialistBuilder": true,
+      "experimental": true,
       "protected": false
     }
   ],

@@ -29,6 +29,16 @@ function assertNoDuplicateTopLevelFunctions(file){
   const duplicates=duplicateTopLevelFunctionNames(read(file));
   assert(!duplicates.length,`duplicate-function-declaration guard failed in ${file}: ${duplicates.map(item=>item.name+' x'+item.count).join(', ')}`);
 }
+function duplicateTopLevelBindingNames(source){
+  const counts=new Map();
+  const patterns=[/^(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/gm,/^(?:export\s+)?class\s+([A-Za-z_$][\w$]*)/gm];
+  for(const pattern of patterns){let match;while((match=pattern.exec(source))!==null)counts.set(match[1],(counts.get(match[1])||0)+1);}
+  return [...counts.entries()].filter(([,count])=>count>1).map(([name,count])=>({name,count}));
+}
+function assertNoDuplicateTopLevelBindings(file){
+  const duplicates=duplicateTopLevelBindingNames(read(file));
+  assert(!duplicates.length,`duplicate-top-level-binding guard failed in ${file}: ${duplicates.map(item=>item.name+' x'+item.count).join(', ')}`);
+}
 function assertNoUnusedAddedTopLevelConstants(file){
   const base=String(process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT||'').trim();
   const candidate=String(process.env.AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT||'').trim();
@@ -52,7 +62,7 @@ function sparseMedia(count){return Array.from({length:count},(_,index)=>({id:`sp
 
 const changed=changedPaths();
 const cinematicChanged=changed.filter(path=>cinematicPaths.has(path));
-for(const file of cinematicChanged){assertNoDuplicateTopLevelFunctions(file);assertNoUnusedAddedTopLevelConstants(file);}
+for(const file of cinematicChanged){assertNoDuplicateTopLevelFunctions(file);assertNoDuplicateTopLevelBindings(file);assertNoUnusedAddedTopLevelConstants(file);}
 if(!cinematicChanged.length){console.log('autobot-product-change-quality: PASS not-applicable (no cinematic product files changed)');process.exit(0);}
 
 const planner=read('src/aiEditPlanner.js');
