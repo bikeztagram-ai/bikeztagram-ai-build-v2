@@ -32,9 +32,9 @@ has(/AUTOBOT_FEATURE_PASSES/,'Specialist Builder must pass its feature-pass budg
 has(/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'Specialist Builder must pass its verification deadline to the shared controller.');
 has(/export\\s\+|function\\s\+|class\\s\+|const\\s\+/,'Specialist Builder target-map symbol matcher must use real regex whitespace tokens.');
 has(/buildTargetMap\(/,'Specialist Builder must build a scoped target map for focused editing.');
-hasAider(/const cwd=root;const aiderFiles=files;/,'Specialist Aider must run from the worktree root with full objective paths.');
+hasAider(/const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;/,'Specialist Aider must run from the worktree root with full objective paths.');
 hasAider(/const specialistMapArg=specialist\?`--map-tokens=2048`/,'Specialist Aider must use the proven 2048-token scoped map.');
-hasAider(/--subtree-only/,'Specialist Aider must keep editing scoped to the supplied subtree.');
+hasAider(/--no-git/,'Specialist Aider must keep editing scoped to the supplied subtree.');
 hasAider(/`--edit-format=\$\{specialistEditFormat\}`/,'Specialist Aider must pass the configured direct edit format.');
 assert(!aider.includes('--model-settings-file'),'Specialist Aider must not reintroduce generated model-settings/architect wiring into the direct path.');
 assert(!aider.includes("specialist?'--map-tokens=0'"),'Specialist Aider must not disable the scoped repository map.');
