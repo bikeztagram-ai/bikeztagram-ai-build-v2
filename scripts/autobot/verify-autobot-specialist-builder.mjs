@@ -35,7 +35,9 @@ has(/buildTargetMap\(/,'Specialist Builder must build a scoped target map for fo
 if(!aider.includes("const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;")) throw new Error('Specialist Aider must use the proven src-subtree scope for src-owned lanes.');
 hasAider(/const specialistMapArg=specialist\?`--map-tokens=2048`/,'Specialist Aider must use the proven 2048-token scoped map.');
 hasAider(/--no-git/,'Specialist Aider must keep editing scoped to the supplied subtree.');
-hasAider(/`--edit-format=\$\{specialistEditFormat\}`/,'Specialist Aider must pass the configured direct edit format.');
+hasAider(/function chooseSpecialistEditFormat\(\)/,'Specialist Aider must adapt edit format for dense/minified source files.');
+hasAider(/const effectiveEditFormat=chooseSpecialistEditFormat\(\)/,'Specialist Aider must use the adaptive specialist edit format at runtime.');
+hasAider(/`--edit-format=\$\{effectiveEditFormat\}`/,'Specialist Aider must pass the effective direct edit format.');
 assert(!aider.includes('--model-settings-file'),'Specialist Aider must not reintroduce generated model-settings/architect wiring into the direct path.');
 assert(!aider.includes("specialist?'--map-tokens=0'"),'Specialist Aider must not disable the scoped repository map.');
 assert(aider.includes('Use Aider as the editor: directly modify the supplied objective files now.'),'Specialist Aider direct-editor instruction must remain explicit.');
