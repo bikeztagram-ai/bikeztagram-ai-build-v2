@@ -24,6 +24,10 @@ assert(workflow.includes('director-builder')&&workflow.includes('timeline-builde
 assert(workflow.includes('actions/upload-artifact@v7')&&workflow.includes('actions/download-artifact@v7'),'parallel planner/workers must exchange structured plan evidence through current Node24 artifact actions');
 assert(workflow.includes('AUTOBOT_SPECIALIST_BOT_ID')&&workflow.includes('AUTOBOT_SPECIALIST_OBJECTIVE')&&workflow.includes('AUTOBOT_SPECIALIST_BUILDER_ENABLED'),'parallel workflow must use the specialist execution contract');
 assert(workflow.includes('AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK'),'parallel workflow must retain product-quality verification');
+assert(workflow.includes('builder/runner/autobot-endurance-candidate-check.mjs'),'every specialist lane must route its candidate through independent QA + Reviewer verification');
+assert((workflow.match(/Independent QA \+ Reviewer /g)||[]).length===10,'every one of the ten specialist lanes must have its own downstream QA + Reviewer stage');
+assert(workflow.includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'candidate verification must bind to the exact current cycle base commit');
+assert(workflow.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate review evidence must be persisted per specialist lane');
 assert(planner.includes('maxConcurrentWorkers<2'),'planner must refuse execution before parallel activation');
 assert(planner.includes('seenFiles')&&planner.includes('scope overlaps another parallel worker'),'planner must reject overlapping file scopes');
 assert(planner.includes('Create one genuinely new user-facing product capability per specialist')&&planner.includes('Do not repeat these already-completed specialist objectives')&&planner.includes('No infrastructure, automation, CI, or provider work'),'planner must perform evidence-based product-facing discovery without repeating completed work or drifting into infrastructure');
