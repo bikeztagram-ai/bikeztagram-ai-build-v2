@@ -17,6 +17,11 @@ if(!brain.includes("const specialistMapArg=specialist?`--map-tokens=2048`:`--map
 if(!brain.includes('const useSrcCwd=specialistStrategy===')) throw new Error('specialist Aider must select cwd from the explicit strategy');
 if(!brain.includes("specialistStrategy==='whole-root'")) throw new Error('whole-root specialist strategy missing');
 if(!brain.includes("specialistStrategy==='udiff-nomap'")) throw new Error('udiff-nomap specialist strategy missing');
+if(!brain.includes("specialistStrategy==='diff-root-single'")) throw new Error('focused diff-root single-edit strategy missing');
+if(!brain.includes("/single$/.test(specialistStrategy)")) throw new Error('focused single-edit prompt guard missing');
+if(!specialistBuilder.includes('hasMeaningfulProductPatch')) throw new Error('specialist builder must distinguish semantic Aider edits from whitespace-only formatting');
+if(!specialistBuilder.includes("const passCount = singleEditStrategy ? 1")) throw new Error('single-edit strategy must use one Aider pass');
+if(!specialistBuilder.includes("Math.min(singleEditStrategy ? 25 : 20, controllerMinutes)")) throw new Error('single-edit strategy must receive the extended focused feature slice');
 if(!brain.includes('const aiderFiles=useSrcCwd?files.map(f=>f.slice(4)):files;')) throw new Error('specialist Aider must use basename paths for src strategies and repo paths for root strategies');
 if(specialistBuilder.includes('fallbackReserveMinutes')) throw new Error('specialist controller must not shorten Aider budget to pre-reserve fallback time');
 if(!specialistBuilder.includes('const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - controllerFinishGraceMinutes);')) throw new Error('specialist controller must preserve the proven full Aider budget');
