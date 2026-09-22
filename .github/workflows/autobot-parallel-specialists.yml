@@ -97,6 +97,20 @@ jobs:
         run: |
           b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
           git push --set-upstream origin "$b"
+      - name: Independent QA + Reviewer Director candidate
+        if: steps.execute.outcome == 'success'
+        env:
+          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/director-builder/autobot-endurance-candidate-check.json
+          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/director-builder/autobot-candidate-review-director-builder.json
+        run: |
+          set -euo pipefail
+          mkdir -p "builder/working/specialist-results/director-builder"
+          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/director-builder/autobot-specialist-handoff.json"
+          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/director-builder/autobot-specialist-outcome.json"
+          node builder/runner/autobot-endurance-candidate-check.mjs director-builder
       - name: Upload Director worker evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -106,6 +120,8 @@ jobs:
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/specialist-results/director-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/director-builder/autobot-candidate-review-director-builder.json
           if-no-files-found: ignore
 
   # TIMELINE — fully isolated production specialist. Its runner/worktree/Aider
@@ -165,6 +181,20 @@ jobs:
         run: |
           b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
           git push --set-upstream origin "$b"
+      - name: Independent QA + Reviewer Timeline candidate
+        if: steps.execute.outcome == 'success'
+        env:
+          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/timeline-builder/autobot-endurance-candidate-check.json
+          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/timeline-builder/autobot-candidate-review-timeline-builder.json
+        run: |
+          set -euo pipefail
+          mkdir -p "builder/working/specialist-results/timeline-builder"
+          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/timeline-builder/autobot-specialist-handoff.json"
+          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/timeline-builder/autobot-specialist-outcome.json"
+          node builder/runner/autobot-endurance-candidate-check.mjs timeline-builder
       - name: Upload Timeline worker evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -174,6 +204,8 @@ jobs:
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/specialist-results/timeline-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/timeline-builder/autobot-candidate-review-timeline-builder.json
           if-no-files-found: ignore
 
   experimental-music:
@@ -238,6 +270,20 @@ jobs:
           b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
           git push --set-upstream origin "$b"
 
+      - name: Independent QA + Reviewer Music candidate
+        if: steps.execute.outcome == 'success'
+        env:
+          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/music-builder/autobot-endurance-candidate-check.json
+          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/music-builder/autobot-candidate-review-music-builder.json
+        run: |
+          set -euo pipefail
+          mkdir -p "builder/working/specialist-results/music-builder"
+          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/music-builder/autobot-specialist-handoff.json"
+          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/music-builder/autobot-specialist-outcome.json"
+          node builder/runner/autobot-endurance-candidate-check.mjs music-builder
       - name: Upload Music worker evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -247,6 +293,8 @@ jobs:
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/specialist-results/music-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/music-builder/autobot-candidate-review-music-builder.json
           if-no-files-found: ignore
 
   experimental-scene:
@@ -311,6 +359,20 @@ jobs:
           b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
           git push --set-upstream origin "$b"
 
+      - name: Independent QA + Reviewer Scene candidate
+        if: steps.execute.outcome == 'success'
+        env:
+          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/scene-builder/autobot-endurance-candidate-check.json
+          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/scene-builder/autobot-candidate-review-scene-builder.json
+        run: |
+          set -euo pipefail
+          mkdir -p "builder/working/specialist-results/scene-builder"
+          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/scene-builder/autobot-specialist-handoff.json"
+          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/scene-builder/autobot-specialist-outcome.json"
+          node builder/runner/autobot-endurance-candidate-check.mjs scene-builder
       - name: Upload Scene worker evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -320,6 +382,8 @@ jobs:
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/specialist-results/scene-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/scene-builder/autobot-candidate-review-scene-builder.json
           if-no-files-found: ignore
 
   experimental-rhythm:
@@ -384,6 +448,20 @@ jobs:
           b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
           git push --set-upstream origin "$b"
 
+      - name: Independent QA + Reviewer Rhythm candidate
+        if: steps.execute.outcome == 'success'
+        env:
+          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/rhythm-builder/autobot-endurance-candidate-check.json
+          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/rhythm-builder/autobot-candidate-review-rhythm-builder.json
+        run: |
+          set -euo pipefail
+          mkdir -p "builder/working/specialist-results/rhythm-builder"
+          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/rhythm-builder/autobot-specialist-handoff.json"
+          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/rhythm-builder/autobot-specialist-outcome.json"
+          node builder/runner/autobot-endurance-candidate-check.mjs rhythm-builder
       - name: Upload Rhythm worker evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -393,6 +471,8 @@ jobs:
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/specialist-results/rhythm-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/rhythm-builder/autobot-candidate-review-rhythm-builder.json
           if-no-files-found: ignore
 
   experimental-render:
@@ -457,6 +537,20 @@ jobs:
           b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
           git push --set-upstream origin "$b"
 
+      - name: Independent QA + Reviewer Render candidate
+        if: steps.execute.outcome == 'success'
+        env:
+          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/render-builder/autobot-endurance-candidate-check.json
+          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/render-builder/autobot-candidate-review-render-builder.json
+        run: |
+          set -euo pipefail
+          mkdir -p "builder/working/specialist-results/render-builder"
+          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/render-builder/autobot-specialist-handoff.json"
+          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/render-builder/autobot-specialist-outcome.json"
+          node builder/runner/autobot-endurance-candidate-check.mjs render-builder
       - name: Upload Render worker evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -466,6 +560,8 @@ jobs:
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/specialist-results/render-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/render-builder/autobot-candidate-review-render-builder.json
           if-no-files-found: ignore
 
   # MEDIA INTELLIGENCE — isolated production specialist owning the analysis-to-edit planning boundary.
@@ -524,6 +620,20 @@ jobs:
         run: |
           b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
           git push --set-upstream origin "$b"
+      - name: Independent QA + Reviewer Media Intelligence candidate
+        if: steps.execute.outcome == 'success'
+        env:
+          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/media-intelligence-builder/autobot-endurance-candidate-check.json
+          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/media-intelligence-builder/autobot-candidate-review-media-intelligence-builder.json
+        run: |
+          set -euo pipefail
+          mkdir -p "builder/working/specialist-results/media-intelligence-builder"
+          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/media-intelligence-builder/autobot-specialist-handoff.json"
+          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/media-intelligence-builder/autobot-specialist-outcome.json"
+          node builder/runner/autobot-endurance-candidate-check.mjs media-intelligence-builder
       - name: Upload Media Intelligence worker evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -533,6 +643,8 @@ jobs:
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/specialist-results/media-intelligence-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/media-intelligence-builder/autobot-candidate-review-media-intelligence-builder.json
           if-no-files-found: ignore
 
   # CAPTION — isolated production specialist owning the speech-caption editorial boundary.
@@ -591,6 +703,20 @@ jobs:
         run: |
           b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
           git push --set-upstream origin "$b"
+      - name: Independent QA + Reviewer Caption candidate
+        if: steps.execute.outcome == 'success'
+        env:
+          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/caption-builder/autobot-endurance-candidate-check.json
+          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/caption-builder/autobot-candidate-review-caption-builder.json
+        run: |
+          set -euo pipefail
+          mkdir -p "builder/working/specialist-results/caption-builder"
+          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/caption-builder/autobot-specialist-handoff.json"
+          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/caption-builder/autobot-specialist-outcome.json"
+          node builder/runner/autobot-endurance-candidate-check.mjs caption-builder
       - name: Upload Caption worker evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -600,6 +726,8 @@ jobs:
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/specialist-results/caption-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/caption-builder/autobot-candidate-review-caption-builder.json
           if-no-files-found: ignore
 
   # FAN-IN — records all ten isolated specialist lanes into the same
@@ -662,6 +790,20 @@ jobs:
         run: |
           b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
           git push --set-upstream origin "$b"
+      - name: Independent QA + Reviewer Intent candidate
+        if: steps.execute.outcome == 'success'
+        env:
+          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/intent-builder/autobot-endurance-candidate-check.json
+          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/intent-builder/autobot-candidate-review-intent-builder.json
+        run: |
+          set -euo pipefail
+          mkdir -p "builder/working/specialist-results/intent-builder"
+          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/intent-builder/autobot-specialist-handoff.json"
+          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/intent-builder/autobot-specialist-outcome.json"
+          node builder/runner/autobot-endurance-candidate-check.mjs intent-builder
       - name: Upload Intent worker evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -671,6 +813,8 @@ jobs:
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/specialist-results/intent-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/intent-builder/autobot-candidate-review-intent-builder.json
           if-no-files-found: ignore
 
   # FAN-IN — records all ten isolated specialist lanes into the same
@@ -734,6 +878,20 @@ jobs:
         run: |
           b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
           git push --set-upstream origin "$b"
+      - name: Independent QA + Reviewer Continuity candidate
+        if: steps.execute.outcome == 'success'
+        env:
+          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
+          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/continuity-builder/autobot-endurance-candidate-check.json
+          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/continuity-builder/autobot-candidate-review-continuity-builder.json
+        run: |
+          set -euo pipefail
+          mkdir -p "builder/working/specialist-results/continuity-builder"
+          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/continuity-builder/autobot-specialist-handoff.json"
+          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/continuity-builder/autobot-specialist-outcome.json"
+          node builder/runner/autobot-endurance-candidate-check.mjs continuity-builder
       - name: Upload Continuity worker evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -743,6 +901,8 @@ jobs:
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/specialist-results/continuity-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/continuity-builder/autobot-candidate-review-continuity-builder.json
           if-no-files-found: ignore
 
   # FAN-IN — records all ten isolated specialist lanes into the same
