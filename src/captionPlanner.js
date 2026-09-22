@@ -9,9 +9,22 @@ const text=(value)=>String(value??'').trim();
 function normaliseCue(cue,index){
   const start=Math.max(0,num(cue?.start));
   const end=Math.max(start+0.05,num(cue?.end,start+0.05));
-  const value=text(cue?.text||cue?.caption||cue?.transcript);
-  if(!value)return null;
-  return {index,start,end,text:value,confidence:Math.max(0,Math.min(1,num(cue?.confidence,1)))};
+  const value = text(cue?.text || cue?.caption || cue?.transcript);
+  if (!value || cue?.confidence < 0.5) return null;
+  const maxChars = 72; // Set a maximum character limit for caption text
+  const truncatedValue = value.slice(0, maxChars);
+  if (truncatedValue.length > maxChars) {
+    console.warn(`Caption text exceeds maximum length of ${maxChars} characters. Truncated.`);
+  }
+
+  // Check for special characters that might interfere with overlay rendering
+  const specialChars = /[^a-zA-Z0-9\s.,!?]/g;
+  if (specialChars.test(truncatedValue)) {
+    console.warn(`Caption text contains special characters. Truncated.`);
+    return { index, start, end, text: truncatedValue.replace(specialChars, ''), confidence: Math.max(0, Math.min(1, num(cue?.confidence, 1))) };
+  }
+
+  return { index, start, end, text: truncatedValue, confidence: Math.max(0, Math.min(1, num(cue?.confidence, 1))) };
 }
 
 export function normaliseSpeechCaptions(captions){
@@ -30,32 +43,32 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
   const cuts=plan.cuts.map((cut)=>{
     const start=Math.max(0,num(cut.startTime));
     const end=start+Math.max(.05,num(cut.duration,.05));
-    const candidates=cues
-      .filter(cue=>cue.confidence>=minimumConfidence)
-      .map(cue=>({cue,overlap:overlap(start,end,cue.start,cue.end)}))
-      .filter(item=>item.overlap>0)
-      .sort((a,b)=>b.overlap-a.overlap||b.cue.confidence-a.cue.confidence);
-    const chosen=candidates[0]?.cue;
-    if(!chosen)return cut;
-    const textStart=Math.max(start,chosen.start);
-    const textEnd=Math.min(end,chosen.end);
-    const relativeIn=Math.max(0,Math.min(1,(textStart-start)/(end-start)));
-    const relativeOut=Math.max(relativeIn+.05,Math.min(1,(textEnd-start)/(end-start)));
+    const candidates = cues
+      .filter(cue => cue.confidence >= minimumConfidence && cue.text.trim() !== '')
+      .map(cue => ({ cue, overlap: overlap(start, end, cue.start, cue.end) }))
+      .filter(item => item.overlap > 0)
+      .sort((a, b) => b.overlap - a.overlap || b.cue.confidence - a.cue.confidence);
+    const chosen = candidates[0]?.cue;
+    if (!chosen) return cut;
+    const textStart = Math.max(start, chosen.start);
+    const textEnd = Math.min(end, chosen.end);
+    const relativeIn = Math.max(0, Math.min(1, (textStart - start) / (end - start)));
+    const relativeOut = Math.max(relativeIn + .05, Math.min(1, (textEnd - start) / (end - start)));
     return {
       ...cut,
-      text:chosen.text,
-      textIn:Number(Math.max(.02,relativeIn).toFixed(3)),
-      textOut:Number(Math.min(.98,relativeOut).toFixed(3)),
-      textStyle:'caption',
-      captionCueIndex:chosen.index,
-      captionConfidence:Number(chosen.confidence.toFixed(2))
+      text: chosen.text,
+      textIn: Number(Math.max(.02, relativeIn).toFixed(3)),
+      textOut: Number(Math.min(.98, relativeOut).toFixed(3)),
+      textStyle: 'caption',
+      captionCueIndex: chosen.index,
+      captionConfidence: Number(chosen.confidence.toFixed(2))
     };
   });
-  const appliedCount=cuts.filter(cut=>cut.captionCueIndex!=null).length;
+  const appliedCount = cuts.filter(cut => cut.captionCueIndex != null).length;
   return {
-    plan:{...plan,cuts,speechCaptions:cues,captioning:{enabled:true,mode:'verified-speech-cues',appliedShots:appliedCount,totalCues:cues.length}},
-    captions:cues,
-    captionCount:cues.length,
+    plan: { ...plan, cuts, speechCaptions: cues, captioning: { enabled: true, mode: 'verified-speech-cues', appliedShots: appliedCount, totalCues: cues.length } },
+    captions: cues,
+    captionCount: cues.length,
     appliedCount
   };
 }
@@ -74,7 +87,16 @@ export function filterCaptionCues(cues=[],options={}){
 export function normaliseCaptionTiming(cues=[]){
  return (Array.isArray(cues)?cues:[]).map(c=>{
   const start=Math.max(0,Number(c?.start??c?.startTime)||0);
-  const end=Math.max(start+.05,Number(c?.end??c?.endTime)||start+.8);
-  return {...c,start:Number(start.toFixed(3)),end:Number(end.toFixed(3)),duration:Number((end-start).toFixed(3))};
+  const end = Math.max(start + 0.05, Number(c?.end ?? c?.endTime) || start + 0.05);
+  if (end <= start) {
+    console.warn(`Invalid caption timing: start=${start}, end=${end}`);
+    return null; // Skip captions with zero duration
+  }
+  return {
+    ...c,
+    start: Number(start.toFixed(3)),
+    end: Number(end.toFixed(3)),
+    duration: Number((end - start).toFixed(3))
+  };
  });
 }
