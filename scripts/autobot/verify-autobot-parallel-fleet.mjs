@@ -28,6 +28,7 @@ assert(workflow.includes('builder/runner/autobot-endurance-candidate-check.mjs')
 assert((workflow.match(/Independent QA \+ Reviewer /g)||[]).length===10,'every one of the ten specialist lanes must have its own downstream QA + Reviewer stage');
 assert(workflow.includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'candidate verification must bind to the exact current cycle base commit');
 assert(workflow.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate review evidence must be persisted per specialist lane');
+assert(workflow.includes('autobot-candidate-review-ledger.json'),'fan-in must publish one central candidate QA + Reviewer ledger');
 assert(planner.includes('maxConcurrentWorkers<2'),'planner must refuse execution before parallel activation');
 assert(planner.includes('seenFiles')&&planner.includes('scope overlaps another parallel worker'),'planner must reject overlapping file scopes');
 assert(planner.includes('Create one genuinely new user-facing product capability per specialist')&&planner.includes('Do not repeat these already-completed specialist objectives')&&planner.includes('No infrastructure, automation, CI, or provider work'),'planner must perform evidence-based product-facing discovery without repeating completed work or drifting into infrastructure');
