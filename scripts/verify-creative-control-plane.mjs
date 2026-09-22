@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { createCreativeJob, planCreativeParallelism, selectWorker, recordGenerationEvidence, checkpointCreativeJob, applyBoundedRevision, finaliseCreativeSnapshot } from '../src/creativeEngineControlPlane.js';
+
+const job = createCreativeJob({ request: 'Make a cinematic trailer from my uploaded media', assets: [{ name: 'bike.mp4', type: 'video/mp4' }] });
+assert.equal(job.status, 'planned');
+assert.equal(job.assets.length, 1);
+const parallel = planCreativeParallelism(job);
+assert.equal(parallel.parallelJobs.length, 2);
+assert.equal(selectWorker([{ id: 'remote', kinds: ['music'], priority: 9 }, { id: 'local', kinds: ['music'], local: true, priority: 1 }], 'music').id, 'local');
+const evidenced = recordGenerationEvidence(parallel, { kind: 'music', worker: 'local-music', accepted: true });
+assert.equal(evidenced.provenance.length, 1);
+const checkpointed = checkpointCreativeJob(evidenced, 'assemble', { timelineReady: true });
+assert.equal(checkpointed.resume.stage, 'assemble');
+const revised = applyBoundedRevision(checkpointed, { story: 0.6, pacing: 0.9 }, 2);
+assert.equal(revised.decision, 'revise');
+const accepted = applyBoundedRevision({ ...checkpointed, attempts: [{}, {}] }, { story: 0.4 }, 2);
+assert.equal(accepted.decision, 'stop');
+const complete = finaliseCreativeSnapshot(checkpointed, { qa: { story: 0.95 }, render: { ready: true } });
+assert.equal(complete.status, 'complete');
+console.log('creative-control-plane: PASS');
