@@ -40,7 +40,7 @@ assert(expected.every(id=>workflow.includes(`experimental-${id.replace('-builder
 assert(workflow.includes('continue-on-error: true'),'one specialist failure must not cancel siblings; fan-in must still collect every lane');
 assert(workflow.includes("AUTOBOT_EXPERIMENTAL_WORKER: 'false'"),'production swarm must not rely on experimental-worker mode');
 assert(workflow.includes('actions/upload-artifact@v7'),'specialist jobs must publish structured evidence');
-assert(workflow.includes('needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption]'),'fan-in must wait for all ten isolated specialists');
+assert(workflow.includes('needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption, experimental-intent, experimental-continuity]'),'fan-in must wait for all ten isolated specialists');
 assert(workflow.includes('actions/download-artifact@v7'),'fan-in must download specialist evidence');
 assert(fanIn.includes('coordinationId'),'fan-in runner must group results by coordination id');
 assert(fanIn.includes('workers'),'fan-in runner must maintain one workers collection');
