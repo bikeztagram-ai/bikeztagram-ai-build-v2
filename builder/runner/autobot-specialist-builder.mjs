@@ -163,6 +163,36 @@ function normalizeIntroducedWhitespace(base, worktree, files) {
   }
   if (fixes.size) console.warn('[autobot] normalized Aider-introduced trailing whitespace before candidate verification.');
 }
+function publicExportNames(source) {
+  const names = new Set();
+  const patterns = [
+    /\bexport\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g,
+    /\bexport\s+(?:const|let|var|class)\s+([A-Za-z_$][\w$]*)/g,
+    /\bexport\s+default\b/g
+  ];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(source)) !== null) names.add(match[1] || 'default');
+  }
+  for (const match of source.matchAll(/\bexport\s*\{([^}]+)\}/g)) {
+    for (const entry of match[1].split(',')) {
+      const name = entry.trim().split(/\s+as\s+/i)[0].trim();
+      if (name) names.add(name);
+    }
+  }
+  return names;
+}
+function assertPublicExportsPreserved(base, worktree, files) {
+  for (const file of files) {
+    let baseSource;
+    try { baseSource = execFileSync('git', ['show', `${base}:${file}`], { cwd: worktree, encoding: 'utf8' }); }
+    catch { continue; }
+    const candidateSource = fs.readFileSync(path.join(worktree, file), 'utf8');
+    const missing = [...publicExportNames(baseSource)].filter(name => !publicExportNames(candidateSource).has(name));
+    if (missing.length) throw new Error(`public-export guard failed in ${file}: existing exports removed: ${missing.join(', ')}`);
+  }
+}
+
 function hasMeaningfulProductPatch(base, worktree, files) {
   try {
     const semantic = execFileSync('git', ['diff', '--ignore-all-space', '--ignore-blank-lines', base, '--', ...files], { cwd: worktree, encoding: 'utf8' });
@@ -329,6 +359,47 @@ try {
   aiderMaterialized = Boolean(candidateFiles.length && candidatePatch.trim() && hasMeaningfulProductPatch(base, worktree, files));
   if (candidateFiles.length && candidatePatch.trim() && !aiderMaterialized) console.warn('[autobot] Aider changed only formatting/whitespace; not counting that as materialization, so recovery may continue.');
   if (aiderMaterialized) candidateOrigin = 'aider';
+
+  // A build failure is too late to recover a destructive export rewrite. Guard
+  // the candidate contract immediately after Aider/fallback materialization so
+  // an editor that removes an existing public export is discarded before build.
+  let exportGuardError = null;
+  if (candidateFiles.length && candidatePatch.trim()) {
+    try { assertPublicExportsPreserved(base, worktree, files); }
+    catch (error) { exportGuardError = error; }
+  }
+  if (exportGuardError) {
+    console.warn(`[autobot] rejecting Aider candidate before build: ${exportGuardError.message}`);
+    aiderMaterialized = false;
+    candidateOrigin = 'structured-fallback';
+    const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model, base);
+    normalizeNestedSrcDuplicate(worktree, files);
+    normalizeIntroducedWhitespace(base, worktree, files);
+    candidateFiles = ownedProductFiles(base, worktree, files);
+    candidatePatch = captureBasePatch(base, worktree, files);
+    if (fallbackStatus !== 0 || !candidateFiles.length || !candidatePatch.trim()) {
+      fail(`Specialist Builder public-export recovery failed after Aider rejection (fallback status ${fallbackStatus}).`);
+    }
+    try { assertPublicExportsPreserved(base, worktree, files); }
+    catch (structuredExportError) {
+      console.warn(`[autobot] structured fallback also violated public exports; invoking deterministic recovery: ${structuredExportError.message}`);
+      run('git', ['reset', '--hard', base], worktree);
+      candidateOrigin = 'deterministic-fallback';
+      const deterministic = spawnSync(process.execPath, ['builder/runner/autobot-specialist-deterministic-fallback.mjs'], {
+        cwd: worktree,
+        stdio: 'inherit',
+        env: { ...process.env, AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath, AUTOBOT_SPECIALIST_BASE_COMMIT: base }
+      });
+      if (deterministic.error || deterministic.status !== 0) fail(`Specialist Builder deterministic public-export recovery failed (status ${deterministic.status ?? 'error'}).`);
+      normalizeNestedSrcDuplicate(worktree, files);
+      normalizeIntroducedWhitespace(base, worktree, files);
+      candidateFiles = ownedProductFiles(base, worktree, files);
+      candidatePatch = captureBasePatch(base, worktree, files);
+      if (!candidateFiles.length || !candidatePatch.trim()) fail('Deterministic public-export recovery produced no owned product change.');
+      assertPublicExportsPreserved(base, worktree, files);
+    }
+  }
+
   if (!candidateFiles.length || !candidatePatch.trim()) {
     const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model, base);
     normalizeNestedSrcDuplicate(worktree, files);
@@ -336,6 +407,7 @@ try {
     candidateFiles = ownedProductFiles(base, worktree, files);
     candidatePatch = captureBasePatch(base, worktree, files);
     if (fallbackStatus !== 0 && (!candidateFiles.length || !candidatePatch.trim())) fail(`Specialist Builder produced no product change after Aider and structured fallback (fallback status ${fallbackStatus}).`);
+    assertPublicExportsPreserved(base, worktree, files);
   }
 
   const unauthorized = changedFromBase(base, worktree).filter(file => !files.includes(file) && !file.startsWith('builder/working/'));
