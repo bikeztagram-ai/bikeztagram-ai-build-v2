@@ -10,10 +10,14 @@ if(learning.default?.mapTokens!==768 || learning.default?.editFormat!=='udiff') 
 if(!specialistBuilder.includes("process.env.AUTOBOT_FEATURE_PROTOCOL || 'aider-diff-v5'")) throw new Error('specialist builder must default to the live aider-diff-v5 protocol');
 if(!specialistBuilder.includes("['config', 'user.name'")) throw new Error('specialist builder must configure an isolated git identity before committing');
 if(!brain.includes("const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'udiff')")) throw new Error('specialist Aider edit format setting missing');
+if(!brain.includes("const specialistStrategy=String(process.env.AUTOBOT_SPECIALIST_EDIT_STRATEGY||'adaptive')")) throw new Error('specialist Aider strategy selector missing');
 if(!brain.includes("['diff','udiff','whole']")) throw new Error('specialist Aider edit-format validation missing');
 if(!brain.includes("const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'768',10)||768))")) throw new Error('specialist Aider map-token contract missing');
-if(!brain.includes("const specialistMapArg=specialist?`--map-tokens=2048`:`--map-tokens=768`")) throw new Error('specialist Aider must use the configured scoped map budget');
-if(!brain.includes("const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;")) throw new Error('specialist Aider must run from the src subtree with basename objective paths');
+if(!brain.includes("const specialistMapArg=specialist?`--map-tokens=2048`:`--map-tokens=768`")) throw new Error('specialist Aider must retain the map budget for non-strategy callers');
+if(!brain.includes('const useSrcCwd=specialistStrategy===')) throw new Error('specialist Aider must select cwd from the explicit strategy');
+if(!brain.includes("specialistStrategy==='whole-root'")) throw new Error('whole-root specialist strategy missing');
+if(!brain.includes("specialistStrategy==='udiff-nomap'")) throw new Error('udiff-nomap specialist strategy missing');
+if(!brain.includes('const aiderFiles=useSrcCwd?files.map(f=>f.slice(4)):files;')) throw new Error('specialist Aider must use basename paths for src strategies and repo paths for root strategies');
 if(specialistBuilder.includes('fallbackReserveMinutes')) throw new Error('specialist controller must not shorten Aider budget to pre-reserve fallback time');
 if(!specialistBuilder.includes('const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - controllerFinishGraceMinutes);')) throw new Error('specialist controller must preserve the proven full Aider budget');
 if(specialistBuilder.includes('AUTOBOT_SPECIALIST_REPO_MAP_TOKENS')) throw new Error('stale specialist repo-map environment contract must be removed');
