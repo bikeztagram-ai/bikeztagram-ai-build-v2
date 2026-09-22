@@ -104,6 +104,12 @@ function captureBasePatch(base, worktree, files) {
 function ownedProductFiles(base, worktree, files) {
   return changedFromBase(base, worktree).filter(file => files.includes(file));
 }
+function hasMeaningfulProductPatch(base, worktree, files) {
+  try {
+    const semantic = execFileSync('git', ['diff', '--ignore-all-space', '--ignore-blank-lines', base, '--', ...files], { cwd: worktree, encoding: 'utf8' });
+    return Boolean(semantic.trim());
+  } catch { return false; }
+}
 function runStructuredFallback(worktree, assignmentPath, model, base) {
   candidateOrigin = 'structured-fallback';
   run('git', ['reset', '--hard', base], worktree);
@@ -223,7 +229,8 @@ try {
   const learnedMapTokens = Math.max(512, Math.min(4096, Number(learned.mapTokens || 1024)));
   const learnedEditFormat = ['diff','udiff','whole'].includes(String(learned.editFormat || 'diff')) ? String(learned.editFormat) : 'diff';
   const configuredPasses = Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '', 10);
-  const passCount = Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 30 ? 2 : 1;
+  const singleEditStrategy = /single$/.test(editStrategy);
+  const passCount = singleEditStrategy ? 1 : (Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 30 ? 2 : 1);
   const verificationReserveMinutes = requestedMinutes >= 60 ? 5 : requestedMinutes >= 30 ? 3 : Math.min(2, Math.max(1, requestedMinutes - 1));
   const controllerFinishGraceMinutes = Math.max(0, Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES || '5', 10));
   // Give Aider the controller budget. Historical Run #65 showed that reserving
@@ -243,7 +250,7 @@ try {
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath, AUTOBOT_FEATURE_PROTOCOL: protocol,
     AUTOBOT_FEATURE_PASSES: String(passCount), AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline), AUTOBOT_AIDER_MODEL: model,
-    AUTOBOT_FEATURE_SLICE_MINUTES: String(Math.min(20, controllerMinutes)), AUTOBOT_MAX_FEATURE_CYCLES: String(maxFeatureCycles),
+    AUTOBOT_FEATURE_SLICE_MINUTES: String(Math.min(singleEditStrategy ? 25 : 20, controllerMinutes)), AUTOBOT_MAX_FEATURE_CYCLES: String(maxFeatureCycles),
     LOCAL_AI_MODEL: process.env.LOCAL_AI_MODEL || model.replace(/^ollama_chat\//, '').replace(/^ollama\//, ''),
     AUTOBOT_AIDER_EDITOR_MODEL: process.env.AUTOBOT_AIDER_EDITOR_MODEL || model,
     BUILDER_MAX_MINUTES: String(controllerMinutes), AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
@@ -258,7 +265,8 @@ try {
 
   let candidateFiles = ownedProductFiles(base, worktree, files);
   candidatePatch = captureBasePatch(base, worktree, files);
-  aiderMaterialized = Boolean(candidateFiles.length && candidatePatch.trim());
+  aiderMaterialized = Boolean(candidateFiles.length && candidatePatch.trim() && hasMeaningfulProductPatch(base, worktree, files));
+  if (candidateFiles.length && candidatePatch.trim() && !aiderMaterialized) console.warn('[autobot] Aider changed only formatting/whitespace; not counting that as materialization, so recovery may continue.');
   if (aiderMaterialized) candidateOrigin = 'aider';
   if (!candidateFiles.length || !candidatePatch.trim()) {
     const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model, base);
