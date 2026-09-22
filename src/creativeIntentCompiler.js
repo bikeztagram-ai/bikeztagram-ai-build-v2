@@ -1,4 +1,3 @@
-/* BIKEZTAGRAM AI — compositional creative intent compiler. */
 import { interpretCreativeBrief, buildCreativeSceneGraph } from './universalCreativeEngine.js';
 import { normalizeCreativeBrief, briefToGenerationDirectives } from './creativeBriefModel.js';
 import { decomposeCreativePrompt, buildShotBriefs } from './creativePromptDecomposer.js';
@@ -20,7 +19,7 @@ function inferActions(prompt, brief, shot) {
   return ['establish', 'move', 'hold'];
 }
 function lightingFor(brief) {
-  const explicit = brief.lighting && brief.lighting !== 'cinematic' ? [brief.lighting] : [];
+  const explicit = brief.lighting ? [brief.lighting] : [];
   return [...explicit, ...(LIGHTING[brief.time] || LIGHTING.day), brief.mood === 'dark' ? 'negative-fill' : 'ambient-fill'].filter((value, index, list) => list.indexOf(value) === index);
 }
 
