@@ -111,7 +111,7 @@ jobs:
 
           - bot: caption-builder
             name: 📝 Caption AutoBot
-            strategy: diff-root-single
+            strategy: adaptive-single
             objective: |
               Production Caption lane: make exactly one minimal caption-planning behaviour improvement in src/captionPlanner.js.
               Preserve existing APIs and contracts.
