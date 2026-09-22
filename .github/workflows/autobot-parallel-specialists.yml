@@ -39,7 +39,7 @@ env:
   AUTOBOT_MAX_NO_PROGRESS_CYCLES: '2'
 
 jobs:
-  # ISOLATED PRODUCTION FAN-OUT — all six product specialists run as separate GitHub jobs/runners. Each owns one disjoint product file, its own worktree, Aider process and local AI brain. A failure is contained to that specialist; all results converge through the canonical fan-in ledger.
+  # ISOLATED PRODUCTION FAN-OUT — all ten product specialists run as separate GitHub jobs/runners. Each owns one disjoint product file, its own worktree, Aider process and local AI brain. A failure is contained to that specialist; all results converge through the canonical fan-in ledger.
   # DIRECTOR — fully isolated production specialist. Its runner/worktree/Aider
   # stack is independent of every other specialist.
   experimental-director:
