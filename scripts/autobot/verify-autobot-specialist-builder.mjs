@@ -32,7 +32,7 @@ has(/AUTOBOT_FEATURE_PASSES/,'Specialist Builder must pass its feature-pass budg
 has(/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'Specialist Builder must pass its verification deadline to the shared controller.');
 has(/export\\s\+|function\\s\+|class\\s\+|const\\s\+/,'Specialist Builder target-map symbol matcher must use real regex whitespace tokens.');
 has(/buildTargetMap\(/,'Specialist Builder must build a scoped target map for focused editing.');
-hasAider(/const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;/,'Specialist Aider must run from the worktree root with full objective paths.');
+hasAider(/const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;/,'Specialist Aider must use the proven src-subtree scope for src-owned lanes.');
 hasAider(/const specialistMapArg=specialist\?`--map-tokens=2048`/,'Specialist Aider must use the proven 2048-token scoped map.');
 hasAider(/--no-git/,'Specialist Aider must keep editing scoped to the supplied subtree.');
 hasAider(/`--edit-format=\$\{specialistEditFormat\}`/,'Specialist Aider must pass the configured direct edit format.');
