@@ -46,6 +46,8 @@ assert(!aider.includes("specialist?'--map-tokens=0'"),'Specialist Aider must not
 assert(aider.includes('Use Aider as the editor: directly modify the supplied objective files now.'),'Specialist Aider direct-editor instruction must remain explicit.');
 assert(runner.includes('const controllerMinutes = Math.max(1, requestedMinutes - verificationReserveMinutes - controllerFinishGraceMinutes);'),'Specialist Builder must give Aider the proven full controller budget.');
 assert(!runner.includes('fallbackReserveMinutes'),'Specialist Builder must not shorten the Aider budget to pre-reserve fallback time.');
+assert(runner.includes('function assertPublicExportsPreserved(base, worktree, files)'),'Specialist Builder must guard existing public exports before build verification.');
+assert(runner.includes('rejecting Aider candidate before build'),'Specialist Builder must reject destructive Aider export rewrites before spending build time.');
 assert(runner.includes('function normalizeIntroducedWhitespace(base, worktree, files)'),'Specialist Builder must sanitize only Aider-introduced trailing whitespace before candidate verification.');
 assert(runner.includes('normalizeIntroducedWhitespace(base, worktree, files);'),'Specialist Builder must apply introduced-whitespace normalization before candidate verification.');
 assert(runner.includes("requestedMinutes >= 30 ? 4"),'Specialist Builder must reserve four minutes for verification on 30-minute shakedowns.');
