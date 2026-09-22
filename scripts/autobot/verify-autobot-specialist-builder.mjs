@@ -32,12 +32,15 @@ has(/AUTOBOT_FEATURE_PASSES/,'Specialist Builder must pass its feature-pass budg
 has(/AUTOBOT_FEATURE_DEADLINE_EPOCH_MS/,'Specialist Builder must pass its verification deadline to the shared controller.');
 has(/export\\s\+|function\\s\+|class\\s\+|const\\s\+/,'Specialist Builder target-map symbol matcher must use real regex whitespace tokens.');
 has(/buildTargetMap\(/,'Specialist Builder must build a scoped target map for focused editing.');
-if(!aider.includes("const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;")) throw new Error('Specialist Aider must use the proven src-subtree scope for src-owned lanes.');
+if(!aider.includes('const useSrcCwd=')) throw new Error('Specialist Aider must expose the controlled cwd strategy selector.');
+assert(aider.includes('specialistStrategy'), 'Specialist Aider must expose the per-specialist editing strategy.');
 hasAider(/const specialistMapArg=specialist\?`--map-tokens=2048`/,'Specialist Aider must use the proven 2048-token scoped map.');
 hasAider(/--no-git/,'Specialist Aider must keep editing scoped to the supplied subtree.');
 hasAider(/function chooseSpecialistEditFormat\(\)/,'Specialist Aider must adapt edit format for dense/minified source files.');
 hasAider(/const effectiveEditFormat=chooseSpecialistEditFormat\(\)/,'Specialist Aider must use the adaptive specialist edit format at runtime.');
 hasAider(/`--edit-format=\$\{effectiveEditFormat\}`/,'Specialist Aider must pass the effective direct edit format.');
+hasAider(/specialistStrategy==='whole-root'/,'Specialist Aider must support the whole-root experiment.');
+hasAider(/specialistStrategy==='udiff-nomap'/,'Specialist Aider must support the no-map experiment.');
 assert(!aider.includes('--model-settings-file'),'Specialist Aider must not reintroduce generated model-settings/architect wiring into the direct path.');
 assert(!aider.includes("specialist?'--map-tokens=0'"),'Specialist Aider must not disable the scoped repository map.');
 assert(aider.includes('Use Aider as the editor: directly modify the supplied objective files now.'),'Specialist Aider direct-editor instruction must remain explicit.');
