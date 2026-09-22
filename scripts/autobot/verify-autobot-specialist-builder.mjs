@@ -60,7 +60,9 @@ const scopes={
   'media-intelligence-builder':['src/aiEditPlanner.js'],
   'caption-builder':['src/captionPlanner.js'],
   'intent-builder':['src/creativeIntentCompiler.js'],
-  'continuity-builder':['src/creativeContinuityEngine.js']
+  'continuity-builder':['src/creativeContinuityEngine.js'],
+  'experimental-media-whole-root':['src/aiEditPlanner.js'],
+  'experimental-caption-diff-root':['src/captionPlanner.js']
 };
 for(const bot of specialists){assert(bot.entrypoint===runnerPath&&['verified','experimental'].includes(bot.status)&&bot.protected===false,`Invalid specialist registry contract: ${bot.id}`);if(bot.status==='experimental')assert(bot.experimental===true,`Experimental specialist must declare experimental:true: ${bot.id}`);assert(JSON.stringify(bot.ownsFiles)===JSON.stringify(scopes[bot.id]),`Invalid specialist scope: ${bot.id}`);for(const file of bot.ownsFiles)assert(fs.existsSync(path.join(root,file)),`Missing specialist scope file: ${file}`);}
 assert(pkg.scripts?.['verify:autobot-specialist-builder']==='node scripts/autobot/verify-autobot-specialist-builder.mjs','Package verifier contract is wrong.');
