@@ -9,9 +9,11 @@ const text=(value)=>String(value??'').trim();
 function normaliseCue(cue,index){
   const start=Math.max(0,num(cue?.start));
   const end=Math.max(start+0.05,num(cue?.end,start+0.05));
-  const value=text(cue?.text||cue?.caption||cue?.transcript);
-  if(!value)return null;
-  return {index,start,end,text:value,confidence:Math.max(0,Math.min(1,num(cue?.confidence,1)))};
+  const value = text(cue?.text || cue?.caption || cue?.transcript);
+  if (!value || cue?.confidence < 0.5) return null;
+  const maxChars = 72; // Set a maximum character limit for caption text
+  const truncatedValue = value.slice(0, maxChars);
+  return { index, start, end, text: truncatedValue, confidence: Math.max(0, Math.min(1, num(cue?.confidence, 1))) };
 }
 
 export function normaliseSpeechCaptions(captions){
