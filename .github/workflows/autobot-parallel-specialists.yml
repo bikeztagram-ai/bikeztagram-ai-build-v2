@@ -1041,9 +1041,18 @@ jobs:
           const bots=['director','timeline','music','scene','rhythm','render','media-intelligence','caption','intent','continuity'];
           const root='builder/working/experimental';
           const workers=[];
+          const findFile=(dir,name)=>{
+            if(!fs.existsSync(dir)) return null;
+            for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+              const full=`${dir}/${entry.name}`;
+              if(entry.isFile()&&entry.name===name) return full;
+              if(entry.isDirectory()){const found=findFile(full,name);if(found)return found;}
+            }
+            return null;
+          };
           for (const bot of bots) {
             const dir=`${root}/${bot}`;
-            const read=(name)=>{const p=`${dir}/${name}`;try{return fs.existsSync(p)?JSON.parse(fs.readFileSync(p,'utf8')):null;}catch(error){return {status:'invalid-evidence',error:String(error.message||error)};}};
+            const read=(name)=>{const p=findFile(dir,name);try{return p?JSON.parse(fs.readFileSync(p,'utf8')):null;}catch(error){return {status:'invalid-evidence',error:String(error.message||error)};}};
             const handoff=read('autobot-specialist-handoff.json');
             const outcome=read('autobot-specialist-outcome.json');
             const candidateCheck=read('autobot-endurance-candidate-check.json');
