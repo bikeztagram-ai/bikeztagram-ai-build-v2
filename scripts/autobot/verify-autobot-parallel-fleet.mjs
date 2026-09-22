@@ -12,15 +12,15 @@ const gateOnly=process.argv.includes('--gate-only');
 assert(registry.schemaVersion===1,'fleet registry schema must be v1');
 if(gateOnly){
   assert(registry.enabled===true&&registry.coordination?.mode==='active','parallel fleet is not live-authorized');
-  assert(registry.coordination?.maxConcurrentWorkers>=8,'parallel fleet remains blocked until maxConcurrentWorkers is explicitly raised to at least 8');
+  assert(registry.coordination?.maxConcurrentWorkers>=10,'parallel fleet remains blocked until maxConcurrentWorkers is explicitly raised to at least 8');
   assert(registry.activationGate?.protectedIntegration===false,'protected integration must remain disabled');
-  assert(Array.isArray(registry.activationGate?.parallelWorkers)&&registry.activationGate.parallelWorkers.length===8,'exactly eight parallel workers must be explicitly authorized');
+  assert(Array.isArray(registry.activationGate?.parallelWorkers)&&registry.activationGate.parallelWorkers.length===10,'exactly ten parallel workers must be explicitly authorized');
   console.log(JSON.stringify({ok:true,gate:'parallel-authorized',workers:registry.activationGate.parallelWorkers}));
   process.exit(0);
 }
-assert(workflow.includes('experimental-director')&&workflow.includes('experimental-timeline')&&workflow.includes('experimental-music')&&workflow.includes('experimental-scene')&&workflow.includes('experimental-rhythm')&&workflow.includes('experimental-render')&&workflow.includes('experimental-media-intelligence')&&workflow.includes('experimental-caption'),'parallel workflow must activate all eight isolated specialist Builders');
+assert(workflow.includes('experimental-director')&&workflow.includes('experimental-timeline')&&workflow.includes('experimental-music')&&workflow.includes('experimental-scene')&&workflow.includes('experimental-rhythm')&&workflow.includes('experimental-render')&&workflow.includes('experimental-media-intelligence')&&workflow.includes('experimental-caption')&&workflow.includes('experimental-intent')&&workflow.includes('experimental-continuity'),'parallel workflow must activate all ten isolated specialist Builders');
 assert(!workflow.includes('persistent-autobot:'),'joined persistent production lane must be removed');
-assert(workflow.includes('director-builder')&&workflow.includes('timeline-builder'),'parallel workflow must retain Director and Timeline specialist identities');
+assert(workflow.includes('director-builder')&&workflow.includes('timeline-builder'),'parallel workflow must retain Director, Timeline and the ten-lane specialist set specialist identities');
 assert(workflow.includes('actions/upload-artifact@v7')&&workflow.includes('actions/download-artifact@v7'),'parallel planner/workers must exchange structured plan evidence through current Node24 artifact actions');
 assert(workflow.includes('AUTOBOT_SPECIALIST_BOT_ID')&&workflow.includes('AUTOBOT_SPECIALIST_OBJECTIVE')&&workflow.includes('AUTOBOT_SPECIALIST_BUILDER_ENABLED'),'parallel workflow must use the specialist execution contract');
 assert(workflow.includes('AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK'),'parallel workflow must retain product-quality verification');
@@ -29,4 +29,4 @@ assert(planner.includes('seenFiles')&&planner.includes('scope overlaps another p
 assert(planner.includes('Create one genuinely new user-facing product capability per specialist')&&planner.includes('Do not repeat these already-completed specialist objectives')&&planner.includes('No infrastructure, automation, CI, or provider work'),'planner must perform evidence-based product-facing discovery without repeating completed work or drifting into infrastructure');
 assert(specialist.includes('writeSpecialistHandoff')&&/status:\s*['"]verified-candidate['"]/.test(specialist),'specialist worker must produce a verified candidate handoff');
 assert(structuredFallback.includes('overlapping edits in one file are disabled for safety')&&!structuredFallback.includes('multiple edits in one file are disabled for safety'),'structured fallback must permit only non-overlapping multiple edits within a declared file');
-console.log(JSON.stringify({ok:true,parallelWorkflow:'eight isolated specialist lanes',gate:'explicit registry authorization required',protectedIntegration:false}));
+console.log(JSON.stringify({ok:true,parallelWorkflow:'ten isolated specialist lanes',gate:'explicit registry authorization required',protectedIntegration:false}));
