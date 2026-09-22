@@ -105,6 +105,24 @@ if(storyIntegrationRequested){
   storyLength=rich.length;
 }
 
+if(changed.includes('src/aiEditPlanner.js')){
+  const {createAIEditPlan}=await import('../../src/aiEditPlanner.js');
+  assert(typeof createAIEditPlan==='function','media-intelligence runtime guard failed: createAIEditPlan export is not callable');
+  const smokeAnalysis={
+    durationInSeconds:11,
+    mediaType:'video',
+    subject:{label:'motorcycle',category:'vehicle'},
+    bestMoments:[
+      {mediaIndex:0,sourceIndex:0,mediaId:'smoke-0',start:0,end:3,duration:3,description:'motorcycle approaching'},
+      {mediaIndex:1,sourceIndex:1,mediaId:'smoke-1',start:3,end:7,duration:4,description:'motorcycle cornering'},
+      {mediaIndex:2,sourceIndex:2,mediaId:'smoke-2',start:7,end:11,duration:4,description:'motorcycle hero reveal'}
+    ]
+  };
+  const smokePlan=createAIEditPlan(smokeAnalysis,{creativePrompt:'cinematic motorcycle action reveal',targetDuration:11,maxCuts:6});
+  assert(smokePlan&&Array.isArray(smokePlan.cuts)&&smokePlan.cuts.length>=3,'media-intelligence runtime guard failed: smoke edit plan did not produce usable cuts');
+  assert(Number.isFinite(Number(smokePlan.qualityScore)),'media-intelligence runtime guard failed: smoke edit plan has no finite quality score');
+}
+
 if(/buildDirectorStory/.test(planner)||/storyBeats/.test(planner)){
   assert(/import\s*\{\s*buildDirectorStory\s*\}\s*from ['"]\.\/director\.js['"]/.test(planner),'production-path guard failed: aiEditPlanner.js does not import the canonical director story planner');
   assert(/const\s+storyBeats\s*=\s*buildDirectorStory\(/.test(planner),'production-path guard failed: aiEditPlanner.js does not construct story beats in the planner path');
