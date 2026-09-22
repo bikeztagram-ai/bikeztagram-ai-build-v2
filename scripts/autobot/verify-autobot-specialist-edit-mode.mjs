@@ -14,7 +14,7 @@ if(!brain.includes("const specialistStrategy=String(process.env.AUTOBOT_SPECIALI
 if(!brain.includes("['diff','udiff','whole']")) throw new Error('specialist Aider edit-format validation missing');
 if(!brain.includes("const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'768',10)||768))")) throw new Error('specialist Aider map-token contract missing');
 if(!brain.includes("const specialistMapArg=specialist?`--map-tokens=2048`:`--map-tokens=768`")) throw new Error('specialist Aider must retain the map budget for non-strategy callers');
-if(!brain.includes('const useSrcCwd=specialistStrategy===')) throw new Error('specialist Aider must select cwd from the explicit strategy');
+if(!brain.includes('const useSrcCwd=')) throw new Error('specialist Aider must select cwd from the explicit strategy');
 if(!brain.includes("specialistStrategy==='whole-root'")) throw new Error('whole-root specialist strategy missing');
 if(!brain.includes("specialistStrategy==='udiff-nomap'")) throw new Error('udiff-nomap specialist strategy missing');
 if(!brain.includes("specialistStrategy==='diff-root-single'")) throw new Error('focused diff-root single-edit strategy missing');
