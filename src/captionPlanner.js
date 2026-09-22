@@ -24,38 +24,40 @@ function overlap(aStart,aEnd,bStart,bEnd){
 }
 
 export function applySpeechCaptionsToPlan(plan,captions,options={}){
-  const cues=normaliseCaptionTiming(filterCaptionCues(normaliseSpeechCaptions(captions),options));
-  if(!plan?.cuts?.length||!cues.length)return {plan,captions:cues,captionCount:0,appliedCount:0};
-  const minimumConfidence=num(options.minimumConfidence,.55);
-  const cuts=plan.cuts.map((cut)=>{
-    const start=Math.max(0,num(cut.startTime));
-    const end=start+Math.max(.05,num(cut.duration,.05));
-    const candidates=cues
-      .filter(cue=>cue.confidence>=minimumConfidence)
-      .map(cue=>({cue,overlap:overlap(start,end,cue.start,cue.end)}))
-      .filter(item=>item.overlap>0)
-      .sort((a,b)=>b.overlap-a.overlap||b.cue.confidence-a.cue.confidence);
-    const chosen=candidates[0]?.cue;
-    if(!chosen)return cut;
-    const textStart=Math.max(start,chosen.start);
-    const textEnd=Math.min(end,chosen.end);
-    const relativeIn=Math.max(0,Math.min(1,(textStart-start)/(end-start)));
-    const relativeOut=Math.max(relativeIn+.05,Math.min(1,(textEnd-start)/(end-start)));
+  const cues = normaliseCaptionTiming(filterCaptionCues(normaliseSpeechCaptions(captions), options));
+  if (!plan?.cuts?.length || !cues.length) return { plan, captions: cues, captionCount: 0, appliedCount: 0 };
+  const minimumConfidence = num(options.minimumConfidence, .55);
+  const cuts = plan.cuts.map((cut) => {
+    const start = Math.max(0, num(cut.startTime));
+    const end = start + Math.max(.05, num(cut.duration, .05));
+    const candidates = cues
+      .filter(cue => cue.confidence >= minimumConfidence)
+      .map(cue => ({ cue, overlap: overlap(start, end, cue.start, cue.end) }))
+      .filter(item => item.overlap > 0)
+      .sort((a, b) => b.overlap - a.overlap || b.cue.confidence - a.cue.confidence);
+    const chosen = candidates[0]?.cue;
+    if (!chosen) return cut;
+    const textStart = Math.max(start, chosen.start);
+    const textEnd = Math.min(end, chosen.end);
+    const relativeIn = Math.max(0, Math.min(1, (textStart - start) / (end - start)));
+    const relativeOut = Math.max(relativeIn + .05, Math.min(1, (textEnd - start) / (end - start)));
+    const text = chosen.text.trim();
+    if (text === '' || chosen.confidence < minimumConfidence) return cut;
     return {
       ...cut,
-      text:chosen.text,
-      textIn:Number(Math.max(.02,relativeIn).toFixed(3)),
-      textOut:Number(Math.min(.98,relativeOut).toFixed(3)),
-      textStyle:'caption',
-      captionCueIndex:chosen.index,
-      captionConfidence:Number(chosen.confidence.toFixed(2))
+      text,
+      textIn: Number(Math.max(.02, relativeIn).toFixed(3)),
+      textOut: Number(Math.min(.98, relativeOut).toFixed(3)),
+      textStyle: 'caption',
+      captionCueIndex: chosen.index,
+      captionConfidence: Number(chosen.confidence.toFixed(2))
     };
   });
-  const appliedCount=cuts.filter(cut=>cut.captionCueIndex!=null).length;
+  const appliedCount = cuts.filter(cut => cut.captionCueIndex != null).length;
   return {
-    plan:{...plan,cuts,speechCaptions:cues,captioning:{enabled:true,mode:'verified-speech-cues',appliedShots:appliedCount,totalCues:cues.length}},
-    captions:cues,
-    captionCount:cues.length,
+    plan: { ...plan, cuts, speechCaptions: cues, captioning: { enabled: true, mode: 'verified-speech-cues', appliedShots: appliedCount, totalCues: cues.length } },
+    captions: cues,
+    captionCount: cues.length,
     appliedCount
   };
 }
