@@ -23,11 +23,11 @@ assert(registry.coordination?.fanInLedger==='builder/working/autobot-fan-in-ledg
 assert(registry.coordination?.fanInRunner==='builder/runner/autobot-independent-fan-in.mjs','registry fan-in runner path missing');
 
 const production=registry.bots.filter(b=>b.specialistBuilder===true&&b.status==='verified');
-const expected=['director-builder','timeline-builder','music-builder','scene-builder','rhythm-builder','render-builder','media-intelligence-builder','caption-builder'];
-assert(JSON.stringify(production.map(b=>b.id))===JSON.stringify(expected),'isolated production specialist set must be the eight registered lanes');
+const expected=['director-builder','timeline-builder','music-builder','scene-builder','rhythm-builder','render-builder','media-intelligence-builder','caption-builder','intent-builder','continuity-builder'];
+assert(JSON.stringify(production.map(b=>b.id))===JSON.stringify(expected),'isolated production specialist set must be the ten registered lanes');
 assert(registry.activationGate?.protectedIntegration===false,'protected integration must remain disabled');
-assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(expected),'activation gate must name all eight isolated specialists');
-assert(registry.coordination?.maxConcurrentWorkers===8,'production isolated worker concurrency must be bounded at eight');
+assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(expected),'activation gate must name all ten isolated specialists');
+assert(registry.coordination?.maxConcurrentWorkers===10,'production isolated worker concurrency must be bounded at eight');
 
 for(const bot of production){
   assert(bot.specialistBuilder===true,'production specialist must use Specialist Builder contract');
@@ -40,7 +40,7 @@ assert(expected.every(id=>workflow.includes(`experimental-${id.replace('-builder
 assert(workflow.includes('continue-on-error: true'),'one specialist failure must not cancel siblings; fan-in must still collect every lane');
 assert(workflow.includes("AUTOBOT_EXPERIMENTAL_WORKER: 'false'"),'production swarm must not rely on experimental-worker mode');
 assert(workflow.includes('actions/upload-artifact@v7'),'specialist jobs must publish structured evidence');
-assert(workflow.includes('needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption]'),'fan-in must wait for all six isolated specialists');
+assert(workflow.includes('needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption]'),'fan-in must wait for all ten isolated specialists');
 assert(workflow.includes('actions/download-artifact@v7'),'fan-in must download specialist evidence');
 assert(fanIn.includes('coordinationId'),'fan-in runner must group results by coordination id');
 assert(fanIn.includes('workers'),'fan-in runner must maintain one workers collection');
@@ -51,4 +51,4 @@ assert(fanIn.includes('(outcome || {})'),'fan-in must prefer rich outcome eviden
 assert(specialist.includes('AUTOBOT_EXPERIMENTAL_WORKER'),'specialist Builder must retain explicit experimental gating support');
 assert(specialist.includes('coordinationId'),'specialist Builder must preserve coordination identity');
 
-console.log(JSON.stringify({ok:true,productionWorkers:expected,fanIn:'eight isolated jobs -> one canonical ledger',protectedIntegration:registry.activationGate.protectedIntegration}));
+console.log(JSON.stringify({ok:true,productionWorkers:expected,fanIn:'ten isolated jobs -> one canonical ledger',protectedIntegration:registry.activationGate.protectedIntegration}));
