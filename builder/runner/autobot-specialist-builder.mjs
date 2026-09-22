@@ -104,6 +104,25 @@ function captureBasePatch(base, worktree, files) {
 function ownedProductFiles(base, worktree, files) {
   return changedFromBase(base, worktree).filter(file => files.includes(file));
 }
+function normalizeNestedSrcDuplicate(worktree, files) {
+  // Aider can emit src/<file> while running from src/, creating src/src/<file>.
+  // Salvage only this exact duplicate-prefix case; never rewrite arbitrary paths.
+  for (const file of files) {
+    if (!file.startsWith('src/')) continue;
+    const nested = path.join(worktree, 'src', file);
+    const canonical = path.join(worktree, file);
+    if (!fs.existsSync(nested) || !fs.existsSync(canonical)) continue;
+    const nestedText = fs.readFileSync(nested, 'utf8');
+    const canonicalText = fs.readFileSync(canonical, 'utf8');
+    if (nestedText === canonicalText) { try { fs.rmSync(nested, { force: true }); } catch {} continue; }
+    let canonicalChanged = false;
+    try { canonicalChanged = Boolean(execFileSync('git', ['diff', '--', file], { cwd: worktree, encoding: 'utf8' }).trim()); } catch {}
+    if (canonicalChanged) continue;
+    fs.copyFileSync(nested, canonical);
+    fs.rmSync(nested, { force: true });
+    console.warn('[autobot] normalized Aider duplicate src/ prefix: ' + path.relative(worktree, nested) + ' -> ' + file);
+  }
+}
 function hasMeaningfulProductPatch(base, worktree, files) {
   try {
     const semantic = execFileSync('git', ['diff', '--ignore-all-space', '--ignore-blank-lines', base, '--', ...files], { cwd: worktree, encoding: 'utf8' });
@@ -269,7 +288,9 @@ try {
   if (candidateFiles.length && candidatePatch.trim() && !aiderMaterialized) console.warn('[autobot] Aider changed only formatting/whitespace; not counting that as materialization, so recovery may continue.');
   if (aiderMaterialized) candidateOrigin = 'aider';
   if (!candidateFiles.length || !candidatePatch.trim()) {
+    normalizeNestedSrcDuplicate(worktree, files);
     const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model, base);
+    normalizeNestedSrcDuplicate(worktree, files);
     candidateFiles = ownedProductFiles(base, worktree, files);
     candidatePatch = captureBasePatch(base, worktree, files);
     if (fallbackStatus !== 0 && (!candidateFiles.length || !candidatePatch.trim())) fail(`Specialist Builder produced no product change after Aider and structured fallback (fallback status ${fallbackStatus}).`);
