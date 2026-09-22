@@ -48,8 +48,8 @@ assert(runner.includes('const controllerMinutes = Math.max(1, requestedMinutes -
 assert(!runner.includes('fallbackReserveMinutes'),'Specialist Builder must not shorten the Aider budget to pre-reserve fallback time.');
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 const productionSpecialists=specialists.filter(b=>b.status==='verified');
-assert(productionSpecialists.length===8,'Exactly eight verified specialist Builders are authorised by the current gate.');
-assert(JSON.stringify(productionSpecialists.map(b=>b.id))===JSON.stringify(['director-builder','timeline-builder','music-builder','scene-builder','rhythm-builder','render-builder','media-intelligence-builder','caption-builder']),'Production specialist set changed.');
+assert(productionSpecialists.length===10,'Exactly ten verified specialist Builders are authorised by the current gate.');
+assert(JSON.stringify(productionSpecialists.map(b=>b.id))===JSON.stringify(['director-builder','timeline-builder','music-builder','scene-builder','rhythm-builder','render-builder','media-intelligence-builder','caption-builder','intent-builder','continuity-builder']),'Production specialist set changed.');
 const scopes={
   'director-builder':['src/director.js'],
   'timeline-builder':['src/executableTimeline.js'],
@@ -58,7 +58,9 @@ const scopes={
   'rhythm-builder':['src/editorialRhythm.js'],
   'render-builder':['src/cinematicRendererV3.js'],
   'media-intelligence-builder':['src/aiEditPlanner.js'],
-  'caption-builder':['src/captionPlanner.js']
+  'caption-builder':['src/captionPlanner.js'],
+  'intent-builder':['src/creativeIntentCompiler.js'],
+  'continuity-builder':['src/creativeContinuityEngine.js']
 };
 for(const bot of specialists){assert(bot.entrypoint===runnerPath&&['verified','experimental'].includes(bot.status)&&bot.protected===false,`Invalid specialist registry contract: ${bot.id}`);if(bot.status==='experimental')assert(bot.experimental===true,`Experimental specialist must declare experimental:true: ${bot.id}`);assert(JSON.stringify(bot.ownsFiles)===JSON.stringify(scopes[bot.id]),`Invalid specialist scope: ${bot.id}`);for(const file of bot.ownsFiles)assert(fs.existsSync(path.join(root,file)),`Missing specialist scope file: ${file}`);}
 assert(pkg.scripts?.['verify:autobot-specialist-builder']==='node scripts/autobot/verify-autobot-specialist-builder.mjs','Package verifier contract is wrong.');
