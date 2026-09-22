@@ -37,7 +37,7 @@ jobs:
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
-      max-parallel: 6
+      max-parallel: 8
       matrix:
         include:
           - bot: director-builder
@@ -97,6 +97,30 @@ jobs:
               - only src/editorialRhythm.js may be a product-file change
               - syntax, build and product-quality verification pass
               - leave a verified candidate handoff when valid
+          - bot: media-intelligence-builder
+            name: 🧠 Media Intelligence AutoBot
+            strategy: udiff-nomap
+            objective: |
+              Production Media Intelligence lane: make exactly one minimal media-analysis behaviour improvement in src/aiEditPlanner.js.
+              Preserve existing APIs and contracts.
+              Acceptance:
+              - improve local media interpretation or source-aware planning behaviour
+              - only src/aiEditPlanner.js may be a product-file change
+              - syntax, build and product-quality verification pass
+              - leave a verified candidate handoff when valid
+
+          - bot: caption-builder
+            name: 📝 Caption AutoBot
+            strategy: diff-root-single
+            objective: |
+              Production Caption lane: make exactly one minimal caption-planning behaviour improvement in src/captionPlanner.js.
+              Preserve existing APIs and contracts.
+              Acceptance:
+              - improve context-aware caption selection or generation behaviour
+              - only src/captionPlanner.js may be a product-file change
+              - syntax, build and product-quality verification pass
+              - leave a verified candidate handoff when valid
+
           - bot: render-builder
             name: 🎞️ Render AutoBot
             strategy: udiff-src-single
