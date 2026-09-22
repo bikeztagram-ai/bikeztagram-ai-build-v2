@@ -16,6 +16,7 @@ const deadline=Number.isFinite(configuredDeadline)&&configuredDeadline>Date.now(
 const normalDeadline=Number.parseInt(process.env.AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS||String(deadline),10);
 const perCallMaxMs=Math.max(30_000,Number.parseInt(process.env.AUTOBOT_AIDER_CALL_TIMEOUT_MS||String(6*60*60*1000),10));
 const specialist=process.env.AUTOBOT_SPECIALIST_MODE==='true';
+const specialistStrategy=String(process.env.AUTOBOT_SPECIALIST_EDIT_STRATEGY||'adaptive').trim().toLowerCase();
 const specialistEditFormat=String(process.env.AUTOBOT_SPECIALIST_AIDER_EDIT_FORMAT||'udiff').trim().toLowerCase();
 const specialistMapTokens=Math.max(512,Math.min(4096,Number.parseInt(process.env.AUTOBOT_SPECIALIST_MAP_TOKENS||'768',10)||768));
 if(specialist&&!['diff','udiff','whole'].includes(specialistEditFormat))throw new Error(`Unsupported specialist Aider edit format: ${specialistEditFormat}`);
@@ -44,13 +45,21 @@ function hasChanges(o){const allowed=new Set(filesFor(o));return tracked().some(
 const o=objective();
 if(!o){console.log(JSON.stringify({ok:true,protocol,status:'no-eligible-objective'}));process.exit(0);}
 const files=filesFor(o);if(!files.length){console.error(`[aider] objective ${o.id} has no scoped files`);process.exit(1);}
-const srcOnly=files.every(f=>f.startsWith('src/'));const cwd=srcOnly?path.join(root,'src'):root;const aiderFiles=srcOnly?files.map(f=>f.slice(4)):files;function chooseSpecialistEditFormat(){if(!specialist)return 'whole';for(const file of files){try{const text=fs.readFileSync(path.join(root,file),'utf8');const maxLine=Math.max(...text.split(/\r?\n/).map(line=>line.length),0);if(maxLine>1200)return 'whole';}catch{}}return specialistEditFormat;}const effectiveEditFormat=chooseSpecialistEditFormat();const prior=state.inProgress?.id===o.id?Math.max(0,Number(state.inProgress.completedPasses||0)):0;const first=Math.min(maxPasses,prior+1);let success=false;
+const srcOnly=files.every(f=>f.startsWith('src/'));
+function chooseSpecialistEditFormat(){if(!specialist)return 'whole';if(specialistStrategy==='whole-root'||specialistStrategy==='whole-src')return 'whole';if(specialistStrategy==='diff-root')return 'diff';if(specialistStrategy==='udiff-root'||specialistStrategy==='udiff-src'||specialistStrategy==='udiff-nomap')return 'udiff';for(const file of files){try{const text=fs.readFileSync(path.join(root,file),'utf8');const maxLine=Math.max(...text.split(/\r?\n/).map(line=>line.length),0);if(maxLine>1200)return 'whole';}catch{}}return specialistEditFormat;}
+const effectiveEditFormat=chooseSpecialistEditFormat();
+const useSrcCwd=specialistStrategy==='whole-src'||specialistStrategy==='udiff-src'||(specialistStrategy==='adaptive'&&srcOnly);
+const cwd=useSrcCwd?path.join(root,'src'):root;
+const aiderFiles=useSrcCwd?files.map(f=>f.slice(4)):files;const prior=state.inProgress?.id===o.id?Math.max(0,Number(state.inProgress.completedPasses||0)):0;const first=Math.min(maxPasses,prior+1);let success=false;
 for(let pass=first;pass<=maxPasses;pass++){
   const rem=remainingMs();if(rem<35_000||normalRemainingMs()<35_000&&pass>first)break;
   state.runs=(state.runs||0)+1;const before=new Set(tracked());const snap=snapshot(files);const passesRemaining=Math.max(1,maxPasses-pass+1);
   const timeout=Math.min(perCallMaxMs,Math.max(30_000,Math.floor(rem/passesRemaining)-5_000));
   const specialistMapArg=specialist?`--map-tokens=2048`:`--map-tokens=768`;
-  const args=[`--model=${model}`,`--timeout=${Math.max(30,Math.floor(timeout/1000))}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',...(specialist?['--no-git','--map-tokens=2048','--subtree-only',`--edit-format=${effectiveEditFormat}`]:[specialistMapArg,'--subtree-only','--edit-format=whole']),'--message',promptFor(o,pass),...aiderFiles];
+  const specialistFlags=specialist
+    ? ['--no-git', ...(specialistStrategy==='udiff-nomap'?[]:['--map-tokens=2048']), ...(specialistStrategy==='udiff-nomap'?[]:['--subtree-only']), `--edit-format=${effectiveEditFormat}`]
+    : [specialistMapArg,'--subtree-only','--edit-format=whole'];
+  const args=[`--model=${model}`,`--timeout=${Math.max(30,Math.floor(timeout/1000))}`,'--yes-always','--no-auto-commits','--no-dirty-commits','--no-gitignore','--no-show-model-warnings',...specialistFlags,'--message',promptFor(o,pass),...aiderFiles];
   const result=spawnSync('aider',args,{cwd,encoding:'utf8',stdio:'inherit',timeout});
   const changed=hasChanges(o);
   if(result.error||result.status!==0){
@@ -60,4 +69,4 @@ for(let pass=first;pass<=maxPasses;pass++){
   try{scope(before,o);if(!changed)throw new Error('Aider completed without materializing a scoped product change');verify();state.inProgress={id:o.id,completedPasses:pass,lastVerifiedAt:new Date().toISOString(),remainingPasses:Math.max(0,maxPasses-pass)};saveAiderState(statePath,state);discard(snap);success=pass>=maxPasses;if(success)break;}catch(e){if(specialist)discard(snap);else restore(o,snap);state.failed=[...(state.failed||[]),{id:o.id,pass,code:'verification',error:e.message,preservedSpecialistChanges:specialist&&changed}];saveAiderState(statePath,state);if(remainingMs()<35_000)break;if(specialist)break;}
 }
 if(success){state.completed=[...(state.completed||[]),o.id];state.lastSuccess={id:o.id,at:new Date().toISOString()};state.inProgress=null;}else if(state.inProgress?.id===o.id){state.inProgress={...state.inProgress,remainingPasses:Math.max(0,maxPasses-Number(state.inProgress.completedPasses||0)),checkpointedAt:new Date().toISOString()};}
-state.protocol=protocol;state.lastRunAt=new Date().toISOString();saveAiderState(statePath,state);console.log(JSON.stringify({ok:success,protocol,objective:o.id,objectiveSource:assigned?'orchestrator-assignment':'feature-library',assignedSpecialist:assigned?.specialist?.id||null,passes:maxPasses,startingPass:first,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),normalRemainingMs:normalRemainingMs(),resumable:!success&&state.inProgress?.id===o.id,preservedSpecialistChanges:specialist&&hasChanges(o),adversarialReviewEnabled:maxPasses>1,productDirectiveLoaded:Boolean(directive),postChangeProductQualityGuard:true,editFormat:specialist?effectiveEditFormat:'whole',executionMode:specialist?'direct-editor':'standard'}));process.exit(success?0:1);
+state.protocol=protocol;state.lastRunAt=new Date().toISOString();saveAiderState(statePath,state);console.log(JSON.stringify({ok:success,protocol,objective:o.id,objectiveSource:assigned?'orchestrator-assignment':'feature-library',assignedSpecialist:assigned?.specialist?.id||null,passes:maxPasses,startingPass:first,model,elapsedMs:(requestedMinutes*60_000)-remainingMs(),remainingMs:remainingMs(),normalRemainingMs:normalRemainingMs(),resumable:!success&&state.inProgress?.id===o.id,preservedSpecialistChanges:specialist&&hasChanges(o),adversarialReviewEnabled:maxPasses>1,productDirectiveLoaded:Boolean(directive),postChangeProductQualityGuard:true,editFormat:specialist?effectiveEditFormat:'whole',specialistStrategy:specialist?specialistStrategy:null,executionMode:specialist?'direct-editor':'standard'}));process.exit(success?0:1);
