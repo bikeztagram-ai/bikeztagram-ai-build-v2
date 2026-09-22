@@ -1032,10 +1032,47 @@ jobs:
           done
           cat builder/working/fan-in/autobot-fan-in-ledger.json
 
+      - name: Build canonical candidate QA + Reviewer ledger
+        if: always()
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const bots=['director','timeline','music','scene','rhythm','render','media-intelligence','caption','intent','continuity'];
+          const root='builder/working/experimental';
+          const workers=[];
+          for (const bot of bots) {
+            const dir=`${root}/${bot}`;
+            const read=(name)=>{const p=`${dir}/${name}`;try{return fs.existsSync(p)?JSON.parse(fs.readFileSync(p,'utf8')):null;}catch(error){return {status:'invalid-evidence',error:String(error.message||error)};}};
+            const handoff=read('autobot-specialist-handoff.json');
+            const outcome=read('autobot-specialist-outcome.json');
+            const candidateCheck=read('autobot-endurance-candidate-check.json');
+            const review=read(`autobot-candidate-review-${bot}-builder.json`) || read(`autobot-candidate-review-${bot}.json`);
+            workers.push({
+              botId:handoff?.botId||outcome?.botId||`${bot}-builder`,
+              candidateCommit:handoff?.candidateCommit||candidateCheck?.candidateCommit||null,
+              candidateOrigin:handoff?.candidateOrigin||outcome?.candidateOrigin||null,
+              aiderMaterialized:handoff?.aiderMaterialized===true||outcome?.aiderMaterialized===true,
+              specialistStatus:handoff?.status||outcome?.status||'missing',
+              qaStatus:candidateCheck?.status||'not-run',
+              integrationEligible:candidateCheck?.integrationEligible===true,
+              reviewerStatus:review?.status||'not-run',
+              reviewFindings:Array.isArray(review?.findings)?review.findings:[],
+              reviewEvidencePresent:Boolean(review),
+              candidateCheckEvidencePresent:Boolean(candidateCheck)
+            });
+          }
+          const ledger={schemaVersion:'autobot-candidate-review-ledger-v1',coordinationId:`persistent-${process.env.GITHUB_RUN_ID}`,generatedAt:new Date().toISOString(),workers};
+          fs.writeFileSync('builder/working/fan-in/autobot-candidate-review-ledger.json',JSON.stringify(ledger,null,2)+'\n');
+          console.log(JSON.stringify(ledger,null,2));
+          NODE
+
       - name: Upload unified ten-specialist fan-in evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: autobot-persistent-experimental-fan-in-${{ github.run_id }}
-          path: builder/working/fan-in/autobot-fan-in-ledger.json
+          path: |
+            builder/working/fan-in/autobot-fan-in-ledger.json
+            builder/working/fan-in/autobot-candidate-review-ledger.json
           if-no-files-found: ignore
