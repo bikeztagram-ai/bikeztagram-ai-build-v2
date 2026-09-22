@@ -42,9 +42,9 @@ jobs:
         include:
           - bot: director-builder
             name: 🎬 Director AutoBot
-            strategy: udiff-src
+            strategy: diff-root-single
             objective: |
-              Production Director lane: improve cinematic story intelligence in src/director.js with a minimal safe change.
+              Production Director lane: make exactly one minimal cinematic story-intelligence behaviour improvement in src/director.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - improve prompt-sensitive director decisions or shot/story selection
@@ -53,9 +53,9 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: timeline-builder
             name: ⏱️ Timeline AutoBot
-            strategy: whole-src
+            strategy: whole-root-single
             objective: |
-              Production Timeline lane: improve executable timeline behaviour in src/executableTimeline.js with a minimal safe change.
+              Production Timeline lane: make exactly one minimal executable-timeline behaviour improvement in src/executableTimeline.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - improve source-aware timing, motion, transition or executable cut continuity
@@ -65,9 +65,9 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: music-builder
             name: 🎵 Music AutoBot
-            strategy: udiff-root
+            strategy: udiff-root-single
             objective: |
-              Production Music lane: improve prompt-responsive music energy in src/musicDirector.js with one minimal production-safe change.
+              Production Music lane: make exactly one minimal prompt-responsive music-energy behaviour improvement in src/musicDirector.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - energy responds to driving, fast or action creative intent
@@ -76,9 +76,9 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: scene-builder
             name: 🎥 Scene AutoBot
-            strategy: whole-root
+            strategy: diff-src-single
             objective: |
-              Production Scene lane: improve duration-bounded scene shot continuity in src/universalCreativeSceneEngine.js with one minimal production-safe change.
+              Production Scene lane: make exactly one minimal duration-bounded scene-shot continuity behaviour improvement in src/universalCreativeSceneEngine.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - scene shot count remains bounded and scales with duration
@@ -88,9 +88,9 @@ jobs:
 
           - bot: rhythm-builder
             name: 🥁 Rhythm AutoBot
-            strategy: diff-root
+            strategy: whole-src-single
             objective: |
-              Production Rhythm lane: improve beat-aware editorial pacing in src/editorialRhythm.js with a minimal safe change.
+              Production Rhythm lane: make exactly one minimal beat-aware editorial pacing behaviour improvement in src/editorialRhythm.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - improve duration distribution or creative-intent pacing without exceeding the requested target budget
@@ -99,9 +99,9 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: render-builder
             name: 🎞️ Render AutoBot
-            strategy: udiff-nomap
+            strategy: udiff-src-single
             objective: |
-              Production Render lane: improve visible cinematic rendering behaviour in src/cinematicRendererV3.js with a minimal safe change.
+              Production Render lane: make exactly one minimal visible cinematic-rendering behaviour improvement in src/cinematicRendererV3.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - improve transition, motion or visual finishing quality while preserving source decoding and recording reliability
