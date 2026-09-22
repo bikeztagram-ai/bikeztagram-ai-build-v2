@@ -123,6 +123,46 @@ function normalizeNestedSrcDuplicate(worktree, files) {
     console.warn('[autobot] normalized Aider duplicate src/ prefix: ' + path.relative(worktree, nested) + ' -> ' + file);
   }
 }
+
+function normalizeIntroducedWhitespace(base, worktree, files) {
+  // Aider occasionally leaves trailing whitespace on newly edited lines.
+  // Git's --check intentionally rejects that. Repair only the exact lines Git
+  // reports as introduced whitespace errors; do not reformat untouched source.
+  let report = '';
+  try {
+    execFileSync('git', ['diff', base, '--check', '--', ...files], { cwd: worktree, encoding: 'utf8' });
+    return;
+  } catch (error) {
+    report = String(error?.stdout || error?.stderr || '');
+  }
+  const fixes = new Map();
+  for (const line of report.split(/\r?\n/)) {
+    const match = line.match(/^(.+?):(\d+): trailing whitespace\.?$/);
+    if (!match) continue;
+    const file = match[1];
+    const lineNumber = Number(match[2]);
+    if (!files.includes(file) || !Number.isInteger(lineNumber) || lineNumber < 1) continue;
+    if (!fixes.has(file)) fixes.set(file, new Set());
+    fixes.get(file).add(lineNumber);
+  }
+  for (const [file, lineNumbers] of fixes) {
+    const target = path.join(worktree, file);
+    if (!fs.existsSync(target)) continue;
+    const lines = fs.readFileSync(target, 'utf8').split(/\r?\n/);
+    let changed = false;
+    for (const lineNumber of lineNumbers) {
+      const index = lineNumber - 1;
+      if (index < 0 || index >= lines.length) continue;
+      const cleaned = lines[index].replace(/[ \t]+$/, '');
+      if (cleaned !== lines[index]) {
+        lines[index] = cleaned;
+        changed = true;
+      }
+    }
+    if (changed) fs.writeFileSync(target, lines.join('\n'));
+  }
+  if (fixes.size) console.warn('[autobot] normalized Aider-introduced trailing whitespace before candidate verification.');
+}
 function hasMeaningfulProductPatch(base, worktree, files) {
   try {
     const semantic = execFileSync('git', ['diff', '--ignore-all-space', '--ignore-blank-lines', base, '--', ...files], { cwd: worktree, encoding: 'utf8' });
@@ -250,7 +290,7 @@ try {
   const configuredPasses = Number.parseInt(process.env.AUTOBOT_FEATURE_PASSES || '', 10);
   const singleEditStrategy = /single$/.test(editStrategy);
   const passCount = singleEditStrategy ? 1 : (Number.isFinite(configuredPasses) ? Math.max(1, Math.min(3, configuredPasses)) : requestedMinutes >= 30 ? 2 : 1);
-  const verificationReserveMinutes = requestedMinutes >= 60 ? 5 : requestedMinutes >= 30 ? 3 : Math.min(2, Math.max(1, requestedMinutes - 1));
+  const verificationReserveMinutes = requestedMinutes >= 60 ? 6 : requestedMinutes >= 30 ? 4 : Math.min(2, Math.max(1, requestedMinutes - 1));
   const controllerFinishGraceMinutes = Math.max(0, Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES || '5', 10));
   // Give Aider the controller budget. Historical Run #65 showed that reserving
   // another 5 minutes for fallback left only ~7 minutes for Qwen 7B to edit,
@@ -274,7 +314,7 @@ try {
     AUTOBOT_AIDER_EDITOR_MODEL: process.env.AUTOBOT_AIDER_EDITOR_MODEL || model,
     BUILDER_MAX_MINUTES: String(controllerMinutes), AUTOBOT_FINISH_GRACE_MINUTES: String(controllerFinishGraceMinutes)
   };
-  console.log(`[autobot] specialist ${botId} using edit strategy ${editStrategy}; entering proven long-run controller: ${controllerMinutes}m Aider budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(singleEditStrategy ? 25 : 20, controllerMinutes)}m max slice + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace; fallback is recovery after Aider (${model}, ${protocol})`);
+  console.log(`[autobot] specialist ${botId} using edit strategy ${editStrategy}; entering proven long-run controller: ${controllerMinutes}m Aider budget; ${maxFeatureCycles} audited feature cycle(s) x ${Math.min(singleEditStrategy ? 25 : 20, controllerMinutes)}m max slice + ${verificationReserveMinutes}m verification + ${controllerFinishGraceMinutes}m grace; introduced-whitespace repair enabled; fallback is recovery after Aider (${model}, ${protocol})`);
   const engine = spawnSync(process.execPath, ['builder/runner/long-run-executor.mjs'], { cwd: worktree, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: engineEnv, timeout: controllerMinutes * 60_000 + controllerFinishGraceMinutes * 60_000 + 30_000 });
   aiderAttempted = true;
   aiderOutputTail = `${engine.stdout || ''}\n${engine.stderr || ''}`.slice(-12000);
@@ -283,6 +323,7 @@ try {
   if (engine.status !== 0 && engine.error && !ownedProductFiles(base, worktree, files).length) console.warn(`[autobot] Aider controller process status: ${engine.status ?? 'error'}`);
 
   normalizeNestedSrcDuplicate(worktree, files);
+  normalizeIntroducedWhitespace(base, worktree, files);
   let candidateFiles = ownedProductFiles(base, worktree, files);
   candidatePatch = captureBasePatch(base, worktree, files);
   aiderMaterialized = Boolean(candidateFiles.length && candidatePatch.trim() && hasMeaningfulProductPatch(base, worktree, files));
@@ -291,6 +332,7 @@ try {
   if (!candidateFiles.length || !candidatePatch.trim()) {
     const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model, base);
     normalizeNestedSrcDuplicate(worktree, files);
+    normalizeIntroducedWhitespace(base, worktree, files);
     candidateFiles = ownedProductFiles(base, worktree, files);
     candidatePatch = captureBasePatch(base, worktree, files);
     if (fallbackStatus !== 0 && (!candidateFiles.length || !candidatePatch.trim())) fail(`Specialist Builder produced no product change after Aider and structured fallback (fallback status ${fallbackStatus}).`);
