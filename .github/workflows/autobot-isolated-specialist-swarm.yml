@@ -37,7 +37,7 @@ jobs:
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 10
       matrix:
         include:
           - bot: director-builder
@@ -121,6 +121,32 @@ jobs:
               - syntax, build and product-quality verification pass
               - leave a verified candidate handoff when valid
 
+          - bot: experimental-media-whole-root
+            name: 🧪 Experimental Media Whole-Root AutoBot
+            strategy: whole-root-single
+            objective: |
+              Experimental Aider lane: test whole-file root editing against src/aiEditPlanner.js using exactly one minimal media-analysis behaviour improvement.
+              This is a disposable experiment to compare Aider materialization mechanics with the production Media Intelligence lane.
+              Preserve existing APIs and contracts.
+              Acceptance:
+              - only src/aiEditPlanner.js may be a product-file change
+              - no reformatting outside the focused behaviour change
+              - syntax, build and product-quality verification pass
+              - leave evidence even if Aider cannot materialize a candidate
+
+          - bot: experimental-caption-diff-root
+            name: 🧪 Experimental Caption Diff-Root AutoBot
+            strategy: diff-root-single
+            objective: |
+              Experimental Aider lane: test root-scoped diff editing against src/captionPlanner.js using exactly one minimal caption-planning behaviour improvement.
+              This is a disposable experiment to compare Aider materialization mechanics with the production Caption lane.
+              Preserve existing APIs and contracts.
+              Acceptance:
+              - only src/captionPlanner.js may be a product-file change
+              - no reformatting outside the focused behaviour change
+              - syntax, build and product-quality verification pass
+              - leave evidence even if Aider cannot materialize a candidate
+
           - bot: render-builder
             name: 🎞️ Render AutoBot
             strategy: udiff-src-single
@@ -178,7 +204,7 @@ jobs:
           AUTOBOT_SPECIALIST_EDIT_STRATEGY: ${{ matrix.strategy }}
           AUTOBOT_SPECIALIST_OBJECTIVE: ${{ matrix.objective }}
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
+          AUTOBOT_EXPERIMENTAL_WORKER: ${{ startsWith(matrix.bot, 'experimental-') && 'true' || 'false' }}
           AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: ${{ env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK }}
@@ -230,6 +256,31 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      - name: Download Media Intelligence evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-isolated-specialist-media-intelligence-builder-${{ github.run_id }}
+          path: builder/working/isolated/media-intelligence
+      - name: Download Caption evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-isolated-specialist-caption-builder-${{ github.run_id }}
+          path: builder/working/isolated/caption
+      - name: Download Experimental Media evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-isolated-specialist-experimental-media-whole-root-${{ github.run_id }}
+          path: builder/working/isolated/experimental-media-whole-root
+      - name: Download Experimental Caption evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-isolated-specialist-experimental-caption-diff-root-${{ github.run_id }}
+          path: builder/working/isolated/experimental-caption-diff-root
+
       - name: Download Director evidence
         uses: actions/download-artifact@v7
         continue-on-error: true
@@ -268,13 +319,13 @@ jobs:
         with:
           name: autobot-isolated-specialist-render-builder-${{ github.run_id }}
           path: builder/working/isolated/render
-      - name: Build canonical six-bot fan-in ledger
+      - name: Build canonical ten-lane fan-in ledger
         env:
           COORDINATION_ID: isolated-swarm-${{ github.run_id }}
         run: |
           set -euo pipefail
           mkdir -p builder/working/fan-in
-          for bot in director timeline music scene rhythm render; do
+          for bot in director timeline music scene rhythm render media-intelligence caption experimental-media-whole-root experimental-caption-diff-root; do
             dir="builder/working/isolated/$bot"
             mkdir -p "$dir"
             handoff="$(find "$dir" -name autobot-specialist-handoff.json -print -quit 2>/dev/null || true)"
