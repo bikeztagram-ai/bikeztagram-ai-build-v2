@@ -602,7 +602,7 @@ jobs:
             builder/working/autobot-specialist-failure.patch
           if-no-files-found: ignore
 
-  # FAN-IN — records all eight isolated specialist lanes into the same
+  # FAN-IN — records all ten isolated specialist lanes into the same
   # coordination ledger. It never merges product code and never gates the
   # production persistent-autobot job.
   experimental-intent:
@@ -638,11 +638,13 @@ jobs:
         env:
           AUTOBOT_SPECIALIST_BOT_ID: intent-builder
           AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-src-single
-          AUTOBOT_SPECIALIST_OBJECTIVE: "Production Creative Intent lane: improve prompt-to-edit intent compilation in src/creativeIntentCompiler.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
-- creative prompts are compiled into explicit, deterministic intent signals used by the production planning path
-- only the owned file is changed
-- syntax, build and product-quality verification pass
-- leave a candidate when valid.
+          AUTOBOT_SPECIALIST_OBJECTIVE: |
+            Production Creative Intent lane: improve prompt-to-edit intent compilation in src/creativeIntentCompiler.js with one minimal, production-safe change. Preserve existing APIs and contracts.
+            Acceptance:
+            - creative prompts are compiled into explicit, deterministic intent signals used by the production planning path
+            - only the owned file is changed
+            - syntax, build and product-quality verification pass
+            - leave a candidate when valid.
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
           AUTOBOT_EXPERIMENTAL_WORKER: 'false'
           AUTOBOT_BASE_REF: ${{ github.sha }}
@@ -671,7 +673,7 @@ jobs:
             builder/working/autobot-specialist-failure.patch
           if-no-files-found: ignore
 
-  # FAN-IN — records all eight isolated specialist lanes into the same
+  # FAN-IN — records all ten isolated specialist lanes into the same
   # coordination ledger. It never merges product code and never gates the
   # production persistent-autobot job.
 
@@ -708,11 +710,13 @@ jobs:
         env:
           AUTOBOT_SPECIALIST_BOT_ID: continuity-builder
           AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-src-single
-          AUTOBOT_SPECIALIST_OBJECTIVE: "Production Creative Continuity lane: improve source/story continuity scoring in src/creativeContinuityEngine.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
-- continuity decisions preserve source identity and story consistency across the production edit path
-- only the owned file is changed
-- syntax, build and product-quality verification pass
-- leave a candidate when valid.
+          AUTOBOT_SPECIALIST_OBJECTIVE: |
+            Production Creative Continuity lane: improve source/story continuity scoring in src/creativeContinuityEngine.js with one minimal, production-safe change. Preserve existing APIs and contracts.
+            Acceptance:
+            - continuity decisions preserve source identity and story consistency across the production edit path
+            - only the owned file is changed
+            - syntax, build and product-quality verification pass
+            - leave a candidate when valid.
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
           AUTOBOT_EXPERIMENTAL_WORKER: 'false'
           AUTOBOT_BASE_REF: ${{ github.sha }}
@@ -741,7 +745,7 @@ jobs:
             builder/working/autobot-specialist-failure.patch
           if-no-files-found: ignore
 
-  # FAN-IN — records all eight isolated specialist lanes into the same
+  # FAN-IN — records all ten isolated specialist lanes into the same
   # coordination ledger. It never merges product code and never gates the
   # production persistent-autobot job.
 
