@@ -44,7 +44,7 @@ jobs:
   # stack is independent of every other specialist.
   experimental-director:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
         with:
@@ -89,7 +89,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-specialist-builder.mjs
       - name: Publish Director candidate branch
@@ -128,7 +128,7 @@ jobs:
   # stack is independent of every other specialist.
   experimental-timeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
         with:
@@ -173,7 +173,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-specialist-builder.mjs
       - name: Publish Timeline candidate branch
@@ -210,7 +210,7 @@ jobs:
 
   experimental-music:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
         with:
@@ -260,7 +260,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-specialist-builder.mjs
 
@@ -299,7 +299,7 @@ jobs:
 
   experimental-scene:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
         with:
@@ -349,7 +349,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-specialist-builder.mjs
 
@@ -388,7 +388,7 @@ jobs:
 
   experimental-rhythm:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
         with:
@@ -438,7 +438,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-specialist-builder.mjs
 
@@ -477,7 +477,7 @@ jobs:
 
   experimental-render:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
         with:
@@ -527,7 +527,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-specialist-builder.mjs
 
@@ -567,7 +567,7 @@ jobs:
   # MEDIA INTELLIGENCE — isolated production specialist owning the analysis-to-edit planning boundary.
   experimental-media-intelligence:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
         with:
@@ -612,7 +612,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-specialist-builder.mjs
       - name: Publish Media Intelligence candidate branch
@@ -650,7 +650,7 @@ jobs:
   # CAPTION — isolated production specialist owning the speech-caption editorial boundary.
   experimental-caption:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
         with:
@@ -695,7 +695,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-specialist-builder.mjs
       - name: Publish Caption candidate branch
@@ -735,7 +735,7 @@ jobs:
   # production persistent-autobot job.
   experimental-intent:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
         with:
@@ -782,7 +782,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-specialist-builder.mjs
       - name: Publish Intent candidate branch
@@ -823,7 +823,7 @@ jobs:
 
   experimental-continuity:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v5
         with:
@@ -870,7 +870,7 @@ jobs:
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
           AUTOBOT_FINISH_GRACE_MINUTES: '0'
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-specialist-builder.mjs
       - name: Publish Continuity candidate branch
