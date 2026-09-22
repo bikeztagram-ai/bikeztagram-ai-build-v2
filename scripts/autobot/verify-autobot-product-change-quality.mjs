@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const root=process.cwd();
-const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/renderer.js','src/editorialRhythm.js','src/executableTimeline.js','src/captionPlanner.js','src/musicDirector.js','src/universalCreativeSceneEngine.js','src/cinematicRendererV3.js']);
+const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/renderer.js','src/editorialRhythm.js','src/executableTimeline.js','src/captionPlanner.js','src/musicDirector.js','src/universalCreativeSceneEngine.js','src/cinematicRendererV3.js','src/creativeIntentCompiler.js','src/creativeContinuityEngine.js']);
 function changedPaths(){
   const base=String(process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT||'').trim();
   const candidate=String(process.env.AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT||'').trim();
