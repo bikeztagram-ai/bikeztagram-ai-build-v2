@@ -54,12 +54,10 @@ assert(runner.includes('function normalizeIntroducedWhitespace(base, worktree, f
 assert(runner.includes('normalizeIntroducedWhitespace(base, worktree, files);'),'Specialist Builder must apply introduced-whitespace normalization before candidate verification.');
 assert(runner.includes("requestedMinutes >= 30 ? 4"),'Specialist Builder must reserve four minutes for verification on 30-minute shakedowns.');
 const durationMap="${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}";
-assert((workflow.match(new RegExp(durationMap.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\assert(runner.includes("requestedMinutes >= 30 ? 4"),'Specialist Builder must reserve four minutes for verification on 30-minute shakedowns.');
-'),'g'))||[]).length===10,'All ten specialist lanes must map 4h/5h/5h30 to their real minute budgets.');
-assert((workflow.match(/timeout-minutes: 350/g)||[]).length===10,'All ten specialist lanes must allow the 5h30 endurance budget plus setup/verification without exceeding the six-hour Actions ceiling.');
+assert(workflow.split(durationMap).length-1===10,'All ten specialist lanes must map 4h/5h/5h30 to their real minute budgets.');
+assert((workflow.split('timeout-minutes: 350').length-1)===10,'All ten specialist lanes must allow the 5h30 endurance budget plus setup/verification without exceeding the six-hour Actions ceiling.');
 const longRunGrace="AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}";
-assert((workflow.match(new RegExp(longRunGrace.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\assert(runner.includes("requestedMinutes >= 30 ? 4"),'Specialist Builder must reserve four minutes for verification on 30-minute shakedowns.');
-'),'g'))||[]).length===10,'All ten specialist lanes must preserve the configured long-run finish grace.');
+assert(workflow.split(longRunGrace).length-1===10,'All ten specialist lanes must preserve the configured long-run finish grace.');
 assert(deterministicFallback.includes("const draft={cuts,targetDuration,creativePrompt:text(options.creativePrompt)};const cinematicQuality=evaluateCinematicOutput(draft,{duration});const sourceEvidenceScore="),'Media Intelligence deterministic fallback must initialise cinematicQuality before reading its score.');
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 const productionSpecialists=specialists.filter(b=>b.status==='verified');
