@@ -30,25 +30,32 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
   const cuts=plan.cuts.map((cut)=>{
     const start=Math.max(0,num(cut.startTime));
     const end=start+Math.max(.05,num(cut.duration,.05));
-    const candidates=cues
-      .filter(cue=>cue.confidence>=minimumConfidence)
-      .map(cue=>({cue,overlap:overlap(start,end,cue.start,cue.end)}))
-      .filter(item=>item.overlap>0)
-      .sort((a,b)=>b.overlap-a.overlap||b.cue.confidence-a.cue.confidence);
-    const chosen=candidates[0]?.cue;
-    if(!chosen)return cut;
-    const textStart=Math.max(start,chosen.start);
-    const textEnd=Math.min(end,chosen.end);
-    const relativeIn=Math.max(0,Math.min(1,(textStart-start)/(end-start)));
-    const relativeOut=Math.max(relativeIn+.05,Math.min(1,(textEnd-start)/(end-start)));
+    const candidates = cues
+      .filter(cue => cue.confidence >= minimumConfidence)
+      .map(cue => ({
+        cue,
+        overlap: overlap(start, end, cue.start, cue.end),
+        score: (overlap(start, end, cue.start, cue.end) / (end - start)) * cue.confidence
+      }))
+      .filter(item => item.overlap > 0)
+      .sort((a, b) => b.score - a.score);
+
+    const chosen = candidates[0]?.cue;
+    if (!chosen) return cut;
+
+    const textStart = Math.max(start, chosen.start);
+    const textEnd = Math.min(end, chosen.end);
+    const relativeIn = Math.max(0, Math.min(1, (textStart - start) / (end - start)));
+    const relativeOut = Math.max(relativeIn + .05, Math.min(1, (textEnd - start) / (end - start)));
+
     return {
       ...cut,
-      text:chosen.text,
-      textIn:Number(Math.max(.02,relativeIn).toFixed(3)),
-      textOut:Number(Math.min(.98,relativeOut).toFixed(3)),
-      textStyle:'caption',
-      captionCueIndex:chosen.index,
-      captionConfidence:Number(chosen.confidence.toFixed(2))
+      text: chosen.text,
+      textIn: Number(Math.max(.02, relativeIn).toFixed(3)),
+      textOut: Number(Math.min(.98, relativeOut).toFixed(3)),
+      textStyle: 'caption',
+      captionCueIndex: chosen.index,
+      captionConfidence: Number(chosen.confidence.toFixed(2))
     };
   });
   const appliedCount=cuts.filter(cut=>cut.captionCueIndex!=null).length;
