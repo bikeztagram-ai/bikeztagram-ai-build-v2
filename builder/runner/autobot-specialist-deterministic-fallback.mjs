@@ -94,7 +94,7 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
 } else if(specialist==='media-intelligence-builder' && (objective.includes('media intelligence')||objective.includes('analysis-to-edit')||objective.includes('planning quality'))){
   files=[replaceOnce(
     'src/aiEditPlanner.js',
-    "const qualityScore=Math.round(critique.after.score*.75+rhythm.score*.25);",
+    "const qualityScore=Math.round(critique.after.score*.75+rhythm.score*.25);const draft={cuts,targetDuration,creativePrompt:text(options.creativePrompt)};const cinematicQuality=evaluateCinematicOutput(draft,{duration});",
     "const draft={cuts,targetDuration,creativePrompt:text(options.creativePrompt)};const cinematicQuality=evaluateCinematicOutput(draft,{duration});const sourceEvidenceScore=Number.isFinite(Number(cinematicQuality?.score))?Number(cinematicQuality.score):0;const qualityScore=Math.round(critique.after.score*.7+rhythm.score*.2+sourceEvidenceScore*.1);",
     'analysis-aware cinematic quality weighting'
   )];
