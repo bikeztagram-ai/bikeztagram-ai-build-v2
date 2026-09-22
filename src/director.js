@@ -1,4 +1,4 @@
-const ACTION_WORDS=['action','movement','running','walking','riding','driving','accelerating','cornering','chase','jumping','playing','flying','swimming','dancing','travel','journey','speed','race'];
+const ACTION_WORDS=['action','fast','race','speed','chase','energetic','adventure','movement'];
 const HERO_WORDS=['hero','reveal','portrait','close-up','landscape','sunset','detail','showcase','beautiful','epic','product','final'];
 const EMOTION_WORDS=['smile','laugh','joy','cute','love','dramatic','emotional','surprise','calm','peaceful','excited','mystery','cinematic'];
 const FAMILY_WORDS={wide:['wide','landscape','establishing','scene','environment','panorama'],detail:['detail','close-up','macro','texture','badge','face','cockpit'],action:['action','movement','riding','driving','chase','race','speed','cornering'],hero:['hero','reveal','showcase','portrait','product','sunset'],approach:['approach','journey','travel','road','walk','follow','arrival']};
