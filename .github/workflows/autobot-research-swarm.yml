@@ -106,8 +106,12 @@ jobs:
           OLLAMA_MAX_QUEUE: 2
           OLLAMA_LOAD_TIMEOUT: 20m
           OLLAMA_KEEP_ALIVE: 30m
-      - name: Run research trial
-        run: node builder/runner/autobot-research-trial.mjs
+      - name: Run adaptive research loop
+        env:
+          AUTOBOT_RESEARCH_MAX_CYCLES: 5
+          AUTOBOT_RESEARCH_LOOP_BUDGET_MS: 1200000
+          AUTOBOT_RESEARCH_MIN_CONTINUE_MS: 300000
+        run: node builder/runner/autobot-research-loop.mjs
       - name: Upload isolated research evidence
         if: always()
         uses: actions/upload-artifact@v7
