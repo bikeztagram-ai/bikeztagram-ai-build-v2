@@ -277,7 +277,14 @@ if (!files.length) fail(`Specialist Builder ${botId} has no declared ownsFiles s
 const provenBrain = fs.readFileSync(path.join(root, 'builder/runner/aider-feature-brain.mjs'), 'utf8');
 for (const flag of ['--no-auto-commits', '--no-dirty-commits']) if (!provenBrain.includes(`'${flag}'`)) fail(`Proven Aider brain lost required safety flag ${flag}.`);
 
-const base = git(['rev-parse', 'HEAD'], root);
+const configuredBaseRef = String(process.env.AUTOBOT_BASE_REF || '').trim();
+let base;
+try {
+  base = git(['rev-parse', configuredBaseRef || 'HEAD'], root);
+} catch (error) {
+  fail(`Specialist Builder could not resolve AUTOBOT_BASE_REF ${configuredBaseRef || '(HEAD)'}: ${error.message}`);
+}
+if (configuredBaseRef) console.log(`[autobot] specialist ${botId} carrying forward from explicit base ${base}`);
 const worktree = fs.mkdtempSync(path.join(os.tmpdir(), `autobot-specialist-${botId}-`));
 const branch = `autobot-specialist/${botId}-${Date.now()}`;
 let keepBranch = false;
