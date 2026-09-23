@@ -61,6 +61,9 @@ assert(laneRunner.includes('canonicalResultDir')&&laneRunner.indexOf('The canoni
 assert(laneRunner.includes('restored final root evidence from the last VERIFIED candidate'),'persistent lane must restore the last verified handoff/outcome/QA evidence after a later blocked cycle');
 assert(structuredFallback.includes('outOfScopeFiles')&&structuredFallback.includes('structured fallback modified out-of-scope files'),'structured fallback must reject and reset any edit that escapes the declared specialist file scope before handoff');
 assert(structuredFallback.includes('.split(/\\r?\\n/)'),'structured fallback scope audit must split git diff output on real line boundaries');
+assert(structuredFallback.includes('Math.min(minutes * 60_000 + 30_000, 180_000)'),'structured fallback must complete before the enclosing specialist recovery timeout');
+assert(structuredFallback.includes('process.exit(0)'),'structured fallback must return success after deterministic recovery succeeds');
+assert(read('builder/runner/autobot-specialist-builder.mjs').includes('git\', [\'reset\', \'--hard\', base]'),'specialist builder must reset failed Aider edits before invoking recovery');
 assert(structuredFallback.includes('deterministic-specialist-fallback-v1'),'structured fallback must retain deterministic recovery');
 assert(read('builder/runner/autobot-specialist-deterministic-fallback.mjs').includes("specialist==='intent-builder'")&&read('builder/runner/autobot-specialist-deterministic-fallback.mjs').includes('expanded creative action intent hints'),'intent specialist must have a deterministic product fallback');
 assert(laneRunner.includes('AUTOBOT_JOB_STARTED_AT_MS'),'persistent lane deadline must be anchored to the GitHub job start so bootstrap time cannot push the job past its timeout');
