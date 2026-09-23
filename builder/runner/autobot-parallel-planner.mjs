@@ -13,7 +13,7 @@ const output=path.join(root,'builder/working/autobot-parallel-plan.json');
 const model=process.env.AUTOBOT_DISCOVERY_MODEL||process.env.LOCAL_AI_MODEL||'qwen2.5-coder:3b';
 const host=(process.env.OLLAMA_HOST||'http://127.0.0.1:11434').replace(/\/$/,'');
 const requestTimeoutMs=Number(process.env.AUTOBOT_DISCOVERY_TIMEOUT_MS||20000);
-const allowedBots=(process.env.AUTOBOT_PARALLEL_BOTS||'director-builder,timeline-builder').split(',').map(s=>s.trim()).filter(Boolean);
+const allowedBots=(process.env.AUTOBOT_PARALLEL_BOTS||'director-builder,timeline-builder,music-builder,scene-builder,rhythm-builder,render-builder,media-intelligence-builder,caption-builder,intent-builder,continuity-builder').split(',').map(s=>s.trim()).filter(Boolean);
 function readJson(file,fallback){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return fallback;}}
 function inventory(){return fs.readdirSync(path.join(root,'src'),{withFileTypes:true}).filter(e=>e.isFile()&&/\.(js|jsx|ts|tsx)$/.test(e.name)).map(e=>`src/${e.name}`).sort();}
 function clean(raw){const text=String(raw||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();const a=text.indexOf('{');const b=text.lastIndexOf('}');if(a<0||b<=a)throw new Error('planner model did not return JSON');return JSON.parse(text.slice(a,b+1));}
