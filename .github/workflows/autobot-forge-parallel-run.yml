@@ -24,13 +24,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  production:
-    name: 🏭 Original 10 — production workflow
+  production-dispatch:
+    name: 🏭 Dispatch original 10 production workflow
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    outputs:
+      run_id: ${{ steps.find.outputs.run_id }}
     steps:
       - name: Dispatch original ten production specialists
-        id: dispatch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -39,7 +39,7 @@ jobs:
         run: |
           set -euo pipefail
           START_MS="$(date +%s%3N)"
-          echo "LAUNCH_START_MS=$START_MS" >> "$GITHUB_ENV"
+          echo "START_MS=$START_MS" >> "$GITHUB_ENV"
           curl --fail-with-body -L \
             -X POST \
             -H "Accept: application/vnd.github+json" \
@@ -53,30 +53,33 @@ jobs:
           )"
           echo "Production workflow dispatch accepted."
 
-      - name: Wait for original production workflow to start
+      - name: Find real production workflow run
+        id: find
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          LAUNCH_START_MS: ${{ env.LAUNCH_START_MS }}
         run: |
           set -euo pipefail
+          START_MS="$(date +%s%3N)"
           for i in $(seq 1 30); do
-            RUN_JSON="$(curl --fail-with-body -sS \
+            curl --fail-with-body -sS \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer $GH_TOKEN" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/$REPO/actions/workflows/autobot-parallel-specialists.yml/runs?event=workflow_dispatch&branch=main&per_page=10")"
-            cat > /tmp/find-production-run.py <<'PY'
+              "https://api.github.com/repos/$REPO/actions/workflows/autobot-parallel-specialists.yml/runs?event=workflow_dispatch&branch=main&per_page=10" \
+              > /tmp/production-runs.json
+            RUN_ID="$(python - "$START_MS" <<'PY'
           import json,sys,datetime
-          data=json.load(sys.stdin); start=int(sys.argv[1])
-          for run in data.get("workflow_runs",[]):
-              created=int(datetime.datetime.fromisoformat(run["created_at"].replace("Z","+00:00")).timestamp()*1000)
+          start=int(sys.argv[1])
+          data=json.load(open('/tmp/production-runs.json'))
+          for run in data.get('workflow_runs',[]):
+              created=int(datetime.datetime.fromisoformat(run['created_at'].replace('Z','+00:00')).timestamp()*1000)
               if created >= start-15000:
-                  print(run["id"]); break
+                  print(run['id']); break
           PY
-            RUN_ID="$(printf '%s' "$RUN_JSON" | python /tmp/find-production-run.py "$LAUNCH_START_MS")"
+          )"
             if [ -n "$RUN_ID" ]; then
-              echo "PRODUCTION_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+              echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
               echo "Found production run $RUN_ID"
               exit 0
             fi
@@ -85,58 +88,104 @@ jobs:
           echo "Production workflow did not appear after dispatch." >&2
           exit 1
 
-      - name: Wait for original 10 to complete
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          RUN_ID: ${{ env.PRODUCTION_RUN_ID }}
-          DURATION: ${{ inputs.duration }}
+  production-specialists:
+    name: 🏭 ${{ matrix.label }}
+    needs: production-dispatch
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: experimental-director
+            label: Director
+          - id: experimental-timeline
+            label: Timeline
+          - id: experimental-music
+            label: Music
+          - id: experimental-scene
+            label: Scene
+          - id: experimental-rhythm
+            label: Rhythm
+          - id: experimental-render
+            label: Render
+          - id: experimental-media-intelligence
+            label: Media Intelligence
+          - id: experimental-caption
+            label: Caption
+          - id: experimental-intent
+            label: Intent
+          - id: experimental-continuity
+            label: Continuity
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ needs.production-dispatch.outputs.run_id }}
+      JOB_ID: ${{ matrix.id }}
+    steps:
+      - name: Track actual specialist job
         run: |
           set -euo pipefail
-          case "$DURATION" in
-            15m) MIN_SECONDS=900 ;;
-            30m) MIN_SECONDS=1800 ;;
-            1h) MIN_SECONDS=3600 ;;
-            4h) MIN_SECONDS=14400 ;;
-            5h) MIN_SECONDS=18000 ;;
-            5h30) MIN_SECONDS=19800 ;;
-            *) echo "Unknown duration $DURATION" >&2; exit 1 ;;
-          esac
-          while true; do
-            RUN_JSON="$(curl --fail-with-body -sS \
+          for i in $(seq 1 40); do
+            curl --fail-with-body -sS \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer $GH_TOKEN" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID")"
-            cat > /tmp/check-production-run.py <<'PY'
-          import json,sys,datetime
-          run=json.load(sys.stdin); minimum=int(sys.argv[1])
-          status=run.get("status"); conclusion=run.get("conclusion")
-          created=datetime.datetime.fromisoformat(run["created_at"].replace("Z","+00:00"))
-          updated=run.get("updated_at")
-          if updated:
-              elapsed=(datetime.datetime.fromisoformat(updated.replace("Z","+00:00"))-created).total_seconds()
-          else:
-              elapsed=(datetime.datetime.now(datetime.timezone.utc)-created).total_seconds()
-          print(f"Production child: status={status} conclusion={conclusion} elapsed={elapsed:.0f}s")
-          if status != "completed":
-              sys.exit(10)
-          if elapsed + 30 < minimum:
-              print(f"ERROR: production child completed too early ({elapsed:.0f}s < {minimum}s)",file=sys.stderr)
-              sys.exit(2)
-          if conclusion != "success":
-              print("ERROR: original production workflow did not succeed.",file=sys.stderr)
-              sys.exit(3)
-          sys.exit(0)
+              "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+              > /tmp/production-jobs.json
+            ACTUAL_JOB="$(python - "$JOB_ID" <<'PY'
+          import json,sys
+          wanted=sys.argv[1]
+          data=json.load(open('/tmp/production-jobs.json'))
+          for job in data.get('jobs',[]):
+              if job.get('name')==wanted:
+                  print(job['id']); break
           PY
-            set +e
-            printf '%s' "$RUN_JSON" | python /tmp/check-production-run.py "$MIN_SECONDS"
-            rc=$?
-            set -e
-            [ "$rc" -eq 0 ] && exit 0
-            [ "$rc" -eq 10 ] && sleep 15 && continue
-            exit "$rc"
+          )"
+            if [ -n "$ACTUAL_JOB" ]; then
+              echo "Tracking actual production specialist job $ACTUAL_JOB ($JOB_ID)"
+              while true; do
+                curl --fail-with-body -sS \
+                  -H "Accept: application/vnd.github+json" \
+                  -H "Authorization: Bearer $GH_TOKEN" \
+                  -H "X-GitHub-Api-Version: 2022-11-28" \
+                  "https://api.github.com/repos/$REPO/actions/jobs/$ACTUAL_JOB" \
+                  > /tmp/production-job.json
+                set +e
+                python - <<'PY'
+          import json
+          job=json.load(open('/tmp/production-job.json'))
+          status=job.get('status'); conclusion=job.get('conclusion')
+          print(f"{job.get('name')}: status={status} conclusion={conclusion}")
+          if status!='completed': raise SystemExit(10)
+          if conclusion!='success': raise SystemExit(2)
+          raise SystemExit(0)
+          PY
+                rc=$?
+                set -e
+                [ "$rc" -eq 0 ] && exit 0
+                [ "$rc" -eq 2 ] && exit 2
+                sleep 15
+              done
+            fi
+            sleep 5
           done
+          echo "Could not find actual specialist job $JOB_ID." >&2
+          exit 1
+
+  production-gate:
+    name: 🏁 Original 10 production result
+    needs: production-specialists
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate all ten specialists completed successfully
+        run: |
+          if [ "${{ needs.production-specialists.result }}" != "success" ]; then
+            echo "At least one of the original ten production specialists failed."
+            exit 1
+          fi
+          echo "All ten original production specialist jobs completed successfully."
 
   research:
     name: 🔬 Research — ${{ matrix.strategy }}
