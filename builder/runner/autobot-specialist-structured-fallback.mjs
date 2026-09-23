@@ -84,9 +84,20 @@ try {
     timeout: minutes * 60_000 + 30_000
   });
   const changed = spawnSync('git', ['diff', '--name-only', '--', ...files], { cwd: root, encoding: 'utf8' });
+  const changedAll = spawnSync('git', ['diff', '--name-only'], { cwd: root, encoding: 'utf8' });
+  const objectiveRelativePath = path.relative(root, objectivePath).replaceAll(path.sep, '/');
+  const changedFiles = String(changedAll.stdout || '')
+    .split(/\\r?\\n/)
+    .map(file => file.trim())
+    .filter(Boolean)
+    .filter(file => file !== objectiveRelativePath);
+  const declaredFiles = new Set(files.map(file => String(file).replaceAll(path.sep, '/')));
+  const outOfScopeFiles = changedFiles.filter(file => !declaredFiles.has(file));
   const hasProductChange = Boolean(changed.stdout?.trim());
-  if (result.error || result.status !== 0 || !hasProductChange) {
-    const reason = result.error?.message || result.status || (hasProductChange ? 'unknown' : 'structured fallback produced no product change');
+  if (outOfScopeFiles.length || result.error || result.status !== 0 || !hasProductChange) {
+    const reason = outOfScopeFiles.length
+      ? `structured fallback modified out-of-scope files: ${outOfScopeFiles.join(', ')}`
+      : (result.error?.message || result.status || (hasProductChange ? 'unknown' : 'structured fallback produced no product change'));
     console.warn(`[autobot] structured specialist fallback did not materialize an owned product change (${reason}); trying deterministic product fallback.`);
     const baseCommit=String(process.env.AUTOBOT_SPECIALIST_BASE_COMMIT||'').trim();
     if(!baseCommit)fail('deterministic fallback requires AUTOBOT_SPECIALIST_BASE_COMMIT');
