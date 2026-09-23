@@ -59,5 +59,7 @@ function calculateSimilarityScore(cut1, cut2) {
   // For example, compare motion style, duration, or other relevant properties
   // Return a value between 0 and 1, where 1 indicates identical shots
   // This is a placeholder implementation
-  return Math.random();
+  const motionStyleSimilarity = cut1.motionStyle === cut2.motionStyle ? 1 : 0;
+  const durationSimilarity = Math.abs(cut1.duration - cut2.duration) / Math.max(cut1.duration, cut2.duration);
+  return (motionStyleSimilarity + durationSimilarity) / 2;
 }
