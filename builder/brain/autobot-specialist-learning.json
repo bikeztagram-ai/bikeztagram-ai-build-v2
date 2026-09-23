@@ -25,7 +25,7 @@
     }
   },
   "learned": {
-    "runsAnalyzed": 2,
+    "runsAnalyzed": 3,
     "lastUpdated": "2026-09-23",
     "observations": [
       {
@@ -219,6 +219,156 @@
           "diff": 0
         },
         "implication": "Keep bounded retry/timeout experiments isolated and measure where the time is spent before trying another controller design."
+      },
+      {
+        "runId": 35907655277,
+        "source": "Forge research swarm",
+        "observation": "Run 4 adaptive research loop worked: fast lanes completed five distinct cycles instead of exiting after the first sub-minute failure. Slow lanes around 190s also repeated five times because the continue threshold was 5 minutes; this wasted research budget without changing the failure class.",
+        "evidence": {
+          "researchLanes": 17,
+          "fastCycleCount": 5,
+          "slowCycleCount": 5,
+          "slowFailureRangeMs": "950669-950679"
+        },
+        "implication": "Use a 120s continue threshold so sub-2m lanes can keep experimenting while ~3m+ timeout/controller lanes are bounded to one attempt."
+      },
+      {
+        "runId": 35907655277,
+        "strategies": [
+          "deterministic-control",
+          "fast-deep"
+        ],
+        "observation": "Deterministic control remained stable across five cycles and fast-deep produced a passing materialised change in one bounded attempt.",
+        "evidence": {
+          "deterministic": {
+            "cycles": 5,
+            "successCycles": 5,
+            "materialisationCycles": 5,
+            "totalDurationMs": 417
+          },
+          "fastDeep": {
+            "cycles": 1,
+            "successCycles": 1,
+            "materialisationCycles": 1,
+            "totalDurationMs": 346744
+          }
+        },
+        "implication": "Retain deterministic control as regression baseline and fast-deep as a serious research pattern; do not promote either directly without testing against production constraints."
+      },
+      {
+        "runId": 35907655277,
+        "strategy": "evolution-selected",
+        "observation": "Evolution-selected consumed the current hypothesis and produced one passing materialised experiment on cycle 3, while the other cycles failed at the timeout boundary.",
+        "evidence": {
+          "cycles": 5,
+          "successCycles": 1,
+          "materialisationCycles": 1,
+          "totalDurationMs": 895078
+        },
+        "implication": "The Evolution hypothesis is actionable, but the controller needs explicit stage telemetry to distinguish a successful model edit from repeated timeout/recovery paths."
+      },
+      {
+        "runId": 35907655277,
+        "strategies": [
+          "aider-direct",
+          "aider-diff",
+          "aider-udiff",
+          "aider-whole",
+          "aider-scoped",
+          "aider-architect",
+          "direct-ollama-json",
+          "openhands-sdk"
+        ],
+        "observation": "Aider/adapter lanes that exit in roughly 70-100ms repeated zero-diff failures across all five variants. This is strong evidence of invocation/harness failure rather than five independent model-quality failures.",
+        "evidence": {
+          "cycles": 5,
+          "zeroDiff": true,
+          "durationRangeMs": "70-105"
+        },
+        "implication": "Next research iteration should instrument adapter startup/command invocation and stop treating prompt variants as meaningful when the process never materially engages."
+      },
+      {
+        "runId": 35907655277,
+        "strategies": [
+          "adversarial",
+          "shadow-architecture"
+        ],
+        "observation": "Both long-running lanes hit the ~190s controller boundary on every cycle and never materialised a change.",
+        "evidence": {
+          "adversarialMs": 950669,
+          "shadowArchitectureMs": 950679
+        },
+        "implication": "Keep these lanes bounded to one attempt per run and investigate controller/model stage timing before trying more retries."
+      },
+      {
+        "runId": 35907655277,
+        "strategies": [
+          "challenger",
+          "dependency-plan",
+          "performance-lab"
+        ],
+        "observation": "Planning and measurement lanes continued to provide useful evidence without touching production; performance validation remained very fast.",
+        "evidence": {
+          "challengerMs": 255084,
+          "dependencyPlanMs": 405831,
+          "performanceLabMs": 785
+        },
+        "implication": "Keep these lanes as the research laboratory and pair their hypotheses with execution experiments."
+      },
+      {
+        "runId": 35907667623,
+        "source": "Production specialist fleet",
+        "observation": "The one-hour production run exercised the real persistent ten-specialist child workflow. Director, Scene, Caption and Continuity produced verified candidates; Timeline, Music, Media Intelligence and Render were blocked after Aider rejection/structured fallback timeout paths; Intent violated scope in structured fallback; Rhythm failed during Ollama startup with HTTP 500.",
+        "evidence": {
+          "childRunId": 35907667623,
+          "verifiedCandidates": {
+            "director": "c0c2b8d7881f33da666ef3b443a2990d448f8855",
+            "scene": "ad5d4086ac2919cbf5ffe437fd9378bcef17290a",
+            "caption": "4ccfec79e470fa47a05f14fcf79e15ab20538344",
+            "continuity": "8a41e2be8df798e44140fa4d0015a56841d5fcf9"
+          },
+          "blocked": [
+            "timeline",
+            "music",
+            "media-intelligence",
+            "render",
+            "intent",
+            "rhythm"
+          ]
+        },
+        "implication": "Do not alter the proven long-run specialist architecture. Fix stale recovery anchors, export-preservation recovery and startup resilience around the existing builder."
+      },
+      {
+        "runId": 35907667623,
+        "strategy": "product-harvest",
+        "observation": "The Scene candidate adds a duration-bounded shot count (3 to 18 shots, derived from duration) and passed independent QA/reviewer checks. The Caption candidate contains duplicated unreachable caption-application code and should not be promoted. The Continuity candidate adds an immediate-repeat penalty but also relies on startTime/endTime fields that are not clearly produced by the current continuity pass, so it needs further verification before promotion. The Director candidate changes subject repetition penalty from 5 to 7 and is small enough to review separately.",
+        "evidence": {
+          "sceneCommit": "ad5d4086ac2919cbf5ffe437fd9378bcef17290a",
+          "captionCommit": "4ccfec79e470fa47a05f14fcf79e15ab20538344",
+          "continuityCommit": "8a41e2be8df798e44140fa4d0015a56841d5fcf9",
+          "directorCommit": "c0c2b8d7881f33da666ef3b443a2990d448f8855"
+        },
+        "implication": "Promote only changes with clear product effect and clean source; retain rejected/uncertain candidates as evidence rather than merging them."
+      },
+      {
+        "runId": 35907667623,
+        "strategies": [
+          "timeline-builder",
+          "music-builder",
+          "media-intelligence-builder",
+          "render-builder"
+        ],
+        "observation": "Their structured fallback repeatedly hit the 150s feature timeout, then deterministic fallback reported stale anchors because the corresponding older product improvements are already present on main.",
+        "evidence": {
+          "fallbackTimeoutMs": 150002,
+          "examples": [
+            "purposeful role-aware motion intensity",
+            "prompt-responsive music energy",
+            "analysis-aware cinematic quality weighting",
+            "visible cinematic motion finish"
+          ]
+        },
+        "implication": "Make deterministic fallback objectives resilient to already-applied changes and route to current generic alternatives instead of failing on historical exact anchors."
       }
     ]
   }
