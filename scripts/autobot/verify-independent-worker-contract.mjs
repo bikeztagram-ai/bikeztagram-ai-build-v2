@@ -13,6 +13,7 @@ const contract=json('builder/brain/autobot-independent-worker-contract.json');
 const workflow=read('.github/workflows/autobot-parallel-specialists.yml');
 const fanIn=read('builder/runner/autobot-independent-fan-in.mjs');
 const specialist=read('builder/runner/autobot-specialist-builder.mjs');
+const laneRunner=read('builder/runner/autobot-independent-specialist-lane.mjs');
 
 assert(contract.schemaVersion===1,'independent worker contract schema must be v1');
 assert(contract.productionLane?.preserved===true,'production lane must remain explicitly preserved');
@@ -50,5 +51,8 @@ assert(fanIn.includes('aiderMaterialized'),'fan-in ledger must preserve Aider ma
 assert(fanIn.includes('(outcome || {})'),'fan-in must prefer rich outcome evidence over sparse handoff evidence');
 assert(specialist.includes('AUTOBOT_EXPERIMENTAL_WORKER'),'specialist Builder must retain explicit experimental gating support');
 assert(specialist.includes('coordinationId'),'specialist Builder must preserve coordination identity');
+assert(laneRunner.includes('AUTOBOT_BASE_REF') && laneRunner.includes('configuredBaseRef || \'HEAD\''),'persistent lane must honor an explicit starting base reference');
+assert(laneRunner.includes('cycle-${cycle}') && laneRunner.includes('canonicalResultDir'),'persistent lane must retain per-cycle QA evidence and a stable latest-cycle evidence path');
+assert(laneRunner.includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'persistent lane must bind QA/Reviewer to the exact current verified base SHA');
 
 console.log(JSON.stringify({ok:true,productionWorkers:expected,fanIn:'ten isolated jobs -> one canonical ledger',protectedIntegration:registry.activationGate.protectedIntegration}));
