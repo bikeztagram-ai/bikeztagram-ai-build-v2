@@ -36,7 +36,9 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
       .filter(item=>item.overlap>0)
       .sort((a,b)=>b.overlap-a.overlap||b.cue.confidence-a.cue.confidence);
     const chosen = candidates.reduce((prev, curr) => {
-      if (curr.overlap > prev.overlap || (curr.overlap === prev.overlap && curr.cue.confidence > prev.cue.confidence)) {
+      if (curr.overlap > prev.overlap) {
+        return curr;
+      } else if (curr.overlap === prev.overlap && curr.cue.confidence > prev.cue.confidence) {
         return curr;
       }
       return prev;
