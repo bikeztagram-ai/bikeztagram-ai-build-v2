@@ -87,7 +87,7 @@ try {
   const changedAll = spawnSync('git', ['diff', '--name-only'], { cwd: root, encoding: 'utf8' });
   const objectiveRelativePath = path.relative(root, objectivePath).replaceAll(path.sep, '/');
   const changedFiles = String(changedAll.stdout || '')
-    .split(/\\r?\\n/)
+     .split(/\r?\n/)
     .map(file => file.trim())
     .filter(Boolean)
     .filter(file => file !== objectiveRelativePath);
