@@ -40,6 +40,14 @@ export function prepareCreativeContinuity(plan,{creativePrompt='',duration=0}={}
     if (i > 0 && source === cuts[i - 1].mediaIndex) {
       c.repetitionPenalty += 0.5;
     }
+
+    // Add a penalty for shots that are too close in time to the previous shot
+    if (i > 0) {
+      const timeDifference = c.startTime - cuts[i - 1].endTime;
+      if (timeDifference < 1) {
+        c.repetitionPenalty += 0.5;
+      }
+    }
   }
   const total=cuts.reduce((s,c)=>s+c.duration,0);
   return {...plan,cuts,duration:Number(total.toFixed(2)),creativeContinuity:{version:'1.0',action,dark,emotional,shotCount:cuts.length,targetDuration:Number(duration)||plan.targetDuration||total}};
