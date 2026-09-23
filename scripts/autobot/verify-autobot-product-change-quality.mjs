@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const root=process.cwd();
-const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/renderer.js','src/editorialRhythm.js','src/executableTimeline.js','src/captionPlanner.js','src/musicDirector.js','src/universalCreativeSceneEngine.js','src/cinematicRendererV3.js']);
+const cinematicPaths=new Set(['src/director.js','src/aiEditPlanner.js','src/renderer.js','src/editorialRhythm.js','src/executableTimeline.js','src/captionPlanner.js','src/musicDirector.js','src/universalCreativeSceneEngine.js','src/cinematicRendererV3.js','src/creativeIntentCompiler.js','src/creativeContinuityEngine.js']);
 function changedPaths(){
   const base=String(process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT||'').trim();
   const candidate=String(process.env.AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT||'').trim();
@@ -29,6 +29,37 @@ function assertNoDuplicateTopLevelFunctions(file){
   const duplicates=duplicateTopLevelFunctionNames(read(file));
   assert(!duplicates.length,`duplicate-function-declaration guard failed in ${file}: ${duplicates.map(item=>item.name+' x'+item.count).join(', ')}`);
 }
+function duplicateTopLevelBindingNames(source){
+  const counts=new Map();
+  const patterns=[/^(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/gm,/^(?:export\s+)?class\s+([A-Za-z_$][\w$]*)/gm];
+  for(const pattern of patterns){let match;while((match=pattern.exec(source))!==null)counts.set(match[1],(counts.get(match[1])||0)+1);}
+  return [...counts.entries()].filter(([,count])=>count>1).map(([name,count])=>({name,count}));
+}
+function assertNoDuplicateTopLevelBindings(file){
+  const duplicates=duplicateTopLevelBindingNames(read(file));
+  assert(!duplicates.length,`duplicate-top-level-binding guard failed in ${file}: ${duplicates.map(item=>item.name+' x'+item.count).join(', ')}`);
+}
+function publicExportNames(source){
+  const names=new Set();
+  const patterns=[
+    /\\bexport\\s+(?:async\\s+)?function\\s+([A-Za-z_$][\\w$]*)/g,
+    /\\bexport\\s+(?:const|let|var|class)\\s+([A-Za-z_$][\\w$]*)/g,
+    /\\bexport\\s+default\\b/g
+  ];
+  for(const pattern of patterns){let match;while((match=pattern.exec(source))!==null)names.add(match[1]||'default');}
+  for(const match of source.matchAll(/\\bexport\\s*\\{([^}]+)\\}/g)){
+    for(const entry of match[1].split(',')){const name=entry.trim().split(/\\s+as\\s+/i)[0].trim();if(name)names.add(name);}
+  }
+  return names;
+}
+function assertPublicExportsPreserved(file){
+  const base=String(process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT||'').trim();
+  if(!base||!/^[0-9a-f]{40}$/i.test(base))return;
+  let baseSource='';
+  try{baseSource=execFileSync('git',['show',`${base}:${file}`],{cwd:root,encoding:'utf8'});}catch{return;}
+  const missing=[...publicExportNames(baseSource)].filter(name=>!publicExportNames(read(file)).has(name));
+  assert(!missing.length,`public-export guard failed in ${file}: existing exports removed: ${missing.join(', ')}`);
+}
 function assertNoUnusedAddedTopLevelConstants(file){
   const base=String(process.env.AUTOBOT_PRODUCT_QUALITY_BASE_COMMIT||'').trim();
   const candidate=String(process.env.AUTOBOT_PRODUCT_QUALITY_CANDIDATE_COMMIT||'').trim();
@@ -52,7 +83,7 @@ function sparseMedia(count){return Array.from({length:count},(_,index)=>({id:`sp
 
 const changed=changedPaths();
 const cinematicChanged=changed.filter(path=>cinematicPaths.has(path));
-for(const file of cinematicChanged){assertNoDuplicateTopLevelFunctions(file);assertNoUnusedAddedTopLevelConstants(file);}
+for(const file of cinematicChanged){assertNoDuplicateTopLevelFunctions(file);assertNoDuplicateTopLevelBindings(file);assertNoUnusedAddedTopLevelConstants(file);assertPublicExportsPreserved(file);}
 if(!cinematicChanged.length){console.log('autobot-product-change-quality: PASS not-applicable (no cinematic product files changed)');process.exit(0);}
 
 const planner=read('src/aiEditPlanner.js');
@@ -72,6 +103,24 @@ if(storyIntegrationRequested){
   assert(new Set(rich.map(item=>item.mediaIndex)).size===rich.length,'story scaling guard failed: duplicate media indices');
   assert(rich.every(item=>item.directorStoryRole&&Number.isFinite(Number(item.directorStoryScore))),'story evidence guard failed: every selected beat lacks auditable role/score evidence');
   storyLength=rich.length;
+}
+
+if(changed.includes('src/aiEditPlanner.js')){
+  const {createAIEditPlan}=await import('../../src/aiEditPlanner.js');
+  assert(typeof createAIEditPlan==='function','media-intelligence runtime guard failed: createAIEditPlan export is not callable');
+  const smokeAnalysis={
+    durationInSeconds:11,
+    mediaType:'video',
+    subject:{label:'motorcycle',category:'vehicle'},
+    bestMoments:[
+      {mediaIndex:0,sourceIndex:0,mediaId:'smoke-0',start:0,end:3,duration:3,description:'motorcycle approaching'},
+      {mediaIndex:1,sourceIndex:1,mediaId:'smoke-1',start:3,end:7,duration:4,description:'motorcycle cornering'},
+      {mediaIndex:2,sourceIndex:2,mediaId:'smoke-2',start:7,end:11,duration:4,description:'motorcycle hero reveal'}
+    ]
+  };
+  const smokePlan=createAIEditPlan(smokeAnalysis,{creativePrompt:'cinematic motorcycle action reveal',targetDuration:11,maxCuts:6});
+  assert(smokePlan&&Array.isArray(smokePlan.cuts)&&smokePlan.cuts.length>=3,'media-intelligence runtime guard failed: smoke edit plan did not produce usable cuts');
+  assert(Number.isFinite(Number(smokePlan.qualityScore)),'media-intelligence runtime guard failed: smoke edit plan has no finite quality score');
 }
 
 if(/buildDirectorStory/.test(planner)||/storyBeats/.test(planner)){
