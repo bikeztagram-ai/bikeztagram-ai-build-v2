@@ -194,16 +194,6 @@ while (remainingNormalMs() > 90_000 && remainingHardMs() > 120_000) {
     AUTOBOT_SKIP_NPM_INSTALL: skipNpmInstall ? 'true' : 'false'
   }, Math.min(remainingHardMs(), 6 * 60_000), [botId]);
 
-  // Keep the latest cycle available at the stable workflow paths as well as
-  // the immutable per-cycle archive.
-  for (const file of [
-    'autobot-endurance-candidate-check.json',
-    `autobot-candidate-review-${botId}.json`
-  ]) {
-    const source = path.join(resultDir, file);
-    if (fs.existsSync(source)) fs.copyFileSync(source, path.join(canonicalResultDir, file));
-  }
-
   if (qaStatus !== 0) {
     failures += 1;
     console.warn(`[lane:${botId}] candidate ${candidate} failed independent QA/Reviewer; retaining the previous verified base ${currentBase}.`);
@@ -218,6 +208,20 @@ while (remainingNormalMs() > 90_000 && remainingHardMs() > 120_000) {
   failures = 0;
   currentBase = candidate;
   verifiedCandidates.push({ cycle, baseCommit: handoff.baseCommit || null, candidateCommit: candidate, branch: candidateBranch, verifiedAt: new Date().toISOString() });
+
+  // The canonical evidence paths must represent the last VERIFIED candidate,
+  // not a later rejected cycle. Immutable per-cycle evidence above remains the
+  // source of truth for every attempted cycle.
+  for (const file of [
+    'autobot-specialist-handoff.json',
+    'autobot-specialist-outcome.json',
+    'autobot-endurance-candidate-check.json',
+    `autobot-candidate-review-${botId}.json`
+  ]) {
+    const source = path.join(resultDir, file);
+    if (fs.existsSync(source)) fs.copyFileSync(source, path.join(canonicalResultDir, file));
+  }
+
   console.log(`[lane:${botId}] VERIFIED cycle ${cycle}: ${candidate}. Immediately starting next objective.`);
   writeState('verified-carry-forward', { currentBase, verifiedCandidates, publishedBranches, failures, cycle });
 
