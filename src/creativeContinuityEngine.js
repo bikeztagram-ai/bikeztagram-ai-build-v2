@@ -29,7 +29,7 @@ export function prepareCreativeContinuity(plan,{creativePrompt='',duration=0}={}
     c.speed=clamp(Number(c.speed)||1,action?.65:.5,action?1.6:1.5);
     if(action && i%3===1)c.speed=Math.max(c.speed,1.15);
     if(emotional)c.speed=Math.min(c.speed,.92);
-    if(i===cuts.length-1)c.speed=Math.min(c.speed,.9);
+    if(i===cuts.length-1)c.speed=Math.min(c.speed,.9 - c.repetitionPenalty);
     const source=Number.isInteger(Number(c.mediaIndex))?Number(c.mediaIndex):null;
     c.repetitionPenalty=source!=null&&used.has(source)?1:0;
     if (i > 0 && source === cuts[i - 1].mediaIndex) {
