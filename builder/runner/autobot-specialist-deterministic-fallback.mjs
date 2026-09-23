@@ -98,6 +98,13 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
     "const draft={cuts,targetDuration,creativePrompt:text(options.creativePrompt)};const cinematicQuality=evaluateCinematicOutput(draft,{duration});const sourceEvidenceScore=Number.isFinite(Number(cinematicQuality?.score))?Number(cinematicQuality.score):0;const qualityScore=Math.round(critique.after.score*.7+rhythm.score*.2+sourceEvidenceScore*.1);",
     'analysis-aware cinematic quality weighting'
   )];
+} else if(specialist==='intent-builder' && (objective.includes('creative intent')||objective.includes('prompt-to-edit')||objective.includes('intent compilation')||objective.includes('creative brief'))){
+  files=[replaceOnce(
+    'src/creativeIntentCompiler.js',
+    "['explode', 'impact', 'crash'], ['fly', 'soar', 'dive'], ['walk', 'approach', 'enter'], ['fight', 'attack', 'escape'],",
+    "['explode', 'impact', 'crash'], ['fly', 'soar', 'dive'], ['walk', 'approach', 'enter'], ['fight', 'attack', 'escape'], ['swerve', 'corner', 'lean', 'brake'],",
+    'expanded creative action intent hints'
+  )];
 } else if(specialist==='caption-builder' && (objective.includes('caption')||objective.includes('overlay')||objective.includes('speech'))){
   files=[replaceOnce(
     'src/captionPlanner.js',
