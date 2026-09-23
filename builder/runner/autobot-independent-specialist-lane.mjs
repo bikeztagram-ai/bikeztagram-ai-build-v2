@@ -24,8 +24,10 @@ const skipNpmInstall = String(process.env.AUTOBOT_SKIP_NPM_INSTALL || '').toLowe
 const cycleBudget = Math.max(8, Number.parseInt(process.env.AUTOBOT_LANE_CYCLE_MINUTES || '20', 10) || 20);
 const maxFailures = Math.max(1, Number.parseInt(process.env.AUTOBOT_LANE_MAX_NO_PROGRESS_CYCLES || '2', 10) || 2);
 const requestedDuration = String(process.env.AUTOBOT_TOTAL_DURATION || '5h30').trim().toLowerCase();
-
-const durationMinutes = ({'15m':15,'30m':30,'1h':60,'4h':240,'5h':300,'5h30':330})[requestedDuration] || 330;
+const configuredRunMinutes = Number.parseInt(process.env.BUILDER_MAX_MINUTES || '', 10);
+const durationMinutes = Number.isFinite(configuredRunMinutes) && configuredRunMinutes > 0
+  ? configuredRunMinutes
+  : ({'15m':15,'30m':30,'1h':60,'4h':240,'5h':300,'5h30':330})[requestedDuration] || 330;
 const finishGrace = Math.max(0, Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES || '15', 10) || 0);
 const startedAt = Date.now();
 const normalDeadline = startedAt + durationMinutes * 60_000;
