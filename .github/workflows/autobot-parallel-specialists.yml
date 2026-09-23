@@ -104,12 +104,12 @@ jobs:
           test -s builder/working/autobot-independent-specialist-lane.json
           test -s builder/working/autobot-specialist-handoff.json
           test -s builder/working/autobot-specialist-outcome.json
-          test -s builder/working/specialist-results/director/autobot-endurance-candidate-check.json
+          test -s builder/working/specialist-results/director-builder/autobot-endurance-candidate-check.json
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
           const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
-          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/director/autobot-endurance-candidate-check.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/director-builder/autobot-endurance-candidate-check.json','utf8'));
           if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
           if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
           console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
@@ -190,12 +190,12 @@ jobs:
           test -s builder/working/autobot-independent-specialist-lane.json
           test -s builder/working/autobot-specialist-handoff.json
           test -s builder/working/autobot-specialist-outcome.json
-          test -s builder/working/specialist-results/timeline/autobot-endurance-candidate-check.json
+          test -s builder/working/specialist-results/timeline-builder/autobot-endurance-candidate-check.json
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
           const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
-          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/timeline/autobot-endurance-candidate-check.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/timeline-builder/autobot-endurance-candidate-check.json','utf8'));
           if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
           if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
           console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
@@ -280,12 +280,12 @@ jobs:
           test -s builder/working/autobot-independent-specialist-lane.json
           test -s builder/working/autobot-specialist-handoff.json
           test -s builder/working/autobot-specialist-outcome.json
-          test -s builder/working/specialist-results/music/autobot-endurance-candidate-check.json
+          test -s builder/working/specialist-results/music-builder/autobot-endurance-candidate-check.json
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
           const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
-          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/music/autobot-endurance-candidate-check.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/music-builder/autobot-endurance-candidate-check.json','utf8'));
           if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
           if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
           console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
@@ -370,12 +370,12 @@ jobs:
           test -s builder/working/autobot-independent-specialist-lane.json
           test -s builder/working/autobot-specialist-handoff.json
           test -s builder/working/autobot-specialist-outcome.json
-          test -s builder/working/specialist-results/scene/autobot-endurance-candidate-check.json
+          test -s builder/working/specialist-results/scene-builder/autobot-endurance-candidate-check.json
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
           const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
-          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/scene/autobot-endurance-candidate-check.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/scene-builder/autobot-endurance-candidate-check.json','utf8'));
           if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
           if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
           console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
@@ -460,12 +460,12 @@ jobs:
           test -s builder/working/autobot-independent-specialist-lane.json
           test -s builder/working/autobot-specialist-handoff.json
           test -s builder/working/autobot-specialist-outcome.json
-          test -s builder/working/specialist-results/rhythm/autobot-endurance-candidate-check.json
+          test -s builder/working/specialist-results/rhythm-builder/autobot-endurance-candidate-check.json
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
           const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
-          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/rhythm/autobot-endurance-candidate-check.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/rhythm-builder/autobot-endurance-candidate-check.json','utf8'));
           if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
           if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
           console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
@@ -550,12 +550,12 @@ jobs:
           test -s builder/working/autobot-independent-specialist-lane.json
           test -s builder/working/autobot-specialist-handoff.json
           test -s builder/working/autobot-specialist-outcome.json
-          test -s builder/working/specialist-results/render/autobot-endurance-candidate-check.json
+          test -s builder/working/specialist-results/render-builder/autobot-endurance-candidate-check.json
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
           const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
-          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/render/autobot-endurance-candidate-check.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/render-builder/autobot-endurance-candidate-check.json','utf8'));
           if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
           if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
           console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
@@ -635,12 +635,12 @@ jobs:
           test -s builder/working/autobot-independent-specialist-lane.json
           test -s builder/working/autobot-specialist-handoff.json
           test -s builder/working/autobot-specialist-outcome.json
-          test -s builder/working/specialist-results/media-intelligence/autobot-endurance-candidate-check.json
+          test -s builder/working/specialist-results/media-intelligence-builder/autobot-endurance-candidate-check.json
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
           const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
-          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/media-intelligence/autobot-endurance-candidate-check.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/media-intelligence-builder/autobot-endurance-candidate-check.json','utf8'));
           if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
           if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
           console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
@@ -720,12 +720,12 @@ jobs:
           test -s builder/working/autobot-independent-specialist-lane.json
           test -s builder/working/autobot-specialist-handoff.json
           test -s builder/working/autobot-specialist-outcome.json
-          test -s builder/working/specialist-results/caption/autobot-endurance-candidate-check.json
+          test -s builder/working/specialist-results/caption-builder/autobot-endurance-candidate-check.json
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
           const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
-          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/caption/autobot-endurance-candidate-check.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/caption-builder/autobot-endurance-candidate-check.json','utf8'));
           if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
           if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
           console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
@@ -809,12 +809,12 @@ jobs:
           test -s builder/working/autobot-independent-specialist-lane.json
           test -s builder/working/autobot-specialist-handoff.json
           test -s builder/working/autobot-specialist-outcome.json
-          test -s builder/working/specialist-results/intent/autobot-endurance-candidate-check.json
+          test -s builder/working/specialist-results/intent-builder/autobot-endurance-candidate-check.json
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
           const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
-          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/intent/autobot-endurance-candidate-check.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/intent-builder/autobot-endurance-candidate-check.json','utf8'));
           if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
           if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
           console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
@@ -899,12 +899,12 @@ jobs:
           test -s builder/working/autobot-independent-specialist-lane.json
           test -s builder/working/autobot-specialist-handoff.json
           test -s builder/working/autobot-specialist-outcome.json
-          test -s builder/working/specialist-results/continuity/autobot-endurance-candidate-check.json
+          test -s builder/working/specialist-results/continuity-builder/autobot-endurance-candidate-check.json
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
           const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
-          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/continuity/autobot-endurance-candidate-check.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/continuity-builder/autobot-endurance-candidate-check.json','utf8'));
           if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
           if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
           console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
