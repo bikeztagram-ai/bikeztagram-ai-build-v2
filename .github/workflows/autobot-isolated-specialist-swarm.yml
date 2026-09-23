@@ -37,12 +37,14 @@ jobs:
     name: ${{ matrix.name }}
     strategy:
       fail-fast: false
+      max-parallel: 10
       matrix:
         include:
           - bot: director-builder
             name: 🎬 Director AutoBot
+            strategy: whole-src-single
             objective: |
-              Production Director lane: improve cinematic story intelligence in src/director.js with a minimal safe change.
+              Production Director lane: make exactly one minimal cinematic story-intelligence behaviour improvement in src/director.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - improve prompt-sensitive director decisions or shot/story selection
@@ -51,8 +53,9 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: timeline-builder
             name: ⏱️ Timeline AutoBot
+            strategy: whole-root-single
             objective: |
-              Production Timeline lane: improve executable timeline behaviour in src/executableTimeline.js with a minimal safe change.
+              Production Timeline lane: make exactly one minimal executable-timeline behaviour improvement in src/executableTimeline.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - improve source-aware timing, motion, transition or executable cut continuity
@@ -62,8 +65,9 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: music-builder
             name: 🎵 Music AutoBot
+            strategy: whole-src-single
             objective: |
-              Production Music lane: improve prompt-responsive music energy in src/musicDirector.js with one minimal production-safe change.
+              Production Music lane: make exactly one minimal prompt-responsive music-energy behaviour improvement in src/musicDirector.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - energy responds to driving, fast or action creative intent
@@ -72,8 +76,9 @@ jobs:
               - leave a verified candidate handoff when valid
           - bot: scene-builder
             name: 🎥 Scene AutoBot
+            strategy: whole-src-single
             objective: |
-              Production Scene lane: improve duration-bounded scene shot continuity in src/universalCreativeSceneEngine.js with one minimal production-safe change.
+              Production Scene lane: make exactly one minimal duration-bounded scene-shot continuity behaviour improvement in src/universalCreativeSceneEngine.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - scene shot count remains bounded and scales with duration
@@ -83,18 +88,70 @@ jobs:
 
           - bot: rhythm-builder
             name: 🥁 Rhythm AutoBot
+            strategy: whole-src-single
             objective: |
-              Production Rhythm lane: improve beat-aware editorial pacing in src/editorialRhythm.js with a minimal safe change.
+              Production Rhythm lane: make exactly one minimal beat-aware editorial pacing behaviour improvement in src/editorialRhythm.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - improve duration distribution or creative-intent pacing without exceeding the requested target budget
               - only src/editorialRhythm.js may be a product-file change
               - syntax, build and product-quality verification pass
               - leave a verified candidate handoff when valid
+          - bot: media-intelligence-builder
+            name: 🧠 Media Intelligence AutoBot
+            strategy: diff-root-single
+            objective: |
+              Production Media Intelligence lane: make exactly one minimal media-analysis behaviour improvement in src/aiEditPlanner.js.
+              Preserve existing APIs and contracts.
+              Acceptance:
+              - improve local media interpretation or source-aware planning behaviour
+              - only src/aiEditPlanner.js may be a product-file change
+              - syntax, build and product-quality verification pass
+              - leave a verified candidate handoff when valid
+
+          - bot: caption-builder
+            name: 📝 Caption AutoBot
+            strategy: diff-root-single
+            objective: |
+              Production Caption lane: make exactly one minimal caption-planning behaviour improvement in src/captionPlanner.js.
+              Preserve existing APIs and contracts.
+              Acceptance:
+              - improve context-aware caption selection or generation behaviour
+              - only src/captionPlanner.js may be a product-file change
+              - syntax, build and product-quality verification pass
+              - leave a verified candidate handoff when valid
+
+          - bot: experimental-media-whole-root
+            name: 🧪 Experimental Media Whole-Root AutoBot
+            strategy: diff-root-single
+            objective: |
+              Experimental Aider lane: test root-scoped diff editing against src/aiEditPlanner.js using exactly one minimal media-analysis behaviour improvement.
+              This is a disposable experiment to compare Aider materialization mechanics with the production Media Intelligence lane.
+              Preserve existing APIs and contracts.
+              Acceptance:
+              - only src/aiEditPlanner.js may be a product-file change
+              - no reformatting outside the focused behaviour change
+              - syntax, build and product-quality verification pass
+              - leave evidence even if Aider cannot materialize a candidate
+
+          - bot: experimental-caption-diff-root
+            name: 🧪 Experimental Caption Diff-Root AutoBot
+            strategy: diff-root-single
+            objective: |
+              Experimental Aider lane: test root-scoped diff editing against src/captionPlanner.js using exactly one minimal caption-planning behaviour improvement.
+              This is a disposable experiment to compare Aider materialization mechanics with the production Caption lane.
+              Preserve existing APIs and contracts.
+              Acceptance:
+              - only src/captionPlanner.js may be a product-file change
+              - no reformatting outside the focused behaviour change
+              - syntax, build and product-quality verification pass
+              - leave evidence even if Aider cannot materialize a candidate
+
           - bot: render-builder
             name: 🎞️ Render AutoBot
+            strategy: whole-src-single
             objective: |
-              Production Render lane: improve visible cinematic rendering behaviour in src/cinematicRendererV3.js with a minimal safe change.
+              Production Render lane: make exactly one minimal visible cinematic-rendering behaviour improvement in src/cinematicRendererV3.js.
               Preserve existing APIs and contracts.
               Acceptance:
               - improve transition, motion or visual finishing quality while preserving source decoding and recording reliability
@@ -103,7 +160,6 @@ jobs:
               - leave a verified candidate handoff when valid
 
     runs-on: ubuntu-24.04
-    max-parallel: 6
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
@@ -145,9 +201,10 @@ jobs:
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: ${{ matrix.bot }}
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: ${{ matrix.strategy }}
           AUTOBOT_SPECIALIST_OBJECTIVE: ${{ matrix.objective }}
           AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
-          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
+          AUTOBOT_EXPERIMENTAL_WORKER: ${{ startsWith(matrix.bot, 'experimental-') && 'true' || 'false' }}
           AUTOBOT_BASE_REF: ${{ github.sha }}
           AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: ${{ env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK }}
@@ -199,6 +256,31 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      - name: Download Media Intelligence evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-isolated-specialist-media-intelligence-builder-${{ github.run_id }}
+          path: builder/working/isolated/media-intelligence
+      - name: Download Caption evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-isolated-specialist-caption-builder-${{ github.run_id }}
+          path: builder/working/isolated/caption
+      - name: Download Experimental Media evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-isolated-specialist-experimental-media-whole-root-${{ github.run_id }}
+          path: builder/working/isolated/experimental-media-whole-root
+      - name: Download Experimental Caption evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-isolated-specialist-experimental-caption-diff-root-${{ github.run_id }}
+          path: builder/working/isolated/experimental-caption-diff-root
+
       - name: Download Director evidence
         uses: actions/download-artifact@v7
         continue-on-error: true
@@ -237,21 +319,25 @@ jobs:
         with:
           name: autobot-isolated-specialist-render-builder-${{ github.run_id }}
           path: builder/working/isolated/render
-      - name: Build canonical six-bot fan-in ledger
+      - name: Build canonical ten-lane fan-in ledger
         env:
           COORDINATION_ID: isolated-swarm-${{ github.run_id }}
         run: |
           set -euo pipefail
           mkdir -p builder/working/fan-in
-          for bot in director timeline music scene rhythm render; do
+          for bot in director timeline music scene rhythm render media-intelligence caption experimental-media-whole-root experimental-caption-diff-root; do
             dir="builder/working/isolated/$bot"
             mkdir -p "$dir"
             handoff="$(find "$dir" -name autobot-specialist-handoff.json -print -quit 2>/dev/null || true)"
             outcome="$(find "$dir" -name autobot-specialist-outcome.json -print -quit 2>/dev/null || true)"
             if [ -z "$handoff" ] && [ -z "$outcome" ]; then
+              bot_id="$bot"
+              case "$bot" in
+                director|timeline|music|scene|rhythm|render|media-intelligence|caption) bot_id="$bot-builder" ;;
+              esac
               cat > "$dir/autobot-specialist-outcome.json" <<EOF
           {
-            "botId": "$bot-builder",
+            "botId": "$bot_id",
             "status": "failure",
             "category": "workflow-failure",
             "repairable": true,

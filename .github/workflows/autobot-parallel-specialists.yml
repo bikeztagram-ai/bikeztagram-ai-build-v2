@@ -28,29 +28,34 @@ env:
   LOCAL_AI_MODEL: ${{ inputs.local_model }}
   AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
   AUTOBOT_DISCOVERY_TIMEOUT_MS: 180000
-  AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder,music-builder,scene-builder,rhythm-builder,render-builder,media-intelligence-builder,caption-builder
+  AUTOBOT_PARALLEL_BOTS: director-builder,timeline-builder,music-builder,scene-builder,rhythm-builder,render-builder,media-intelligence-builder,caption-builder,intent-builder,continuity-builder
   AUTOBOT_TOTAL_DURATION: ${{ inputs.duration }}
   AUTOBOT_CYCLE_MINUTES: ${{ inputs.duration == '15m' && '10' || inputs.duration == '30m' && '15' || '30' }}
   AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
   AUTOBOT_CYCLE_SAFETY_MINUTES: '1'
+  # One persistent lane keeps this runtime alive while it cycles through verified objectives.
+  AUTOBOT_LANE_CYCLE_MINUTES: '20'
+  AUTOBOT_LANE_MAX_NO_PROGRESS_CYCLES: '2'
   AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
   AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
   AUTOBOT_REPAIR_TIMEOUT_MS: '480000'
   AUTOBOT_MAX_NO_PROGRESS_CYCLES: '2'
 
 jobs:
-  # ISOLATED PRODUCTION FAN-OUT — all six product specialists run as separate GitHub jobs/runners. Each owns one disjoint product file, its own worktree, Aider process and local AI brain. A failure is contained to that specialist; all results converge through the canonical fan-in ledger.
+  # TEN INDEPENDENT PERSISTENT PRODUCTION LANES — each specialist owns one disjoint product file and one GitHub job/runner. The lane bootstraps Node/Python/Aider/Ollama once, then carries verified candidate SHAs through repeated Builder -> QA/Reviewer cycles without waiting for another specialist. The final fan-in is evidence/telemetry only and never gates another lane's productive work.
   # DIRECTOR — fully isolated production specialist. Its runner/worktree/Aider
   # stack is independent of every other specialist.
   experimental-director:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - name: Record specialist job start
+        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Director lane dependencies
@@ -69,11 +74,12 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
       - name: Run Director specialist
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: director-builder
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-src-single
           AUTOBOT_SPECIALIST_OBJECTIVE: "Production Director lane: improve hook-to-payoff shot selection or creative-intent weighting in src/director.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
 - shot selection responds to creative intent while preserving evidence scoring and diversity
 - only the owned file is changed
@@ -86,38 +92,56 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
-      - name: Publish Director candidate branch
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
+      - name: Validate Director final lane evidence
         if: steps.execute.outcome == 'success'
         run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
+          set -euo pipefail
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/director-builder/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/director-builder/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Director worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-director-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
+            builder/working/specialist-results/director-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/director-builder/autobot-candidate-review-director-builder.json
           if-no-files-found: ignore
 
   # TIMELINE — fully isolated production specialist. Its runner/worktree/Aider
   # stack is independent of every other specialist.
   experimental-timeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - name: Record specialist job start
+        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Timeline lane dependencies
@@ -136,11 +160,12 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
       - name: Run Timeline specialist
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: timeline-builder
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-root-single
           AUTOBOT_SPECIALIST_OBJECTIVE: "Production Timeline lane: improve source-aware timing, role-aware motion or transition cadence in src/executableTimeline.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
 - timeline execution preserves source identity and editorial roles while improving motion or timing
 - only the owned file is changed
@@ -153,37 +178,55 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
-      - name: Publish Timeline candidate branch
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
+      - name: Validate Timeline final lane evidence
         if: steps.execute.outcome == 'success'
         run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
+          set -euo pipefail
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/timeline-builder/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/timeline-builder/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Timeline worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-timeline-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
+            builder/working/specialist-results/timeline-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/timeline-builder/autobot-candidate-review-timeline-builder.json
           if-no-files-found: ignore
 
   experimental-music:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - name: Record specialist job start
+        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -205,12 +248,13 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
 
       - name: Run Music specialist
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: music-builder
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-src-single
           AUTOBOT_SPECIALIST_OBJECTIVE: "Experimental Music lane: improve prompt-responsive music energy in src/musicDirector.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
 - energy responds to driving/fast/action creative intent
 - only the owned file is changed
@@ -223,39 +267,56 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
 
-      - name: Publish Music candidate branch
+      - name: Validate Music final lane evidence
         if: steps.execute.outcome == 'success'
         run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
+          set -euo pipefail
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/music-builder/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/music-builder/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
 
       - name: Upload Music worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-music-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
+            builder/working/specialist-results/music-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/music-builder/autobot-candidate-review-music-builder.json
           if-no-files-found: ignore
 
   experimental-scene:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - name: Record specialist job start
+        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -277,12 +338,13 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
 
       - name: Run Scene specialist
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: scene-builder
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-src-single
           AUTOBOT_SPECIALIST_OBJECTIVE: "Experimental Scene lane: improve duration-bounded scene shot continuity in src/universalCreativeSceneEngine.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
 - scene shot count remains bounded and scales with duration
 - only the owned file is changed
@@ -295,39 +357,56 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
 
-      - name: Publish Scene candidate branch
+      - name: Validate Scene final lane evidence
         if: steps.execute.outcome == 'success'
         run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
+          set -euo pipefail
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/scene-builder/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/scene-builder/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
 
       - name: Upload Scene worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-scene-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
+            builder/working/specialist-results/scene-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/scene-builder/autobot-candidate-review-scene-builder.json
           if-no-files-found: ignore
 
   experimental-rhythm:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - name: Record specialist job start
+        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -349,12 +428,13 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
 
       - name: Run Rhythm specialist
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: rhythm-builder
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-src-single
           AUTOBOT_SPECIALIST_OBJECTIVE: "Production Rhythm lane: improve beat-aware editorial pacing and duration distribution in src/editorialRhythm.js with one minimal, production-safe change. Preserve existing APIs and contracts. Acceptance:
 - pacing responds to creative intent without exceeding duration bounds
 - only the owned file is changed
@@ -367,39 +447,56 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
 
-      - name: Publish Rhythm candidate branch
+      - name: Validate Rhythm final lane evidence
         if: steps.execute.outcome == 'success'
         run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
+          set -euo pipefail
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/rhythm-builder/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/rhythm-builder/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
 
       - name: Upload Rhythm worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-rhythm-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
+            builder/working/specialist-results/rhythm-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/rhythm-builder/autobot-candidate-review-rhythm-builder.json
           if-no-files-found: ignore
 
   experimental-render:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - name: Record specialist job start
+        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -421,12 +518,13 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
 
       - name: Run Render specialist
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: render-builder
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-root-single
           AUTOBOT_SPECIALIST_OBJECTIVE: "Production Render lane: improve visible cinematic motion, transitions or finishing in src/cinematicRendererV3.js with one minimal, production-safe change. Preserve source decoding, recording and existing renderer APIs. Acceptance:
 - the change improves a visible cinematic behavior without destabilizing render reliability
 - only the owned file is changed
@@ -439,39 +537,56 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
 
-      - name: Publish Render candidate branch
+      - name: Validate Render final lane evidence
         if: steps.execute.outcome == 'success'
         run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
+          set -euo pipefail
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/render-builder/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/render-builder/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
 
       - name: Upload Render worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-render-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
+            builder/working/specialist-results/render-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/render-builder/autobot-candidate-review-render-builder.json
           if-no-files-found: ignore
 
   # MEDIA INTELLIGENCE — isolated production specialist owning the analysis-to-edit planning boundary.
   experimental-media-intelligence:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - name: Record specialist job start
+        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Media Intelligence lane dependencies
@@ -490,11 +605,12 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
       - name: Run Media Intelligence specialist
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: media-intelligence-builder
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: diff-root-single
           AUTOBOT_SPECIALIST_OBJECTIVE: "Production Media Intelligence lane: improve analysis-to-edit planning quality in src/aiEditPlanner.js with one minimal, production-safe change. Preserve existing APIs and source media behavior. Acceptance:
 - source evidence or cinematic quality contributes more meaningfully to edit planning
 - only the owned file is changed
@@ -507,37 +623,55 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
-      - name: Publish Media Intelligence candidate branch
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
+      - name: Validate Media Intelligence final lane evidence
         if: steps.execute.outcome == 'success'
         run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
+          set -euo pipefail
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/media-intelligence-builder/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/media-intelligence-builder/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Media Intelligence worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-media-intelligence-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
+            builder/working/specialist-results/media-intelligence-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/media-intelligence-builder/autobot-candidate-review-media-intelligence-builder.json
           if-no-files-found: ignore
 
   # CAPTION — isolated production specialist owning the speech-caption editorial boundary.
   experimental-caption:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - name: Record specialist job start
+        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Caption lane dependencies
@@ -556,11 +690,12 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
       - name: Run Caption specialist
         id: execute
         env:
           AUTOBOT_SPECIALIST_BOT_ID: caption-builder
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: diff-root-single
           AUTOBOT_SPECIALIST_OBJECTIVE: "Production Caption lane: improve caption-safe overlay handling in src/captionPlanner.js with one minimal, production-safe change. Preserve verified speech timing and never invent dialogue. Acceptance:
 - caption text remains time-aligned, confidence-aware and visually safe
 - only the owned file is changed
@@ -573,42 +708,238 @@ jobs:
           AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
           AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
           AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
-          AUTOBOT_FINISH_GRACE_MINUTES: '0'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '60' || '60' }}
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
-      - name: Publish Caption candidate branch
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
+      - name: Validate Caption final lane evidence
         if: steps.execute.outcome == 'success'
         run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
+          set -euo pipefail
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/caption-builder/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/caption-builder/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Caption worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-caption-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
+            builder/working/specialist-results/caption-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/caption-builder/autobot-candidate-review-caption-builder.json
           if-no-files-found: ignore
 
-  # FAN-IN — records all eight isolated specialist lanes into the same
+  # FAN-IN — records all ten isolated specialist lanes into the same
   # coordination ledger. It never merges product code and never gates the
   # production persistent-autobot job.
+  experimental-intent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Record specialist job start
+        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Intent lane dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Install Intent lane Aider
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - name: Start isolated Intent AI brain
+        run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_DISCOVERY_MODEL: ${{ env.AUTOBOT_DISCOVERY_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
+          OLLAMA_CONTEXT_LENGTH: 4096
+          OLLAMA_NUM_PARALLEL: 1
+          OLLAMA_MAX_QUEUE: 4
+          OLLAMA_LOAD_TIMEOUT: 20m
+          OLLAMA_KEEP_ALIVE: 24h
+      - name: Run Intent specialist
+        id: execute
+        env:
+          AUTOBOT_SPECIALIST_BOT_ID: intent-builder
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-src-single
+          AUTOBOT_SPECIALIST_OBJECTIVE: |
+            Production Creative Intent lane: improve prompt-to-edit intent compilation in src/creativeIntentCompiler.js with one minimal, production-safe change. Preserve existing APIs and contracts.
+            Acceptance:
+            - creative prompts are compiled into explicit, deterministic intent signals used by the production planning path
+            - only the owned file is changed
+            - syntax, build and product-quality verification pass
+            - leave a candidate when valid.
+          AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
+          AUTOBOT_BASE_REF: ${{ github.sha }}
+          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
+          AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
+      - name: Validate Intent final lane evidence
+        if: steps.execute.outcome == 'success'
+        run: |
+          set -euo pipefail
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/intent-builder/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/intent-builder/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
+      - name: Upload Intent worker evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: autobot-persistent-experimental-intent-${{ github.run_id }}
+          path: |
+            builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-specialist-outcome.json
+            builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
+            builder/working/specialist-results/intent-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/intent-builder/autobot-candidate-review-intent-builder.json
+          if-no-files-found: ignore
+
+  # FAN-IN — records all ten isolated specialist lanes into the same
+  # coordination ledger. It never merges product code and never gates the
+  # production persistent-autobot job.
+
+  experimental-continuity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Record specialist job start
+        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Continuity lane dependencies
+        run: npm install --no-audit --no-fund --no-package-lock
+      - name: Install Continuity lane Aider
+        run: python -m pip install --disable-pip-version-check --no-input aider-chat
+      - name: Start isolated Continuity AI brain
+        run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_DISCOVERY_MODEL: ${{ env.AUTOBOT_DISCOVERY_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          LOCAL_AI_PROXY_NUM_CTX: 4096
+          LOCAL_AI_PROXY_NUM_PREDICT: 900
+          OLLAMA_CONTEXT_LENGTH: 4096
+          OLLAMA_NUM_PARALLEL: 1
+          OLLAMA_MAX_QUEUE: 4
+          OLLAMA_LOAD_TIMEOUT: 20m
+          OLLAMA_KEEP_ALIVE: 24h
+      - name: Run Continuity specialist
+        id: execute
+        env:
+          AUTOBOT_SPECIALIST_BOT_ID: continuity-builder
+          AUTOBOT_SPECIALIST_EDIT_STRATEGY: whole-src-single
+          AUTOBOT_SPECIALIST_OBJECTIVE: |
+            Production Creative Continuity lane: improve source/story continuity scoring in src/creativeContinuityEngine.js with one minimal, production-safe change. Preserve existing APIs and contracts.
+            Acceptance:
+            - continuity decisions preserve source identity and story consistency across the production edit path
+            - only the owned file is changed
+            - syntax, build and product-quality verification pass
+            - leave a candidate when valid.
+          AUTOBOT_SPECIALIST_BUILDER_ENABLED: 'true'
+          AUTOBOT_EXPERIMENTAL_WORKER: 'false'
+          AUTOBOT_BASE_REF: ${{ github.sha }}
+          AUTOBOT_AIDER_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK: npm run verify:autobot-product-change-quality
+          AUTOBOT_SPECIALIST_FALLBACK_MODEL: ${{ env.AUTOBOT_SPECIALIST_FALLBACK_MODEL }}
+          AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
+          AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
+          AUTOBOT_SKIP_NPM_INSTALL: 'true'
+          BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
+          AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
+      - name: Validate Continuity final lane evidence
+        if: steps.execute.outcome == 'success'
+        run: |
+          set -euo pipefail
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/continuity-builder/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/continuity-builder/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
+      - name: Upload Continuity worker evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: autobot-persistent-experimental-continuity-${{ github.run_id }}
+          path: |
+            builder/working/autobot-specialist-handoff.json
+            builder/working/autobot-specialist-outcome.json
+            builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
+            builder/working/specialist-results/continuity-builder/autobot-endurance-candidate-check.json
+            builder/working/specialist-results/continuity-builder/autobot-candidate-review-continuity-builder.json
+          if-no-files-found: ignore
+
+  # FAN-IN — records all ten isolated specialist lanes into the same
+  # coordination ledger. It never merges product code and never gates the
+  # production persistent-autobot job.
+
   experimental-fan-in:
-    needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption]
+    needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption, experimental-intent, experimental-continuity]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -668,13 +999,27 @@ jobs:
           name: autobot-persistent-experimental-render-${{ github.run_id }}
           path: builder/working/experimental/render
 
+      - name: Download Intent evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-persistent-experimental-intent-${{ github.run_id }}
+          path: builder/working/experimental/intent
+
+      - name: Download Continuity evidence
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-persistent-experimental-continuity-${{ github.run_id }}
+          path: builder/working/experimental/continuity
+
       - name: Build canonical fan-in ledger
         env:
           COORDINATION_ID: persistent-${{ github.run_id }}
         run: |
           set -euo pipefail
           mkdir -p builder/working/fan-in
-          for bot in director timeline music scene rhythm render media-intelligence caption; do
+          for bot in director timeline music scene rhythm render media-intelligence caption intent continuity; do
             dir="builder/working/experimental/$bot"
             handoff="$(find "$dir" -name autobot-specialist-handoff.json -print -quit 2>/dev/null || true)"
             outcome="$(find "$dir" -name autobot-specialist-outcome.json -print -quit 2>/dev/null || true)"
@@ -706,10 +1051,56 @@ jobs:
           done
           cat builder/working/fan-in/autobot-fan-in-ledger.json
 
-      - name: Upload unified eight-specialist fan-in evidence
+      - name: Build canonical candidate QA + Reviewer ledger
         if: always()
-        uses: actions/upload-artifact@v7
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const bots=['director','timeline','music','scene','rhythm','render','media-intelligence','caption','intent','continuity'];
+          const root='builder/working/experimental';
+          const workers=[];
+          const findFile=(dir,name)=>{
+            if(!fs.existsSync(dir)) return null;
+            for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+              const full=`${dir}/${entry.name}`;
+              if(entry.isFile()&&entry.name===name) return full;
+              if(entry.isDirectory()){const found=findFile(full,name);if(found)return found;}
+            }
+            return null;
+          };
+          for (const bot of bots) {
+            const dir=`${root}/${bot}`;
+            const read=(name)=>{const p=findFile(dir,name);try{return p?JSON.parse(fs.readFileSync(p,'utf8')):null;}catch(error){return {status:'invalid-evidence',error:String(error.message||error)};}};
+            const handoff=read('autobot-specialist-handoff.json');
+            const outcome=read('autobot-specialist-outcome.json');
+            const candidateCheck=read('autobot-endurance-candidate-check.json');
+            const review=read(`autobot-candidate-review-${bot}-builder.json`) || read(`autobot-candidate-review-${bot}.json`);
+            workers.push({
+              botId:handoff?.botId||outcome?.botId||`${bot}-builder`,
+              candidateCommit:handoff?.candidateCommit||candidateCheck?.candidateCommit||null,
+              candidateOrigin:handoff?.candidateOrigin||outcome?.candidateOrigin||null,
+              aiderMaterialized:handoff?.aiderMaterialized===true||outcome?.aiderMaterialized===true,
+              specialistStatus:handoff?.status||outcome?.status||'missing',
+              qaStatus:candidateCheck?.status||'not-run',
+              integrationEligible:candidateCheck?.integrationEligible===true,
+              reviewerStatus:review?.status||'not-run',
+              reviewFindings:Array.isArray(review?.findings)?review.findings:[],
+              reviewEvidencePresent:Boolean(review),
+              candidateCheckEvidencePresent:Boolean(candidateCheck)
+            });
+          }
+          const ledger={schemaVersion:'autobot-candidate-review-ledger-v1',coordinationId:`persistent-${process.env.GITHUB_RUN_ID}`,generatedAt:new Date().toISOString(),workers};
+          fs.writeFileSync('builder/working/fan-in/autobot-candidate-review-ledger.json',JSON.stringify(ledger,null,2)+'\n');
+          console.log(JSON.stringify(ledger,null,2));
+          NODE
+
+      - name: Upload unified ten-specialist fan-in evidence
+        if: always()
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-fan-in-${{ github.run_id }}
-          path: builder/working/fan-in/autobot-fan-in-ledger.json
+          path: |
+            builder/working/fan-in/autobot-fan-in-ledger.json
+            builder/working/fan-in/autobot-candidate-review-ledger.json
           if-no-files-found: ignore

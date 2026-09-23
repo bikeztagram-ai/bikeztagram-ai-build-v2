@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "independent-autobot-worker-contract-v1",
-  "purpose": "Fan-out eight production specialist lanes into independent GitHub runners while preserving isolated edit, verification, recovery, handoff and operator-controlled integration contracts.",
+  "purpose": "Run ten production specialist lanes as independent long-lived GitHub jobs, each carrying verified candidate SHAs through repeated Builder -> QA/Reviewer cycles while preserving isolated edit, verification, recovery, handoff and operator-controlled integration contracts.",
   "productionLane": {
     "preserved": true,
     "workflows": [
@@ -15,12 +15,14 @@
       "rhythm-builder",
       "render-builder",
       "media-intelligence-builder",
-      "caption-builder"
+      "caption-builder",
+      "intent-builder",
+      "continuity-builder"
     ],
     "changePolicy": "No specialist candidate is automatically merged; central fan-in records every result and protected integration remains operator-controlled."
   },
   "fanOut": {
-    "dispatcher": "planner/coordination layer chooses bot, objective, baseRef and coordinationId",
+    "dispatcher": "planner/coordination layer chooses bot, objective, baseRef and coordinationId; once dispatched, the lane owns its own repeated cycle loop and does not wait for sibling lanes.",
     "isolation": "Each specialist gets its own workflow run, isolated worktree, candidate branch, Aider execution and failure boundary.",
     "requiredInputs": [
       "botId",
@@ -32,12 +34,14 @@
   },
   "workerLifecycle": [
     "planner assignment",
-    "isolated checkout",
-    "owned-file Aider edit",
-    "verification",
-    "candidate branch publication",
-    "structured handoff",
-    "fan-in ledger"
+    "isolated checkout and one-time runtime bootstrap",
+    "repeat: owned-file Aider edit from current verified base",
+    "repeat: local build and product-quality verification",
+    "repeat: candidate branch publication",
+    "repeat: independent QA and adversarial Reviewer",
+    "repeat: verified candidate SHA becomes the next lane base",
+    "repeat until the lane's requested run budget ends",
+    "final structured handoff and evidence"
   ],
   "fanIn": {
     "ledger": "builder/working/autobot-fan-in-ledger.json",
@@ -48,12 +52,12 @@
       "recovery",
       "failed"
     ],
-    "rule": "Every dispatched worker must produce exactly one ledger record; failed workers remain visible and are never silently dropped.",
+    "rule": "Fan-in is an asynchronous evidence/telemetry collector for completed lane cycles. It must never gate a specialist's next productive cycle or require sibling lanes to finish.",
     "codeMerge": "Candidate branches remain separate until a verified integration controller explicitly merges them against the recorded base SHA."
   },
   "resourceIsolation": {
-    "aider": "one Aider process per worker workflow",
-    "model": "Each production specialist owns its own local model process; sibling workers never share an Aider/Ollama workspace.",
+    "aider": "one Aider process per active cycle inside one persistent specialist workflow; Aider is installed once per lane and Ollama/model runtime remains available across cycles.",
+    "model": "Each production specialist owns its own local Ollama/model runtime; sibling workers never share an Aider/Ollama workspace.",
     "failureBoundary": "A failure in one specialist job must not cancel or contaminate sibling specialist jobs."
   },
   "activation": {
