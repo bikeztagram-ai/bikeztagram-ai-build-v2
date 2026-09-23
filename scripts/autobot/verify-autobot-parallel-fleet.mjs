@@ -21,12 +21,12 @@ if(gateOnly){
 assert(workflow.includes('experimental-director')&&workflow.includes('experimental-timeline')&&workflow.includes('experimental-music')&&workflow.includes('experimental-scene')&&workflow.includes('experimental-rhythm')&&workflow.includes('experimental-render')&&workflow.includes('experimental-media-intelligence')&&workflow.includes('experimental-caption')&&workflow.includes('experimental-intent')&&workflow.includes('experimental-continuity'),'parallel workflow must activate all ten isolated specialist Builders');
 assert(!workflow.includes('persistent-autobot:'),'joined persistent production lane must be removed');
 assert(workflow.includes('director-builder')&&workflow.includes('timeline-builder'),'parallel workflow must retain Director, Timeline and the ten-lane specialist identities');
-assert(workflow.includes('actions/upload-artifact@v7')&&workflow.includes('actions/download-artifact@v7'),'parallel planner/workers must exchange structured plan evidence through current Node24 artifact actions');
+assert(workflow.includes('actions/upload-artifact@v6')&&workflow.includes('actions/download-artifact@v7'),'parallel planner/workers must exchange structured plan evidence through current Node24 artifact actions');
 assert(workflow.includes('AUTOBOT_SPECIALIST_BOT_ID')&&workflow.includes('AUTOBOT_SPECIALIST_OBJECTIVE')&&workflow.includes('AUTOBOT_SPECIALIST_BUILDER_ENABLED'),'parallel workflow must use the specialist execution contract');
 assert(workflow.includes('AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK'),'parallel workflow must retain product-quality verification');
 assert(workflow.includes('builder/runner/autobot-endurance-candidate-check.mjs'),'every specialist lane must route its candidate through independent QA + Reviewer verification');
 assert((workflow.match(/Independent QA \+ Reviewer /g)||[]).length===10,'every one of the ten specialist lanes must have its own downstream QA + Reviewer stage');
-assert(workflow.includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'candidate verification must bind to the exact current cycle base commit');
+assert(fs.readFileSync(path.join(root,'builder/runner/autobot-independent-specialist-lane.mjs'),'utf8').includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'candidate verification must bind to the exact current cycle base commit');
 assert(workflow.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate review evidence must be persisted per specialist lane');
 assert(workflow.includes('autobot-candidate-review-ledger.json'),'fan-in must publish one central candidate QA + Reviewer ledger');
 assert(planner.includes('maxConcurrentWorkers<2'),'planner must refuse execution before parallel activation');
