@@ -35,12 +35,12 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
       .map(cue=>({cue,overlap:overlap(start,end,cue.start,cue.end)}))
       .filter(item=>item.overlap>0)
       .sort((a,b)=>b.overlap-a.overlap||b.cue.confidence-a.cue.confidence);
-    const chosen = candidates.reduce((max, current) => {
-      if (current.overlap > max.overlap || (current.overlap === max.overlap && current.cue.confidence > max.cue.confidence)) {
-        return current;
+    const chosen = candidates.sort((a, b) => {
+      if (a.overlap !== b.overlap) {
+        return b.overlap - a.overlap;
       }
-      return max;
-    }, { cue: null, overlap: 0 });
+      return b.cue.confidence - a.cue.confidence;
+    })[0];
 
     if (!chosen.cue) return cut;
 
