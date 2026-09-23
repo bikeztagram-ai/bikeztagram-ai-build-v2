@@ -95,24 +95,24 @@ jobs:
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-independent-specialist-lane.mjs
-      - name: Publish Director candidate branch
+      - name: Validate Director final lane evidence
         if: steps.execute.outcome == 'success'
-        run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
-      - name: Independent QA + Reviewer Director candidate
-        if: steps.execute.outcome == 'success'
-        env:
-          AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
-          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/director-builder/autobot-endurance-candidate-check.json
-          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/director-builder/autobot-candidate-review-director-builder.json
         run: |
           set -euo pipefail
-          mkdir -p "builder/working/specialist-results/director-builder"
-          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/director-builder/autobot-specialist-handoff.json"
-          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/director-builder/autobot-specialist-outcome.json"
-          node builder/runner/autobot-endurance-candidate-check.mjs director-builder
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/director/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/director/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Director worker evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -179,24 +179,24 @@ jobs:
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-independent-specialist-lane.mjs
-      - name: Publish Timeline candidate branch
+      - name: Validate Timeline final lane evidence
         if: steps.execute.outcome == 'success'
-        run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
-      - name: Independent QA + Reviewer Timeline candidate
-        if: steps.execute.outcome == 'success'
-        env:
-          AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
-          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/timeline-builder/autobot-endurance-candidate-check.json
-          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/timeline-builder/autobot-candidate-review-timeline-builder.json
         run: |
           set -euo pipefail
-          mkdir -p "builder/working/specialist-results/timeline-builder"
-          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/timeline-builder/autobot-specialist-handoff.json"
-          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/timeline-builder/autobot-specialist-outcome.json"
-          node builder/runner/autobot-endurance-candidate-check.mjs timeline-builder
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/timeline/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/timeline/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Timeline worker evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -267,25 +267,24 @@ jobs:
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-independent-specialist-lane.mjs
 
-      - name: Publish Music candidate branch
+      - name: Validate Music final lane evidence
         if: steps.execute.outcome == 'success'
-        run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
-
-      - name: Independent QA + Reviewer Music candidate
-        if: steps.execute.outcome == 'success'
-        env:
-          AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
-          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/music-builder/autobot-endurance-candidate-check.json
-          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/music-builder/autobot-candidate-review-music-builder.json
         run: |
           set -euo pipefail
-          mkdir -p "builder/working/specialist-results/music-builder"
-          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/music-builder/autobot-specialist-handoff.json"
-          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/music-builder/autobot-specialist-outcome.json"
-          node builder/runner/autobot-endurance-candidate-check.mjs music-builder
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/music/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/music/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Music worker evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -356,25 +355,24 @@ jobs:
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-independent-specialist-lane.mjs
 
-      - name: Publish Scene candidate branch
+      - name: Validate Scene final lane evidence
         if: steps.execute.outcome == 'success'
-        run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
-
-      - name: Independent QA + Reviewer Scene candidate
-        if: steps.execute.outcome == 'success'
-        env:
-          AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
-          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/scene-builder/autobot-endurance-candidate-check.json
-          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/scene-builder/autobot-candidate-review-scene-builder.json
         run: |
           set -euo pipefail
-          mkdir -p "builder/working/specialist-results/scene-builder"
-          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/scene-builder/autobot-specialist-handoff.json"
-          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/scene-builder/autobot-specialist-outcome.json"
-          node builder/runner/autobot-endurance-candidate-check.mjs scene-builder
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/scene/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/scene/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Scene worker evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -445,25 +443,24 @@ jobs:
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-independent-specialist-lane.mjs
 
-      - name: Publish Rhythm candidate branch
+      - name: Validate Rhythm final lane evidence
         if: steps.execute.outcome == 'success'
-        run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
-
-      - name: Independent QA + Reviewer Rhythm candidate
-        if: steps.execute.outcome == 'success'
-        env:
-          AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
-          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/rhythm-builder/autobot-endurance-candidate-check.json
-          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/rhythm-builder/autobot-candidate-review-rhythm-builder.json
         run: |
           set -euo pipefail
-          mkdir -p "builder/working/specialist-results/rhythm-builder"
-          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/rhythm-builder/autobot-specialist-handoff.json"
-          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/rhythm-builder/autobot-specialist-outcome.json"
-          node builder/runner/autobot-endurance-candidate-check.mjs rhythm-builder
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/rhythm/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/rhythm/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Rhythm worker evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -534,25 +531,24 @@ jobs:
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-independent-specialist-lane.mjs
 
-      - name: Publish Render candidate branch
+      - name: Validate Render final lane evidence
         if: steps.execute.outcome == 'success'
-        run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
-
-      - name: Independent QA + Reviewer Render candidate
-        if: steps.execute.outcome == 'success'
-        env:
-          AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
-          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/render-builder/autobot-endurance-candidate-check.json
-          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/render-builder/autobot-candidate-review-render-builder.json
         run: |
           set -euo pipefail
-          mkdir -p "builder/working/specialist-results/render-builder"
-          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/render-builder/autobot-specialist-handoff.json"
-          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/render-builder/autobot-specialist-outcome.json"
-          node builder/runner/autobot-endurance-candidate-check.mjs render-builder
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/render/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/render/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Render worker evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -618,24 +614,24 @@ jobs:
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-independent-specialist-lane.mjs
-      - name: Publish Media Intelligence candidate branch
+      - name: Validate Media Intelligence final lane evidence
         if: steps.execute.outcome == 'success'
-        run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
-      - name: Independent QA + Reviewer Media Intelligence candidate
-        if: steps.execute.outcome == 'success'
-        env:
-          AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
-          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/media-intelligence-builder/autobot-endurance-candidate-check.json
-          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/media-intelligence-builder/autobot-candidate-review-media-intelligence-builder.json
         run: |
           set -euo pipefail
-          mkdir -p "builder/working/specialist-results/media-intelligence-builder"
-          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/media-intelligence-builder/autobot-specialist-handoff.json"
-          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/media-intelligence-builder/autobot-specialist-outcome.json"
-          node builder/runner/autobot-endurance-candidate-check.mjs media-intelligence-builder
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/media-intelligence/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/media-intelligence/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Media Intelligence worker evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -701,24 +697,24 @@ jobs:
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-independent-specialist-lane.mjs
-      - name: Publish Caption candidate branch
+      - name: Validate Caption final lane evidence
         if: steps.execute.outcome == 'success'
-        run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
-      - name: Independent QA + Reviewer Caption candidate
-        if: steps.execute.outcome == 'success'
-        env:
-          AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
-          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/caption-builder/autobot-endurance-candidate-check.json
-          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/caption-builder/autobot-candidate-review-caption-builder.json
         run: |
           set -euo pipefail
-          mkdir -p "builder/working/specialist-results/caption-builder"
-          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/caption-builder/autobot-specialist-handoff.json"
-          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/caption-builder/autobot-specialist-outcome.json"
-          node builder/runner/autobot-endurance-candidate-check.mjs caption-builder
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/caption/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/caption/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Caption worker evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -788,24 +784,24 @@ jobs:
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-independent-specialist-lane.mjs
-      - name: Publish Intent candidate branch
+      - name: Validate Intent final lane evidence
         if: steps.execute.outcome == 'success'
-        run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
-      - name: Independent QA + Reviewer Intent candidate
-        if: steps.execute.outcome == 'success'
-        env:
-          AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
-          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/intent-builder/autobot-endurance-candidate-check.json
-          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/intent-builder/autobot-candidate-review-intent-builder.json
         run: |
           set -euo pipefail
-          mkdir -p "builder/working/specialist-results/intent-builder"
-          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/intent-builder/autobot-specialist-handoff.json"
-          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/intent-builder/autobot-specialist-outcome.json"
-          node builder/runner/autobot-endurance-candidate-check.mjs intent-builder
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/intent/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/intent/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Intent worker evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -876,24 +872,24 @@ jobs:
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
         run: node builder/runner/autobot-independent-specialist-lane.mjs
-      - name: Publish Continuity candidate branch
+      - name: Validate Continuity final lane evidence
         if: steps.execute.outcome == 'success'
-        run: |
-          b="$(node -e "console.log(require('./builder/working/autobot-specialist-handoff.json').branch)")"
-          git push --set-upstream origin "$b"
-      - name: Independent QA + Reviewer Continuity candidate
-        if: steps.execute.outcome == 'success'
-        env:
-          AUTOBOT_SKIP_NPM_INSTALL: 'true'
-          AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
-          AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/continuity-builder/autobot-endurance-candidate-check.json
-          AUTOBOT_CANDIDATE_REVIEW_OUTPUT: builder/working/specialist-results/continuity-builder/autobot-candidate-review-continuity-builder.json
         run: |
           set -euo pipefail
-          mkdir -p "builder/working/specialist-results/continuity-builder"
-          cp builder/working/autobot-specialist-handoff.json "builder/working/specialist-results/continuity-builder/autobot-specialist-handoff.json"
-          cp builder/working/autobot-specialist-outcome.json "builder/working/specialist-results/continuity-builder/autobot-specialist-outcome.json"
-          node builder/runner/autobot-endurance-candidate-check.mjs continuity-builder
+          test -s builder/working/autobot-independent-specialist-lane.json
+          test -s builder/working/autobot-specialist-handoff.json
+          test -s builder/working/autobot-specialist-outcome.json
+          test -s builder/working/specialist-results/continuity/autobot-endurance-candidate-check.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const state=JSON.parse(fs.readFileSync('builder/working/autobot-independent-specialist-lane.json','utf8'));
+          const outcome=JSON.parse(fs.readFileSync('builder/working/autobot-specialist-outcome.json','utf8'));
+          const qa=JSON.parse(fs.readFileSync('builder/working/specialist-results/continuity/autobot-endurance-candidate-check.json','utf8'));
+          if(!Array.isArray(state.verifiedCandidates)||state.verifiedCandidates.length<1) throw new Error('persistent lane ended without a verified candidate');
+          if(outcome.status!=='success'||qa.status!=='pass'||qa.integrationEligible!==true) throw new Error('final lane evidence is not an independently verified candidate');
+          console.log(JSON.stringify({status:state.status,cycles:state.cycle,verifiedCandidates:state.verifiedCandidates.length,currentBase:state.currentBase,qaStatus:qa.status}));
+          NODE
+
       - name: Upload Continuity worker evidence
         if: always()
         uses: actions/upload-artifact@v6
