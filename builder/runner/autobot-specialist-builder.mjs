@@ -408,6 +408,11 @@ try {
   }
 
   if (!candidateFiles.length || !candidatePatch.trim()) {
+    // Aider may have edited non-owned files while failing to produce an owned
+    // candidate. Never carry those edits into the recovery engine: the fallback
+    // must start from the exact verified base or the later scope guard can reject
+    // an otherwise valid recovery.
+    if (changedFromBase(base, worktree).length) run('git', ['reset', '--hard', base], worktree);
     const fallbackStatus = runStructuredFallback(worktree, assignmentPath, model, base);
     normalizeNestedSrcDuplicate(worktree, files);
     normalizeIntroducedWhitespace(base, worktree, files);
