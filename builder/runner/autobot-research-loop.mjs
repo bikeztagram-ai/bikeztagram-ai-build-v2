@@ -7,7 +7,7 @@ import {performance} from 'node:perf_hooks';
 const strategy=process.env.AUTOBOT_RESEARCH_STRATEGY||'aider-direct';
 const maxCycles=Math.max(1,Number(process.env.AUTOBOT_RESEARCH_MAX_CYCLES||5));
 const budgetMs=Math.max(60_000,Number(process.env.AUTOBOT_RESEARCH_LOOP_BUDGET_MS||20*60_000));
-const minContinueMs=Math.max(10_000,Number(process.env.AUTOBOT_RESEARCH_MIN_CONTINUE_MS||5*60_000));
+const minContinueMs=Math.max(10_000,Number(process.env.AUTOBOT_RESEARCH_MIN_CONTINUE_MS||120_000));
 const trial=path.resolve('builder/runner/autobot-research-trial.mjs');
 const variants={
   'aider-direct':['preflight source read + single-symbol edit','fresh context + exact function targeting','minimal prompt + explicit acceptance check','whole-file context + one-line semantic change'],
