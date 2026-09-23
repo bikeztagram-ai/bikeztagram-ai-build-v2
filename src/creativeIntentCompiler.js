@@ -96,6 +96,9 @@ export function compileCreativeIntent(prompt = '', options = {}) {
 export function mergeCreativeIntent(plan = {}, intent = {}) {
   const intentShots = Array.isArray(intent.shots) ? intent.shots : [];
   const existing = Array.isArray(plan.cuts) ? plan.cuts : Array.isArray(plan.clips) ? plan.clips : [];
+  if (intentShots.length === 0) {
+    return { ...plan, creativeIntent: intent, cuts: existing };
+  }
   const cuts = existing.map((cut, index) => {
     const shot = intentShots[index % Math.max(intentShots.length, 1)];
     if (!shot) return cut;
