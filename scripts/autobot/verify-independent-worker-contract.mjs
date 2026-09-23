@@ -13,6 +13,8 @@ const contract=json('builder/brain/autobot-independent-worker-contract.json');
 const workflow=read('.github/workflows/autobot-parallel-specialists.yml');
 const fanIn=read('builder/runner/autobot-independent-fan-in.mjs');
 const specialist=read('builder/runner/autobot-specialist-builder.mjs');
+const laneRunner=read('builder/runner/autobot-independent-specialist-lane.mjs');
+const structuredFallback=read('builder/runner/autobot-specialist-structured-fallback.mjs');
 
 assert(contract.schemaVersion===1,'independent worker contract schema must be v1');
 assert(contract.productionLane?.preserved===true,'production lane must remain explicitly preserved');
@@ -23,11 +25,11 @@ assert(registry.coordination?.fanInLedger==='builder/working/autobot-fan-in-ledg
 assert(registry.coordination?.fanInRunner==='builder/runner/autobot-independent-fan-in.mjs','registry fan-in runner path missing');
 
 const production=registry.bots.filter(b=>b.specialistBuilder===true&&b.status==='verified');
-const expected=['director-builder','timeline-builder','music-builder','scene-builder','rhythm-builder','render-builder','media-intelligence-builder','caption-builder'];
-assert(JSON.stringify(production.map(b=>b.id))===JSON.stringify(expected),'isolated production specialist set must be the eight registered lanes');
+const expected=['director-builder','timeline-builder','music-builder','scene-builder','rhythm-builder','render-builder','media-intelligence-builder','caption-builder','intent-builder','continuity-builder'];
+assert(JSON.stringify(production.map(b=>b.id))===JSON.stringify(expected),'isolated production specialist set must be the ten registered lanes');
 assert(registry.activationGate?.protectedIntegration===false,'protected integration must remain disabled');
-assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(expected),'activation gate must name all eight isolated specialists');
-assert(registry.coordination?.maxConcurrentWorkers===8,'production isolated worker concurrency must be bounded at eight');
+assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(expected),'activation gate must name all ten isolated specialists');
+assert(registry.coordination?.maxConcurrentWorkers===10,'production isolated worker concurrency must be bounded at ten');
 
 for(const bot of production){
   assert(bot.specialistBuilder===true,'production specialist must use Specialist Builder contract');
@@ -37,10 +39,11 @@ for(const bot of production){
 
 assert(workflow.includes('workflow_dispatch:'),'isolated specialist swarm must be manually activated');
 assert(expected.every(id=>workflow.includes(`experimental-${id.replace('-builder','')}:`)),'isolated specialist swarm must define a separate job for every production specialist');
-assert(workflow.includes('continue-on-error: true'),'one specialist failure must not cancel siblings; fan-in must still collect every lane');
+assert((workflow.match(/^    needs:/gm)||[]).length===1,'no specialist lane may depend on another specialist; only the final fan-in may declare needs');
+assert(workflow.includes('if: always()'),'fan-in must remain unconditional even when a specialist lane fails');
 assert(workflow.includes("AUTOBOT_EXPERIMENTAL_WORKER: 'false'"),'production swarm must not rely on experimental-worker mode');
-assert(workflow.includes('actions/upload-artifact@v7'),'specialist jobs must publish structured evidence');
-assert(workflow.includes('needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption]'),'fan-in must wait for all six isolated specialists');
+assert(workflow.includes('actions/upload-artifact@v6'),'specialist jobs must publish structured evidence');
+assert(workflow.includes('needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption, experimental-intent, experimental-continuity]'),'fan-in must wait for all ten isolated specialists');
 assert(workflow.includes('actions/download-artifact@v7'),'fan-in must download specialist evidence');
 assert(fanIn.includes('coordinationId'),'fan-in runner must group results by coordination id');
 assert(fanIn.includes('workers'),'fan-in runner must maintain one workers collection');
@@ -50,5 +53,21 @@ assert(fanIn.includes('aiderMaterialized'),'fan-in ledger must preserve Aider ma
 assert(fanIn.includes('(outcome || {})'),'fan-in must prefer rich outcome evidence over sparse handoff evidence');
 assert(specialist.includes('AUTOBOT_EXPERIMENTAL_WORKER'),'specialist Builder must retain explicit experimental gating support');
 assert(specialist.includes('coordinationId'),'specialist Builder must preserve coordination identity');
+assert(laneRunner.includes('AUTOBOT_BASE_REF') && laneRunner.includes('configuredBaseRef || \'HEAD\''),'persistent lane must honor an explicit starting base reference');
+assert(laneRunner.includes('cycle-${cycle}') && laneRunner.includes('canonicalResultDir'),'persistent lane must retain per-cycle QA evidence and a stable latest-cycle evidence path');
+assert(laneRunner.includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'persistent lane must bind QA/Reviewer to the exact current verified base SHA');
+assert(laneRunner.includes('autobot-endurance-candidate-check.mjs')&&laneRunner.includes("[botId]"),'persistent lane must pass the explicit specialist bot id into independent candidate QA/Reviewer');
+assert(laneRunner.includes('canonicalResultDir')&&laneRunner.indexOf('The canonical evidence paths must represent') > laneRunner.indexOf("if (qaStatus !== 0)"),'canonical lane evidence must only advance after a candidate is verified, so a rejected later cycle cannot overwrite the last verified evidence');
+assert(laneRunner.includes('restored final root evidence from the last VERIFIED candidate'),'persistent lane must restore the last verified handoff/outcome/QA evidence after a later blocked cycle');
+assert(structuredFallback.includes('outOfScopeFiles')&&structuredFallback.includes('structured fallback modified out-of-scope files'),'structured fallback must reject and reset any edit that escapes the declared specialist file scope before handoff');
+assert(structuredFallback.includes('.split(/\\r?\\n/)'),'structured fallback scope audit must split git diff output on real line boundaries');
+assert(structuredFallback.includes('Math.min(minutes * 60_000 + 30_000, 180_000)'),'structured fallback must complete before the enclosing specialist recovery timeout');
+assert(structuredFallback.includes('process.exit(0)'),'structured fallback must return success after deterministic recovery succeeds');
+assert(read('builder/runner/autobot-specialist-builder.mjs').includes('git\', [\'reset\', \'--hard\', base]'),'specialist builder must reset failed Aider edits before invoking recovery');
+assert(structuredFallback.includes('deterministic-specialist-fallback-v1'),'structured fallback must retain deterministic recovery');
+assert(read('builder/runner/autobot-specialist-deterministic-fallback.mjs').includes("specialist==='intent-builder'")&&read('builder/runner/autobot-specialist-deterministic-fallback.mjs').includes('expanded creative action intent hints'),'intent specialist must have a deterministic product fallback');
+assert(laneRunner.includes('AUTOBOT_JOB_STARTED_AT_MS'),'persistent lane deadline must be anchored to the GitHub job start so bootstrap time cannot push the job past its timeout');
+assert((workflow.match(/Record specialist job start/g)||[]).length===10,'each production specialist lane must record its own job start time');
+assert((workflow.match(/timeout-minutes: 350/g)||[]).length===10,'each production specialist lane must retain the existing 350-minute job timeout');
 
-console.log(JSON.stringify({ok:true,productionWorkers:expected,fanIn:'eight isolated jobs -> one canonical ledger',protectedIntegration:registry.activationGate.protectedIntegration}));
+console.log(JSON.stringify({ok:true,productionWorkers:expected,fanIn:'ten isolated jobs -> one canonical ledger',protectedIntegration:registry.activationGate.protectedIntegration}));

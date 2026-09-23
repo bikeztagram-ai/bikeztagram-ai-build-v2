@@ -20,7 +20,7 @@ const changed=git(['diff','--name-only',`${base}..${candidate}`]).split(/\r?\n/)
 const findings=[];
 function finding(severity,code,message,evidence=[]){findings.push({severity,code,message,evidence});}
 for(const file of changed)if(protectedPaths.includes(file))finding('critical','protected-path-change',`candidate changes protected path: ${file}`,[file]);
-const productFiles=changed.filter(file=>/^src\/(director|aiEditPlanner|renderer|editorialRhythm|executableTimeline|captionPlanner)\.js$/.test(file));
+const productFiles=changed.filter(file=>/^src\/(director|executableTimeline|musicDirector|universalCreativeSceneEngine|editorialRhythm|cinematicRendererV3|aiEditPlanner|captionPlanner|creativeIntentCompiler|creativeContinuityEngine)\.js$/.test(file));
 const tempDir=fs.mkdtempSync(path.join(os.tmpdir(),'bikeztagram-review-'));
 let build='not-run';
 try{
