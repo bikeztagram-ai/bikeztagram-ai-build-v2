@@ -166,15 +166,35 @@ while (remainingNormalMs() > 90_000 && remainingHardMs() > 120_000) {
 
   writeState('verifying', { currentBase, candidate, candidateBranch, verifiedCandidates, publishedBranches, failures, cycle });
 
-  const resultDir = path.join(root, 'builder/working/specialist-results', botId);
+  // Preserve every cycle's handoff/review evidence while also keeping a canonical
+  // "latest cycle" copy for the normal workflow publication steps.
+  const cycleRoot = path.join(root, 'builder/working/specialist-results', `cycle-${cycle}`);
+  const resultDir = path.join(cycleRoot, botId);
+  const canonicalResultDir = path.join(root, 'builder/working/specialist-results', botId);
   fs.mkdirSync(resultDir, { recursive: true });
+  fs.mkdirSync(canonicalResultDir, { recursive: true });
+  fs.copyFileSync(handoffPath, path.join(resultDir, 'autobot-specialist-handoff.json'));
+  fs.copyFileSync(outcomePath, path.join(resultDir, 'autobot-specialist-outcome.json'));
+  fs.copyFileSync(handoffPath, path.join(canonicalResultDir, 'autobot-specialist-handoff.json'));
+  fs.copyFileSync(outcomePath, path.join(canonicalResultDir, 'autobot-specialist-outcome.json'));
+
   const qaStatus = runNode('builder/runner/autobot-endurance-candidate-check.mjs', {
     AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: currentBase,
-    AUTOBOT_SPECIALIST_RESULTS_ROOT: 'builder/working/specialist-results',
+    AUTOBOT_SPECIALIST_RESULTS_ROOT: path.relative(root, cycleRoot),
     AUTOBOT_CANDIDATE_CHECK_OUTPUT: path.join(resultDir, 'autobot-endurance-candidate-check.json'),
     AUTOBOT_CANDIDATE_REVIEW_OUTPUT: path.join(resultDir, `autobot-candidate-review-${botId}.json`),
     AUTOBOT_SKIP_NPM_INSTALL: skipNpmInstall ? 'true' : 'false'
   }, Math.min(remainingHardMs(), 6 * 60_000));
+
+  // Keep the latest cycle available at the stable workflow paths as well as
+  // the immutable per-cycle archive.
+  for (const file of [
+    'autobot-endurance-candidate-check.json',
+    `autobot-candidate-review-${botId}.json`
+  ]) {
+    const source = path.join(resultDir, file);
+    if (fs.existsSync(source)) fs.copyFileSync(source, path.join(canonicalResultDir, file));
+  }
 
   if (qaStatus !== 0) {
     failures += 1;
