@@ -308,6 +308,7 @@ try {
   if (!targetMap.length) fail(`Specialist Builder target map is empty for ${botId}; refusing to spend the AI editing budget without symbol-level anchors.`);
   objective.constraints.push(`Editing strategy: ${learned.targetingMode || 'symbol-first'}. Use the supplied target map, including exact source context, to pinpoint the smallest relevant symbol before editing.`);
   objective.constraints.push(`Preferred Aider map tokens: ${learned.mapTokens || 1024}. Preferred edit format: ${learned.editFormat || 'diff'}.`);
+  objective.constraints.push('Preserve every existing public export in each owned file. Do not remove, rename, or replace exported APIs; adapt the implementation while keeping the module surface intact.');
   if (learned.promptHint) objective.constraints.push(`Learned specialist hint: ${learned.promptHint}`);
   fs.mkdirSync(path.dirname(assignmentPath), { recursive: true });
   fs.writeFileSync(assignmentPath, JSON.stringify({ schemaVersion: 'autobot-orchestrator-assignment-v1', specialist: { id: botId, role: bot.role }, objective, targetMap, learning: learned, source: 'parallel-specialist-workflow' }, null, 2) + '\n');
@@ -422,8 +423,28 @@ try {
     assertPublicExportsPreserved(base, worktree, files);
   }
 
-  const unauthorized = changedFromBase(base, worktree).filter(file => !files.includes(file) && !file.startsWith('builder/working/'));
-  if (unauthorized.length) fail(`Specialist Builder modified out-of-scope files: ${unauthorized.join(', ')}`);
+  let unauthorized = changedFromBase(base, worktree).filter(file => !files.includes(file) && !file.startsWith('builder/working/'));
+  if (unauthorized.length) {
+    console.warn(`[autobot] structured fallback escaped declared scope: ${unauthorized.join(', ')}; resetting and trying deterministic recovery.`);
+    run('git', ['reset', '--hard', base], worktree);
+    candidateOrigin = 'deterministic-fallback';
+    const deterministic = spawnSync(process.execPath, ['builder/runner/autobot-specialist-deterministic-fallback.mjs'], {
+      cwd: worktree,
+      stdio: 'inherit',
+      env: { ...process.env, AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath, AUTOBOT_SPECIALIST_BASE_COMMIT: base }
+    });
+    if (deterministic.error || deterministic.status !== 0) {
+      fail(`Specialist Builder deterministic scope recovery failed (status ${deterministic.status ?? 'error'}).`);
+    }
+    normalizeNestedSrcDuplicate(worktree, files);
+    normalizeIntroducedWhitespace(base, worktree, files);
+    candidateFiles = ownedProductFiles(base, worktree, files);
+    candidatePatch = captureBasePatch(base, worktree, files);
+    if (!candidateFiles.length || !candidatePatch.trim()) fail('Deterministic scope recovery produced no owned product change.');
+    assertPublicExportsPreserved(base, worktree, files);
+    unauthorized = changedFromBase(base, worktree).filter(file => !files.includes(file) && !file.startsWith('builder/working/'));
+    if (unauthorized.length) fail(`Deterministic scope recovery still modified out-of-scope files: ${unauthorized.join(', ')}`);
+  }
   run('git', ['diff', base, '--check'], worktree);
   const productQuality = String(process.env.AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK || 'npm run verify:autobot-product-change-quality').trim();
   if (!skipNpmInstall) run('npm', ['install', '--no-audit', '--no-fund', '--no-package-lock'], worktree);
