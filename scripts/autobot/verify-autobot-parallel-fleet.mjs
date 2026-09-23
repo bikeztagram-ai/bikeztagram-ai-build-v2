@@ -24,9 +24,10 @@ assert(workflow.includes('director-builder')&&workflow.includes('timeline-builde
 assert(workflow.includes('actions/upload-artifact@v6')&&workflow.includes('actions/download-artifact@v7'),'parallel planner/workers must exchange structured plan evidence through current Node24 artifact actions');
 assert(workflow.includes('AUTOBOT_SPECIALIST_BOT_ID')&&workflow.includes('AUTOBOT_SPECIALIST_OBJECTIVE')&&workflow.includes('AUTOBOT_SPECIALIST_BUILDER_ENABLED'),'parallel workflow must use the specialist execution contract');
 assert(workflow.includes('AUTOBOT_SPECIALIST_PRODUCT_QUALITY_CHECK'),'parallel workflow must retain product-quality verification');
-assert(workflow.includes('builder/runner/autobot-endurance-candidate-check.mjs'),'every specialist lane must route its candidate through independent QA + Reviewer verification');
-assert((workflow.match(/Independent QA \+ Reviewer /g)||[]).length===10,'every one of the ten specialist lanes must have its own downstream QA + Reviewer stage');
-assert(fs.readFileSync(path.join(root,'builder/runner/autobot-independent-specialist-lane.mjs'),'utf8').includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'candidate verification must bind to the exact current cycle base commit');
+const laneRunner=fs.readFileSync(path.join(root,'builder/runner/autobot-independent-specialist-lane.mjs'),'utf8');
+assert(laneRunner.includes('autobot-endurance-candidate-check.mjs'),'every persistent specialist lane must route each candidate through independent QA + Reviewer verification');
+assert((workflow.match(/Validate [^\n]+ final lane evidence/g)||[]).length===10,'every one of the ten specialist lanes must validate its final persistent evidence');
+assert(laneRunner.includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'candidate verification must bind to the exact current cycle base commit');
 assert(workflow.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate review evidence must be persisted per specialist lane');
 assert(workflow.includes('autobot-candidate-review-ledger.json'),'fan-in must publish one central candidate QA + Reviewer ledger');
 assert(planner.includes('maxConcurrentWorkers<2'),'planner must refuse execution before parallel activation');
