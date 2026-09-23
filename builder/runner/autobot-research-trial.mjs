@@ -7,6 +7,11 @@ import {performance} from 'node:perf_hooks';
 
 const strategy=process.env.AUTOBOT_RESEARCH_STRATEGY||'aider-direct';
 const model=process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b';
+const planPath=process.env.AUTOBOT_RESEARCH_PLAN||path.resolve('builder/brain/autobot-research-plan.json');
+let researchPlan={};
+try { researchPlan=JSON.parse(fs.readFileSync(planPath,'utf8')); } catch {}
+const iteration=Number(researchPlan.iteration||1);
+const lanePlan=researchPlan.lanes?.[strategy]||'Run the bounded baseline for this lane.';
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'autobot-research-'));
 const file=path.join(root,'trial.js');
 const report=path.join(root,'research-notes.md');
@@ -18,8 +23,9 @@ const fixture=`export function motionForRole(role){
 `;
 fs.writeFileSync(file,fixture);
 const productionTask="In trial.js make the smallest production-safe change so action returns 1.2, reveal returns 1.08, and hero returns 0.9. Preserve the existing function and add no unrelated code. Materialize the edit.";
+const adaptiveTask=productionTask+` Research iteration ${iteration}. Experiment: ${lanePlan} Record whether the experiment changed materialisation, behaviour, or only the controller path.`;
 const started=performance.now();
-let command=[]; let status='failed'; let note=''; let task=productionTask;
+let command=[]; let status='failed'; let note=''; let task=adaptiveTask;
 let expectedEdit=true; let benchmark={};
 
 const run=(cmd,args,opts={})=>{
@@ -54,8 +60,12 @@ try {
   } else if(strategy==='failure-replay'){
     const broken=path.join(root,'broken.js');
     fs.writeFileSync(broken,"export function broken(role){ return role==='action' ? 1.2 : 1; }\n");
-    const recovery="Repair broken.js so action remains 1.2, reveal becomes 1.08 and hero becomes 0.9. Make the smallest safe edit and verify syntax.";
-    const x=run('aider',['--model','ollama_chat/'+model,'--message',recovery,'--yes-always','--no-git','--no-show-model-warnings','--timeout','180','--edit-format','diff','--map-tokens','512',broken]);
+    const recovery="Repair broken.js so action remains 1.2, reveal becomes 1.08 and hero becomes 0.9. Make the smallest safe edit and verify syntax. Run 2 evidence showed timeout/controller failures, so use a bounded recovery attempt rather than waiting indefinitely.";
+    const first=run('aider',['--model','ollama_chat/'+model,'--message',recovery,'--yes-always','--no-git','--no-show-model-warnings','--timeout','45','--edit-format','diff','--map-tokens','512',broken]);
+    let x=first;
+    if(first.r.status!==0 || !/reveal/.test(fs.readFileSync(broken,'utf8')) || !/hero/.test(fs.readFileSync(broken,'utf8'))){
+      x=run('aider',['--model','ollama_chat/'+model,'--message',recovery,'--yes-always','--no-git','--no-show-model-warnings','--timeout','90','--edit-format','udiff','--map-tokens','768',broken]);
+    }
     benchmark.recoveryExit=x.r.status;
     const text=fs.readFileSync(broken,'utf8');
     status=x.r.status===0 && /reveal/.test(text) && /hero/.test(text)?'success':'failed';
@@ -78,12 +88,12 @@ try {
     const x=run('aider',['--model','ollama_chat/'+model,'--message',task,'--yes-always','--no-git','--no-show-model-warnings','--timeout','180','--edit-format','diff','--map-tokens','512',file]);
     status=x.r.status===0?'success':'failed'; note='adversarial instruction-boundary trial';
   } else if(strategy==='fast-deep'){
-    const fast=run('aider',['--model','ollama_chat/'+model,'--message',productionTask,'--yes-always','--no-git','--no-show-model-warnings','--timeout','60','--edit-format','diff','--map-tokens','256',file]);
+    const fast=run('aider',['--model','ollama_chat/'+model,'--message',adaptiveTask,'--yes-always','--no-git','--no-show-model-warnings','--timeout','45','--edit-format','diff','--map-tokens','256',file]);
     const after=fs.readFileSync(file,'utf8');
     const fastGood=/1\.2/.test(after)&&/1\.08/.test(after)&&/0\.9/.test(after);
     benchmark.fastExit=fast.r.status; benchmark.fastGood=fastGood;
     if(!fastGood){
-      const deep=run('aider',['--model','ollama_chat/'+model,'--message',productionTask,'--yes-always','--no-git','--no-show-model-warnings','--timeout','180','--edit-format','diff','--map-tokens','1024',file]);
+      const deep=run('aider',['--model','ollama_chat/'+model,'--message',adaptiveTask,'--yes-always','--no-git','--no-show-model-warnings','--timeout','120','--edit-format','udiff','--map-tokens','768',file]);
       benchmark.deepExit=deep.r.status; status=deep.r.status===0?'success':'failed'; note='fast/deep escalation: deep path used after fast attempt did not satisfy benchmark';
     } else { status='success'; note='fast/deep escalation: fast path satisfied benchmark without escalation'; }
   } else if(strategy==='challenger'){
@@ -107,7 +117,7 @@ const syntax=spawnSync('node',['--check',file],{encoding:'utf8'});
 const behavioral=spawnSync('node',['--input-type=module','-e',"import {motionForRole} from "+JSON.stringify(file)+"; if(motionForRole('action')!==1.2||motionForRole('reveal')!==1.08||motionForRole('hero')!==0.9) process.exit(1)"],{encoding:'utf8'});
 const diff=source===fixture?0:1;
 const quality=expectedEdit ? diff===1&&syntax.status===0&&behavioral.status===0 : status==='success';
-const result={schemaVersion:'autobot-research-trial-v2',strategy,status,durationMs:Math.round(performance.now()-started),diff,syntaxPassed:syntax.status===0,behaviorPassed:behavioral.status===0,qualityPassed:quality,model,command:command[0]||strategy,benchmark,note,evolutionHypothesis:process.env.AUTOBOT_EVOLUTION_TRIAL_PLAN||null};
+const result={schemaVersion:'autobot-research-trial-v3',strategy,iteration,lanePlan,status,durationMs:Math.round(performance.now()-started),diff,syntaxPassed:syntax.status===0,behaviorPassed:behavioral.status===0,qualityPassed:quality,model,command:command[0]||strategy,benchmark,note,evolutionHypothesis:process.env.AUTOBOT_EVOLUTION_TRIAL_PLAN||null};
 fs.writeFileSync(process.env.AUTOBOT_RESEARCH_RESULT||path.join(process.cwd(),'autobot-research-result.json'),JSON.stringify(result,null,2)+'\n');
 console.log(JSON.stringify(result,null,2));
 process.exit(0);
