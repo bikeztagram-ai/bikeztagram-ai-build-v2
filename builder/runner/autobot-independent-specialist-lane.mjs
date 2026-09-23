@@ -37,8 +37,8 @@ const hardDeadline = normalDeadline + finishGrace * 60_000;
 function remainingNormalMs() { return Math.max(0, normalDeadline - Date.now()); }
 function remainingHardMs() { return Math.max(0, hardDeadline - Date.now()); }
 function git(args) { return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim(); }
-function runNode(script, env, timeoutMs) {
-  const result = spawnSync(process.execPath, [script], {
+function runNode(script, env, timeoutMs, args = []) {
+  const result = spawnSync(process.execPath, [script, ...args], {
     cwd: root,
     encoding: 'utf8',
     stdio: 'inherit',
@@ -192,7 +192,7 @@ while (remainingNormalMs() > 90_000 && remainingHardMs() > 120_000) {
     AUTOBOT_CANDIDATE_CHECK_OUTPUT: path.join(resultDir, 'autobot-endurance-candidate-check.json'),
     AUTOBOT_CANDIDATE_REVIEW_OUTPUT: path.join(resultDir, `autobot-candidate-review-${botId}.json`),
     AUTOBOT_SKIP_NPM_INSTALL: skipNpmInstall ? 'true' : 'false'
-  }, Math.min(remainingHardMs(), 6 * 60_000));
+  }, Math.min(remainingHardMs(), 6 * 60_000), [botId]);
 
   // Keep the latest cycle available at the stable workflow paths as well as
   // the immutable per-cycle archive.
