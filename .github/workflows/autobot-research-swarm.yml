@@ -1,9 +1,6 @@
 name: 🔬 AutoBot Research Swarm
 
 on:
-  workflow_run:
-    workflows: ["🧬 AutoBot Evolution Engineer"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       local_model:
