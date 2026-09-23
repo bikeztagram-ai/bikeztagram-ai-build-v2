@@ -14,6 +14,7 @@ const workflow=read('.github/workflows/autobot-parallel-specialists.yml');
 const fanIn=read('builder/runner/autobot-independent-fan-in.mjs');
 const specialist=read('builder/runner/autobot-specialist-builder.mjs');
 const laneRunner=read('builder/runner/autobot-independent-specialist-lane.mjs');
+const structuredFallback=read('builder/runner/autobot-specialist-structured-fallback.mjs');
 
 assert(contract.schemaVersion===1,'independent worker contract schema must be v1');
 assert(contract.productionLane?.preserved===true,'production lane must remain explicitly preserved');
@@ -57,6 +58,8 @@ assert(laneRunner.includes('cycle-${cycle}') && laneRunner.includes('canonicalRe
 assert(laneRunner.includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'persistent lane must bind QA/Reviewer to the exact current verified base SHA');
 assert(laneRunner.includes('autobot-endurance-candidate-check.mjs')&&laneRunner.includes("[botId]"),'persistent lane must pass the explicit specialist bot id into independent candidate QA/Reviewer');
 assert(laneRunner.includes('canonicalResultDir')&&laneRunner.indexOf('The canonical evidence paths must represent') > laneRunner.indexOf("if (qaStatus !== 0)"),'canonical lane evidence must only advance after a candidate is verified, so a rejected later cycle cannot overwrite the last verified evidence');
+assert(laneRunner.includes('restored final root evidence from the last VERIFIED candidate'),'persistent lane must restore the last verified handoff/outcome/QA evidence after a later blocked cycle');
+assert(structuredFallback.includes('outOfScopeFiles')&&structuredFallback.includes('structured fallback modified out-of-scope files'),'structured fallback must reject and reset any edit that escapes the declared specialist file scope before handoff');
 assert(laneRunner.includes('AUTOBOT_JOB_STARTED_AT_MS'),'persistent lane deadline must be anchored to the GitHub job start so bootstrap time cannot push the job past its timeout');
 assert((workflow.match(/Record specialist job start/g)||[]).length===10,'each production specialist lane must record its own job start time');
 assert((workflow.match(/timeout-minutes: 350/g)||[]).length===10,'each production specialist lane must retain the existing 350-minute job timeout');
