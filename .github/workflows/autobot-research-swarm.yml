@@ -47,6 +47,28 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
+      - name: Download Evolution evidence
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v6
+        continue-on-error: true
+        with:
+          name: autobot-evolution-report-${{ github.event.workflow_run.id }}
+          path: builder/working/research-evolution
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Feed Evolution hypothesis into research lane
+        if: matrix.strategy == 'evolution-selected'
+        run: |
+          node --input-type=module <<'NODE' >> "$GITHUB_ENV"
+          import fs from 'node:fs';
+          let plan='No Evolution report available; use the bounded scoped-diff strategy.';
+          try {
+            const p=JSON.parse(fs.readFileSync('builder/working/research-evolution/autobot-evolution-report.json','utf8'));
+            if(Array.isArray(p.hypotheses) && p.hypotheses.length) plan=p.hypotheses[0].title+' | '+p.hypotheses[0].reason+' | measure: '+p.hypotheses[0].measurement;
+          } catch {}
+          console.log('AUTOBOT_EVOLUTION_TRIAL_PLAN='+JSON.stringify(plan));
+          NODE
       - name: Install Aider adapter
         if: startsWith(matrix.strategy, 'aider-') || matrix.strategy == 'evolution-selected'
         run: python -m pip install --disable-pip-version-check --no-input aider-chat
