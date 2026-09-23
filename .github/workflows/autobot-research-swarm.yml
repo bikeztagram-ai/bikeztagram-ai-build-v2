@@ -32,6 +32,13 @@ jobs:
           - aider-whole
           - aider-scoped
           - aider-architect
+          - failure-replay
+          - performance-lab
+          - shadow-architecture
+          - adversarial
+          - fast-deep
+          - challenger
+          - dependency-plan
           - direct-ollama-json
           - openhands-sdk
           - deterministic-control
@@ -70,13 +77,13 @@ jobs:
           console.log('AUTOBOT_EVOLUTION_TRIAL_PLAN='+JSON.stringify(plan));
           NODE
       - name: Install Aider adapter
-        if: startsWith(matrix.strategy, 'aider-') || matrix.strategy == 'evolution-selected'
+        if: startsWith(matrix.strategy, 'aider-') || matrix.strategy == 'evolution-selected' || matrix.strategy == 'failure-replay' || matrix.strategy == 'shadow-architecture' || matrix.strategy == 'adversarial' || matrix.strategy == 'fast-deep'
         run: python -m pip install --disable-pip-version-check --no-input aider-chat
       - name: Install OpenHands adapter
         if: matrix.strategy == 'openhands-sdk'
         run: python -m pip install --disable-pip-version-check --no-input openhands-sdk
       - name: Start isolated local model
-        if: matrix.strategy != 'deterministic-control'
+        if: matrix.strategy != 'deterministic-control' && matrix.strategy != 'performance-lab'
         run: bash scripts/autobot/install-local-brain.sh
         env:
           LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
