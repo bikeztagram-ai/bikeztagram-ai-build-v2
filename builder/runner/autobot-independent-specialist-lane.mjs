@@ -225,8 +225,26 @@ while (remainingNormalMs() > 90_000 && remainingHardMs() > 120_000) {
   console.log(`[lane:${botId}] VERIFIED cycle ${cycle}: ${candidate}. Immediately starting next objective.`);
   writeState('verified-carry-forward', { currentBase, verifiedCandidates, publishedBranches, failures, cycle });
 
-  // Leave the final verified handoff/outcome in builder/working for the normal
-  // workflow publication/QA/evidence steps. The next cycle overwrites them.
+  // Canonical evidence is the durable source of truth. The root publication
+  // paths may be overwritten by a later cycle and are restored from canonical
+  // evidence after the lane exits.
+}
+
+// Restore the last VERIFIED evidence into the legacy root publication paths after
+// the loop ends. A later rejected/blocked cycle may overwrite builder/working
+// evidence, but it must never replace the last independently verified handoff.
+if (verifiedCandidates.length) {
+  const canonicalResultDir = path.join(root, 'builder/working/specialist-results', botId);
+  for (const file of [
+    'autobot-specialist-handoff.json',
+    'autobot-specialist-outcome.json',
+    'autobot-endurance-candidate-check.json',
+    `autobot-candidate-review-${botId}.json`
+  ]) {
+    const source = path.join(canonicalResultDir, file);
+    if (fs.existsSync(source)) fs.copyFileSync(source, path.join(root, 'builder/working', file));
+  }
+  console.log(`[lane:${botId}] restored final root evidence from the last VERIFIED candidate.`);
 }
 
 const status = verifiedCandidates.length ? 'finished-with-candidates' : 'blocked-no-candidate';
