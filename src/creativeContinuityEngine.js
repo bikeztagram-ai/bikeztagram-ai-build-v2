@@ -32,6 +32,9 @@ export function prepareCreativeContinuity(plan,{creativePrompt='',duration=0}={}
     if(i===cuts.length-1)c.speed=Math.min(c.speed,.9);
     const source=Number.isInteger(Number(c.mediaIndex))?Number(c.mediaIndex):null;
     c.repetitionPenalty=source!=null&&used.has(source)?1:0;
+    if (i > 0 && source === cuts[i - 1].mediaIndex) {
+      c.repetitionPenalty += 0.5;
+    }
     if(source!=null)used.add(source);
     c.editorialPriority=Number(c.directorSelectionScore)||0;
     c.continuity={shotIndex:i,shotCount:cuts.length,previousSourceIndex:i?cuts[i-1].mediaIndex:null,nextSourceIndex:i<cuts.length-1?cuts[i+1].mediaIndex:null,avoidRepeatedSource:Boolean(c.repetitionPenalty)};
