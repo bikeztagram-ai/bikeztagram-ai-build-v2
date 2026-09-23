@@ -74,14 +74,14 @@ try {
     AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH: assignmentPath,
     AUTOBOT_FEATURE_DEADLINE_EPOCH_MS: String(deadline),
     AUTOBOT_FEATURE_NORMAL_DEADLINE_EPOCH_MS: String(deadline),
-    LOCAL_AI_FEATURE_TIMEOUT_SECONDS: String(Math.max(90, Math.min(270, minutes * 60 - 20)))
+    LOCAL_AI_FEATURE_TIMEOUT_SECONDS: String(Math.max(90, Math.min(150, minutes * 60 - 30)))
   };
   console.log(`[autobot] Aider produced no owned product change; invoking proven structured fallback for ${minutes}m using ${fallbackModel()} with ${files.join(', ')}`);
   const result = spawnSync(process.execPath, ['builder/runner/feature-brain.mjs'], {
     cwd: root,
     stdio: 'inherit',
     env,
-    timeout: minutes * 60_000 + 30_000
+    timeout: Math.min(minutes * 60_000 + 30_000, 180_000)
   });
   const changed = spawnSync('git', ['diff', '--name-only', '--', ...files], { cwd: root, encoding: 'utf8' });
   const changedAll = spawnSync('git', ['diff', '--name-only'], { cwd: root, encoding: 'utf8' });
@@ -109,6 +109,7 @@ try {
     result.status=0; result.error=null;
   }
   console.log(JSON.stringify({ ok: true, engine: 'legacy-structured-search-replace', objectiveId: id, files, minutes }));
+  process.exit(0);
 } finally {
   fs.writeFileSync(objectivePath, original);
   try { fs.rmSync(backupPath, { force: true }); } catch {}
