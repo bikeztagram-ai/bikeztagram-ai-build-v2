@@ -31,7 +31,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: autobot-research-swarm
+  group: autobot-research-${{ inputs.strategy || 'swarm' }}
   cancel-in-progress: false
 
 jobs:
