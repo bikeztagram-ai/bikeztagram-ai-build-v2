@@ -263,3 +263,4 @@ console.log(JSON.stringify({
 }, null, 2));
 
 process.exit(verifiedCandidates.length ? 0 : 1);
+// Persistent production lane: only independently verified candidates advance the next cycle base.
