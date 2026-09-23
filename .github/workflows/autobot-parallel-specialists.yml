@@ -33,24 +33,27 @@ env:
   AUTOBOT_CYCLE_MINUTES: ${{ inputs.duration == '15m' && '10' || inputs.duration == '30m' && '15' || '30' }}
   AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}
   AUTOBOT_CYCLE_SAFETY_MINUTES: '1'
+  # One persistent lane keeps this runtime alive while it cycles through verified objectives.
+  AUTOBOT_LANE_CYCLE_MINUTES: '20'
+  AUTOBOT_LANE_MAX_NO_PROGRESS_CYCLES: '2'
   AUTOBOT_SPECIALIST_FALLBACK_MODEL: qwen2.5-coder:3b
   AUTOBOT_SPECIALIST_FALLBACK_MINUTES: '4'
   AUTOBOT_REPAIR_TIMEOUT_MS: '480000'
   AUTOBOT_MAX_NO_PROGRESS_CYCLES: '2'
 
 jobs:
-  # ISOLATED PRODUCTION FAN-OUT — all ten product specialists run as separate GitHub jobs/runners. Each owns one disjoint product file, its own worktree, Aider process and local AI brain. A failure is contained to that specialist; all results converge through the canonical fan-in ledger.
+  # TEN INDEPENDENT PERSISTENT PRODUCTION LANES — each specialist owns one disjoint product file and one GitHub job/runner. The lane bootstraps Node/Python/Aider/Ollama once, then carries verified candidate SHAs through repeated Builder -> QA/Reviewer cycles without waiting for another specialist. The final fan-in is evidence/telemetry only and never gates another lane's productive work.
   # DIRECTOR — fully isolated production specialist. Its runner/worktree/Aider
   # stack is independent of every other specialist.
   experimental-director:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Director lane dependencies
@@ -69,7 +72,7 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
       - name: Run Director specialist
         id: execute
         env:
@@ -91,7 +94,7 @@ jobs:
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
       - name: Publish Director candidate branch
         if: steps.execute.outcome == 'success'
         run: |
@@ -100,7 +103,6 @@ jobs:
       - name: Independent QA + Reviewer Director candidate
         if: steps.execute.outcome == 'success'
         env:
-          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
           AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/director-builder/autobot-endurance-candidate-check.json
@@ -113,13 +115,14 @@ jobs:
           node builder/runner/autobot-endurance-candidate-check.mjs director-builder
       - name: Upload Director worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-director-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
             builder/working/specialist-results/director-builder/autobot-endurance-candidate-check.json
             builder/working/specialist-results/director-builder/autobot-candidate-review-director-builder.json
           if-no-files-found: ignore
@@ -130,11 +133,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Timeline lane dependencies
@@ -153,7 +156,7 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
       - name: Run Timeline specialist
         id: execute
         env:
@@ -175,7 +178,7 @@ jobs:
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
       - name: Publish Timeline candidate branch
         if: steps.execute.outcome == 'success'
         run: |
@@ -184,7 +187,6 @@ jobs:
       - name: Independent QA + Reviewer Timeline candidate
         if: steps.execute.outcome == 'success'
         env:
-          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
           AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/timeline-builder/autobot-endurance-candidate-check.json
@@ -197,13 +199,14 @@ jobs:
           node builder/runner/autobot-endurance-candidate-check.mjs timeline-builder
       - name: Upload Timeline worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-timeline-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
             builder/working/specialist-results/timeline-builder/autobot-endurance-candidate-check.json
             builder/working/specialist-results/timeline-builder/autobot-candidate-review-timeline-builder.json
           if-no-files-found: ignore
@@ -212,12 +215,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -239,7 +242,7 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
 
       - name: Run Music specialist
         id: execute
@@ -262,7 +265,7 @@ jobs:
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
 
       - name: Publish Music candidate branch
         if: steps.execute.outcome == 'success'
@@ -273,7 +276,6 @@ jobs:
       - name: Independent QA + Reviewer Music candidate
         if: steps.execute.outcome == 'success'
         env:
-          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
           AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/music-builder/autobot-endurance-candidate-check.json
@@ -286,13 +288,14 @@ jobs:
           node builder/runner/autobot-endurance-candidate-check.mjs music-builder
       - name: Upload Music worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-music-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
             builder/working/specialist-results/music-builder/autobot-endurance-candidate-check.json
             builder/working/specialist-results/music-builder/autobot-candidate-review-music-builder.json
           if-no-files-found: ignore
@@ -301,12 +304,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -328,7 +331,7 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
 
       - name: Run Scene specialist
         id: execute
@@ -351,7 +354,7 @@ jobs:
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
 
       - name: Publish Scene candidate branch
         if: steps.execute.outcome == 'success'
@@ -362,7 +365,6 @@ jobs:
       - name: Independent QA + Reviewer Scene candidate
         if: steps.execute.outcome == 'success'
         env:
-          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
           AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/scene-builder/autobot-endurance-candidate-check.json
@@ -375,13 +377,14 @@ jobs:
           node builder/runner/autobot-endurance-candidate-check.mjs scene-builder
       - name: Upload Scene worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-scene-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
             builder/working/specialist-results/scene-builder/autobot-endurance-candidate-check.json
             builder/working/specialist-results/scene-builder/autobot-candidate-review-scene-builder.json
           if-no-files-found: ignore
@@ -390,12 +393,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -417,7 +420,7 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
 
       - name: Run Rhythm specialist
         id: execute
@@ -440,7 +443,7 @@ jobs:
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
 
       - name: Publish Rhythm candidate branch
         if: steps.execute.outcome == 'success'
@@ -451,7 +454,6 @@ jobs:
       - name: Independent QA + Reviewer Rhythm candidate
         if: steps.execute.outcome == 'success'
         env:
-          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
           AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/rhythm-builder/autobot-endurance-candidate-check.json
@@ -464,13 +466,14 @@ jobs:
           node builder/runner/autobot-endurance-candidate-check.mjs rhythm-builder
       - name: Upload Rhythm worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-rhythm-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
             builder/working/specialist-results/rhythm-builder/autobot-endurance-candidate-check.json
             builder/working/specialist-results/rhythm-builder/autobot-candidate-review-rhythm-builder.json
           if-no-files-found: ignore
@@ -479,12 +482,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -506,7 +509,7 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
 
       - name: Run Render specialist
         id: execute
@@ -529,7 +532,7 @@ jobs:
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
 
       - name: Publish Render candidate branch
         if: steps.execute.outcome == 'success'
@@ -540,7 +543,6 @@ jobs:
       - name: Independent QA + Reviewer Render candidate
         if: steps.execute.outcome == 'success'
         env:
-          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
           AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/render-builder/autobot-endurance-candidate-check.json
@@ -553,13 +555,14 @@ jobs:
           node builder/runner/autobot-endurance-candidate-check.mjs render-builder
       - name: Upload Render worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-render-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
             builder/working/specialist-results/render-builder/autobot-endurance-candidate-check.json
             builder/working/specialist-results/render-builder/autobot-candidate-review-render-builder.json
           if-no-files-found: ignore
@@ -569,11 +572,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Media Intelligence lane dependencies
@@ -592,7 +595,7 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
       - name: Run Media Intelligence specialist
         id: execute
         env:
@@ -614,7 +617,7 @@ jobs:
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
       - name: Publish Media Intelligence candidate branch
         if: steps.execute.outcome == 'success'
         run: |
@@ -623,7 +626,6 @@ jobs:
       - name: Independent QA + Reviewer Media Intelligence candidate
         if: steps.execute.outcome == 'success'
         env:
-          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
           AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/media-intelligence-builder/autobot-endurance-candidate-check.json
@@ -636,13 +638,14 @@ jobs:
           node builder/runner/autobot-endurance-candidate-check.mjs media-intelligence-builder
       - name: Upload Media Intelligence worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-media-intelligence-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
             builder/working/specialist-results/media-intelligence-builder/autobot-endurance-candidate-check.json
             builder/working/specialist-results/media-intelligence-builder/autobot-candidate-review-media-intelligence-builder.json
           if-no-files-found: ignore
@@ -652,11 +655,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Caption lane dependencies
@@ -675,7 +678,7 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
       - name: Run Caption specialist
         id: execute
         env:
@@ -697,7 +700,7 @@ jobs:
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
       - name: Publish Caption candidate branch
         if: steps.execute.outcome == 'success'
         run: |
@@ -706,7 +709,6 @@ jobs:
       - name: Independent QA + Reviewer Caption candidate
         if: steps.execute.outcome == 'success'
         env:
-          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
           AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/caption-builder/autobot-endurance-candidate-check.json
@@ -719,13 +721,14 @@ jobs:
           node builder/runner/autobot-endurance-candidate-check.mjs caption-builder
       - name: Upload Caption worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-caption-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
             builder/working/specialist-results/caption-builder/autobot-endurance-candidate-check.json
             builder/working/specialist-results/caption-builder/autobot-candidate-review-caption-builder.json
           if-no-files-found: ignore
@@ -737,11 +740,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Intent lane dependencies
@@ -760,7 +763,7 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
       - name: Run Intent specialist
         id: execute
         env:
@@ -784,7 +787,7 @@ jobs:
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
       - name: Publish Intent candidate branch
         if: steps.execute.outcome == 'success'
         run: |
@@ -793,7 +796,6 @@ jobs:
       - name: Independent QA + Reviewer Intent candidate
         if: steps.execute.outcome == 'success'
         env:
-          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
           AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/intent-builder/autobot-endurance-candidate-check.json
@@ -806,13 +808,14 @@ jobs:
           node builder/runner/autobot-endurance-candidate-check.mjs intent-builder
       - name: Upload Intent worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-intent-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
             builder/working/specialist-results/intent-builder/autobot-endurance-candidate-check.json
             builder/working/specialist-results/intent-builder/autobot-candidate-review-intent-builder.json
           if-no-files-found: ignore
@@ -825,11 +828,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Continuity lane dependencies
@@ -848,7 +851,7 @@ jobs:
           OLLAMA_NUM_PARALLEL: 1
           OLLAMA_MAX_QUEUE: 4
           OLLAMA_LOAD_TIMEOUT: 20m
-          OLLAMA_KEEP_ALIVE: 90m
+          OLLAMA_KEEP_ALIVE: 24h
       - name: Run Continuity specialist
         id: execute
         env:
@@ -872,7 +875,7 @@ jobs:
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           BUILDER_MAX_MINUTES: ${{ inputs.duration == '15m' && '15' || inputs.duration == '30m' && '30' || inputs.duration == '1h' && '60' || inputs.duration == '4h' && '240' || inputs.duration == '5h' && '300' || '330' }}
           AUTOBOT_COORDINATION_ID: persistent-${{ github.run_id }}
-        run: node builder/runner/autobot-specialist-builder.mjs
+        run: node builder/runner/autobot-independent-specialist-lane.mjs
       - name: Publish Continuity candidate branch
         if: steps.execute.outcome == 'success'
         run: |
@@ -881,7 +884,6 @@ jobs:
       - name: Independent QA + Reviewer Continuity candidate
         if: steps.execute.outcome == 'success'
         env:
-          AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT: ${{ github.sha }}
           AUTOBOT_SKIP_NPM_INSTALL: 'true'
           AUTOBOT_SPECIALIST_RESULTS_ROOT: builder/working/specialist-results
           AUTOBOT_CANDIDATE_CHECK_OUTPUT: builder/working/specialist-results/continuity-builder/autobot-endurance-candidate-check.json
@@ -894,13 +896,14 @@ jobs:
           node builder/runner/autobot-endurance-candidate-check.mjs continuity-builder
       - name: Upload Continuity worker evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-continuity-${{ github.run_id }}
           path: |
             builder/working/autobot-specialist-handoff.json
             builder/working/autobot-specialist-outcome.json
             builder/working/autobot-specialist-failure.patch
+            builder/working/autobot-independent-specialist-lane.json
             builder/working/specialist-results/continuity-builder/autobot-endurance-candidate-check.json
             builder/working/specialist-results/continuity-builder/autobot-candidate-review-continuity-builder.json
           if-no-files-found: ignore
@@ -915,12 +918,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -1078,7 +1081,7 @@ jobs:
 
       - name: Upload unified ten-specialist fan-in evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: autobot-persistent-experimental-fan-in-${{ github.run_id }}
           path: |
