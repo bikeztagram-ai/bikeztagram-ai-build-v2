@@ -38,7 +38,8 @@ for(const bot of production){
 
 assert(workflow.includes('workflow_dispatch:'),'isolated specialist swarm must be manually activated');
 assert(expected.every(id=>workflow.includes(`experimental-${id.replace('-builder','')}:`)),'isolated specialist swarm must define a separate job for every production specialist');
-assert(workflow.includes('continue-on-error: true'),'one specialist failure must not cancel siblings; fan-in must still collect every lane');
+assert((workflow.match(/^    needs:/gm)||[]).length===1,'no specialist lane may depend on another specialist; only the final fan-in may declare needs');
+assert(workflow.includes('if: always()'),'fan-in must remain unconditional even when a specialist lane fails');
 assert(workflow.includes("AUTOBOT_EXPERIMENTAL_WORKER: 'false'"),'production swarm must not rely on experimental-worker mode');
 assert(workflow.includes('actions/upload-artifact@v6'),'specialist jobs must publish structured evidence');
 assert(workflow.includes('needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption, experimental-intent, experimental-continuity]'),'fan-in must wait for all ten isolated specialists');
