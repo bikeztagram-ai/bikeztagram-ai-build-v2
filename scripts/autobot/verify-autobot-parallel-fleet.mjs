@@ -30,7 +30,7 @@ assert((workflow.match(/Validate [^\n]+ final lane evidence/g)||[]).length===10,
 assert(laneRunner.includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'candidate verification must bind to the exact current cycle base commit');
 assert(laneRunner.includes('AUTOBOT_CANDIDATE_REVIEW_OUTPUT'),'candidate review evidence must be persisted per specialist lane');
 assert(laneRunner.includes("runNode('builder/runner/autobot-endurance-candidate-check.mjs'")&&laneRunner.includes('[botId]'),'persistent lane must pass its explicit bot id into the independent candidate checker');
-assert(!/specialist-results\\/(director|timeline|music|scene|rhythm|render|media-intelligence|caption|intent|continuity)\\/autobot-endurance-candidate-check\\.json/.test(workflow),'final lane validation must use the registered *-builder specialist result paths');
+assert(!/specialist-results\/(director|timeline|music|scene|rhythm|render|media-intelligence|caption|intent|continuity)\/autobot-endurance-candidate-check\.json/.test(workflow),'final lane validation must use the registered *-builder specialist result paths');
 assert(workflow.includes('autobot-candidate-review-ledger.json'),'fan-in must publish one central candidate QA + Reviewer ledger');
 assert(planner.includes('maxConcurrentWorkers<2'),'planner must refuse execution before parallel activation');
 assert(planner.includes('seenFiles')&&planner.includes('scope overlaps another parallel worker'),'planner must reject overlapping file scopes');
