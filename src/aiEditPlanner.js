@@ -39,3 +39,4 @@ export function scoreDirectorContinuity(cuts=[]){
  if(repeats>Math.floor(cuts.length/2))issues.push('repetitive-roles');
  return {score:Math.max(0,100-issues.length*20-repeats*5),issues};
 }
+// Verified product lane: keep this change isolated and production-consumed.
