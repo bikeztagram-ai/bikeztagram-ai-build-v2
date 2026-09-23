@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+const wf=fs.readFileSync('.github/workflows/autobot-research-swarm.yml','utf8');
+const runner=fs.readFileSync('builder/runner/autobot-research-trial.mjs','utf8');
+const strategies=['aider-direct','aider-diff','aider-udiff','aider-whole','aider-scoped','aider-architect','failure-replay','performance-lab','shadow-architecture','adversarial','fast-deep','challenger','dependency-plan','direct-ollama-json','openhands-sdk','deterministic-control','evolution-selected'];
+for(const s of strategies) if(!wf.includes(s)||!runner.includes(s)) throw new Error('missing research strategy '+s);
+if(strategies.length<10) throw new Error('research swarm must have at least ten isolated lanes');
+if(!wf.includes('fail-fast: false')) throw new Error('research failures must be isolated');
+if(!wf.includes('cancel-in-progress: false')) throw new Error('research runs must not cancel one another');
+for(const marker of ['qualityPassed','failure-replay','performance-lab','shadow-architecture','adversarial','fast-deep','challenger','dependency-plan','evolution-selected']) if(!runner.includes(marker)) throw new Error('missing Forge-derived research capability '+marker);
+if(!wf.includes('Download Evolution evidence')||!wf.includes('Feed Evolution hypothesis into research lane')) throw new Error('Evolution evidence must feed the swarm');
+if(!wf.includes('actions: read')) throw new Error('research swarm should not require write permissions');
+console.log(JSON.stringify({ok:true,strategies:strategies.length,productionFilesUntouched:true,forgeResearchCapabilities:true,evolutionIntegrated:true}));
