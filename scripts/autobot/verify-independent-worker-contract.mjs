@@ -27,7 +27,7 @@ const expected=['director-builder','timeline-builder','music-builder','scene-bui
 assert(JSON.stringify(production.map(b=>b.id))===JSON.stringify(expected),'isolated production specialist set must be the ten registered lanes');
 assert(registry.activationGate?.protectedIntegration===false,'protected integration must remain disabled');
 assert(JSON.stringify(registry.activationGate?.parallelWorkers||[])===JSON.stringify(expected),'activation gate must name all ten isolated specialists');
-assert(registry.coordination?.maxConcurrentWorkers===10,'production isolated worker concurrency must be bounded at eight');
+assert(registry.coordination?.maxConcurrentWorkers===10,'production isolated worker concurrency must be bounded at ten');
 
 for(const bot of production){
   assert(bot.specialistBuilder===true,'production specialist must use Specialist Builder contract');
@@ -39,7 +39,7 @@ assert(workflow.includes('workflow_dispatch:'),'isolated specialist swarm must b
 assert(expected.every(id=>workflow.includes(`experimental-${id.replace('-builder','')}:`)),'isolated specialist swarm must define a separate job for every production specialist');
 assert(workflow.includes('continue-on-error: true'),'one specialist failure must not cancel siblings; fan-in must still collect every lane');
 assert(workflow.includes("AUTOBOT_EXPERIMENTAL_WORKER: 'false'"),'production swarm must not rely on experimental-worker mode');
-assert(workflow.includes('actions/upload-artifact@v7'),'specialist jobs must publish structured evidence');
+assert(workflow.includes('actions/upload-artifact@v6'),'specialist jobs must publish structured evidence');
 assert(workflow.includes('needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption, experimental-intent, experimental-continuity]'),'fan-in must wait for all ten isolated specialists');
 assert(workflow.includes('actions/download-artifact@v7'),'fan-in must download specialist evidence');
 assert(fanIn.includes('coordinationId'),'fan-in runner must group results by coordination id');
