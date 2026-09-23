@@ -73,7 +73,14 @@ if (!botId) throw new Error('Persistent specialist lane requires AUTOBOT_SPECIAL
 if (!initialObjective) throw new Error('Persistent specialist lane requires AUTOBOT_SPECIALIST_OBJECTIVE.');
 if (!fs.existsSync(path.join(root, 'builder/runner/autobot-specialist-builder.mjs'))) throw new Error('Specialist Builder entrypoint is missing.');
 
-let currentBase = git(['rev-parse', 'HEAD']);
+const configuredBaseRef = String(process.env.AUTOBOT_BASE_REF || '').trim();
+let currentBase;
+try {
+  currentBase = git(['rev-parse', configuredBaseRef || 'HEAD']);
+} catch (error) {
+  throw new Error(`Persistent specialist lane could not resolve AUTOBOT_BASE_REF ${configuredBaseRef || '(HEAD)'}: ${error.message}`);
+}
+if (configuredBaseRef) console.log(`[lane:${botId}] starting from explicit base ${currentBase}`);
 let verifiedCandidates = [];
 let publishedBranches = [];
 let failures = 0;
