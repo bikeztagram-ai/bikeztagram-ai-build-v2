@@ -35,20 +35,28 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
       .map(cue=>({cue,overlap:overlap(start,end,cue.start,cue.end)}))
       .filter(item=>item.overlap>0)
       .sort((a,b)=>b.overlap-a.overlap||b.cue.confidence-a.cue.confidence);
-    const chosen=candidates[0]?.cue;
-    if(!chosen)return cut;
-    const textStart=Math.max(start,chosen.start);
-    const textEnd=Math.min(end,chosen.end);
-    const relativeIn=Math.max(0,Math.min(1,(textStart-start)/(end-start)));
-    const relativeOut=Math.max(relativeIn+.05,Math.min(1,(textEnd-start)/(end-start)));
+    const chosen = candidates.reduce((prev, curr) => {
+      if (curr.overlap > prev.overlap || (curr.overlap === prev.overlap && curr.cue.confidence > prev.cue.confidence)) {
+        return curr;
+      }
+      return prev;
+    }, { cue: null, overlap: 0 });
+
+    if (!chosen.cue) return cut;
+
+    const textStart = Math.max(start, chosen.cue.start);
+    const textEnd = Math.min(end, chosen.cue.end);
+    const relativeIn = Math.max(0, Math.min(1, (textStart - start) / (end - start)));
+    const relativeOut = Math.max(relativeIn + .05, Math.min(1, (textEnd - start) / (end - start)));
+
     return {
       ...cut,
-      text:chosen.text,
-      textIn:Number(Math.max(.02,relativeIn).toFixed(3)),
-      textOut:Number(Math.min(.98,relativeOut).toFixed(3)),
-      textStyle:'caption',
-      captionCueIndex:chosen.index,
-      captionConfidence:Number(chosen.confidence.toFixed(2))
+      text: chosen.cue.text,
+      textIn: Number(Math.max(.02, relativeIn).toFixed(3)),
+      textOut: Number(Math.min(.98, relativeOut).toFixed(3)),
+      textStyle: 'caption',
+      captionCueIndex: chosen.cue.index,
+      captionConfidence: Number(chosen.cue.confidence.toFixed(2))
     };
   });
   const appliedCount=cuts.filter(cut=>cut.captionCueIndex!=null).length;
