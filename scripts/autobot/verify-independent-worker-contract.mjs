@@ -55,6 +55,8 @@ assert(specialist.includes('coordinationId'),'specialist Builder must preserve c
 assert(laneRunner.includes('AUTOBOT_BASE_REF') && laneRunner.includes('configuredBaseRef || \'HEAD\''),'persistent lane must honor an explicit starting base reference');
 assert(laneRunner.includes('cycle-${cycle}') && laneRunner.includes('canonicalResultDir'),'persistent lane must retain per-cycle QA evidence and a stable latest-cycle evidence path');
 assert(laneRunner.includes('AUTOBOT_EXPECTED_CYCLE_BASE_COMMIT'),'persistent lane must bind QA/Reviewer to the exact current verified base SHA');
+assert(laneRunner.includes('autobot-endurance-candidate-check.mjs')&&laneRunner.includes("[botId]"),'persistent lane must pass the explicit specialist bot id into independent candidate QA/Reviewer');
+assert(laneRunner.includes('canonicalResultDir')&&laneRunner.indexOf("if (qaStatus !== 0)") < laneRunner.indexOf('canonicalResultDir'),'canonical lane evidence must only advance after a candidate is verified, so a rejected later cycle cannot overwrite the last verified evidence');
 assert(laneRunner.includes('AUTOBOT_JOB_STARTED_AT_MS'),'persistent lane deadline must be anchored to the GitHub job start so bootstrap time cannot push the job past its timeout');
 assert((workflow.match(/Record specialist job start/g)||[]).length===10,'each production specialist lane must record its own job start time');
 assert((workflow.match(/timeout-minutes: 350/g)||[]).length===10,'each production specialist lane must retain the existing 350-minute job timeout');
