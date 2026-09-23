@@ -60,6 +60,9 @@ assert(laneRunner.includes('autobot-endurance-candidate-check.mjs')&&laneRunner.
 assert(laneRunner.includes('canonicalResultDir')&&laneRunner.indexOf('The canonical evidence paths must represent') > laneRunner.indexOf("if (qaStatus !== 0)"),'canonical lane evidence must only advance after a candidate is verified, so a rejected later cycle cannot overwrite the last verified evidence');
 assert(laneRunner.includes('restored final root evidence from the last VERIFIED candidate'),'persistent lane must restore the last verified handoff/outcome/QA evidence after a later blocked cycle');
 assert(structuredFallback.includes('outOfScopeFiles')&&structuredFallback.includes('structured fallback modified out-of-scope files'),'structured fallback must reject and reset any edit that escapes the declared specialist file scope before handoff');
+assert(structuredFallback.includes('.split(/\\r?\\n/)'),'structured fallback scope audit must split git diff output on real line boundaries');
+assert(structuredFallback.includes('deterministic-specialist-fallback-v1'),'structured fallback must retain deterministic recovery');
+assert(read('builder/runner/autobot-specialist-deterministic-fallback.mjs').includes("specialist==='intent-builder'")&&read('builder/runner/autobot-specialist-deterministic-fallback.mjs').includes('expanded creative action intent hints'),'intent specialist must have a deterministic product fallback');
 assert(laneRunner.includes('AUTOBOT_JOB_STARTED_AT_MS'),'persistent lane deadline must be anchored to the GitHub job start so bootstrap time cannot push the job past its timeout');
 assert((workflow.match(/Record specialist job start/g)||[]).length===10,'each production specialist lane must record its own job start time');
 assert((workflow.match(/timeout-minutes: 350/g)||[]).length===10,'each production specialist lane must retain the existing 350-minute job timeout');
