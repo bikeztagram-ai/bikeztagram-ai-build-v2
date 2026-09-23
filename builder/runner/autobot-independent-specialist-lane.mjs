@@ -29,7 +29,8 @@ const durationMinutes = Number.isFinite(configuredRunMinutes) && configuredRunMi
   ? configuredRunMinutes
   : ({'15m':15,'30m':30,'1h':60,'4h':240,'5h':300,'5h30':330})[requestedDuration] || 330;
 const finishGrace = Math.max(0, Number.parseInt(process.env.AUTOBOT_FINISH_GRACE_MINUTES || '15', 10) || 0);
-const startedAt = Date.now();
+const jobStartedAt = Number.parseInt(process.env.AUTOBOT_JOB_STARTED_AT_MS || '', 10);
+const startedAt = Number.isFinite(jobStartedAt) && jobStartedAt > 0 ? jobStartedAt : Date.now();
 const normalDeadline = startedAt + durationMinutes * 60_000;
 const hardDeadline = normalDeadline + finishGrace * 60_000;
 
