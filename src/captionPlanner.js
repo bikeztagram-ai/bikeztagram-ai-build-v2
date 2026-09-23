@@ -38,8 +38,6 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
     const chosen = candidates.reduce((prev, curr) => {
       if (curr.overlap > prev.overlap) {
         return curr;
-      } else if (curr.overlap === prev.overlap && curr.cue.confidence > prev.cue.confidence) {
-        return curr;
       }
       return prev;
     }, { cue: null, overlap: 0 });
