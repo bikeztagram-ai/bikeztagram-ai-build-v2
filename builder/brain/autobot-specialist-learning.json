@@ -25,7 +25,7 @@
     }
   },
   "learned": {
-    "runsAnalyzed": 1,
+    "runsAnalyzed": 2,
     "lastUpdated": "2026-09-23",
     "observations": [
       {
@@ -107,6 +107,118 @@
         "strategy": "evolution-selected",
         "observation": "Evolution successfully fed the hypothesis about distinguishing Aider controller non-materialization from clean specialist success into the isolated trial, but the trial failed to materialize a change.",
         "implication": "Keep the hypothesis in the learning set and test the measurement directly rather than treating the failed trial as a product conclusion."
+      },
+      {
+        "runId": 35892292787,
+        "source": "Forge research swarm",
+        "observation": "Run 3 completed all 17 isolated research lanes while the production 10 were given only a 15-minute diagnostic window. Research evidence must be harvested per lane; production specialist productivity is not judged from this short duration.",
+        "evidence": {
+          "researchLanes": 17,
+          "productionLanes": 10,
+          "productionDuration": "15m"
+        }
+      },
+      {
+        "runId": 35892292787,
+        "strategy": "fast-deep",
+        "observation": "Fast path satisfied the benchmark without escalation in this run.",
+        "evidence": {
+          "durationMs": 165111,
+          "diff": 1,
+          "syntaxPassed": true,
+          "behaviorPassed": true,
+          "qualityPassed": true,
+          "fastExit": 0,
+          "fastGood": true
+        },
+        "implication": "Keep fast/deep as an adaptive research strategy; next run should vary the fast budget and acceptance gate rather than promoting it directly into production."
+      },
+      {
+        "runId": 35892292787,
+        "strategy": "evolution-selected",
+        "observation": "The Evolution hypothesis about measuring Aider non-materialisation versus specialist success successfully materialised a passing isolated change.",
+        "evidence": {
+          "durationMs": 124080,
+          "diff": 1,
+          "syntaxPassed": true,
+          "behaviorPassed": true,
+          "qualityPassed": true
+        },
+        "implication": "Promote the measurement idea into production telemetry without changing specialist editing behaviour; separately test whether the measurement improves controller decisions."
+      },
+      {
+        "runId": 35892292787,
+        "strategy": "failure-replay",
+        "observation": "Bounded recovery completed successfully and quality passed, but the replay did not materialise a new change and behaviour did not pass.",
+        "evidence": {
+          "durationMs": 356069,
+          "diff": 0,
+          "syntaxPassed": true,
+          "behaviorPassed": false,
+          "qualityPassed": true,
+          "recoveryExit": 0
+        },
+        "implication": "Retain bounded recovery as a harness pattern, but do not count recovery success as product-edit success."
+      },
+      {
+        "runId": 35892292787,
+        "strategy": "performance-lab",
+        "observation": "Local validation overhead remained very small.",
+        "evidence": {
+          "durationMs": 134,
+          "meanMs": 27,
+          "samplesMs": [
+            34,
+            24,
+            23
+          ]
+        },
+        "implication": "Validation overhead is not the main bottleneck in these trials; future experiments should focus on model/controller materialisation and timeout boundaries."
+      },
+      {
+        "runId": 35892292787,
+        "strategies": [
+          "challenger",
+          "dependency-plan"
+        ],
+        "observation": "Evidence-only planning lanes remained useful for hypothesis and target-surface generation.",
+        "evidence": {
+          "challengerDurationMs": 60244,
+          "dependencyPlanDurationMs": 61758
+        },
+        "implication": "Keep them, but feed their outputs into a paired execution trial in the same research iteration."
+      },
+      {
+        "runId": 35892292787,
+        "strategies": [
+          "aider-direct",
+          "aider-diff",
+          "aider-udiff",
+          "aider-whole",
+          "aider-scoped",
+          "aider-architect",
+          "direct-ollama-json",
+          "openhands-sdk"
+        ],
+        "observation": "Most adapter/edit lanes again failed in roughly 42-87ms with zero diff.",
+        "evidence": {
+          "rangeMs": "42-87",
+          "diff": 0
+        },
+        "implication": "Continue classifying these as harness/invocation failures; add explicit preflight/runtime diagnostics before using them as model comparisons."
+      },
+      {
+        "runId": 35892292787,
+        "strategies": [
+          "adversarial",
+          "shadow-architecture"
+        ],
+        "observation": "Long-running lanes again hit the ~190s boundary without a passing materialised change.",
+        "evidence": {
+          "rangeMs": "190101-190107",
+          "diff": 0
+        },
+        "implication": "Keep bounded retry/timeout experiments isolated and measure where the time is spent before trying another controller design."
       }
     ]
   }
