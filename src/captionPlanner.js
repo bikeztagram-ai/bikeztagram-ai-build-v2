@@ -78,7 +78,7 @@ export function describeCaptionPlan(result){
 
 export function filterCaptionCues(cues=[],options={}){
  const minimum=Number.isFinite(Number(options.minimumConfidence))?Number(options.minimumConfidence):.55;
- const maxChars=Number.isFinite(Number(options.maxChars))?Number(options.maxChars):72;
+ const maxChars=Number.isFinite(Number(options.maxChars))?Number(options.maxChars):64;
  return (Array.isArray(cues)?cues:[]).filter(c=>Number(c?.confidence??1)>=minimum).map(c=>({...c,text:String(c?.text||'').trim().slice(0,maxChars)})).filter(c=>c.text);
 }
 
