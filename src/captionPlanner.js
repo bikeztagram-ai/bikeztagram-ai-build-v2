@@ -39,7 +39,10 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
       if (a.overlap !== b.overlap) {
         return b.overlap - a.overlap;
       }
-      return b.cue.confidence - a.cue.confidence;
+      if (a.cue.confidence !== b.cue.confidence) {
+        return b.cue.confidence - a.cue.confidence;
+      }
+      return b.cue.text.length - a.cue.text.length;
     })[0];
 
     if (!chosen.cue) return cut;
