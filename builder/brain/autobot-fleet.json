@@ -36,7 +36,9 @@
     "fanInRunner": "builder/runner/autobot-independent-fan-in.mjs",
     "maxConcurrentWorkersDescription": "Ten disjoint production specialist lanes: Director, Timeline, Music, Scene, Rhythm, Render, Media Intelligence, Caption, Creative Intent and Creative Continuity.",
     "experimentalConcurrentWorkers": 2,
-    "experimentalWorkersDescription": "Two disposable Aider strategy lanes used only for materialization experiments; never part of protected production activation."
+    "experimentalWorkersDescription": "Two disposable Aider strategy lanes used only for materialization experiments; never part of protected production activation.",
+    "laneRunner": "builder/runner/autobot-independent-specialist-lane.mjs",
+    "laneRunnerDescription": "Each of the ten production specialists owns one long-lived workflow job and carries only verified candidate SHAs forward through repeated independent cycles until the requested run budget ends."
   },
   "activationGate": {
     "requiredEnabled": true,
@@ -370,9 +372,11 @@
     "Evolution work may not weaken validators, production gates, specialist scopes, the persistent engine or product source.",
     "Production specialist workers must run as ten independent jobs in the dedicated specialist workflow; they must never share a production workspace or become dependencies of one another.",
     "All ten production specialist workers may execute only when the dedicated specialist workflow is explicitly dispatched; the production specialist contract remains registry-gated and protected integration remains operator-controlled.",
-    "Independent worker results must fan in through one central run ledger before any integration candidate is assembled.",
+    "Independent worker results may fan in through one central run ledger for evidence and integration bookkeeping, but fan-in must never gate a specialist's next productive cycle.",
     "A worker branch is an implementation workspace, not the source of truth; the canonical handoff is its verified base/candidate metadata plus central ledger record.",
     "Fan-in must classify every worker as completed, review, recovery, failed or pending so no result becomes an orphaned pot.",
-    "Every production specialist must own exactly one disjoint product file; overlapping file ownership is a hard activation failure."
+    "Every production specialist must own exactly one disjoint product file; overlapping file ownership is a hard activation failure.",
+    "Persistent specialist lanes must reuse their one-time runner environment across cycles; Node, Python, Aider installation and the Ollama server must not be reinstalled between cycles.",
+    "A specialist may carry forward only an independently verified candidate SHA; rejected or unverified candidates must never become the next cycle base."
   ]
 }
