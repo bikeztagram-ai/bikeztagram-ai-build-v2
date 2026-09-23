@@ -1,9 +1,6 @@
 name: 🔬 AutoBot Research Swarm
 
 on:
-  workflow_run:
-    workflows: ["🧬 AutoBot Evolution Engineer"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       local_model:
@@ -64,6 +61,20 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           run-id: ${{ github.event.workflow_run.id }}
+      - name: Download latest completed Evolution evidence
+        if: matrix.strategy == 'evolution-selected'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p builder/working/research-evolution
+          RUN_ID="$(curl --fail-with-body -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/actions/workflows/autobot-evolution-engineer.yml/runs?status=success&per_page=1" | python -c "import json,sys; print(json.load(sys.stdin)['workflow_runs'][0]['id'])")"
+          ART_ID="$(curl --fail-with-body -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts?per_page=100" | python -c "import json,sys; a=json.load(sys.stdin)['artifacts']; x=next(x for x in a if x['name'].startswith('autobot-evolution-report-')); print(x['id'])")"
+          curl --fail-with-body -L -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/actions/artifacts/$ART_ID/zip" -o /tmp/evolution.zip
+          unzip -o /tmp/evolution.zip -d builder/working/research-evolution >/dev/null
+          echo "Loaded Evolution evidence from run $RUN_ID"
+
       - name: Feed Evolution hypothesis into research lane
         if: matrix.strategy == 'evolution-selected'
         run: |
