@@ -934,8 +934,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Record specialist job start
-        run: echo "AUTOBOT_JOB_STARTED_AT_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
