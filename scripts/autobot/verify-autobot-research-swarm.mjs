@@ -2,7 +2,7 @@ import fs from 'node:fs';
 const wf=fs.readFileSync('.github/workflows/autobot-research-swarm.yml','utf8');
 const runner=fs.readFileSync('builder/runner/autobot-research-trial.mjs','utf8');
 const loop=fs.readFileSync('builder/runner/autobot-research-loop.mjs','utf8');
-const lanes=['agent-materialisation','edit-protocols','recovery-engineering','performance-runtime','adversarial-quality','architecture-controller','model-adapters','evolution-discovery','borg-orchestration','regression-replay'];
+const lanes=['agent-materialisation','edit-protocols','recovery-engineering','performance-runtime','adversarial-quality','architecture-controller','model-adapters','evolution-discovery','forge-orchestration','regression-replay'];
 const strategies=['aider-direct','aider-diff','aider-udiff','aider-whole','aider-scoped','aider-architect','failure-replay','performance-lab','shadow-architecture','adversarial','fast-deep','challenger','dependency-plan','direct-ollama-json','openhands-sdk','deterministic-control','evolution-selected','worker-discovery','program-synthesis','workflow-architecture','agent-protocol','runtime-alternatives','test-generation','contract-fuzz','model-crosscheck','memory-learning','borg-orchestration','replay-known-failure'];
 for(const lane of lanes) if(!wf.includes(lane)||!loop.includes(lane)) throw new Error('missing research lane '+lane);
 for(const strategy of strategies) if(!runner.includes(strategy)||!loop.includes(strategy)) throw new Error('missing research strategy '+strategy);
