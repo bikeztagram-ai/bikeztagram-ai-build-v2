@@ -46,6 +46,8 @@ const experiments=[];
 let previous=null;
 let terminationReason=budgetMs<=0?'deadline-exhausted':'deadline-active';
 let experimentOrdinal=0;
+let consecutiveHardFailures=0;
+const maxConsecutiveHardFailures=Math.max(1,Number(process.env.AUTOBOT_RESEARCH_MAX_CONSECUTIVE_HARD_FAILURES||3));
 
 function remainingBudget(){
   return Math.max(0,Math.min(
@@ -86,12 +88,14 @@ function runTrial(strategy,cycle,variantIndex){
   const t=performance.now();
   const r=spawnSync(process.execPath,[trial],{
     env,
-    stdio:'inherit',
+    stdio:['ignore','inherit','pipe'],
     timeout:trialTimeoutMs,
     killSignal:'SIGTERM'
   });
   const durationMs=Math.round(performance.now()-t);
   let result={lane,cycle,strategy,variant,experimentId,researchQuestion,queueSlot,exitCode:r.status,durationMs};
+  const stderr=String(r.stderr||'');
+  if(stderr) result.stderrTail=stderr.slice(-4000);
   if(r.error){
     result.controllerError=String(r.error.message||r.error);
     result.timedOut=Boolean(r.error.code==='ETIMEDOUT'||/timed out/i.test(String(r.error.message||'')));
@@ -125,6 +129,23 @@ for(let cycle=1;cycle<=maxCycles;cycle++){
     experiments.push(result);
     previous=result;
     if(remainingBudget()<=0){terminationReason='deadline-exhausted';break;}
+    const hardFailure = Number(result.exitCode||0) !== 0;
+    if(hardFailure){
+      consecutiveHardFailures += 1;
+      const combinedError = String(result.controllerError||result.stderrTail||result.error||'');
+      if(/SyntaxError|Missing catch|Unexpected token|Invalid or unexpected token/.test(combinedError)){
+        terminationReason='shared-runner-syntax-error';
+        console.error(`Stopping lane after shared runner syntax error in ${result.experimentId}.`);
+        break;
+      }
+      if(consecutiveHardFailures>=maxConsecutiveHardFailures){
+        terminationReason='consecutive-trial-failures';
+        console.error(`Stopping lane after ${consecutiveHardFailures} consecutive hard trial failures.`);
+        break;
+      }
+    } else {
+      consecutiveHardFailures=0;
+    }
     if(result.timedOut || result.durationMs>=minContinueMs){
       console.log(`Bounded experiment ${result.experimentId}; continuing the persistent lane.`);
       continue;

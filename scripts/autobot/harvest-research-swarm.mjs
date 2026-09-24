@@ -49,6 +49,8 @@ for(const x of experiments){
   byClass[cls]=(byClass[cls]||0)+1;
 }
 const successful=experiments.filter(x=>x.qualityPassed||x.status==='success');
+const MAX_RETAINED_EXPERIMENTS=2000;
+const retainedExperiments=experiments.slice(-MAX_RETAINED_EXPERIMENTS);
 const promising=successful
   .sort((a,b)=>Number(b.diff||0)-Number(a.diff||0))
   .slice(0,30)
@@ -72,13 +74,15 @@ const harvest={
     experiments:experiments.length,
     successful:successful.length,
     failed:experiments.length-successful.length,
-    materialised:experiments.filter(x=>Number(x.diff)>0).length
+    materialised:experiments.filter(x=>Number(x.diff)>0).length,
+    retainedExperiments:retainedExperiments.length,
+    truncated:experiments.length>MAX_RETAINED_EXPERIMENTS
   },
   byLane,
   byStrategy,
   byFailureClass:byClass,
   promising,
-  experiments
+  experiments:retainedExperiments
 };
 fs.writeFileSync(path.join(outRoot,'autobot-research-harvest.json'),JSON.stringify(harvest,null,2)+'\n');
 

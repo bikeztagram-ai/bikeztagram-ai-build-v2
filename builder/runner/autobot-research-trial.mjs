@@ -114,7 +114,6 @@ try {
     task=withVariant(productionTask+" Evolution hypothesis to test: "+hint);
     command=['aider','--model','ollama_chat/'+model,'--message',task,'--yes-always','--no-git','--no-show-model-warnings','--timeout','180','--edit-format','diff','--map-tokens','512',file];
     const x=run(command[0],command.slice(1)); status=x.r.status===0?'success':'failed'; note='Evolution-selected hypothesis trial';
-  }
   } else if(strategy==='worker-discovery'){
     const prompt=withVariant("Explore genuinely new specialist-worker roles for an autonomous coding fleet. Propose 5 worker types, their isolated responsibilities, inputs, outputs, failure modes, and a falsifiable test for each. Look beyond the existing ten production lanes and avoid assuming the current architecture is complete. Return JSON.");
     const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1000}})]);
