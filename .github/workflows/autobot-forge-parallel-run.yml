@@ -331,7 +331,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: autobot-research-harvest-${{ github.run_id }}
-          path: trial-branch/builder/working/trial-research
+          path: /tmp/trial-research
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
 
@@ -355,7 +355,7 @@ jobs:
         env:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
           LOCAL_AI_READY: '1'
-          TRIAL_RESEARCH_DIR: builder/working/trial-research
+          TRIAL_RESEARCH_DIR: /tmp/trial-research
           TRIAL_MODEL_TIMEOUT_MS: '180000'
         run: |
           set +e
