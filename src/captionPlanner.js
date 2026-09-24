@@ -62,7 +62,7 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
 
 export function describeCaptionPlan(result){
   if(!result?.captionCount)return 'No verified speech captions detected.';
-  return `📝 Speech captions: ${result.appliedCount}/${result.captionCount} verified cues attached to the edit.`;
+  return `📝 Speech captions: ${result.appliedCount}/${result.captions.length} verified cues attached to the edit.`;
 }
 
 export function filterCaptionCues(cues=[],options={}){
