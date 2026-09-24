@@ -39,8 +39,8 @@ jobs:
           MODEL: ${{ inputs.local_model }}
         run: |
           set -euo pipefail
-          START_MS="$(date +%s%3N)"
-          echo "START_MS=$START_MS" >> "$GITHUB_ENV"
+          LAUNCH_START_MS="$(date +%s%3N)"
+          echo "LAUNCH_START_MS=$LAUNCH_START_MS" >> "$GITHUB_ENV"
           curl --fail-with-body -L \
             -X POST \
             -H "Accept: application/vnd.github+json" \
@@ -59,9 +59,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
+          DURATION: ${{ inputs.duration }}
         run: |
           set -euo pipefail
-          START_MS="$(date +%s%3N)"
+          START_MS="${LAUNCH_START_MS:-$(date +%s%3N)}"
           for i in $(seq 1 30); do
             curl --fail-with-body -sS \
               -H "Accept: application/vnd.github+json" \
