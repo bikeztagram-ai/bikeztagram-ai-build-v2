@@ -10,10 +10,15 @@ if(!wf.includes('fail-fast: false')||!wf.includes('cancel-in-progress: false')) 
 if(!wf.includes('max-parallel: 10')) throw new Error('research swarm must expose ten-lane parallelism');
 if(!loop.includes('AUTOBOT_RESEARCH_ALLOW_REVISITS')) throw new Error('research loop must permit evidence-driven re-tests');
 if(!loop.includes('maxExperimentsPerCycle')) throw new Error('research loop must run multiple experiments per cycle where budget allows');
+if(!loop.includes('shared-runner-syntax-error')) throw new Error('research loop must stop a lane on a shared runner syntax error');
+if(!loop.includes('maxConsecutiveHardFailures')) throw new Error('research loop must bound repeated hard trial failures');
+if(!loop.includes("stdio:['ignore','inherit','pipe']")) throw new Error('research loop must capture shared runner diagnostics');
 if(!runner.includes("strategy==='worker-discovery'")) throw new Error('research trial must retain the worker-discovery branch');
 if(!runner.includes("strategy==='program-synthesis'")) throw new Error('research trial must retain the program-synthesis branch');
 if(!wf.includes('actions: read')||wf.includes('contents: read')) throw new Error('research swarm must remain read-only against repository contents');
 if(!wf.includes('Upload isolated research evidence')) throw new Error('each lane must publish evidence');
+if(!fs.readFileSync('.github/workflows/autobot-forge-parallel-run.yml','utf8').includes('Validate shared research trial runner')) throw new Error('Forge launcher must preflight the shared research runner before fan-out');
+if(!fs.readFileSync('.github/workflows/autobot-forge-parallel-run.yml','utf8').includes('The 15m diagnostic production failure is recorded')) throw new Error('15m production diagnostic mode must not fail Forge orchestration');
 import {execFileSync} from 'node:child_process';
 execFileSync(process.execPath,['--check','builder/runner/autobot-research-trial.mjs'],{stdio:'inherit'});
 console.log(JSON.stringify({ok:true,lanes:lanes.length,strategyPortfolio:strategies.length,productionFilesUntouched:true,retestsEnabled:true,multiExperimentCycles:true}));
