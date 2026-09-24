@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "autobot-research-next-cycle-v2",
+  "generatedAt": "2026-09-24T18:20:10.709Z",
+  "rules": [
+    "Keep all ten production Bikeztagram specialists isolated and protected.",
+    "Re-test useful ideas even when previously tested; change one meaningful variable and record the delta.",
+    "Prioritise experiments that distinguish controller failure, model failure, materialisation failure, QA failure, scope failure and infrastructure failure.",
+    "Promote no research result directly into production; require evidence, QA and human-reviewed integration.",
+    "Successful research is queued for the NEXT production cycle; it never blocks or mutates the CURRENT production cycle.",
+    "Production specialists must treat this handoff as advisory evidence, validate it against current source and reject unsupported claims."
+  ],
+  "observedFailureClasses": {},
+  "highValueStrategies": [],
+  "candidateWorkerIdeas": [],
+  "retestTargets": [],
+  "productionHandoff": {
+    "purpose": "Advisory evidence for the next ten-specialist production cycle.",
+    "promising": [],
+    "candidateWorkerIdeas": [],
+    "retestTargets": [],
+    "failureClasses": {}
+  }
+}
