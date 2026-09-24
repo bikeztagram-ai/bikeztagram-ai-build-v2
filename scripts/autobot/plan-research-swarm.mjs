@@ -9,7 +9,7 @@ let prior={}; try{prior=JSON.parse(fs.readFileSync(priorPath,'utf8'));}catch{}
 
 const tasks=[];
 const variants=catalog.variants||[];
-const domains=catalog.domains||[];
+const domains=(catalog.domains||[]).filter(domain=>domain.id!=='forge-orchestration');
 const retests=new Map();
 for(const target of (prior.retestTargets||[])){
   if(target.lane&&!retests.has(target.lane)) retests.set(target.lane,target);
@@ -56,6 +56,7 @@ fs.writeFileSync(
     generatedAt:new Date().toISOString(),
     taskCount:tasks.length,
     persistentLaneCount:tasks.length,
+    trialBuilderLane:'forge-orchestration',
     priorEvidenceLoaded:Object.keys(prior).length>0,
     tasks
   },null,2)+'\n'

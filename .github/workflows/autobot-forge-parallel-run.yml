@@ -155,12 +155,10 @@ jobs:
   # IMPORTANT: this gate is deliberately short-lived. Once the ten proven
   # production jobs have started, this launcher releases its runner so the
   # research swarm can consume only the remaining runner capacity.
-  # Rolling research queue: 30 disposable workers are queued behind the
-  # 10 active research slots. As a worker finishes or fails, GitHub starts
-  # the next queued worker on the freed runner. Production stays protected.
-  # Research Director creates a large disposable queue from the experiment catalog.
-  # Only ten workers run at once; when one ends, the next queued task claims the runner.
-  # Production remains isolated and protected.
+  # Runner budget: 10 production specialists + 9 research lanes + 1 trial builder.
+  # The trial builder is the former forge-orchestration research slot. It starts
+  # only after the nine research lanes have harvested, so it can consume their
+  # evidence without creating an eleventh research runner.
   research-plan:
     name: 🧠 Forge Research Director
     needs: production-start-gate
@@ -263,7 +261,7 @@ jobs:
     needs: [production-start-gate, research-plan]
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 9
       matrix: ${{ fromJSON(needs.research-plan.outputs.matrix) }}
     uses: ./.github/workflows/autobot-research-swarm.yml
     with:
@@ -305,9 +303,95 @@ jobs:
             builder/working/research-harvest/autobot-research-next-cycle.json
           if-no-files-found: error
 
+
+  trial-builder:
+    name: 🧪 Forge Trial Builder — evolve the experimental builder
+    needs: [research-harvest]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout workflow/main toolchain
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Checkout persistent isolated trial-builder branch
+        uses: actions/checkout@v7
+        with:
+          ref: autobot/trial-builder
+          path: trial-branch
+          fetch-depth: 0
+
+      - name: Download harvested research evidence
+        uses: actions/download-artifact@v7
+        with:
+          name: autobot-research-harvest-${{ github.run_id }}
+          path: /tmp/trial-research
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+
+      - name: Start isolated local model
+        timeout-minutes: 20
+        run: bash scripts/autobot/install-local-brain.sh
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+          AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
+          LOCAL_AI_PROXY_NUM_CTX: 12288
+          LOCAL_AI_PROXY_NUM_PREDICT: 2200
+          OLLAMA_CONTEXT_LENGTH: 12288
+          OLLAMA_NUM_PARALLEL: 1
+          OLLAMA_MAX_QUEUE: 2
+          OLLAMA_LOAD_TIMEOUT: 20m
+          OLLAMA_KEEP_ALIVE: 30m
+
+      - name: Run one bounded self-improvement experiment
+        id: trial
+        continue-on-error: true
+        env:
+          LOCAL_AI_MODEL: ${{ inputs.local_model }}
+          LOCAL_AI_READY: '1'
+          TRIAL_RESEARCH_DIR: /tmp/trial-research
+          TRIAL_MODEL_TIMEOUT_MS: '180000'
+        run: |
+          set +e
+          cd trial-branch && node builder/trial-builder/engine.mjs
+          RC=$?
+          echo "trial_exit=$RC" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Verify trial branch scope and persist experiment
+        env:
+          TRIAL_EXIT: ${{ steps.trial.outputs.trial_exit }}
+        run: |
+          set -euo pipefail
+          git -C trial-branch config user.name "Bikeztagram AutoBot Trial"
+          git -C trial-branch config user.email "autobot-trial@users.noreply.github.com"
+          mapfile -t changed < <(git -C trial-branch status --short | awk '{print $2}' | sed '/^$/d')
+          for path in "${changed[@]}"; do
+            case "$path" in
+              builder/trial-builder/*) ;;
+              *) echo "Trial builder attempted an out-of-scope change: $path" >&2; git -C trial-branch reset --hard HEAD; git -C trial-branch clean -fd; exit 1 ;;
+            esac
+          done
+          cd trial-branch && node builder/trial-builder/engine.mjs --self-test
+          git -C trial-branch diff --check
+          if git -C trial-branch diff --quiet -- builder/trial-builder && git -C trial-branch diff --cached --quiet -- builder/trial-builder; then
+            echo "No trial state/code change was produced; refusing to advance the persistent trial."
+            exit 1
+          fi
+          git -C trial-branch add builder/trial-builder
+          git -C trial-branch commit -m "trial: persist forge builder experiment"
+          git -C trial-branch push origin HEAD:autobot/trial-builder
+          echo "Persisted trial experiment (engine exit $TRIAL_EXIT)."
+
   production-finalize:
     name: 🧾 Finalize production evidence
-    needs: [production-dispatch]
+    needs: [production-dispatch, trial-builder]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 350
