@@ -61,7 +61,7 @@ jobs:
       fail-fast: false
       max-parallel: 10
       matrix:
-        lane: ${{ inputs.lane && fromJSON(format('["{0}"]', inputs.lane)) || fromJSON('["agent-materialisation","edit-protocols","recovery-engineering","performance-runtime","adversarial-quality","architecture-controller","model-adapters","evolution-discovery","borg-orchestration","regression-replay"]') }}
+        lane: ${{ inputs.lane && fromJSON(format('["{0}"]', inputs.lane)) || fromJSON('["agent-materialisation","edit-protocols","recovery-engineering","performance-runtime","adversarial-quality","architecture-controller","model-adapters","evolution-discovery","forge-orchestration","regression-replay"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
