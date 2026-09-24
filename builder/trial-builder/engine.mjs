@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const root=process.cwd();
+const root=path.resolve(path.dirname(new URL(import.meta.url).pathname),'..','..');
 const dir=path.join(root,'builder','trial-builder');
 const enginePath=path.join(dir,'engine.mjs');
 const statePath=path.join(dir,'state.json');
