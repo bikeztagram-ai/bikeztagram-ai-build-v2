@@ -40,7 +40,7 @@ const strategies=forcedStrategy?[forcedStrategy]:(laneStrategies[lane]||['aider-
 const started=performance.now();
 const experiments=[];
 let previous=null;
-let terminationReason='completed';
+let terminationReason=budgetMs<=0?'deadline-exhausted':'completed';
 
 function runTrial(strategy,cycle,variantIndex){
   const variant=variants[(cycle+variantIndex-2)%variants.length];
