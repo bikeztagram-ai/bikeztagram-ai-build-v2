@@ -8,8 +8,13 @@ on:
         required: false
         default: qwen2.5-coder:7b
         type: string
+      lane:
+        description: Optional single research lane; blank runs all ten research lanes
+        required: false
+        default: ''
+        type: string
       strategy:
-        description: Optional single strategy; leave blank for the full 17-lane swarm
+        description: Optional single strategy override for the selected lane
         required: false
         default: ''
         type: string
@@ -20,8 +25,13 @@ on:
         required: false
         default: qwen2.5-coder:7b
         type: string
+      lane:
+        description: Single research lane to run
+        required: false
+        default: ''
+        type: string
       strategy:
-        description: Single research strategy to run
+        description: Single strategy override
         required: false
         default: ''
         type: string
@@ -31,70 +41,73 @@ permissions:
   actions: read
 
 concurrency:
-  group: autobot-research-${{ inputs.strategy || 'swarm' }}
+  group: autobot-research-${{ inputs.lane || 'swarm' }}
   cancel-in-progress: false
 
 jobs:
   research:
+    name: 🔬 Research — ${{ matrix.lane }}
     strategy:
       fail-fast: false
+      max-parallel: 10
       matrix:
-        strategy: ${{ inputs.strategy && fromJSON(format('["{0}"]', inputs.strategy)) || fromJSON('["aider-direct","aider-diff","aider-udiff","aider-whole","aider-scoped","aider-architect","failure-replay","performance-lab","shadow-architecture","adversarial","fast-deep","challenger","dependency-plan","direct-ollama-json","openhands-sdk","deterministic-control","evolution-selected"]') }}
+        lane: ${{ inputs.lane && fromJSON(format('["{0}"]', inputs.lane)) || fromJSON('["agent-materialisation","edit-protocols","recovery-engineering","performance-runtime","adversarial-quality","architecture-controller","model-adapters","evolution-discovery","borg-orchestration","regression-replay"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       LOCAL_AI_MODEL: ${{ inputs.local_model || 'qwen2.5-coder:7b' }}
-      AUTOBOT_RESEARCH_STRATEGY: ${{ matrix.strategy }}
-      AUTOBOT_EVOLUTION_TRIAL_PLAN: ${{ github.event.workflow_run.id || 'manual' }}
+      AUTOBOT_RESEARCH_LANE: ${{ matrix.lane }}
+      AUTOBOT_RESEARCH_STRATEGY: ${{ inputs.strategy || '' }}
+      AUTOBOT_RESEARCH_ALLOW_REVISITS: 'true'
+      AUTOBOT_RESEARCH_MAX_CYCLES: 5
+      AUTOBOT_RESEARCH_LOOP_BUDGET_MS: 1200000
+      AUTOBOT_RESEARCH_MIN_CONTINUE_MS: 120000
+      AUTOBOT_RESEARCH_MAX_EXPERIMENTS_PER_CYCLE: 2
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Download Evolution evidence
-        if: github.event_name == 'workflow_run'
-        uses: actions/download-artifact@v6
-        continue-on-error: true
-        with:
-          name: autobot-evolution-report-${{ github.event.workflow_run.id }}
-          path: builder/working/research-evolution
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ github.event.workflow_run.id }}
-      - name: Download latest completed Evolution evidence
-        if: matrix.strategy == 'evolution-selected'
+
+      - name: Download latest Evolution evidence when available
+        if: matrix.lane == 'evolution-discovery' || matrix.lane == 'borg-orchestration'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           mkdir -p builder/working/research-evolution
-          RUN_ID="$(curl --fail-with-body -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/actions/workflows/autobot-evolution-engineer.yml/runs?status=success&per_page=1" | python -c "import json,sys; print(json.load(sys.stdin)['workflow_runs'][0]['id'])")"
-          ART_ID="$(curl --fail-with-body -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts?per_page=100" | python -c "import json,sys; a=json.load(sys.stdin)['artifacts']; x=next(x for x in a if x['name'].startswith('autobot-evolution-report-')); print(x['id'])")"
-          curl --fail-with-body -L -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/actions/artifacts/$ART_ID/zip" -o /tmp/evolution.zip
-          unzip -o /tmp/evolution.zip -d builder/working/research-evolution >/dev/null
-          echo "Loaded Evolution evidence from run $RUN_ID"
+          curl --fail-with-body -sS \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/workflows/autobot-evolution-engineer.yml/runs?status=success&per_page=1" \
+            > /tmp/evolution-runs.json
+          RUN_ID="$(python -c "import json; d=json.load(open('/tmp/evolution-runs.json')); print(d['workflow_runs'][0]['id'] if d.get('workflow_runs') else '')")"
+          if [ -n "$RUN_ID" ]; then
+            curl --fail-with-body -sS \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts?per_page=100" > /tmp/evolution-artifacts.json
+            ART_ID="$(python -c "import json; d=json.load(open('/tmp/evolution-artifacts.json')); xs=[x for x in d.get('artifacts',[]) if x['name'].startswith('autobot-evolution-report-')]; print(xs[0]['id'] if xs else '')")"
+            if [ -n "$ART_ID" ]; then
+              curl --fail-with-body -L -sS \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/$REPO/actions/artifacts/$ART_ID/zip" -o /tmp/evolution.zip
+              unzip -o /tmp/evolution.zip -d builder/working/research-evolution >/dev/null
+            fi
+          fi
 
-      - name: Feed Evolution hypothesis into research lane
-        if: matrix.strategy == 'evolution-selected'
-        run: |
-          node --input-type=module <<'NODE' >> "$GITHUB_ENV"
-          import fs from 'node:fs';
-          let plan='No Evolution report available; use the bounded scoped-diff strategy.';
-          try {
-            const p=JSON.parse(fs.readFileSync('builder/working/research-evolution/autobot-evolution-report.json','utf8'));
-            if(Array.isArray(p.hypotheses) && p.hypotheses.length) plan=p.hypotheses[0].title+' | '+p.hypotheses[0].reason+' | measure: '+p.hypotheses[0].measurement;
-          } catch {}
-          console.log('AUTOBOT_EVOLUTION_TRIAL_PLAN='+JSON.stringify(plan));
-          NODE
       - name: Install Aider adapter
-        if: startsWith(matrix.strategy, 'aider-') || matrix.strategy == 'evolution-selected' || matrix.strategy == 'failure-replay' || matrix.strategy == 'shadow-architecture' || matrix.strategy == 'adversarial' || matrix.strategy == 'fast-deep'
+        if: matrix.lane != 'performance-runtime' && matrix.lane != 'architecture-controller' && matrix.lane != 'borg-orchestration'
         run: python -m pip install --disable-pip-version-check --no-input aider-chat
+
       - name: Install OpenHands adapter
-        if: matrix.strategy == 'openhands-sdk'
+        if: matrix.lane == 'model-adapters' || matrix.lane == 'borg-orchestration'
         run: python -m pip install --disable-pip-version-check --no-input openhands-sdk
+
       - name: Start isolated local model
-        if: matrix.strategy != 'deterministic-control' && matrix.strategy != 'performance-lab'
+        if: matrix.lane != 'performance-runtime'
         run: bash scripts/autobot/install-local-brain.sh
         env:
           LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
@@ -106,16 +119,17 @@ jobs:
           OLLAMA_MAX_QUEUE: 2
           OLLAMA_LOAD_TIMEOUT: 20m
           OLLAMA_KEEP_ALIVE: 30m
+
       - name: Run adaptive research loop
         env:
-          AUTOBOT_RESEARCH_MAX_CYCLES: 5
-          AUTOBOT_RESEARCH_LOOP_BUDGET_MS: 1200000
-          AUTOBOT_RESEARCH_MIN_CONTINUE_MS: 300000
+          AUTOBOT_RESEARCH_RESULT: builder/working/autobot-research-result.json
+          AUTOBOT_EVOLUTION_TRIAL_PLAN: ${{ matrix.lane == 'evolution-discovery' && 'latest evolution evidence' || '' }}
         run: node builder/runner/autobot-research-loop.mjs
+
       - name: Upload isolated research evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: autobot-research-${{ matrix.strategy }}-${{ github.run_id }}
-          path: autobot-research-result.json
+          name: autobot-research-${{ matrix.lane }}-${{ github.run_id }}
+          path: builder/working/autobot-research-result.json
           if-no-files-found: ignore
