@@ -37,6 +37,7 @@ const strategies=forcedStrategy?[forcedStrategy]:(laneStrategies[lane]||['aider-
 const started=performance.now();
 const experiments=[];
 let previous=null;
+let terminationReason='completed';
 
 function runTrial(strategy,cycle,variantIndex){
   const variant=variants[(cycle+variantIndex-2)%variants.length];
@@ -68,12 +69,28 @@ for(let cycle=1;cycle<=maxCycles;cycle++){
     const result=runTrial(selected[i],cycle,i);
     experiments.push(result);
     previous=result;
-    if(performance.now()-started>=budgetMs) break;
-    if(result.durationMs>=minContinueMs && i+1<selected.length) break;
+    if(performance.now()-started>=budgetMs) {
+      terminationReason='budget-exhausted';
+      break;
+    }
+    if(result.durationMs>=minContinueMs) {
+      terminationReason='bounded-slow-attempt';
+      break;
+    }
   }
-  if(performance.now()-started>=budgetMs) break;
-  if(cycle>=maxCycles) break;
-  if((budgetMs-(performance.now()-started))<minContinueMs) break;
+  if(terminationReason!=='completed') break;
+  if(performance.now()-started>=budgetMs) {
+    terminationReason='budget-exhausted';
+    break;
+  }
+  if(cycle>=maxCycles) {
+    terminationReason='max-cycles';
+    break;
+  }
+  if((budgetMs-(performance.now()-started))<minContinueMs) {
+    terminationReason='insufficient-time-for-next-attempt';
+    break;
+  }
 }
 
 const successes=experiments.filter(x=>x.qualityPassed||x.status==='success').length;
@@ -83,6 +100,7 @@ const out={
   schemaVersion:'autobot-research-loop-v2',
   lane,
   strategies,
+  terminationReason,
   forcedStrategy:forcedStrategy||null,
   allowRevisits,
   cyclesRun:experiments.length?Math.max(...experiments.map(x=>Number(x.cycle||0))):0,
