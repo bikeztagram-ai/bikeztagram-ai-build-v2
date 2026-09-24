@@ -70,7 +70,7 @@ if(process.env.LOCAL_AI_READY!=='1')throw new Error('local AI unavailable; trial
 const before=fs.readFileSync(enginePath,'utf8');
 const state=loadState();
 const ev=evidence();
-const compact=ev.slice(0,9).map(x=>({name:x.name,summary:x.data?.summary||x.data?.lastResult||x.data?.terminationReason||x.data?.experiments||x.data})).slice(0,9);
+const compact=ev.slice(0,9).map(x=>({name:x.name,summary:x.data?.summary||x.data?.lastResult||x.data?.terminationReason||x.data?.experiments||x.data, keyPoints: Object.keys(x.data).filter(k=>k!=='summary'&&!k.startsWith('last')&&!k.startsWith('termination')&&!k.startsWith('experiments')).map(k=>({key:k,value:x.data[k]}))})).slice(0,9);
 const prompt=`TRIAL EXPERIMENT ${(state.experiment||0)+1}
 
 CONTRACT:

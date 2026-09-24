@@ -1,7 +1,17 @@
 {
   "schemaVersion": 1,
-  "experiment": 0,
-  "history": [],
-  "nextHypothesis": "Use research evidence to improve the trial builder without changing production.",
-  "updatedAt": null
+  "experiment": 1,
+  "history": [
+    {
+      "status": "verified",
+      "experiment": 1,
+      "startedAt": "2026-09-24T18:21:51.480Z",
+      "hypothesis": "Improve the trial builder's ability to inspect evidence by adding a feature that summarizes the key points of each evidence packet.",
+      "rationale": "This change will help the trial builder better understand the key points of each evidence packet, making it easier to select relevant experiments and verify changes.",
+      "verification": "{\n  \"ok\": true,\n  \"history\": 0,\n  \"experiment\": 0\n}",
+      "completedAt": "2026-09-24T18:23:45.409Z"
+    }
+  ],
+  "nextHypothesis": "Improve the trial builder's ability to inspect evidence by adding a feature that summarizes the key points of each evidence packet.",
+  "updatedAt": "2026-09-24T18:23:45.409Z"
 }
