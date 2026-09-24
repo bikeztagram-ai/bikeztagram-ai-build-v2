@@ -99,7 +99,6 @@ export function mergeCreativeIntent(plan = {}, intent = {}) {
   if (intentShots.length === 0) {
     return { ...plan, creativeIntent: intent, cuts: existing.map((cut, index) => ({ ...cut, creativeIntent: null, transition: cut.transition, motionStyle: cut.motionStyle, action: null, generationPrompt: '' })) };
   }
-  if (intentShots.length === 0) return plan; // Add this check to ensure intentShots is not empty
   const cuts = existing.map((cut, index) => {
     const shot = intentShots[index % Math.max(intentShots.length, 1)];
     if (!shot) return cut;
