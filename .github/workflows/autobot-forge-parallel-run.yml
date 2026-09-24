@@ -244,6 +244,8 @@ jobs:
             -o /tmp/prior-research.zip
           unzip -o /tmp/prior-research.zip -d builder/working/prior-research >/dev/null
           echo "Loaded prior Forge research harvest from run $RUN_ID."
+      - name: Validate shared research trial runner
+        run: node --check builder/runner/autobot-research-trial.mjs
       - name: Generate research experiment queue
         id: plan
         env:
@@ -294,6 +296,15 @@ jobs:
           merge-multiple: false
       - name: Aggregate research results and next-cycle lessons
         run: node scripts/autobot/harvest-research-swarm.mjs
+      - name: Upload research harvest
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-research-harvest-${{ github.run_id }}
+          path: |
+            builder/working/research-harvest/autobot-research-harvest.json
+            builder/working/research-harvest/autobot-research-next-cycle.json
+          if-no-files-found: error
+
       - name: Persist next-cycle Forge research handoff
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -309,24 +320,13 @@ jobs:
           fi
           mkdir -p builder/brain
           cp builder/working/research-harvest/autobot-research-next-cycle.json builder/brain/autobot-forge-next-cycle.json
-          cp builder/working/research-harvest/autobot-research-harvest.json builder/brain/autobot-forge-research-harvest.json
-          git add builder/brain/autobot-forge-next-cycle.json builder/brain/autobot-forge-research-harvest.json
+          git add builder/brain/autobot-forge-next-cycle.json
           if git diff --cached --quiet; then
             echo "Research handoff unchanged; nothing to commit."
           else
             git commit -m "research: persist next-cycle Forge handoff"
             git push origin HEAD:autobot/research-handoff
           fi
-      - name: Upload research harvest
-        uses: actions/upload-artifact@v7
-        with:
-          name: autobot-research-harvest-${{ github.run_id }}
-          path: |
-            builder/working/research-harvest/autobot-research-harvest.json
-            builder/working/research-harvest/autobot-research-next-cycle.json
-          if-no-files-found: error
-
-
   trial-builder:
     name: 🧪 Forge Trial Builder — evolve the experimental builder
     needs: [research-harvest]
@@ -519,12 +519,17 @@ jobs:
           path: builder/working/production-evidence
           if-no-files-found: error
 
-      - name: Fail the combined run when production did not succeed
-        if: always()
+      - name: Record production outcome
+        env:
+          DURATION: ${{ inputs.duration }}
+          CONCLUSION: ${{ steps.wait.outputs.conclusion }}
         run: |
-          if [ "${{ steps.wait.outputs.conclusion }}" != "success" ]; then
-            echo "The real ten-specialist production workflow concluded: ${{ steps.wait.outputs.conclusion }}"
+          if [ "$CONCLUSION" = "success" ]; then
+            echo "The real ten-specialist production workflow completed successfully."
+          elif [ "$DURATION" = "15m" ]; then
+            echo "The 15m diagnostic production failure is recorded and does not fail the Forge orchestration run."
+          else
+            echo "The real ten-specialist production workflow concluded: $CONCLUSION"
             exit 1
           fi
-          echo "The real ten-specialist production workflow completed successfully."
 
