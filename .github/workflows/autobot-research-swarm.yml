@@ -81,45 +81,45 @@ permissions:
   actions: read
 
 concurrency:
-  group: autobot-research-${{{ inputs.lane || 'swarm' }}-${{{ inputs.queue_slot || inputs.strategy || 'auto' }}
+  group: autobot-research-${{ inputs.lane || 'swarm' }}-${{ inputs.queue_slot || inputs.strategy || 'auto' }}
   cancel-in-progress: false
 
 jobs:
   research:
-    name: 🔬 Research — ${{{ matrix.lane }}
+    name: 🔬 Research — ${{ matrix.lane }}
     strategy:
       fail-fast: false
       max-parallel: 10
       matrix:
-        lane: ${{{ inputs.lane && fromJSON(format('["{0}"]', inputs.lane)) || fromJSON('["agent-materialisation","edit-protocols","recovery-engineering","performance-runtime","adversarial-quality","architecture-controller","model-adapters","evolution-discovery","forge-orchestration","regression-replay"]') }}
+        lane: ${{ inputs.lane && fromJSON(format('["{0}"]', inputs.lane)) || fromJSON('["agent-materialisation","edit-protocols","recovery-engineering","performance-runtime","adversarial-quality","architecture-controller","model-adapters","evolution-discovery","forge-orchestration","regression-replay"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
-      LOCAL_AI_MODEL: ${{{ inputs.local_model || 'qwen2.5-coder:7b' }}
-      AUTOBOT_RESEARCH_LANE: ${{{ matrix.lane }}
-      AUTOBOT_RESEARCH_STRATEGY: ${{{ inputs.strategy || '' }}
+      LOCAL_AI_MODEL: ${{ inputs.local_model || 'qwen2.5-coder:7b' }}
+      AUTOBOT_RESEARCH_LANE: ${{ matrix.lane }}
+      AUTOBOT_RESEARCH_STRATEGY: ${{ inputs.strategy || '' }}
       AUTOBOT_RESEARCH_ALLOW_REVISITS: 'true'
       AUTOBOT_RESEARCH_MAX_CYCLES: 1000000
       AUTOBOT_RESEARCH_LOOP_BUDGET_MS: 19800000
       AUTOBOT_RESEARCH_MIN_CONTINUE_MS: 120000
       AUTOBOT_RESEARCH_MAX_EXPERIMENTS_PER_CYCLE: 2
-      AUTOBOT_RESEARCH_DEADLINE_MS: ${{{ inputs.deadline_ms || '0' }}
-      AUTOBOT_RESEARCH_EXPERIMENT_ID: ${{{ inputs.experiment_id || '' }}
-      AUTOBOT_RESEARCH_QUESTION: ${{{ inputs.research_question || '' }}
-      AUTOBOT_RESEARCH_VARIANT: ${{{ inputs.variant || '' }}
-      AUTOBOT_RESEARCH_QUEUE_SLOT: ${{{ inputs.queue_slot || '' }}
-      RESEARCH_WINDOW_MINUTES: ${{{ inputs.window_minutes || '60' }}
+      AUTOBOT_RESEARCH_DEADLINE_MS: ${{ inputs.deadline_ms || '0' }}
+      AUTOBOT_RESEARCH_EXPERIMENT_ID: ${{ inputs.experiment_id || '' }}
+      AUTOBOT_RESEARCH_QUESTION: ${{ inputs.research_question || '' }}
+      AUTOBOT_RESEARCH_VARIANT: ${{ inputs.variant || '' }}
+      AUTOBOT_RESEARCH_QUEUE_SLOT: ${{ inputs.queue_slot || '' }}
+      RESEARCH_WINDOW_MINUTES: ${{ inputs.window_minutes || '60' }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{{ github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Download latest Evolution evidence when available
         if: matrix.lane == 'evolution-discovery'
         env:
-          GH_TOKEN: ${{{ secrets.GITHUB_TOKEN }}
-          REPO: ${{{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           mkdir -p builder/working/research-evolution
@@ -159,7 +159,7 @@ jobs:
         timeout-minutes: 25
         run: bash scripts/autobot/install-local-brain.sh
         env:
-          LOCAL_AI_MODEL: ${{{ env.LOCAL_AI_MODEL }}
+          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
           AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
           LOCAL_AI_PROXY_NUM_CTX: 4096
           LOCAL_AI_PROXY_NUM_PREDICT: 900
@@ -189,13 +189,13 @@ jobs:
       - name: Run persistent adaptive research loop
         env:
           AUTOBOT_RESEARCH_RESULT: builder/working/autobot-research-result.json
-          AUTOBOT_EVOLUTION_TRIAL_PLAN: ${{{ matrix.lane == 'evolution-discovery' && 'latest evolution evidence' || '' }}
+          AUTOBOT_EVOLUTION_TRIAL_PLAN: ${{ matrix.lane == 'evolution-discovery' && 'latest evolution evidence' || '' }}
         run: node builder/runner/autobot-research-loop.mjs
 
       - name: Upload isolated research evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: autobot-research-${{{ matrix.lane }}-${{{ github.run_id }}
+          name: autobot-research-${{ matrix.lane }}-${{ github.run_id }}
           path: builder/working/autobot-research-result.json
           if-no-files-found: ignore
