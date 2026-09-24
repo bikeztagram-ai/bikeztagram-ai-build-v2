@@ -139,33 +139,6 @@ jobs:
   # production jobs have started, this launcher releases its runner so the
   # research swarm can consume only the remaining runner capacity.
   research:
-    name: 🔬 Research — ${{ matrix.strategy }}
-    strategy:
-      fail-fast: false
-      matrix:
-        strategy:
-          - aider-direct
-          - aider-diff
-          - aider-udiff
-          - aider-whole
-          - aider-scoped
-          - aider-architect
-          - failure-replay
-          - performance-lab
-          - shadow-architecture
-          - adversarial
-          - fast-deep
-          - challenger
-          - dependency-plan
-          - direct-ollama-json
-          - openhands-sdk
-          - deterministic-control
-          - evolution-selected
-    uses: ./.github/workflows/autobot-research-swarm.yml
-    with:
-      local_model: ${{ inputs.local_model }}
-      strategy: ${{ matrix.strategy }}
-  research:
     name: 🔬 Research — ${{ matrix.lane }}
     needs: production-start-gate
     strategy:
@@ -181,7 +154,7 @@ jobs:
           - architecture-controller
           - model-adapters
           - evolution-discovery
-          - borg-orchestration
+          - forge-orchestration
           - regression-replay
     uses: ./.github/workflows/autobot-research-swarm.yml
     with:
@@ -218,3 +191,112 @@ jobs:
             builder/working/research-harvest/autobot-research-next-cycle.json
           if-no-files-found: error
 \n
+
+production-finalize:
+    name: 🧾 Finalize production evidence
+    needs: [production-dispatch, research-harvest]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ needs.production-dispatch.outputs.run_id }}
+    steps:
+      - name: Wait for the real production workflow to finish
+        id: wait
+        run: |
+          set -euo pipefail
+          if [ -z "$RUN_ID" ]; then
+            echo 'run_id=' >> "$GITHUB_OUTPUT"
+            echo 'conclusion=dispatch-failed' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for attempt in $(seq 1 1360); do
+            curl --fail-with-body -sS \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID" \
+              > /tmp/production-run.json
+            python - <<'PY' > /tmp/production-state.txt
+          import json
+          d=json.load(open('/tmp/production-run.json'))
+          print(d.get('status',''))
+          print(d.get('conclusion') or '')
+          PY
+            STATUS="$(sed -n '1p' /tmp/production-state.txt)"
+            CONCLUSION="$(sed -n '2p' /tmp/production-state.txt)"
+            echo "production run $RUN_ID: status=$STATUS conclusion=$CONCLUSION"
+            if [ "$STATUS" = "completed" ]; then
+              echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+              echo "conclusion=$CONCLUSION" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Production workflow did not finish before the 350-minute evidence window." >&2
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "conclusion=timeout" >> "$GITHUB_OUTPUT"
+
+      - name: Download canonical production fan-in evidence
+        if: steps.wait.outputs.run_id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          name: autobot-persistent-experimental-fan-in-${{ steps.wait.outputs.run_id }}
+          path: builder/working/production-evidence/fan-in
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.wait.outputs.run_id }}
+
+      - name: Preserve production run metadata and evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p builder/working/production-evidence
+          python - <<'PY'
+          import json,os
+          run_id=os.environ.get('RUN_ID','')
+          source='/tmp/production-run.json'
+          data=json.load(open(source)) if os.path.exists(source) else {}
+          meta={
+            'schemaVersion':'autobot-production-run-handoff-v1',
+            'launcherRunId':os.environ.get('GITHUB_RUN_ID'),
+            'productionRunId':run_id or None,
+            'status':data.get('status'),
+            'conclusion':data.get('conclusion'),
+            'headSha':data.get('head_sha'),
+            'workflowName':data.get('name')
+          }
+          with open('builder/working/production-evidence/production-run.json','w') as f:
+            json.dump(meta,f,indent=2)
+            f.write('\\n')
+          PY
+          if ! find builder/working/production-evidence/fan-in -type f \\( -name 'autobot-fan-in-ledger.json' -o -name 'autobot-candidate-review-ledger.json' \\) -print -quit 2>/dev/null | grep -q .; then
+            mkdir -p builder/working/production-evidence/fan-in
+            cat > builder/working/production-evidence/fan-in/autobot-fan-in-ledger.json <<'EOF'
+          {
+            "schemaVersion": "autobot-fan-in-ledger-v1",
+            "status": "missing-production-evidence",
+            "note": "The production child workflow completed without a downloadable canonical fan-in artifact."
+          }
+          EOF
+          fi
+
+      - name: Upload production evidence for Evolution Engineer
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-persistent-experimental-fan-in-${{ github.run_id }}
+          path: builder/working/production-evidence
+          if-no-files-found: error
+
+      - name: Fail the combined run when production did not succeed
+        if: always()
+        run: |
+          if [ "${{ steps.wait.outputs.conclusion }}" != "success" ]; then
+            echo "The real ten-specialist production workflow concluded: ${{ steps.wait.outputs.conclusion }}"
+            exit 1
+          fi
+          echo "The real ten-specialist production workflow completed successfully."

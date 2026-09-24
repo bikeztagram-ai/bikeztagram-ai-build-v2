@@ -48,6 +48,9 @@ const metrics={
 
 function classify(worker){
   const text=JSON.stringify(worker).toLowerCase();
+  if(/deterministic fallback anchor missing|no current anchor|stale anchor|source drift/.test(text))return 'stale-recovery-anchor';
+  if(/public-export guard|existing exports removed|export contract/.test(text))return 'export-contract-rejection';
+  if(/scope violation|outside declared scope|declared file scope/.test(text))return 'scope-violation';
   if(/searchreplacenoexactmatch|search block failed to exactly match|no exact match/.test(text))return 'search-replace-no-exact-match';
   if(/no product change|without materializing|did not materialize/.test(text))return 'no-product-change';
   if(/timeout|timed out|network|fetch failed|connection|503|502|504/.test(text))return 'infrastructure';
@@ -117,6 +120,27 @@ if(counts['search-replace-no-exact-match']){
     mapTokens:1024,
     editFormat:'diff',
     promptHint:'Use the target map and patch the smallest named symbol or nearby anchor. Avoid broad rewrites.'
+  };
+}
+if(counts['stale-recovery-anchor']){
+  profile.failureStrategies['stale-recovery-anchor']={
+    ...(profile.failureStrategies['stale-recovery-anchor']||{}),
+    targetingMode:'current-context',
+    promptHint:'Treat deterministic recovery anchors as historical hints only. Re-read the current owned file and choose a current safe fallback; never fail solely because an older exact anchor has already landed.'
+  };
+}
+if(counts['export-contract-rejection']){
+  profile.failureStrategies['export-contract-rejection']={
+    ...(profile.failureStrategies['export-contract-rejection']||{}),
+    targetingMode:'contract-preserving',
+    promptHint:'Preserve every existing public export. If an edit removes an export, reject it and retry with a minimal in-place change rather than weakening the export guard.'
+  };
+}
+if(counts['scope-violation']){
+  profile.failureStrategies['scope-violation']={
+    ...(profile.failureStrategies['scope-violation']||{}),
+    targetingMode:'owned-file-only',
+    promptHint:'Repair only the declared owned product file. Revert unrelated changes before retrying and never weaken scope validation.'
   };
 }
 if(counts['no-product-change']){
