@@ -470,7 +470,13 @@ jobs:
             json.dump(meta,f,indent=2)
             f.write('\\n')
           PY
-          if ! find builder/working/production-evidence/fan-in -type f \\( -name 'autobot-fan-in-ledger.json' -o -name 'autobot-candidate-review-ledger.json' \\) -print -quit 2>/dev/null | grep -q .; then
+          if ! python - <<'PY'
+          import pathlib
+          root=pathlib.Path('builder/working/production-evidence/fan-in')
+          ok=any(p.name in {'autobot-fan-in-ledger.json','autobot-candidate-review-ledger.json'} for p in root.rglob('*') if p.is_file()) if root.exists() else False
+          raise SystemExit(0 if ok else 1)
+          PY
+          then
             mkdir -p builder/working/production-evidence/fan-in
             cat > builder/working/production-evidence/fan-in/autobot-fan-in-ledger.json <<'EOF'
           {
