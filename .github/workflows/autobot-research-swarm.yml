@@ -45,6 +45,26 @@ on:
         required: false
         default: '0'
         type: string
+      experiment_id:
+        description: Unique disposable research experiment identifier
+        required: false
+        default: ''
+        type: string
+      research_question:
+        description: Concrete research question or hypothesis to test
+        required: false
+        default: ''
+        type: string
+      variant:
+        description: Controlled variable for this experiment
+        required: false
+        default: ''
+        type: string
+      queue_slot:
+        description: Rolling queue slot identifier
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -69,11 +89,15 @@ jobs:
       AUTOBOT_RESEARCH_LANE: ${{ matrix.lane }}
       AUTOBOT_RESEARCH_STRATEGY: ${{ inputs.strategy || '' }}
       AUTOBOT_RESEARCH_ALLOW_REVISITS: 'true'
-      AUTOBOT_RESEARCH_MAX_CYCLES: 5
+      AUTOBOT_RESEARCH_MAX_CYCLES: 1000
       AUTOBOT_RESEARCH_LOOP_BUDGET_MS: 1200000
       AUTOBOT_RESEARCH_MIN_CONTINUE_MS: 120000
       AUTOBOT_RESEARCH_MAX_EXPERIMENTS_PER_CYCLE: 2
       AUTOBOT_RESEARCH_DEADLINE_MS: ${{ inputs.deadline_ms || '0' }}
+      AUTOBOT_RESEARCH_EXPERIMENT_ID: ${{ inputs.experiment_id || '' }}
+      AUTOBOT_RESEARCH_QUESTION: ${{ inputs.research_question || '' }}
+      AUTOBOT_RESEARCH_VARIANT: ${{ inputs.variant || '' }}
+      AUTOBOT_RESEARCH_QUEUE_SLOT: ${{ inputs.queue_slot || '' }}
     steps:
       - uses: actions/checkout@v7
         with:

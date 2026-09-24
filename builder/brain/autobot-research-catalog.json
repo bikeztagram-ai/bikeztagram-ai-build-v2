@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Generate disposable research work for Forge. Production files and the ten production specialists are protected.",
+  "domains": [
+    {
+      "id": "agent-materialisation",
+      "strategies": [
+        "aider-direct",
+        "aider-diff",
+        "aider-udiff",
+        "fast-deep"
+      ],
+      "questions": [
+        "Compare prompt wording that asks for a minimal materialised edit versus an explicit verification-first edit.",
+        "Test whether fresh source context versus concise source context changes materialisation reliability.",
+        "Test whether asking the agent to state acceptance criteria before editing improves verified output."
+      ]
+    },
+    {
+      "id": "edit-protocols",
+      "strategies": [
+        "aider-udiff",
+        "aider-whole",
+        "aider-scoped",
+        "aider-architect"
+      ],
+      "questions": [
+        "Compare diff, udiff, whole-file and scoped editing for preserving exports.",
+        "Test symbol-first targeting versus file-level targeting on a small safe change.",
+        "Test planning-first versus direct-edit protocol and measure overhead versus materialisation."
+      ]
+    },
+    {
+      "id": "recovery-engineering",
+      "strategies": [
+        "failure-replay",
+        "replay-known-failure",
+        "challenger"
+      ],
+      "questions": [
+        "Replay stale-anchor recovery and classify controller, model, materialisation and scope failure separately.",
+        "Test one bounded recovery retry with changed context and compare it with immediate deterministic fallback.",
+        "Test recovery after a deliberately rejected candidate without touching protected production files."
+      ]
+    },
+    {
+      "id": "performance-runtime",
+      "strategies": [
+        "performance-lab",
+        "deterministic-control",
+        "runtime-alternatives",
+        "fast-deep"
+      ],
+      "questions": [
+        "Measure local validation, model invocation and materialisation overhead separately.",
+        "Compare fast and deep context budgets for the same benchmark.",
+        "Compare Node subprocess, Python subprocess and direct Ollama HTTP control paths."
+      ]
+    },
+    {
+      "id": "adversarial-quality",
+      "strategies": [
+        "adversarial",
+        "test-generation",
+        "contract-fuzz"
+      ],
+      "questions": [
+        "Test resistance to unrelated instructions while preserving the requested edit.",
+        "Generate adversarial cases for stale anchors, export deletion and scope escape.",
+        "Fuzz Planner to Builder and Builder to QA contract boundaries with explicit expected receipts."
+      ]
+    },
+    {
+      "id": "architecture-controller",
+      "strategies": [
+        "shadow-architecture",
+        "workflow-architecture",
+        "agent-protocol",
+        "dependency-plan"
+      ],
+      "questions": [
+        "Design and test a retry controller that preserves candidate identity and evidence.",
+        "Compare queue, dispatch and fan-in orchestration patterns for worker isolation.",
+        "Test a handoff protocol containing base SHA, candidate SHA, QA receipt and reviewer receipt."
+      ]
+    },
+    {
+      "id": "model-adapters",
+      "strategies": [
+        "direct-ollama-json",
+        "openhands-sdk",
+        "model-crosscheck",
+        "aider-direct"
+      ],
+      "questions": [
+        "Compare model-only planning with workspace editing and classify where failures occur.",
+        "Probe OpenHands SDK availability and separate adapter failure from model failure.",
+        "Define a fair benchmark for comparing local coding adapters under equal timeout and context budgets."
+      ]
+    },
+    {
+      "id": "evolution-discovery",
+      "strategies": [
+        "evolution-selected",
+        "worker-discovery",
+        "program-synthesis",
+        "memory-learning"
+      ],
+      "questions": [
+        "Propose a new disposable worker type from observed failure classes and define its benchmark.",
+        "Generate alternative worker-controller programs and select one falsifiable experiment.",
+        "Design a durable experiment memory record and test whether it improves retest selection."
+      ]
+    },
+    {
+      "id": "forge-orchestration",
+      "strategies": [
+        "forge-orchestration",
+        "workflow-architecture",
+        "worker-discovery",
+        "memory-learning"
+      ],
+      "questions": [
+        "Test rolling worker replacement when a research job finishes early.",
+        "Design a safe research control plane that can discover and benchmark future worker bots.",
+        "Test whether a central completed-work inbox improves experiment reuse and retirement decisions."
+      ]
+    },
+    {
+      "id": "regression-replay",
+      "strategies": [
+        "deterministic-control",
+        "failure-replay",
+        "replay-known-failure",
+        "evolution-selected"
+      ],
+      "questions": [
+        "Replay a known production failure using an isolated fixture and verify classification.",
+        "Retest a previously promising idea with one changed meaningful variable.",
+        "Compare deterministic control evidence against an LLM path under identical acceptance checks."
+      ]
+    }
+  ],
+  "variants": [
+    "fresh-context",
+    "acceptance-first",
+    "prompt-wording",
+    "different-time-budget",
+    "different-edit-format",
+    "different-context-budget",
+    "failure-replay",
+    "cross-check-prior-evidence",
+    "adversarial-input",
+    "controller-protocol-change"
+  ],
+  "maxTasksPerRun": 120
+}

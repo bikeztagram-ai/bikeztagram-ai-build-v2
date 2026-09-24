@@ -13,7 +13,9 @@ try { researchPlan=JSON.parse(fs.readFileSync(planPath,'utf8')); } catch {}
 const iteration=Number(researchPlan.iteration||1);
 const lanePlan=researchPlan.lanes?.[strategy]||'Run the bounded baseline for this lane.';
 const variant=process.env.AUTOBOT_RESEARCH_VARIANT||'';
-const variantInstruction=variant?` Cycle variant: ${variant} Compare this cycle with previous evidence and deliberately test a different execution detail; do not merely repeat the same attempt.`:'';
+const researchQuestion=process.env.AUTOBOT_RESEARCH_QUESTION||'';
+const experimentId=process.env.AUTOBOT_RESEARCH_EXPERIMENT_ID||'';
+const variantInstruction=[researchQuestion&&` Research question: ${researchQuestion}`,variant&&` Controlled variant: ${variant} Compare this cycle with previous evidence and deliberately test a different execution detail; do not merely repeat the same attempt.`].filter(Boolean).join('');
 const withVariant=(text)=>text+(variantInstruction?`\n${variantInstruction}`:'');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'autobot-research-'));
 const file=path.join(root,'trial.js');
@@ -149,10 +151,10 @@ try {
     const prompt=withVariant("Design a durable learning-memory record for a fleet of autonomous workers. It must retain successful and failed experiments, conditions, evidence, confidence, and when a result should be re-tested. Propose a schema and update rules that do not automatically change production. Return JSON.");
     const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1000}})]);
     status=x.r.status===0?'success':'failed'; expectedEdit=false; note='learning-memory research; no production edits'; fs.writeFileSync(report,x.output);
-  } else if(strategy==='borg-orchestration'){
-    const prompt=withVariant("Explore a future Borg-style autonomous fleet that can discover, create, retire, and benchmark worker bots while keeping the ten production Bikeztagram specialists protected. Propose a safe control plane, worker registry, capability negotiation, experiment sandbox, promotion gates, and failure containment. Return JSON with concrete experiments.");
+  } else if(strategy==='forge-orchestration' || strategy==='borg-orchestration'){
+    const prompt=withVariant("Explore a future Forge autonomous fleet that can discover, create, retire, and benchmark disposable worker bots while keeping the ten production Bikeztagram specialists protected. Propose a safe control plane, worker registry, capability negotiation, experiment sandbox, promotion gates, and failure containment. Return JSON with concrete experiments.");
     const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1400}})]);
-    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='Borg orchestration research; no production edits'; fs.writeFileSync(report,x.output);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='Forge orchestration research; no production edits'; fs.writeFileSync(report,x.output);
   } else if(strategy==='replay-known-failure'){
     const fixture2=path.join(root,'replay.js');
     fs.writeFileSync(fixture2,"export function motionForRole(role){ if(role==='action') return 1; return 1; }\n");
@@ -167,7 +169,7 @@ const syntax=spawnSync('node',['--check',file],{encoding:'utf8'});
 const behavioral=spawnSync('node',['--input-type=module','-e',"import {motionForRole} from "+JSON.stringify(file)+"; if(motionForRole('action')!==1.2||motionForRole('reveal')!==1.08||motionForRole('hero')!==0.9) process.exit(1)"],{encoding:'utf8'});
 const diff=source===fixture?0:1;
 const quality=expectedEdit ? diff===1&&syntax.status===0&&behavioral.status===0 : status==='success';
-const result={schemaVersion:'autobot-research-trial-v3',strategy,iteration,lanePlan,status,durationMs:Math.round(performance.now()-started),diff,syntaxPassed:syntax.status===0,behaviorPassed:behavioral.status===0,qualityPassed:quality,model,command:command[0]||strategy,benchmark,note,evolutionHypothesis:process.env.AUTOBOT_EVOLUTION_TRIAL_PLAN||null};
+const result={schemaVersion:'autobot-research-trial-v4',experimentId,researchQuestion,variant,queueSlot:process.env.AUTOBOT_RESEARCH_QUEUE_SLOT||null,strategy,iteration,lanePlan,status,durationMs:Math.round(performance.now()-started),diff,syntaxPassed:syntax.status===0,behaviorPassed:behavioral.status===0,qualityPassed:quality,model,command:command[0]||strategy,benchmark,note,evolutionHypothesis:process.env.AUTOBOT_EVOLUTION_TRIAL_PLAN||null};
 fs.writeFileSync(process.env.AUTOBOT_RESEARCH_RESULT||path.join(process.cwd(),'autobot-research-result.json'),JSON.stringify(result,null,2)+'\n');
 console.log(JSON.stringify(result,null,2));
 process.exit(0);

@@ -155,49 +155,46 @@ jobs:
   # Rolling research queue: 30 disposable workers are queued behind the
   # 10 active research slots. As a worker finishes or fails, GitHub starts
   # the next queued worker on the freed runner. Production stays protected.
-  research:
-    name: 🔬 Research — ${{ matrix.slot }} / ${{ matrix.lane }} / ${{ matrix.strategy }}
+  # Research Director creates a large disposable queue from the experiment catalog.
+  # Only ten workers run at once; when one ends, the next queued task claims the runner.
+  # Production remains isolated and protected.
+  research-plan:
+    name: 🧠 Forge Research Director
     needs: production-start-gate
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - name: Generate research experiment queue
+        id: plan
+        run: node scripts/autobot/plan-research-swarm.mjs
+      - name: Upload research queue manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-research-queue-${{ github.run_id }}
+          path: builder/working/research-matrix.json
+          if-no-files-found: error
+
+  research:
+    name: 🔬 Research — ${{ matrix.slot }} / ${{ matrix.domain }} / ${{ matrix.strategy }}
+    needs: [production-start-gate, research-plan]
     strategy:
       fail-fast: false
       max-parallel: 10
-      matrix:
-        include:
-          - {slot: r01, lane: agent-materialisation, strategy: aider-direct}
-          - {slot: r02, lane: edit-protocols, strategy: aider-udiff}
-          - {slot: r03, lane: recovery-engineering, strategy: failure-replay}
-          - {slot: r04, lane: performance-runtime, strategy: deterministic-control}
-          - {slot: r05, lane: adversarial-quality, strategy: adversarial}
-          - {slot: r06, lane: architecture-controller, strategy: shadow-architecture}
-          - {slot: r07, lane: model-adapters, strategy: direct-ollama-json}
-          - {slot: r08, lane: evolution-discovery, strategy: evolution-selected}
-          - {slot: r09, lane: forge-orchestration, strategy: forge-orchestration}
-          - {slot: r10, lane: regression-replay, strategy: deterministic-control}
-          - {slot: r11, lane: agent-materialisation, strategy: aider-diff}
-          - {slot: r12, lane: edit-protocols, strategy: aider-whole}
-          - {slot: r13, lane: recovery-engineering, strategy: replay-known-failure}
-          - {slot: r14, lane: performance-runtime, strategy: runtime-alternatives}
-          - {slot: r15, lane: adversarial-quality, strategy: test-generation}
-          - {slot: r16, lane: architecture-controller, strategy: workflow-architecture}
-          - {slot: r17, lane: model-adapters, strategy: openhands-sdk}
-          - {slot: r18, lane: evolution-discovery, strategy: worker-discovery}
-          - {slot: r19, lane: forge-orchestration, strategy: workflow-architecture}
-          - {slot: r20, lane: regression-replay, strategy: failure-replay}
-          - {slot: r21, lane: agent-materialisation, strategy: fast-deep}
-          - {slot: r22, lane: edit-protocols, strategy: aider-scoped}
-          - {slot: r23, lane: recovery-engineering, strategy: challenger}
-          - {slot: r24, lane: performance-runtime, strategy: fast-deep}
-          - {slot: r25, lane: adversarial-quality, strategy: contract-fuzz}
-          - {slot: r26, lane: architecture-controller, strategy: agent-protocol}
-          - {slot: r27, lane: model-adapters, strategy: model-crosscheck}
-          - {slot: r28, lane: evolution-discovery, strategy: program-synthesis}
-          - {slot: r29, lane: forge-orchestration, strategy: memory-learning}
-          - {slot: r30, lane: regression-replay, strategy: evolution-selected}
+      matrix: ${{ fromJSON(needs.research-plan.outputs.matrix) }}
     uses: ./.github/workflows/autobot-research-swarm.yml
     with:
       local_model: ${{ inputs.local_model }}
-      lane: ${{ matrix.lane }}
+      lane: ${{ matrix.domain }}
       strategy: ${{ matrix.strategy }}
+      experiment_id: ${{ matrix.experiment_id }}
+      research_question: ${{ matrix.research_question }}
+      variant: ${{ matrix.variant }}
+      queue_slot: ${{ matrix.slot }}
       deadline_ms: ${{ needs.production-dispatch.outputs.research_deadline_ms }}
   research-harvest:
     name: 📚 Harvest research evidence
