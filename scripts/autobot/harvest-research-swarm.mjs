@@ -51,17 +51,47 @@ for(const x of experiments){
 const successful=experiments.filter(x=>x.qualityPassed||x.status==='success');
 const MAX_RETAINED_EXPERIMENTS=2000;
 const retainedExperiments=experiments.slice(-MAX_RETAINED_EXPERIMENTS);
-const promising=successful
-  .sort((a,b)=>Number(b.diff||0)-Number(a.diff||0))
+const normalise=(value)=>String(value??'').toLowerCase().replace(/\s+/g,' ').trim();
+const signature=(x)=>[
+  x.lane||'unknown',x.strategy||'unknown',x.variant||'unknown',x.status||'',
+  x.qualityPassed?'quality-pass':'quality-fail',Number(x.diff||0),normalise(x.note),normalise(x.error)
+].join('|');
+const groups=new Map();
+for(const x of experiments){
+  const key=signature(x);
+  const g=groups.get(key)||{representative:x,count:0,cycles:[],durations:[],sources:new Set()};
+  g.count+=1;
+  if(x.cycle!=null) g.cycles.push(x.cycle);
+  if(Number.isFinite(Number(x.durationMs))) g.durations.push(Number(x.durationMs));
+  if(x.source) g.sources.add(x.source);
+  groups.set(key,g);
+}
+const clustered=[...groups.values()].map(g=>({
+  lane:g.representative.lane||null,
+  strategy:g.representative.strategy||null,
+  variant:g.representative.variant||null,
+  status:g.representative.status||null,
+  qualityPassed:!!g.representative.qualityPassed,
+  diff:Number(g.representative.diff||0),
+  note:g.representative.note||null,
+  error:g.representative.error||null,
+  occurrences:g.count,
+  cycles:g.cycles.slice(-8),
+  medianDurationMs:g.durations.length?g.durations.sort((a,b)=>a-b)[Math.floor(g.durations.length/2)]:0,
+  sources:[...g.sources].slice(0,4)
+}));
+const novelSignals=clustered.sort((a,b)=>(b.occurrences-a.occurrences)||(b.diff-a.diff));
+const promising=clustered.filter(x=>x.qualityPassed&&x.diff>0)
+  .sort((a,b)=>(b.occurrences-a.occurrences)||(b.diff-a.diff))
   .slice(0,30)
   .map(x=>({
-    lane:x.lane||null,
-    strategy:x.strategy||null,
-    cycle:x.cycle||null,
-    variant:x.variant||null,
-    durationMs:x.durationMs||0,
-    diff:x.diff||0,
-    note:x.note||null
+    lane:x.lane,
+    strategy:x.strategy,
+    variant:x.variant,
+    occurrences:x.occurrences,
+    medianDurationMs:x.medianDurationMs,
+    diff:x.diff,
+    note:x.note
   }));
 
 const harvest={
@@ -81,7 +111,10 @@ const harvest={
   byLane,
   byStrategy,
   byFailureClass:byClass,
+  uniqueSignatures:clustered.length,
+  duplicateExperiments:Math.max(0,experiments.length-clustered.length),
   promising,
+  topSignals:novelSignals.slice(0,40),
   experiments:retainedExperiments
 };
 fs.writeFileSync(path.join(outRoot,'autobot-research-harvest.json'),JSON.stringify(harvest,null,2)+'\n');
@@ -99,14 +132,17 @@ const nextCycle={
   ],
   observedFailureClasses:byClass,
   highValueStrategies:Object.entries(byStrategy).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([strategy,count])=>({strategy,count})),
-  candidateWorkerIdeas:successful.filter(x=>/worker|borg|program|architecture|protocol|runtime/i.test(JSON.stringify(x))).slice(0,20).map(x=>({lane:x.lane,strategy:x.strategy,note:x.note||null})),
-  retestTargets:experiments.filter(x=>!x.qualityPassed&&x.status!=='success').slice(0,30).map(x=>({lane:x.lane,strategy:x.strategy,variant:x.variant,failureClass:classify(x)})),
+  signalQuality:{uniqueSignatures:clustered.length,duplicateExperiments:Math.max(0,experiments.length-clustered.length)},
+  candidateWorkerIdeas:clustered.filter(x=>x.qualityPassed&&/worker|borg|program|architecture|protocol|runtime/i.test(JSON.stringify(x))).slice(0,20).map(x=>({lane:x.lane,strategy:x.strategy,variant:x.variant,occurrences:x.occurrences,note:x.note})),
+  retestTargets:clustered.filter(x=>!x.qualityPassed).sort((a,b)=>b.occurrences-a.occurrences).slice(0,30).map(x=>({lane:x.lane,strategy:x.strategy,variant:x.variant,failureClass:x.status==='timeout'?'timeout':x.status==='success'?'success':classify(x),occurrences:x.occurrences,error:x.error||null})),
   productionHandoff:{
     purpose:'Advisory evidence for the next ten-specialist production cycle.',
     promising:promising.slice(0,12),
-    candidateWorkerIdeas:successful.filter(x=>/worker|borg|program|architecture|protocol|runtime/i.test(JSON.stringify(x))).slice(0,12).map(x=>({lane:x.lane,strategy:x.strategy,note:x.note||null})),
-    retestTargets:experiments.filter(x=>!x.qualityPassed&&x.status!=='success').slice(0,20).map(x=>({lane:x.lane,strategy:x.strategy,variant:x.variant,failureClass:classify(x),error:x.error||null})),
-    failureClasses:byClass
+    candidateWorkerIdeas:clustered.filter(x=>x.qualityPassed&&/worker|borg|program|architecture|protocol|runtime/i.test(JSON.stringify(x))).slice(0,12).map(x=>({lane:x.lane,strategy:x.strategy,variant:x.variant,occurrences:x.occurrences,note:x.note})),
+    retestTargets:clustered.filter(x=>!x.qualityPassed).sort((a,b)=>b.occurrences-a.occurrences).slice(0,20).map(x=>({lane:x.lane,strategy:x.strategy,variant:x.variant,failureClass:classify(x),occurrences:x.occurrences,error:x.error||null})),
+    failureClasses:byClass,
+    signalQuality:{uniqueSignatures:clustered.length,duplicateExperiments:Math.max(0,experiments.length-clustered.length)},
+    topSignals:novelSignals.slice(0,20)
   }
 };
 fs.writeFileSync(path.join(outRoot,'autobot-research-next-cycle.json'),JSON.stringify(nextCycle,null,2)+'\n');

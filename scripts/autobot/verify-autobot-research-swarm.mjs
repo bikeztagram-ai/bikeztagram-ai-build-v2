@@ -13,6 +13,10 @@ if(!loop.includes('maxExperimentsPerCycle')) throw new Error('research loop must
 if(!loop.includes('shared-runner-syntax-error')) throw new Error('research loop must stop a lane on a shared runner syntax error');
 if(!loop.includes('maxConsecutiveHardFailures')) throw new Error('research loop must bound repeated hard trial failures');
 if(!loop.includes("stdio:['ignore','inherit','pipe']")) throw new Error('research loop must capture shared runner diagnostics');
+const harvest=fs.readFileSync('scripts/autobot/harvest-research-swarm.mjs','utf8');
+if(!harvest.includes('uniqueSignatures')) throw new Error('research harvest must cluster duplicate experiment signatures');
+if(!harvest.includes('duplicateExperiments')) throw new Error('research harvest must report duplicate experiment volume');
+if(!harvest.includes('topSignals')) throw new Error('research harvest must publish compact signal summaries');
 if(!runner.includes("strategy==='worker-discovery'")) throw new Error('research trial must retain the worker-discovery branch');
 if(!runner.includes("strategy==='program-synthesis'")) throw new Error('research trial must retain the program-synthesis branch');
 if(!wf.includes('actions: read')||wf.includes('contents: read')) throw new Error('research swarm must remain read-only against repository contents');
