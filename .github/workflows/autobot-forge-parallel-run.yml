@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run_id: ${{ steps.find.outputs.run_id }}
+      research_deadline_ms: ${{ steps.find.outputs.research_deadline_ms }}
     steps:
       - name: Dispatch original ten production specialists
         env:
@@ -79,7 +80,20 @@ jobs:
           PY
           )"
             if [ -n "$RUN_ID" ]; then
+              DEADLINE_MS="$(python - "$START_MS" "$DURATION" <<'PY'
+          import sys
+          start=int(sys.argv[1]); raw=sys.argv[2].strip().lower()
+          if "h" in raw:
+              h,m=raw.split("h",1); duration=int(h)*3600000 + (int(m) if m else 0)*60000
+          elif raw.endswith("m"):
+              duration=int(raw[:-1])*60000
+          else:
+              raise SystemExit(f"Unsupported duration: {raw}")
+          print(start+duration)
+          PY
+          )"
               echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+              echo "research_deadline_ms=$DEADLINE_MS" >> "$GITHUB_OUTPUT"
               echo "Found production run $RUN_ID"
               exit 0
             fi
@@ -138,29 +152,53 @@ jobs:
   # IMPORTANT: this gate is deliberately short-lived. Once the ten proven
   # production jobs have started, this launcher releases its runner so the
   # research swarm can consume only the remaining runner capacity.
+  # Rolling research queue: 30 disposable workers are queued behind the
+  # 10 active research slots. As a worker finishes or fails, GitHub starts
+  # the next queued worker on the freed runner. Production stays protected.
   research:
-    name: 🔬 Research — ${{ matrix.lane }}
+    name: 🔬 Research — ${{ matrix.slot }} / ${{ matrix.lane }} / ${{ matrix.strategy }}
     needs: production-start-gate
     strategy:
       fail-fast: false
       max-parallel: 10
       matrix:
-        lane:
-          - agent-materialisation
-          - edit-protocols
-          - recovery-engineering
-          - performance-runtime
-          - adversarial-quality
-          - architecture-controller
-          - model-adapters
-          - evolution-discovery
-          - forge-orchestration
-          - regression-replay
+        include:
+          - {slot: r01, lane: agent-materialisation, strategy: aider-direct}
+          - {slot: r02, lane: edit-protocols, strategy: aider-udiff}
+          - {slot: r03, lane: recovery-engineering, strategy: failure-replay}
+          - {slot: r04, lane: performance-runtime, strategy: deterministic-control}
+          - {slot: r05, lane: adversarial-quality, strategy: adversarial}
+          - {slot: r06, lane: architecture-controller, strategy: shadow-architecture}
+          - {slot: r07, lane: model-adapters, strategy: direct-ollama-json}
+          - {slot: r08, lane: evolution-discovery, strategy: evolution-selected}
+          - {slot: r09, lane: forge-orchestration, strategy: forge-orchestration}
+          - {slot: r10, lane: regression-replay, strategy: deterministic-control}
+          - {slot: r11, lane: agent-materialisation, strategy: aider-diff}
+          - {slot: r12, lane: edit-protocols, strategy: aider-whole}
+          - {slot: r13, lane: recovery-engineering, strategy: replay-known-failure}
+          - {slot: r14, lane: performance-runtime, strategy: runtime-alternatives}
+          - {slot: r15, lane: adversarial-quality, strategy: test-generation}
+          - {slot: r16, lane: architecture-controller, strategy: workflow-architecture}
+          - {slot: r17, lane: model-adapters, strategy: openhands-sdk}
+          - {slot: r18, lane: evolution-discovery, strategy: worker-discovery}
+          - {slot: r19, lane: forge-orchestration, strategy: workflow-architecture}
+          - {slot: r20, lane: regression-replay, strategy: failure-replay}
+          - {slot: r21, lane: agent-materialisation, strategy: fast-deep}
+          - {slot: r22, lane: edit-protocols, strategy: aider-scoped}
+          - {slot: r23, lane: recovery-engineering, strategy: challenger}
+          - {slot: r24, lane: performance-runtime, strategy: fast-deep}
+          - {slot: r25, lane: adversarial-quality, strategy: contract-fuzz}
+          - {slot: r26, lane: architecture-controller, strategy: agent-protocol}
+          - {slot: r27, lane: model-adapters, strategy: model-crosscheck}
+          - {slot: r28, lane: evolution-discovery, strategy: program-synthesis}
+          - {slot: r29, lane: forge-orchestration, strategy: memory-learning}
+          - {slot: r30, lane: regression-replay, strategy: evolution-selected}
     uses: ./.github/workflows/autobot-research-swarm.yml
     with:
       local_model: ${{ inputs.local_model }}
       lane: ${{ matrix.lane }}
-
+      strategy: ${{ matrix.strategy }}
+      deadline_ms: ${{ needs.production-dispatch.outputs.research_deadline_ms }}
   research-harvest:
     name: 📚 Harvest research evidence
     needs: research
