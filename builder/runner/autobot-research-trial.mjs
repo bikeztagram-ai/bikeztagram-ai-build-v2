@@ -113,6 +113,53 @@ try {
     command=['aider','--model','ollama_chat/'+model,'--message',task,'--yes-always','--no-git','--no-show-model-warnings','--timeout','180','--edit-format','diff','--map-tokens','512',file];
     const x=run(command[0],command.slice(1)); status=x.r.status===0?'success':'failed'; note='Evolution-selected hypothesis trial';
   }
+  } else if(strategy==='worker-discovery'){
+    const prompt=withVariant("Explore genuinely new specialist-worker roles for an autonomous coding fleet. Propose 5 worker types, their isolated responsibilities, inputs, outputs, failure modes, and a falsifiable test for each. Look beyond the existing ten production lanes and avoid assuming the current architecture is complete. Return JSON.");
+    const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1000}})]);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='new-worker discovery; disposable research only'; fs.writeFileSync(report,x.output);
+  } else if(strategy==='program-synthesis'){
+    const prompt=withVariant("Investigate alternative autonomous-worker program designs. Produce 3 small pseudocode or JavaScript controller designs that could improve Builder→QA→Reviewer orchestration, including what each changes, what it risks, and the smallest experiment needed to validate it. Do not modify production. Return JSON.");
+    const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1200}})]);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='program-synthesis research; no production edits'; fs.writeFileSync(report,x.output);
+  } else if(strategy==='workflow-architecture'){
+    const prompt=withVariant("Design alternative GitHub Actions orchestration patterns for a ten-lane production fleet plus ten independent research lanes. Compare dispatch, start-gate, runner-budget, artifact-harvest, and failure-isolation patterns. Include concrete YAML snippets or pseudocode and tests for starvation, queueing, cancellation, and recovery. Do not modify production. Return JSON.");
+    const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1200}})]);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='workflow architecture research; no production edits'; fs.writeFileSync(report,x.output);
+  } else if(strategy==='agent-protocol'){
+    const prompt=withVariant("Research alternative agent handoff protocols for isolated workers. Explore candidate identity, base SHA, evidence bundles, QA/reviewer receipts, retry semantics, and learning records. Identify 5 protocol variations and one adversarial test for each. Return JSON only.");
+    const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1000}})]);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='agent protocol research; no production edits'; fs.writeFileSync(report,x.output);
+  } else if(strategy==='runtime-alternatives'){
+    const prompt=withVariant("Compare runtime approaches for autonomous coding experiments: Node child processes, Python subprocess workers, direct Ollama HTTP, Aider adapters, OpenHands SDK, disposable containers, and queue-based workers. For each, identify a tiny benchmark and a failure classification. Return JSON.");
+    const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1000}})]);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='runtime alternatives research; no production edits'; fs.writeFileSync(report,x.output);
+  } else if(strategy==='test-generation'){
+    const prompt=withVariant("Generate a compact battery of adversarial tests for an autonomous specialist builder. Cover scope escape, export deletion, stale anchors, zero-diff model responses, malformed JSON, timeout boundaries, partial commits, wrong base SHA, duplicate candidates, and recovery corruption. Return JSON with test name, fixture, expected result, and evidence to capture.");
+    const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1200}})]);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='test-generation research; no production edits'; fs.writeFileSync(report,x.output);
+  } else if(strategy==='contract-fuzz'){
+    const prompt=withVariant("Fuzz the conceptual contracts between Planner, Specialist, Builder, Repair, QA, Reviewer, Candidate, Integration and Evolution. Identify ambiguous states and propose concrete input/output contract cases that could expose them. Return JSON; do not edit files.");
+    const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1200}})]);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='contract fuzz research; no production edits'; fs.writeFileSync(report,x.output);
+  } else if(strategy==='model-crosscheck'){
+    const prompt=withVariant("Cross-check how different local coding/model adapters should be evaluated without assuming one model is best. Define a common benchmark suite, evidence fields, timeout classes, materialisation checks, and a fair comparison protocol. Return JSON only.");
+    const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1000}})]);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='model cross-check research; no production edits'; fs.writeFileSync(report,x.output);
+  } else if(strategy==='memory-learning'){
+    const prompt=withVariant("Design a durable learning-memory record for a fleet of autonomous workers. It must retain successful and failed experiments, conditions, evidence, confidence, and when a result should be re-tested. Propose a schema and update rules that do not automatically change production. Return JSON.");
+    const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1000}})]);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='learning-memory research; no production edits'; fs.writeFileSync(report,x.output);
+  } else if(strategy==='borg-orchestration'){
+    const prompt=withVariant("Explore a future Borg-style autonomous fleet that can discover, create, retire, and benchmark worker bots while keeping the ten production Bikeztagram specialists protected. Propose a safe control plane, worker registry, capability negotiation, experiment sandbox, promotion gates, and failure containment. Return JSON with concrete experiments.");
+    const x=run('curl',['--fail','--silent','--show-error','--max-time','120','http://127.0.0.1:11434/api/chat','-H','Content-Type: application/json','-d',JSON.stringify({model,stream:false,messages:[{role:'user',content:prompt}],options:{num_ctx:4096,num_predict:1400}})]);
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; note='Borg orchestration research; no production edits'; fs.writeFileSync(report,x.output);
+  } else if(strategy==='replay-known-failure'){
+    const fixture2=path.join(root,'replay.js');
+    fs.writeFileSync(fixture2,"export function motionForRole(role){ if(role==='action') return 1; return 1; }\n");
+    const replayTask=withVariant("Replay a known failure class from previous AutoBot runs: attempt a minimal edit on replay.js, but classify whether failure is controller invocation, model non-materialisation, syntax, behaviour, or scope. The goal is evidence classification, not production modification.");
+    const x=run('aider',['--model','ollama_chat/'+model,'--message',replayTask,'--yes-always','--no-git','--no-show-model-warnings','--timeout','90','--edit-format','diff','--map-tokens','512',fixture2]);
+    const text2=fs.readFileSync(fixture2,'utf8');
+    status=x.r.status===0?'success':'failed'; expectedEdit=false; benchmark.replayMaterialised=text2!== "export function motionForRole(role){ if(role==='action') return 1; return 1; }\n"; note='known-failure replay; disposable fixture only';
 } catch(e){ note=String(e.message||e); }
 
 const source=fs.readFileSync(file,'utf8');
