@@ -83,19 +83,27 @@ const harvest={
 fs.writeFileSync(path.join(outRoot,'autobot-research-harvest.json'),JSON.stringify(harvest,null,2)+'\n');
 
 const nextCycle={
-  schemaVersion:'autobot-research-next-cycle-v1',
+  schemaVersion:'autobot-research-next-cycle-v2',
   generatedAt:harvest.generatedAt,
   rules:[
     'Keep all ten production Bikeztagram specialists isolated and protected.',
     'Re-test useful ideas even when previously tested; change one meaningful variable and record the delta.',
     'Prioritise experiments that distinguish controller failure, model failure, materialisation failure, QA failure, scope failure and infrastructure failure.',
     'Promote no research result directly into production; require evidence, QA and human-reviewed integration.',
-    'Use successful disposable experiments to propose new worker types, adapters, protocols, tests and orchestration patterns.'
+    'Successful research is queued for the NEXT production cycle; it never blocks or mutates the CURRENT production cycle.',
+    'Production specialists must treat this handoff as advisory evidence, validate it against current source and reject unsupported claims.'
   ],
   observedFailureClasses:byClass,
   highValueStrategies:Object.entries(byStrategy).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([strategy,count])=>({strategy,count})),
   candidateWorkerIdeas:successful.filter(x=>/worker|borg|program|architecture|protocol|runtime/i.test(JSON.stringify(x))).slice(0,20).map(x=>({lane:x.lane,strategy:x.strategy,note:x.note||null})),
-  retestTargets:experiments.filter(x=>!x.qualityPassed&&x.status!=='success').slice(0,30).map(x=>({lane:x.lane,strategy:x.strategy,variant:x.variant,failureClass:classify(x)}))
+  retestTargets:experiments.filter(x=>!x.qualityPassed&&x.status!=='success').slice(0,30).map(x=>({lane:x.lane,strategy:x.strategy,variant:x.variant,failureClass:classify(x)})),
+  productionHandoff:{
+    purpose:'Advisory evidence for the next ten-specialist production cycle.',
+    promising:promising.slice(0,12),
+    candidateWorkerIdeas:successful.filter(x=>/worker|borg|program|architecture|protocol|runtime/i.test(JSON.stringify(x))).slice(0,12).map(x=>({lane:x.lane,strategy:x.strategy,note:x.note||null})),
+    retestTargets:experiments.filter(x=>!x.qualityPassed&&x.status!=='success').slice(0,20).map(x=>({lane:x.lane,strategy:x.strategy,variant:x.variant,failureClass:classify(x),error:x.error||null})),
+    failureClasses:byClass
+  }
 };
 fs.writeFileSync(path.join(outRoot,'autobot-research-next-cycle.json'),JSON.stringify(nextCycle,null,2)+'\n');
 console.log(JSON.stringify({ok:true,lanes:harvest.totals.lanes,experiments:harvest.totals.experiments,successful:harvest.totals.successful,failed:harvest.totals.failed,byFailureClass:byClass},null,2));
