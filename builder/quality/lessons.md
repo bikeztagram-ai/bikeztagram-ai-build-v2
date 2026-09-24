@@ -4,6 +4,14 @@ This file is durable guidance for every future Bikeztagram AI batch. It exists s
 
 ## Non-negotiable quality bar
 
+## Run #33 negative-example rules
+- Never promote unreachable/duplicate logic, placeholder algorithms, or scoring-only changes without behavioural justification.
+- Preserve domain vocabulary that affects output; removing motorcycle terms such as "ride" from music intent is a regression risk.
+- A content-similarity feature must use a real content signal, not numeric media-index distance.
+- Automated QA/reviewer approval does not replace diff-level product inspection before integration.
+- Rejected production candidates must become explicit rework/negative evidence for the next specialist cycle.
+
+
 - A green workflow is not proof that the product change is good. Review the actual implementation against the product objective and existing architecture.
 - Prefer real end-to-end behaviour over type/schema/test-only work. A feature is not complete merely because contracts or unit tests exist.
 - Preserve working behaviour and existing contracts unless the batch explicitly requires a change.
