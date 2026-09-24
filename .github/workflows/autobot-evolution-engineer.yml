@@ -2,7 +2,9 @@ name: 🧬 AutoBot Evolution Engineer
 
 on:
   workflow_run:
-    workflows: ["🧩 AutoBot Persistent Specialists"]
+    workflows:
+      - "🧩 AutoBot Persistent Specialists"
+      - "🚀 AutoBot Production + Forge Research Run"
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -41,6 +43,17 @@ jobs:
         with:
           name: autobot-persistent-experimental-fan-in-${{ github.event.workflow_run.id }}
           path: builder/working/evolution-evidence/fan-in
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Download Forge research harvest evidence
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.name == '🚀 AutoBot Production + Forge Research Run'
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          name: autobot-research-harvest-${{ github.event.workflow_run.id }}
+          path: builder/working/evolution-evidence/research
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           run-id: ${{ github.event.workflow_run.id }}
