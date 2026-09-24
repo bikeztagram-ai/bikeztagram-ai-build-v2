@@ -316,17 +316,24 @@ jobs:
       contents: write
       actions: read
     steps:
+      - name: Checkout workflow/main toolchain
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
       - name: Checkout persistent isolated trial-builder branch
         uses: actions/checkout@v7
         with:
           ref: autobot/trial-builder
+          path: trial-branch
           fetch-depth: 0
 
       - name: Download current research evidence
         uses: actions/download-artifact@v7
         with:
           pattern: autobot-research-*-${{ github.run_id }}
-          path: builder/working/trial-research
+          path: trial-branch/builder/working/trial-research
           merge-multiple: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
@@ -351,11 +358,11 @@ jobs:
         env:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
           LOCAL_AI_READY: '1'
-          TRIAL_RESEARCH_DIR: builder/working/trial-research
+          TRIAL_RESEARCH_DIR: trial-branch/builder/working/trial-research
           TRIAL_MODEL_TIMEOUT_MS: '180000'
         run: |
           set +e
-          node builder/trial-builder/engine.mjs
+          node trial-branch/builder/trial-builder/engine.mjs
           RC=$?
           echo "trial_exit=$RC" >> "$GITHUB_OUTPUT"
           exit 0
@@ -365,24 +372,24 @@ jobs:
           TRIAL_EXIT: ${{ steps.trial.outputs.trial_exit }}
         run: |
           set -euo pipefail
-          git config user.name "Bikeztagram AutoBot Trial"
-          git config user.email "autobot-trial@users.noreply.github.com"
-          mapfile -t changed < <(git status --short | awk '{print $2}' | sed '/^$/d')
+          git -C trial-branch config user.name "Bikeztagram AutoBot Trial"
+          git -C trial-branch config user.email "autobot-trial@users.noreply.github.com"
+          mapfile -t changed < <(git -C trial-branch status --short | awk '{print $2}' | sed '/^$/d')
           for path in "${changed[@]}"; do
             case "$path" in
               builder/trial-builder/*) ;;
-              *) echo "Trial builder attempted an out-of-scope change: $path" >&2; git reset --hard HEAD; git clean -fd; exit 1 ;;
+              *) echo "Trial builder attempted an out-of-scope change: $path" >&2; git -C trial-branch reset --hard HEAD; git -C trial-branch clean -fd; exit 1 ;;
             esac
           done
-          node builder/trial-builder/engine.mjs --self-test
-          git diff --check
-          if git diff --quiet -- builder/trial-builder && git diff --cached --quiet -- builder/trial-builder; then
+          node trial-branch/builder/trial-builder/engine.mjs --self-test
+          git -C trial-branch diff --check
+          if git -C trial-branch diff --quiet -- builder/trial-builder && git -C trial-branch diff --cached --quiet -- builder/trial-builder; then
             echo "No trial state/code change was produced; refusing to advance the persistent trial."
             exit 1
           fi
-          git add builder/trial-builder
-          git commit -m "trial: persist forge builder experiment"
-          git push origin HEAD:autobot/trial-builder
+          git -C trial-branch add builder/trial-builder
+          git -C trial-branch commit -m "trial: persist forge builder experiment"
+          git -C trial-branch push origin HEAD:autobot/trial-builder
           echo "Persisted trial experiment (engine exit $TRIAL_EXIT)."
 
   production-finalize:
