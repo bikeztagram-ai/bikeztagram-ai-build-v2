@@ -320,6 +320,9 @@ jobs:
           fi
           mkdir -p builder/brain
           cp builder/working/research-harvest/autobot-research-next-cycle.json builder/brain/autobot-forge-next-cycle.json
+          BYTES=$(wc -c < builder/brain/autobot-forge-next-cycle.json)
+          test "$BYTES" -lt 5000000
+          echo "Next-cycle handoff size: ${BYTES} bytes"
           git add builder/brain/autobot-forge-next-cycle.json
           if git diff --cached --quiet; then
             echo "Research handoff unchanged; nothing to commit."
