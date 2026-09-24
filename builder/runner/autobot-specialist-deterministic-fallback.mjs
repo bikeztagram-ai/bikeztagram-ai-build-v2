@@ -20,6 +20,13 @@ function replaceOnce(file,search,replacement,label){
   return file;
 }
 
+function replaceFirstAvailable(file,options){
+  for(const [search,replacement,label] of options){
+    try{return replaceOnce(file,search,replacement,label);}catch{}
+  }
+  throw new Error(`deterministic fallback has no current anchor for ${file}`);
+}
+
 let files=[];
 if(specialist==='director-builder' && objective.includes('prompt-sensitive role weighting')){
   files=[replaceOnce(
@@ -43,12 +50,11 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
     'energy-aware motion intensity'
   )];
 } else if(specialist==='timeline-builder' && (objective.includes('timing')||objective.includes('motion')||objective.includes('transition'))){
-  files=[replaceOnce(
-    'src/executableTimeline.js',
-    "cut.motionStyle=motionFor(cut,role);cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));",
-    "const roleMotion=role==='action'?1.2:role==='reveal'?1.08:role==='hero-ending'?.9:1;cut.motionStyle=motionFor(cut,role);cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*roleMotion,.35,1.6).toFixed(2));",
-    'purposeful role-aware motion intensity'
-  )];
+  files=[replaceFirstAvailable('src/executableTimeline.js',[
+    ["cut.motionStyle=motionFor(cut,role);cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1),.35,1.6).toFixed(2));","const roleMotion=role==='action'?1.2:role==='reveal'?1.08:role==='hero-ending'?.9:1;cut.motionStyle=motionFor(cut,role);cut.motionIntensity=Number(clamp(number(cut.motionIntensity,1)*roleMotion,.35,1.6).toFixed(2));",'purposeful role-aware motion intensity'],
+    ["const end=Number.isFinite(endRaw)&&endRaw>start?endRaw:start+duration;return{trimStart:Number(start.toFixed(3)),trimEnd:Number(end.toFixed(3))};","const available=number(cut?.sourceDuration,number(cut?.durationInSeconds,NaN));const proposed=Number.isFinite(endRaw)&&endRaw>start?endRaw:start+duration;const end=Number.isFinite(available)&&available>0?Math.max(start,Math.min(proposed,available)):proposed;return{trimStart:Number(start.toFixed(3)),trimEnd:Number(end.toFixed(3))};",'source-aware trim continuity'],
+    ["function transitionFor(cut,index,total,plan){if(cut?.transition&&cut.transition!=='hard-cut')return cut.transition;if(index===0)return'fade-in';","function transitionFor(cut,index,total,plan){if(cut?.transition&&cut.transition!=='hard-cut')return cut.transition;const cadenceDuration=number(cut?.duration,2);if(index>0&&index<total-1&&cadenceDuration<=.8)return index%2?'whip-right':'hard-cut';if(index===0)return'fade-in';",'duration-aware transition density']
+  ])];
 } else if(specialist==='timeline-builder' && objective.includes('source-aware trim continuity')){
   files=[replaceOnce(
     'src/executableTimeline.js',
@@ -71,12 +77,10 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
     'evidence-weighted hook/payoff scoring'
   )];
 } else if(specialist==='music-builder' && (objective.includes('music')||objective.includes('energy')||objective.includes('style'))){
-  files=[replaceOnce(
-    'src/musicDirector.js',
-    "const energy=p.match(/calm|peaceful|relaxed/)?0.35:p.match(/aggressive|intense|energetic|epic|powerful/)?0.9:0.68;",
-    "const energy=p.match(/calm|peaceful|relaxed/)?0.35:p.match(/aggressive|intense|energetic|epic|powerful|driving|fast|action/)?0.9:0.68;",
-    'prompt-responsive music energy'
-  )];
+  files=[replaceFirstAvailable('src/musicDirector.js',[
+    ["const energy=p.match(/calm|peaceful|relaxed/)?0.35:p.match(/aggressive|intense|energetic|epic|powerful/)?0.9:0.68;","const energy=p.match(/calm|peaceful|relaxed/)?0.35:p.match(/aggressive|intense|energetic|epic|powerful|driving|fast|action/)?0.9:0.68;",'prompt-responsive music energy'],
+    ["const energy=p.match(/calm|peaceful|relaxed/)?0.35:p.match(/aggressive|intense|energetic|epic|powerful|driving|fast|action/)?0.9:0.68;","const energy=p.match(/calm|peaceful|relaxed/)?0.35:p.match(/aggressive|intense|energetic|epic|powerful|driving|fast|action|race|racing|speed|chase|ride/)?0.9:0.68;",'broader action music energy']
+  ])];
 } else if(specialist==='rhythm-builder' && (objective.includes('rhythm')||objective.includes('pacing')||objective.includes('cadence')||objective.includes('duration'))){
   files=[replaceOnce(
     'src/editorialRhythm.js',
@@ -85,19 +89,15 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
     'dramatic editorial pacing'
   )];
 } else if(specialist==='render-builder' && (objective.includes('render')||objective.includes('motion')||objective.includes('transition')||objective.includes('finishing'))){
-  files=[replaceOnce(
-    'src/cinematicRendererV3.js',
-    "else if(m.includes('orbit')||m.includes('parallax')){scale=1.11;x=Math.sin(e*Math.PI*2)*w*.045*i;y=Math.cos(e*Math.PI*2)*h*.025*i;r=Math.sin(e*Math.PI*2)*.008*i}else if(m==='static')scale=1.015;",
-    "else if(m.includes('orbit')||m.includes('parallax')){scale=1.11;x=Math.sin(e*Math.PI*2)*w*.045*i;y=Math.cos(e*Math.PI*2)*h*.025*i;r=Math.sin(e*Math.PI*2)*.008*i}else if(m.includes('cinematic')){scale=1.065+e*.04*i}else if(m==='static')scale=1.015;",
-    'visible cinematic motion finish'
-  )];
+  files=[replaceFirstAvailable('src/cinematicRendererV3.js',[
+    ["else if(m.includes('orbit')||m.includes('parallax')){scale=1.11;x=Math.sin(e*Math.PI*2)*w*.045*i;y=Math.cos(e*Math.PI*2)*h*.025*i;r=Math.sin(e*Math.PI*2)*.008*i}else if(m==='static')scale=1.015;","else if(m.includes('orbit')||m.includes('parallax')){scale=1.11;x=Math.sin(e*Math.PI*2)*w*.045*i;y=Math.cos(e*Math.PI*2)*h*.025*i;r=Math.sin(e*Math.PI*2)*.008*i}else if(m.includes('cinematic')){scale=1.065+e*.04*i}else if(m==='static')scale=1.015;",'visible cinematic motion finish'],
+    ["else if(m.includes('cinematic')){scale=1.065+e*.04*i}else if(m==='static')scale=1.015;","else if(m.includes('cinematic')){scale=1.075+e*.045*i}else if(m==='static')scale=1.015;",'refined cinematic motion finish']
+  ])];
 } else if(specialist==='media-intelligence-builder' && (objective.includes('media intelligence')||objective.includes('analysis-to-edit')||objective.includes('planning quality'))){
-  files=[replaceOnce(
-    'src/aiEditPlanner.js',
-    "const qualityScore=Math.round(critique.after.score*.75+rhythm.score*.25);const draft={cuts,targetDuration,creativePrompt:text(options.creativePrompt)};const cinematicQuality=evaluateCinematicOutput(draft,{duration});",
-    "const draft={cuts,targetDuration,creativePrompt:text(options.creativePrompt)};const cinematicQuality=evaluateCinematicOutput(draft,{duration});const sourceEvidenceScore=Number.isFinite(Number(cinematicQuality?.score))?Number(cinematicQuality.score):0;const qualityScore=Math.round(critique.after.score*.7+rhythm.score*.2+sourceEvidenceScore*.1);",
-    'analysis-aware cinematic quality weighting'
-  )];
+  files=[replaceFirstAvailable('src/aiEditPlanner.js',[
+    ["const qualityScore=Math.round(critique.after.score*.75+rhythm.score*.25);const draft={cuts,targetDuration,creativePrompt:text(options.creativePrompt)};const cinematicQuality=evaluateCinematicOutput(draft,{duration});","const draft={cuts,targetDuration,creativePrompt:text(options.creativePrompt)};const cinematicQuality=evaluateCinematicOutput(draft,{duration});const sourceEvidenceScore=Number.isFinite(Number(cinematicQuality?.score))?Number(cinematicQuality.score):0;const qualityScore=Math.round(critique.after.score*.7+rhythm.score*.2+sourceEvidenceScore*.1);",'analysis-aware cinematic quality weighting'],
+    ["const qualityScore=Math.round(critique.after.score*.7+rhythm.score*.2+sourceEvidenceScore*.1);","const qualityScore=Math.round(critique.after.score*.65+rhythm.score*.2+sourceEvidenceScore*.15);",'stronger cinematic evidence weighting']
+  ])];
 } else if(specialist==='intent-builder' && (objective.includes('creative intent')||objective.includes('prompt-to-edit')||objective.includes('intent compilation')||objective.includes('creative brief'))){
   files=[replaceOnce(
     'src/creativeIntentCompiler.js',
@@ -113,12 +113,10 @@ if(specialist==='director-builder' && objective.includes('prompt-sensitive role 
     'caption-safe overlay length'
   )];
 } else if(specialist==='scene-builder' && (objective.includes('scene')||objective.includes('continuity')||objective.includes('direction'))){
-  files=[replaceOnce(
-    'src/universalCreativeSceneEngine.js',
-    "const plan=buildCreativeSceneGraph(prompt,{duration,shots:Math.max(3,Math.ceil(duration/2))});",
-    "const shotCount=Math.max(3,Math.min(18,Math.ceil(Math.max(.5,Number(duration)||8)/2)));const plan=buildCreativeSceneGraph(prompt,{duration,shots:shotCount});",
-    'duration-bounded scene shot continuity'
-  )];
+  files=[replaceFirstAvailable('src/universalCreativeSceneEngine.js',[
+    ["const plan=buildCreativeSceneGraph(prompt,{duration,shots:Math.max(3,Math.ceil(duration/2))});","const shotCount=Math.max(3,Math.min(18,Math.ceil(Math.max(.5,Number(duration)||8)/2)));const plan=buildCreativeSceneGraph(prompt,{duration,shots:shotCount});",'duration-bounded scene shot continuity'],
+    ["const shotCount=Math.max(3,Math.min(18,Math.ceil(Math.max(.5,Number(duration)||8)/2)));const plan=buildCreativeSceneGraph(prompt,{duration,shots:shotCount});","const shotCount=Math.max(3,Math.min(24,Math.ceil(Math.max(.5,Number(duration)||8)/2)));const plan=buildCreativeSceneGraph(prompt,{duration,shots:shotCount});",'extended bounded scene shot continuity']
+  ])];
 } else if(specialist==='director-builder'){
   const options=[
     ["const hookPayoffBoost=(role==='hook'||role==='hero-ending')?evidence*.08:0;const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;","const hookPayoffBoost=(role==='hook'||role==='hero-ending')?evidence*.12:0;const qualityBoost=evidence*.16;const promptBoost=promptFit*.08;","generic director hook/payoff evidence"],
