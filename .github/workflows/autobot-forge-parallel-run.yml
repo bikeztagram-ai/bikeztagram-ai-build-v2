@@ -378,7 +378,7 @@ jobs:
               *) echo "Trial builder attempted an out-of-scope change: $path" >&2; git -C trial-branch reset --hard HEAD; git -C trial-branch clean -fd; exit 1 ;;
             esac
           done
-          cd trial-branch && node builder/trial-builder/engine.mjs --self-test
+          node trial-branch/builder/trial-builder/engine.mjs --self-test
           git -C trial-branch diff --check
           if git -C trial-branch diff --quiet -- builder/trial-builder && git -C trial-branch diff --cached --quiet -- builder/trial-builder; then
             echo "No trial state/code change was produced; refusing to advance the persistent trial."
