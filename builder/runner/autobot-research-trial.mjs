@@ -161,6 +161,7 @@ try {
     const x=run('aider',['--model','ollama_chat/'+model,'--message',replayTask,'--yes-always','--no-git','--no-show-model-warnings','--timeout','90','--edit-format','diff','--map-tokens','512',fixture2]);
     const text2=fs.readFileSync(fixture2,'utf8');
     status=x.r.status===0?'success':'failed'; expectedEdit=false; benchmark.replayMaterialised=text2!== "export function motionForRole(role){ if(role==='action') return 1; return 1; }\n"; note='known-failure replay; disposable fixture only';
+  }
 } catch(e){ note=String(e.message||e); }
 
 const source=fs.readFileSync(file,'utf8');
