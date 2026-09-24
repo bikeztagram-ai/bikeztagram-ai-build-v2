@@ -7,7 +7,10 @@ import {performance} from 'node:perf_hooks';
 const lane=process.env.AUTOBOT_RESEARCH_LANE||'unassigned';
 const forcedStrategy=String(process.env.AUTOBOT_RESEARCH_STRATEGY||'').trim();
 const maxCycles=Math.max(1,Number(process.env.AUTOBOT_RESEARCH_MAX_CYCLES||5));
-const budgetMs=Math.max(60_000,Number(process.env.AUTOBOT_RESEARCH_LOOP_BUDGET_MS||20*60_000));
+const configuredBudgetMs=Math.max(60_000,Number(process.env.AUTOBOT_RESEARCH_LOOP_BUDGET_MS||20*60_000));
+const deadlineMs=Math.max(0,Number(process.env.AUTOBOT_RESEARCH_DEADLINE_MS||0));
+const remainingToDeadlineMs=deadlineMs>0?Math.max(0,deadlineMs-Date.now()):configuredBudgetMs;
+const budgetMs=Math.min(configuredBudgetMs,remainingToDeadlineMs);
 const minContinueMs=Math.max(10_000,Number(process.env.AUTOBOT_RESEARCH_MIN_CONTINUE_MS||120_000));
 const maxExperimentsPerCycle=Math.max(1,Math.min(3,Number(process.env.AUTOBOT_RESEARCH_MAX_EXPERIMENTS_PER_CYCLE||2)));
 const allowRevisits=String(process.env.AUTOBOT_RESEARCH_ALLOW_REVISITS||'true')!=='false';
@@ -37,7 +40,7 @@ const strategies=forcedStrategy?[forcedStrategy]:(laneStrategies[lane]||['aider-
 const started=performance.now();
 const experiments=[];
 let previous=null;
-let terminationReason='completed';
+let terminationReason=budgetMs<=0?'deadline-exhausted':'completed';
 
 function runTrial(strategy,cycle,variantIndex){
   const variant=variants[(cycle+variantIndex-2)%variants.length];
@@ -110,6 +113,9 @@ const out={
   failedExperiments:failures,
   totalDurationMs:Math.round(performance.now()-started),
   budgetMs,
+  configuredBudgetMs,
+  deadlineMs: deadlineMs||null,
+  remainingToDeadlineMs,
   maxExperimentsPerCycle,
   experiments,
   lastResult:previous
