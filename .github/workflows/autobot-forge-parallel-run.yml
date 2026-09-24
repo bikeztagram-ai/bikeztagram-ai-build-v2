@@ -190,7 +190,6 @@ jobs:
             builder/working/research-harvest/autobot-research-harvest.json
             builder/working/research-harvest/autobot-research-next-cycle.json
           if-no-files-found: error
-\n
 
   production-finalize:
     name: 🧾 Finalize production evidence
