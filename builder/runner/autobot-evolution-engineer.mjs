@@ -24,7 +24,9 @@ const ev={
   final:readJson(path.join(evidenceRoot,'autobot-final-handoff.json')),
   handoff:readJson(path.join(evidenceRoot,'autobot-specialist-handoff.json')),
   status:read(path.join(evidenceRoot,'autobot-live-status.log')).slice(-12000),
-  fanIn:readJson(path.join(evidenceRoot,'fan-in','autobot-fan-in-ledger.json'))
+  fanIn:readJson(path.join(evidenceRoot,'fan-in','autobot-fan-in-ledger.json')),
+  research:readJson(path.join(evidenceRoot,'research','autobot-research-harvest.json')),
+  researchNext:readJson(path.join(evidenceRoot,'research','autobot-research-next-cycle.json'))
 };
 const cycles=Array.isArray(ev.state.cycles)?ev.state.cycles:[];
 const durations=cycles.map(c=>Number(c.durationMs||c.elapsedMs||0)).filter(n=>n>0);
@@ -37,7 +39,11 @@ const metrics={
   specialistCompleted:workers.filter(w=>w.status==='completed').length,
   specialistFailed:workers.filter(w=>w.status==='failed').length,
   specialistRecovery:workers.filter(w=>w.status==='recovery').length,
-  specialistReview:workers.filter(w=>w.status==='review').length
+  specialistReview:workers.filter(w=>w.status==='review').length,
+  researchExperiments:Number(ev.research.totals?.experiments||0),
+  researchSuccessful:Number(ev.research.totals?.successful||0),
+  researchFailed:Number(ev.research.totals?.failed||0),
+  researchMaterialised:Number(ev.research.totals?.materialised||0)
 };
 
 function classify(worker){
@@ -131,6 +137,45 @@ if(counts['aider-controller-no-change']){
   };
 }
 
+const researchExperiments=Array.isArray(ev.research.experiments)?ev.research.experiments:[];
+const researchFailureClasses=ev.research.byFailureClass||{};
+if(researchExperiments.length){
+  observations.push(...researchExperiments.slice(-100).map(x=>({
+    botId:`research:${x.lane||'unknown'}:${x.strategy||'unknown'}`,
+    status:x.qualityPassed||x.status==='success'?'completed':'failed',
+    category:'research',
+    failureClass:x.qualityPassed||x.status==='success'?'success':(x.failureClass||'research-experiment-failure'),
+    objective:x.note||null,
+    error:x.error||null,
+    targetMap:[],
+    learnedMapTokens:null,
+    learnedEditFormat:null
+  })));
+}
+if(Number(researchFailureClasses['timeout']||0)>0) hypotheses.push({
+  id:'evo-research-bounded-timeouts',
+  priority:'medium',
+  title:'Keep slow research experiments bounded and vary the next attempt',
+  reason:`Research observed ${researchFailureClasses.timeout} timeout-class experiment(s).`,
+  measurement:'timeout-class rate and experiment diversity per research run'
+});
+if(Number(researchFailureClasses['no-materialisation']||0)>0) hypotheses.push({
+  id:'evo-research-materialisation',
+  priority:'medium',
+  title:'Separate controller, adapter and model non-materialisation in research evidence',
+  reason:`Research observed ${researchFailureClasses['no-materialisation']} no-materialisation experiment(s).`,
+  measurement:'stage-classified materialisation rate'
+});
+if(researchExperiments.some(x=>/worker|borg|architecture|protocol/i.test(JSON.stringify(x)))){
+  hypotheses.push({
+    id:'evo-worker-discovery',
+    priority:'medium',
+    title:'Turn repeated research worker ideas into isolated benchmark candidates',
+    reason:'The research swarm produced worker, architecture or protocol discovery evidence.',
+    measurement:'number of new worker designs with a concrete falsifiable benchmark'
+  });
+}
+
 const hypotheses=[];
 if(counts['search-replace-no-exact-match'])hypotheses.push({
   id:'evo-targeted-editing',
@@ -173,6 +218,8 @@ const report={
   productionLane:{isolated:true,blocking:false},
   evidence:{
     metrics,
+    researchPresent:researchExperiments.length>0,
+    researchNextCycle:ev.researchNext||{},
     fanInPresent:workers.length>0,
     handoff:!!ev.handoff,
     finalHandoff:!!ev.final,

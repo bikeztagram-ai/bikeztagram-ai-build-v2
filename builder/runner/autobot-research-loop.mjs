@@ -4,69 +4,96 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {performance} from 'node:perf_hooks';
 
-const strategy=process.env.AUTOBOT_RESEARCH_STRATEGY||'aider-direct';
+const lane=process.env.AUTOBOT_RESEARCH_LANE||'unassigned';
+const forcedStrategy=String(process.env.AUTOBOT_RESEARCH_STRATEGY||'').trim();
 const maxCycles=Math.max(1,Number(process.env.AUTOBOT_RESEARCH_MAX_CYCLES||5));
 const budgetMs=Math.max(60_000,Number(process.env.AUTOBOT_RESEARCH_LOOP_BUDGET_MS||20*60_000));
 const minContinueMs=Math.max(10_000,Number(process.env.AUTOBOT_RESEARCH_MIN_CONTINUE_MS||120_000));
+const maxExperimentsPerCycle=Math.max(1,Math.min(3,Number(process.env.AUTOBOT_RESEARCH_MAX_EXPERIMENTS_PER_CYCLE||2)));
+const allowRevisits=String(process.env.AUTOBOT_RESEARCH_ALLOW_REVISITS||'true')!=='false';
 const trial=path.resolve('builder/runner/autobot-research-trial.mjs');
-const variants={
-  'aider-direct':['preflight source read + single-symbol edit','fresh context + exact function targeting','minimal prompt + explicit acceptance check','whole-file context + one-line semantic change'],
-  'aider-diff':['map 256 + exact symbol','map 512 + refreshed source context','map 768 + acceptance-first prompt','diff with explicit no-prose acceptance'],
-  'aider-udiff':['map 256 + symbol-first','map 512 + refreshed context','map 768 + acceptance-first','udiff with minimal-diff gate'],
-  'aider-whole':['strict minimal diff','source preflight + whole-file edit','acceptance-first whole-file edit','whole-file edit with post-edit diff gate'],
-  'aider-scoped':['exact function target','exact symbol + refreshed context','scoped target + acceptance gate','scoped target + no-unrelated-files instruction'],
-  'aider-architect':['architect plan then editor','architect with dependency map','architect with acceptance-first execution','architect with minimal untouched surface'],
-  'failure-replay':['bounded first attempt + recovery','shorter first timeout + udiff recovery','replay with explicit acceptance gate','replay with controller-only telemetry'],
-  'performance-lab':['baseline validation overhead','larger validation sample','syntax vs behaviour timing split','repeat benchmark after warm runtime'],
-  'shadow-architecture':['one bounded retry','retry only after failed QA','retry with explicit telemetry','retry with candidate identity check'],
-  'adversarial':['ignore unrelated instructions + named target only','malicious-context resistance + acceptance','scope boundary + exact-file constraint','adversarial prompt with post-edit verification'],
-  'fast-deep':['45s fast + 120s deep','30s fast + 120s deep','45s fast + 90s recovery','fast acceptance gate before deep escalation'],
-  'challenger':['controller bottleneck hypothesis','model materialisation hypothesis','timeout boundary hypothesis','adapter invocation hypothesis'],
-  'dependency-plan':['minimum file surface','dependency graph + untouched surface','risk-first target map','validation-first target map'],
-  'direct-ollama-json':['structured JSON schema A','structured JSON schema B','JSON plan + acceptance fields','JSON plan + controller telemetry'],
-  'openhands-sdk':['import/runtime smoke','SDK model construction','SDK workspace capability probe','SDK failure classification'],
-  'deterministic-control':['repeat control baseline','control with syntax+behaviour checks','control with timing telemetry','control as regression baseline'],
-  'evolution-selected':['retest latest hypothesis','hypothesis with acceptance gate','hypothesis with controller-vs-model split','hypothesis with recovery comparison']
+
+const laneStrategies={
+  'agent-materialisation':['aider-direct','aider-diff','aider-udiff','fast-deep','direct-ollama-json'],
+  'edit-protocols':['aider-udiff','aider-whole','aider-scoped','aider-architect','aider-diff'],
+  'recovery-engineering':['failure-replay','shadow-architecture','replay-known-failure','challenger','fast-deep'],
+  'performance-runtime':['performance-lab','deterministic-control','runtime-alternatives','fast-deep','aider-direct'],
+  'adversarial-quality':['adversarial','test-generation','contract-fuzz','dependency-plan','aider-scoped'],
+  'architecture-controller':['shadow-architecture','workflow-architecture','agent-protocol','dependency-plan','challenger'],
+  'model-adapters':['direct-ollama-json','openhands-sdk','model-crosscheck','aider-direct','aider-diff'],
+  'evolution-discovery':['evolution-selected','worker-discovery','program-synthesis','challenger','replay-known-failure'],
+  'borg-orchestration':['borg-orchestration','worker-discovery','workflow-architecture','memory-learning','agent-protocol'],
+  'regression-replay':['deterministic-control','failure-replay','replay-known-failure','evolution-selected','performance-lab']
 };
-const chosen=variants[strategy]||['bounded alternative A','bounded alternative B','bounded alternative C','bounded alternative D'];
+const variants=[
+  'baseline with fresh context',
+  'changed prompt framing and acceptance wording',
+  'different edit protocol or runtime adapter',
+  'repeat known approach with a new timeout/context budget',
+  'cross-check against prior evidence and classify the failure stage'
+];
+const strategies=forcedStrategy?[forcedStrategy]:(laneStrategies[lane]||['aider-direct','deterministic-control','challenger','dependency-plan']);
+
 const started=performance.now();
-const cycles=[];
+const experiments=[];
 let previous=null;
+
+function runTrial(strategy,cycle,variantIndex){
+  const variant=variants[(cycle+variantIndex-2)%variants.length];
+  const env={...process.env,AUTOBOT_RESEARCH_STRATEGY:strategy,AUTOBOT_RESEARCH_CYCLE:String(cycle),AUTOBOT_RESEARCH_VARIANT:variant,AUTOBOT_RESEARCH_LANE:lane,AUTOBOT_RESEARCH_ALLOW_REVISITS:String(allowRevisits)};
+  const t=performance.now();
+  const r=spawnSync(process.execPath,[trial],{env,stdio:'inherit'});
+  const durationMs=Math.round(performance.now()-t);
+  let result={lane,cycle,strategy,variant,exitCode:r.status,durationMs};
+  try{
+    const p=JSON.parse(fs.readFileSync(process.env.AUTOBOT_RESEARCH_RESULT||'builder/working/autobot-research-result.json','utf8'));
+    result={...p,lane,cycle,strategy,variant,exitCode:r.status,durationMs};
+  }catch{}
+  if(r.error) result.controllerError=String(r.error.message||r.error);
+  return result;
+}
 
 for(let cycle=1;cycle<=maxCycles;cycle++){
   const elapsed=performance.now()-started;
   if(elapsed>=budgetMs) break;
   const remaining=budgetMs-elapsed;
-  const variant=cycle===1?'baseline':chosen[(cycle-2)%chosen.length];
-  const env={...process.env,AUTOBOT_RESEARCH_CYCLE:String(cycle),AUTOBOT_RESEARCH_VARIANT:variant};
-  const t=performance.now();
-  const r=spawnSync(process.execPath,[trial],{env,stdio:'inherit'});
-  const durationMs=Math.round(performance.now()-t);
-  let result={cycle,variant,exitCode:r.status,durationMs};
-  try{
-    const p=JSON.parse(fs.readFileSync(process.env.AUTOBOT_RESEARCH_RESULT||'autobot-research-result.json','utf8'));
-    result={...p,cycle,variant,exitCode:r.status,durationMs};
-  }catch{}
-  cycles.push(result);
-  previous=result;
-  if(r.error) break;
+  const first=strategies[(cycle-1)%strategies.length];
+  const selected=[first];
+  if(maxExperimentsPerCycle>1 && strategies.length>1){
+    const second=strategies[(cycle)%strategies.length];
+    if(second!==first) selected.push(second);
+  }
+  for(let i=0;i<selected.length;i++){
+    if(performance.now()-started>=budgetMs) break;
+    const result=runTrial(selected[i],cycle,i);
+    experiments.push(result);
+    previous=result;
+    if(performance.now()-started>=budgetMs) break;
+    if(result.durationMs>=minContinueMs && i+1<selected.length) break;
+  }
+  if(performance.now()-started>=budgetMs) break;
   if(cycle>=maxCycles) break;
-  if(remaining < minContinueMs) break;
-  // A slow lane gets one bounded attempt; fast lanes spend the saved time on genuinely different variants.
-  if(durationMs>=minContinueMs) break;
+  if((budgetMs-(performance.now()-started))<minContinueMs) break;
 }
 
-const successes=cycles.filter(x=>x.qualityPassed||x.status==='success').length;
-const materialised=cycles.filter(x=>Number(x.diff)>0).length;
+const successes=experiments.filter(x=>x.qualityPassed||x.status==='success').length;
+const materialised=experiments.filter(x=>Number(x.diff)>0).length;
+const failures=experiments.filter(x=>!(x.qualityPassed||x.status==='success')).length;
 const out={
-  schemaVersion:'autobot-research-loop-v1',
-  strategy,
-  cyclesRun:cycles.length,
-  successCycles:successes,
-  materialisationCycles:materialised,
+  schemaVersion:'autobot-research-loop-v2',
+  lane,
+  strategies,
+  forcedStrategy:forcedStrategy||null,
+  allowRevisits,
+  cyclesRun:experiments.length?Math.max(...experiments.map(x=>Number(x.cycle||0))):0,
+  experimentsRun:experiments.length,
+  successExperiments:successes,
+  materialisationExperiments:materialised,
+  failedExperiments:failures,
   totalDurationMs:Math.round(performance.now()-started),
   budgetMs,
-  cycles,
+  maxExperimentsPerCycle,
+  experiments,
   lastResult:previous
 };
 fs.writeFileSync(process.env.AUTOBOT_RESEARCH_RESULT||'autobot-research-result.json',JSON.stringify(out,null,2)+'\n');

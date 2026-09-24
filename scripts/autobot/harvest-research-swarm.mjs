@@ -1,0 +1,101 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root=process.cwd();
+const rawRoot=path.join(root,'builder','working','research-harvest','raw');
+const outRoot=path.join(root,'builder','working','research-harvest');
+fs.mkdirSync(outRoot,{recursive:true});
+
+function walk(dir){
+  if(!fs.existsSync(dir)) return [];
+  const out=[];
+  for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+    const p=path.join(dir,entry.name);
+    if(entry.isDirectory()) out.push(...walk(p));
+    else out.push(p);
+  }
+  return out;
+}
+const files=walk(rawRoot).filter(p=>p.endsWith('.json'));
+const experiments=[];
+const sources=[];
+for(const file of files){
+  try{
+    const data=JSON.parse(fs.readFileSync(file,'utf8'));
+    sources.push({file:path.relative(root,file),lane:data.lane||null,experimentsRun:data.experimentsRun||0});
+    if(Array.isArray(data.experiments)) experiments.push(...data.experiments.map(x=>({...x,source:path.relative(root,file)})));
+  }catch{}
+}
+
+const classify=(x)=>{
+  const text=JSON.stringify(x).toLowerCase();
+  if(x.qualityPassed||x.status==='success') return 'success';
+  if(/timeout|timed out/.test(text)) return 'timeout';
+  if(/no.?diff|materiali[sz]ation/.test(text) && Number(x.diff||0)===0) return 'no-materialisation';
+  if(/network|connection|ollama|adapter|sdk/.test(text)) return 'adapter-or-runtime';
+  if(/syntax/.test(text)) return 'syntax';
+  if(/scope|export|contract/.test(text)) return 'contract-or-scope';
+  return 'other';
+};
+
+const byLane={},byStrategy={},byClass={};
+for(const x of experiments){
+  const lane=x.lane||'unknown';
+  const strategy=x.strategy||'unknown';
+  const cls=classify(x);
+  byLane[lane]=(byLane[lane]||0)+1;
+  byStrategy[strategy]=(byStrategy[strategy]||0)+1;
+  byClass[cls]=(byClass[cls]||0)+1;
+}
+const successful=experiments.filter(x=>x.qualityPassed||x.status==='success');
+const promising=successful
+  .sort((a,b)=>Number(b.diff||0)-Number(a.diff||0))
+  .slice(0,30)
+  .map(x=>({
+    lane:x.lane||null,
+    strategy:x.strategy||null,
+    cycle:x.cycle||null,
+    variant:x.variant||null,
+    durationMs:x.durationMs||0,
+    diff:x.diff||0,
+    note:x.note||null
+  }));
+
+const harvest={
+  schemaVersion:'autobot-research-harvest-v1',
+  generatedAt:new Date().toISOString(),
+  purpose:'Disposable research evidence for improving future AutoBots. Research never edits production files.',
+  sources,
+  totals:{
+    lanes:Object.keys(byLane).length,
+    experiments:experiments.length,
+    successful:successful.length,
+    failed:experiments.length-successful.length,
+    materialised:experiments.filter(x=>Number(x.diff)>0).length
+  },
+  byLane,
+  byStrategy,
+  byFailureClass:byClass,
+  promising,
+  experiments
+};
+fs.writeFileSync(path.join(outRoot,'autobot-research-harvest.json'),JSON.stringify(harvest,null,2)+'\n');
+
+const nextCycle={
+  schemaVersion:'autobot-research-next-cycle-v1',
+  generatedAt:harvest.generatedAt,
+  rules:[
+    'Keep all ten production Bikeztagram specialists isolated and protected.',
+    'Re-test useful ideas even when previously tested; change one meaningful variable and record the delta.',
+    'Prioritise experiments that distinguish controller failure, model failure, materialisation failure, QA failure, scope failure and infrastructure failure.',
+    'Promote no research result directly into production; require evidence, QA and human-reviewed integration.',
+    'Use successful disposable experiments to propose new worker types, adapters, protocols, tests and orchestration patterns.'
+  ],
+  observedFailureClasses:byClass,
+  highValueStrategies:Object.entries(byStrategy).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([strategy,count])=>({strategy,count})),
+  candidateWorkerIdeas:successful.filter(x=>/worker|borg|program|architecture|protocol|runtime/i.test(JSON.stringify(x))).slice(0,20).map(x=>({lane:x.lane,strategy:x.strategy,note:x.note||null})),
+  retestTargets:experiments.filter(x=>!x.qualityPassed&&x.status!=='success').slice(0,30).map(x=>({lane:x.lane,strategy:x.strategy,variant:x.variant,failureClass:classify(x)}))
+};
+fs.writeFileSync(path.join(outRoot,'autobot-research-next-cycle.json'),JSON.stringify(nextCycle,null,2)+'\n');
+console.log(JSON.stringify({ok:true,lanes:harvest.totals.lanes,experiments:harvest.totals.experiments,successful:harvest.totals.successful,failed:harvest.totals.failed,byFailureClass:byClass},null,2));
