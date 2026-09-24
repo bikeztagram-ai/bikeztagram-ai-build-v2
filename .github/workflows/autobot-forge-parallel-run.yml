@@ -17,7 +17,7 @@ on:
 
 permissions:
   actions: write
-  contents: read
+  contents: write
 
 concurrency:
   group: autobot-production-research-launcher
@@ -294,6 +294,29 @@ jobs:
           merge-multiple: false
       - name: Aggregate research results and next-cycle lessons
         run: node scripts/autobot/harvest-research-swarm.mjs
+      - name: Persist next-cycle Forge research handoff
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "Bikeztagram Forge Research"
+          git config user.email "autobot-research@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin autobot/research-handoff >/dev/null 2>&1; then
+            git fetch origin +refs/heads/autobot/research-handoff:refs/remotes/origin/autobot/research-handoff
+            git switch -C autobot/research-handoff refs/remotes/origin/autobot/research-handoff
+          else
+            git switch -c autobot/research-handoff
+          fi
+          mkdir -p builder/brain
+          cp builder/working/research-harvest/autobot-research-next-cycle.json builder/brain/autobot-forge-next-cycle.json
+          cp builder/working/research-harvest/autobot-research-harvest.json builder/brain/autobot-forge-research-harvest.json
+          git add builder/brain/autobot-forge-next-cycle.json builder/brain/autobot-forge-research-harvest.json
+          if git diff --cached --quiet; then
+            echo "Research handoff unchanged; nothing to commit."
+          else
+            git commit -m "research: persist next-cycle Forge handoff"
+            git push origin HEAD:autobot/research-handoff
+          fi
       - name: Upload research harvest
         uses: actions/upload-artifact@v7
         with:
@@ -308,6 +331,7 @@ jobs:
     name: 🧪 Forge Trial Builder — evolve the experimental builder
     needs: [research-harvest]
     if: always()
+    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -391,7 +415,7 @@ jobs:
 
   production-finalize:
     name: 🧾 Finalize production evidence
-    needs: [production-dispatch, trial-builder]
+    needs: [production-dispatch]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 350
