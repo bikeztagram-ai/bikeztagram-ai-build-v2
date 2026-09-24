@@ -17,7 +17,7 @@ on:
 
 permissions:
   actions: write
-  contents: write
+  contents: read
 
 concurrency:
   group: autobot-production-research-launcher
