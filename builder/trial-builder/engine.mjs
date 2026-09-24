@@ -70,7 +70,11 @@ if(process.env.LOCAL_AI_READY!=='1')throw new Error('local AI unavailable; trial
 const before=fs.readFileSync(enginePath,'utf8');
 const state=loadState();
 const ev=evidence();
-const compact=ev.slice(0,9).map(x=>({name:x.name,summary:x.data?.summary||x.data?.lastResult||x.data?.terminationReason||x.data?.experiments||x.data, keyPoints: Object.keys(x.data).filter(k=>k!=='summary'&&!k.startsWith('last')&&!k.startsWith('termination')&&!k.startsWith('experiments')).map(k=>({key:k,value:x.data[k]}))})).slice(0,9);
+const compact=ev.slice(0,9).map(x=>{
+  const d=x.data||{};
+  const totals=d.totals||{};
+  return {name:x.name,lane:d.lane||null,summary:d.summary||d.lastResult||d.terminationReason||null,totals:{experiments:totals.experiments??d.experimentsRun??null,successful:totals.successful??null,failed:totals.failed??null,materialised:totals.materialised??null,uniqueSignatures:totals.uniqueSignatures??null,duplicateExperiments:totals.duplicateExperiments??null},failureClasses:d.byFailureClass||{},promising:Array.isArray(d.promising)?d.promising.slice(0,4):[],retestTargets:Array.isArray(d.retestTargets)?d.retestTargets.slice(0,4):[],topSignals:Array.isArray(d.topSignals)?d.topSignals.slice(0,4):[]};
+});
 const prompt=`TRIAL EXPERIMENT ${(state.experiment||0)+1}
 
 CONTRACT:
