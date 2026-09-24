@@ -155,12 +155,10 @@ jobs:
   # IMPORTANT: this gate is deliberately short-lived. Once the ten proven
   # production jobs have started, this launcher releases its runner so the
   # research swarm can consume only the remaining runner capacity.
-  # Rolling research queue: 30 disposable workers are queued behind the
-  # 10 active research slots. As a worker finishes or fails, GitHub starts
-  # the next queued worker on the freed runner. Production stays protected.
-  # Research Director creates a large disposable queue from the experiment catalog.
-  # Only ten workers run at once; when one ends, the next queued task claims the runner.
-  # Production remains isolated and protected.
+  # Runner budget: 10 production specialists + 9 research lanes + 1 trial builder.
+  # The trial builder is the former forge-orchestration research slot. It starts
+  # only after the nine research lanes have harvested, so it can consume their
+  # evidence without creating an eleventh research runner.
   research-plan:
     name: 🧠 Forge Research Director
     needs: production-start-gate
@@ -329,12 +327,11 @@ jobs:
           path: trial-branch
           fetch-depth: 0
 
-      - name: Download current research evidence
+      - name: Download harvested research evidence
         uses: actions/download-artifact@v7
         with:
-          pattern: autobot-research-*-${{ github.run_id }}
+          name: autobot-research-harvest-${{ github.run_id }}
           path: trial-branch/builder/working/trial-research
-          merge-multiple: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
 
