@@ -18,6 +18,11 @@ on:
         required: false
         default: ''
         type: string
+      deadline_ms:
+        description: Absolute research deadline in epoch milliseconds
+        required: false
+        default: '0'
+        type: string
   workflow_call:
     inputs:
       local_model:
@@ -35,13 +40,18 @@ on:
         required: false
         default: ''
         type: string
+      deadline_ms:
+        description: Absolute research deadline in epoch milliseconds
+        required: false
+        default: '0'
+        type: string
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  group: autobot-research-${{ inputs.lane || 'swarm' }}
+  group: autobot-research-${{ inputs.lane || 'swarm' }}-${{ inputs.strategy || 'auto' }}
   cancel-in-progress: false
 
 jobs:
@@ -63,6 +73,7 @@ jobs:
       AUTOBOT_RESEARCH_LOOP_BUDGET_MS: 1200000
       AUTOBOT_RESEARCH_MIN_CONTINUE_MS: 120000
       AUTOBOT_RESEARCH_MAX_EXPERIMENTS_PER_CYCLE: 2
+      AUTOBOT_RESEARCH_DEADLINE_MS: ${{ inputs.deadline_ms || '0' }}
     steps:
       - uses: actions/checkout@v7
         with:
