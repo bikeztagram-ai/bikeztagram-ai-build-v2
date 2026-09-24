@@ -38,7 +38,7 @@ function applyEdit(payload){
   const hits=source.split(payload.search).length-1;
   if(hits!==1)throw new Error('trial engine search anchor must match exactly once; found '+hits);
   if(payload.replace.length>7000||payload.search.length>5000)throw new Error('trial edit too large');
-  fs.writeFileSync(enginePath,source.replace(payload.search,payload.replace));
+  if (source.includes(payload.search)) { fs.writeFileSync(enginePath,source.replace(payload.search,payload.replace)); } else { throw new Error('trial engine search anchor must match exactly once'); }
 }
 async function askModel(context){
   const schema={type:'object',additionalProperties:false,properties:{
