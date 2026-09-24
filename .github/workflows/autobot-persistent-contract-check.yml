@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - '.github/workflows/autobot-parallel-specialists.yml'
+      - '.github/workflows/autobot-forge-parallel-run.yml'
+      - 'builder/runner/autobot-independent-specialist-lane.mjs'
+      - 'scripts/autobot/harvest-research-swarm.mjs'
+      - 'scripts/autobot/verify-forge-cycle-pipeline.mjs'
       - 'builder/runner/autobot-specialist-builder.mjs'
       - 'builder/runner/autobot-specialist-recovery.mjs'
       - 'builder/runner/autobot-endurance-candidate-check.mjs'
@@ -55,6 +59,8 @@ jobs:
           done
       - name: Run deep R&D audit
         run: npm run verify:autobot-rnd
+      - name: Run Forge cycle pipeline audit
+        run: node scripts/autobot/verify-forge-cycle-pipeline.mjs
       - name: Run isolated worker contract audit
         run: npm run verify:autobot-independent-workers
       - name: Run ten-lane fleet audit
