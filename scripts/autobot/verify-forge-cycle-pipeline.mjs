@@ -18,6 +18,7 @@ const failures=[];
 const assert=(ok,msg)=>{if(!ok)failures.push(msg);};
 
 assert(workflow.includes('contents: write'),'Forge launcher must be able to persist the next-cycle handoff branch.');
+assert(workflow.includes('name: 📚 Harvest research evidence\n    needs: research\n    if: always()\n    runs-on: ubuntu-latest\n    permissions:\n      contents: write\n      actions: read'),'research harvest job must have contents:write because job-level permissions override the workflow default.');
 assert(workflow.includes('autobot/research-handoff'),'Forge workflow must persist research on a dedicated handoff branch.');
 assert(workflow.includes('builder/brain/autobot-forge-next-cycle.json'),'durable next-cycle handoff file must be written.');
 assert(workflow.includes('git push origin HEAD:autobot/research-handoff'),'research harvest must publish the handoff for the following cycle.');
