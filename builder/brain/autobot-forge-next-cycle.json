@@ -1,6 +1,6 @@
 {
   "schemaVersion": "autobot-research-next-cycle-v2",
-  "generatedAt": "2026-09-24T18:20:10.709Z",
+  "generatedAt": "2026-09-24T20:01:17.787Z",
   "rules": [
     "Keep all ten production Bikeztagram specialists isolated and protected.",
     "Re-test useful ideas even when previously tested; change one meaningful variable and record the delta.",
@@ -9,15 +9,673 @@
     "Successful research is queued for the NEXT production cycle; it never blocks or mutates the CURRENT production cycle.",
     "Production specialists must treat this handoff as advisory evidence, validate it against current source and reject unsupported claims."
   ],
-  "observedFailureClasses": {},
-  "highValueStrategies": [],
-  "candidateWorkerIdeas": [],
-  "retestTargets": [],
+  "observedFailureClasses": {
+    "contract-or-scope": 3,
+    "success": 3745,
+    "timeout": 3876,
+    "syntax": 4025,
+    "no-materialisation": 5753,
+    "adapter-or-runtime": 2034,
+    "other": 7
+  },
+  "highValueStrategies": [
+    {
+      "strategy": "aider-diff",
+      "count": 2034
+    },
+    {
+      "strategy": "aider-udiff",
+      "count": 2023
+    },
+    {
+      "strategy": "aider-scoped",
+      "count": 2010
+    },
+    {
+      "strategy": "aider-whole",
+      "count": 2008
+    },
+    {
+      "strategy": "aider-architect",
+      "count": 2008
+    },
+    {
+      "strategy": "aider-direct",
+      "count": 1867
+    },
+    {
+      "strategy": "fast-deep",
+      "count": 1862
+    },
+    {
+      "strategy": "deterministic-control",
+      "count": 1847
+    },
+    {
+      "strategy": "performance-lab",
+      "count": 1845
+    },
+    {
+      "strategy": "runtime-alternatives",
+      "count": 1844
+    },
+    {
+      "strategy": "direct-ollama-json",
+      "count": 25
+    },
+    {
+      "strategy": "openhands-sdk",
+      "count": 12
+    }
+  ],
+  "candidateWorkerIdeas": [
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+    },
+    {
+      "lane": "performance-runtime",
+      "strategy": "deterministic-control",
+      "note": "control path; no LLM used"
+    },
+    {
+      "lane": "performance-runtime",
+      "strategy": "deterministic-control",
+      "note": "control path; no LLM used"
+    },
+    {
+      "lane": "performance-runtime",
+      "strategy": "deterministic-control",
+      "note": "control path; no LLM used"
+    },
+    {
+      "lane": "performance-runtime",
+      "strategy": "deterministic-control",
+      "note": "control path; no LLM used"
+    },
+    {
+      "lane": "performance-runtime",
+      "strategy": "deterministic-control",
+      "note": "control path; no LLM used"
+    }
+  ],
+  "retestTargets": [
+    {
+      "lane": "adversarial-quality",
+      "strategy": "adversarial",
+      "variant": "different-edit-format",
+      "failureClass": "contract-or-scope"
+    },
+    {
+      "lane": "adversarial-quality",
+      "strategy": "test-generation",
+      "variant": "baseline with fresh context",
+      "failureClass": "contract-or-scope"
+    },
+    {
+      "lane": "adversarial-quality",
+      "strategy": "test-generation",
+      "variant": "baseline with fresh context",
+      "failureClass": "contract-or-scope"
+    },
+    {
+      "lane": "adversarial-quality",
+      "strategy": "aider-scoped",
+      "variant": "repeat known approach with a new timeout/context budget",
+      "failureClass": "timeout"
+    },
+    {
+      "lane": "adversarial-quality",
+      "strategy": "aider-scoped",
+      "variant": "repeat known approach with a new timeout/context budget",
+      "failureClass": "timeout"
+    },
+    {
+      "lane": "adversarial-quality",
+      "strategy": "adversarial",
+      "variant": "cross-check against prior evidence and classify the failure stage",
+      "failureClass": "syntax"
+    },
+    {
+      "lane": "adversarial-quality",
+      "strategy": "adversarial",
+      "variant": "cross-check against prior evidence and classify the failure stage",
+      "failureClass": "syntax"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-direct",
+      "variant": "fresh-context",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-diff",
+      "variant": "baseline with fresh context",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-diff",
+      "variant": "baseline with fresh context",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-udiff",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-udiff",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "fast-deep",
+      "variant": "different edit protocol or runtime adapter",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "direct-ollama-json",
+      "variant": "repeat known approach with a new timeout/context budget",
+      "failureClass": "timeout"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "direct-ollama-json",
+      "variant": "repeat known approach with a new timeout/context budget",
+      "failureClass": "timeout"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-direct",
+      "variant": "cross-check against prior evidence and classify the failure stage",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-direct",
+      "variant": "cross-check against prior evidence and classify the failure stage",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-diff",
+      "variant": "baseline with fresh context",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-diff",
+      "variant": "baseline with fresh context",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-udiff",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-udiff",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "direct-ollama-json",
+      "variant": "repeat known approach with a new timeout/context budget",
+      "failureClass": "timeout"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "direct-ollama-json",
+      "variant": "repeat known approach with a new timeout/context budget",
+      "failureClass": "timeout"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-direct",
+      "variant": "cross-check against prior evidence and classify the failure stage",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-direct",
+      "variant": "cross-check against prior evidence and classify the failure stage",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-diff",
+      "variant": "baseline with fresh context",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-diff",
+      "variant": "baseline with fresh context",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-udiff",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "aider-udiff",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "no-materialisation"
+    },
+    {
+      "lane": "agent-materialisation",
+      "strategy": "direct-ollama-json",
+      "variant": "repeat known approach with a new timeout/context budget",
+      "failureClass": "timeout"
+    }
+  ],
   "productionHandoff": {
     "purpose": "Advisory evidence for the next ten-specialist production cycle.",
-    "promising": [],
-    "candidateWorkerIdeas": [],
-    "retestTargets": [],
-    "failureClasses": {}
+    "promising": [
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 4,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 56777,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 8,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 55946,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 9,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 56373,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 13,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 56402,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 14,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 55915,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 18,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 55164,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 19,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 55035,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 23,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 54541,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 24,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 54688,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 28,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 53866,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 29,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 53892,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "cycle": 33,
+        "variant": "different edit protocol or runtime adapter",
+        "durationMs": 54468,
+        "diff": 1,
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      }
+    ],
+    "candidateWorkerIdeas": [
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      }
+    ],
+    "retestTargets": [
+      {
+        "lane": "adversarial-quality",
+        "strategy": "adversarial",
+        "variant": "different-edit-format",
+        "failureClass": "contract-or-scope",
+        "error": null
+      },
+      {
+        "lane": "adversarial-quality",
+        "strategy": "test-generation",
+        "variant": "baseline with fresh context",
+        "failureClass": "contract-or-scope",
+        "error": null
+      },
+      {
+        "lane": "adversarial-quality",
+        "strategy": "test-generation",
+        "variant": "baseline with fresh context",
+        "failureClass": "contract-or-scope",
+        "error": null
+      },
+      {
+        "lane": "adversarial-quality",
+        "strategy": "aider-scoped",
+        "variant": "repeat known approach with a new timeout/context budget",
+        "failureClass": "timeout",
+        "error": null
+      },
+      {
+        "lane": "adversarial-quality",
+        "strategy": "aider-scoped",
+        "variant": "repeat known approach with a new timeout/context budget",
+        "failureClass": "timeout",
+        "error": null
+      },
+      {
+        "lane": "adversarial-quality",
+        "strategy": "adversarial",
+        "variant": "cross-check against prior evidence and classify the failure stage",
+        "failureClass": "syntax",
+        "error": null
+      },
+      {
+        "lane": "adversarial-quality",
+        "strategy": "adversarial",
+        "variant": "cross-check against prior evidence and classify the failure stage",
+        "failureClass": "syntax",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "aider-direct",
+        "variant": "fresh-context",
+        "failureClass": "no-materialisation",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "aider-diff",
+        "variant": "baseline with fresh context",
+        "failureClass": "no-materialisation",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "aider-diff",
+        "variant": "baseline with fresh context",
+        "failureClass": "no-materialisation",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "aider-udiff",
+        "variant": "changed prompt framing and acceptance wording",
+        "failureClass": "no-materialisation",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "aider-udiff",
+        "variant": "changed prompt framing and acceptance wording",
+        "failureClass": "no-materialisation",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "fast-deep",
+        "variant": "different edit protocol or runtime adapter",
+        "failureClass": "no-materialisation",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "direct-ollama-json",
+        "variant": "repeat known approach with a new timeout/context budget",
+        "failureClass": "timeout",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "direct-ollama-json",
+        "variant": "repeat known approach with a new timeout/context budget",
+        "failureClass": "timeout",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "aider-direct",
+        "variant": "cross-check against prior evidence and classify the failure stage",
+        "failureClass": "no-materialisation",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "aider-direct",
+        "variant": "cross-check against prior evidence and classify the failure stage",
+        "failureClass": "no-materialisation",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "aider-diff",
+        "variant": "baseline with fresh context",
+        "failureClass": "no-materialisation",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "aider-diff",
+        "variant": "baseline with fresh context",
+        "failureClass": "no-materialisation",
+        "error": null
+      },
+      {
+        "lane": "agent-materialisation",
+        "strategy": "aider-udiff",
+        "variant": "changed prompt framing and acceptance wording",
+        "failureClass": "no-materialisation",
+        "error": null
+      }
+    ],
+    "failureClasses": {
+      "contract-or-scope": 3,
+      "success": 3745,
+      "timeout": 3876,
+      "syntax": 4025,
+      "no-materialisation": 5753,
+      "adapter-or-runtime": 2034,
+      "other": 7
+    }
   }
 }
