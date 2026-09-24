@@ -89,3 +89,12 @@ Before declaring a batch verified, the builder should be able to answer YES to a
 10. Can a human reviewer understand what changed, what was verified, and any remaining limitation from the PR/checkpoint?
 11. If the run failed, is the failure evidence durable and inspectable outside the ephemeral worker filesystem?
 12. If a new file, renamed path, objective, protocol or verifier was introduced, can AutoBot find it through its exact caller, workflow, validator, state and documentation references?
+
+
+### Run #33: production candidate rejection patterns
+- Automated QA/reviewer approval is necessary but not sufficient for integration. The integration pass must inspect the actual diff and runtime semantics before promotion.
+- Reject candidate edits that add unreachable or duplicate logic, even when tests remain green.
+- Reject placeholder implementations presented as real product logic. In particular, a content-similarity feature must use a real similarity signal; comparing numeric media indices is not content similarity.
+- Preserve domain vocabulary that materially affects Bikeztagram behaviour. Removing motorcycle-relevant prompt terms such as "ride" from music-energy detection is a regression risk and must be treated as a negative example.
+- A candidate that changes only a scoring weight can be useful, but its weighting change must have a clear behavioural justification and targeted verification.
+- Candidate rejection must be fed back as explicit negative evidence/rework guidance so future specialist cycles do not repeat the same pattern.
