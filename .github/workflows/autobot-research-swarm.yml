@@ -19,9 +19,14 @@ on:
         default: ''
         type: string
       deadline_ms:
-        description: Absolute research deadline in epoch milliseconds
+        description: Optional absolute research deadline in epoch milliseconds
         required: false
         default: '0'
+        type: string
+      window_minutes:
+        description: Research window for this persistent lane
+        required: false
+        default: '60'
         type: string
   workflow_call:
     inputs:
@@ -41,27 +46,32 @@ on:
         default: ''
         type: string
       deadline_ms:
-        description: Absolute research deadline in epoch milliseconds
+        description: Optional absolute research deadline in epoch milliseconds
         required: false
         default: '0'
         type: string
+      window_minutes:
+        description: Research window for this persistent lane
+        required: false
+        default: '60'
+        type: string
       experiment_id:
-        description: Unique disposable research experiment identifier
+        description: Root research experiment identifier
         required: false
         default: ''
         type: string
       research_question:
-        description: Concrete research question or hypothesis to test
+        description: Seed research question or hypothesis
         required: false
         default: ''
         type: string
       variant:
-        description: Controlled variable for this experiment
+        description: Seed controlled variable
         required: false
         default: ''
         type: string
       queue_slot:
-        description: Rolling queue slot identifier
+        description: Stable lane identifier
         required: false
         default: ''
         type: string
@@ -71,45 +81,45 @@ permissions:
   actions: read
 
 concurrency:
-  group: autobot-research-${{ inputs.lane || 'swarm' }}-${{ inputs.strategy || 'auto' }}
+  group: autobot-research-${{{ inputs.lane || 'swarm' }}-${{{ inputs.queue_slot || inputs.strategy || 'auto' }}
   cancel-in-progress: false
 
 jobs:
   research:
-    name: 🔬 Research — ${{ matrix.lane }}
+    name: 🔬 Research — ${{{ matrix.lane }}
     strategy:
       fail-fast: false
       max-parallel: 10
       matrix:
-        lane: ${{ inputs.lane && fromJSON(format('["{0}"]', inputs.lane)) || fromJSON('["agent-materialisation","edit-protocols","recovery-engineering","performance-runtime","adversarial-quality","architecture-controller","model-adapters","evolution-discovery","forge-orchestration","regression-replay"]') }}
+        lane: ${{{ inputs.lane && fromJSON(format('["{0}"]', inputs.lane)) || fromJSON('["agent-materialisation","edit-protocols","recovery-engineering","performance-runtime","adversarial-quality","architecture-controller","model-adapters","evolution-discovery","forge-orchestration","regression-replay"]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 360
     env:
-      LOCAL_AI_MODEL: ${{ inputs.local_model || 'qwen2.5-coder:7b' }}
-      AUTOBOT_RESEARCH_LANE: ${{ matrix.lane }}
-      AUTOBOT_RESEARCH_STRATEGY: ${{ inputs.strategy || '' }}
+      LOCAL_AI_MODEL: ${{{ inputs.local_model || 'qwen2.5-coder:7b' }}
+      AUTOBOT_RESEARCH_LANE: ${{{ matrix.lane }}
+      AUTOBOT_RESEARCH_STRATEGY: ${{{ inputs.strategy || '' }}
       AUTOBOT_RESEARCH_ALLOW_REVISITS: 'true'
-      # A worker stays alive for the run window; the absolute deadline is authoritative.
       AUTOBOT_RESEARCH_MAX_CYCLES: 1000000
       AUTOBOT_RESEARCH_LOOP_BUDGET_MS: 19800000
       AUTOBOT_RESEARCH_MIN_CONTINUE_MS: 120000
       AUTOBOT_RESEARCH_MAX_EXPERIMENTS_PER_CYCLE: 2
-      AUTOBOT_RESEARCH_DEADLINE_MS: ${{ inputs.deadline_ms || '0' }}
-      AUTOBOT_RESEARCH_EXPERIMENT_ID: ${{ inputs.experiment_id || '' }}
-      AUTOBOT_RESEARCH_QUESTION: ${{ inputs.research_question || '' }}
-      AUTOBOT_RESEARCH_VARIANT: ${{ inputs.variant || '' }}
-      AUTOBOT_RESEARCH_QUEUE_SLOT: ${{ inputs.queue_slot || '' }}
+      AUTOBOT_RESEARCH_DEADLINE_MS: ${{{ inputs.deadline_ms || '0' }}
+      AUTOBOT_RESEARCH_EXPERIMENT_ID: ${{{ inputs.experiment_id || '' }}
+      AUTOBOT_RESEARCH_QUESTION: ${{{ inputs.research_question || '' }}
+      AUTOBOT_RESEARCH_VARIANT: ${{{ inputs.variant || '' }}
+      AUTOBOT_RESEARCH_QUEUE_SLOT: ${{{ inputs.queue_slot || '' }}
+      RESEARCH_WINDOW_MINUTES: ${{{ inputs.window_minutes || '60' }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{{ github.sha }}
           fetch-depth: 0
 
       - name: Download latest Evolution evidence when available
         if: matrix.lane == 'evolution-discovery'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{{ secrets.GITHUB_TOKEN }}
+          REPO: ${{{ github.repository }}
         run: |
           set -euo pipefail
           mkdir -p builder/working/research-evolution
@@ -136,17 +146,20 @@ jobs:
 
       - name: Install Aider adapter
         if: matrix.lane != 'performance-runtime' && matrix.lane != 'architecture-controller'
+        timeout-minutes: 15
         run: python -m pip install --disable-pip-version-check --no-input aider-chat
 
       - name: Install OpenHands adapter
         if: matrix.lane == 'model-adapters'
+        timeout-minutes: 15
         run: python -m pip install --disable-pip-version-check --no-input openhands-sdk
 
       - name: Start isolated local model
         if: matrix.lane != 'performance-runtime'
+        timeout-minutes: 25
         run: bash scripts/autobot/install-local-brain.sh
         env:
-          LOCAL_AI_MODEL: ${{ env.LOCAL_AI_MODEL }}
+          LOCAL_AI_MODEL: ${{{ env.LOCAL_AI_MODEL }}
           AUTOBOT_DISCOVERY_MODEL: qwen2.5-coder:3b
           LOCAL_AI_PROXY_NUM_CTX: 4096
           LOCAL_AI_PROXY_NUM_PREDICT: 900
@@ -156,16 +169,33 @@ jobs:
           OLLAMA_LOAD_TIMEOUT: 20m
           OLLAMA_KEEP_ALIVE: 30m
 
-      - name: Run adaptive research loop
+      - name: Start the persistent research window
+        run: |
+          set -euo pipefail
+          WINDOW_MINUTES="$RESEARCH_WINDOW_MINUTES"
+          if [ -n "$AUTOBOT_RESEARCH_DEADLINE_MS" ] && [ "$AUTOBOT_RESEARCH_DEADLINE_MS" != "0" ]; then
+            echo "Using supplied research deadline: $AUTOBOT_RESEARCH_DEADLINE_MS"
+          else
+            DEADLINE_MS="$(python - "$WINDOW_MINUTES" <<'PY'
+          import sys,time
+          minutes=float(sys.argv[1])
+          print(int(time.time()*1000 + minutes*60_000))
+          PY
+          )"
+            echo "AUTOBOT_RESEARCH_DEADLINE_MS=$DEADLINE_MS" >> "$GITHUB_ENV"
+            echo "Research window starts now and ends at epoch ms $DEADLINE_MS."
+          fi
+
+      - name: Run persistent adaptive research loop
         env:
           AUTOBOT_RESEARCH_RESULT: builder/working/autobot-research-result.json
-          AUTOBOT_EVOLUTION_TRIAL_PLAN: ${{ matrix.lane == 'evolution-discovery' && 'latest evolution evidence' || '' }}
+          AUTOBOT_EVOLUTION_TRIAL_PLAN: ${{{ matrix.lane == 'evolution-discovery' && 'latest evolution evidence' || '' }}
         run: node builder/runner/autobot-research-loop.mjs
 
       - name: Upload isolated research evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: autobot-research-${{ matrix.lane }}-${{ github.run_id }}
+          name: autobot-research-${{{ matrix.lane }}-${{{ github.run_id }}
           path: builder/working/autobot-research-result.json
           if-no-files-found: ignore

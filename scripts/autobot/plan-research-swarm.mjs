@@ -7,61 +7,43 @@ let plan={}; try{plan=JSON.parse(fs.readFileSync(planPath,'utf8'));}catch{}
 const priorPath=process.env.AUTOBOT_PRIOR_RESEARCH||'builder/working/prior-research/autobot-research-next-cycle.json';
 let prior={}; try{prior=JSON.parse(fs.readFileSync(priorPath,'utf8'));}catch{}
 
-const max=Math.min(120,Math.max(30,Number(catalog.maxTasksPerRun||120)));
+const tasks=[];
 const variants=catalog.variants||[];
-const tasks=[],seen=new Set();
-let index=0;
-
-function addTask(task){
-  if(tasks.length>=max) return false;
-  const key=[task.domain,task.strategy,task.research_question,task.variant].join('|');
-  if(seen.has(key)) return false;
-  seen.add(key);
-  tasks.push({
-    slot:'r'+String(tasks.length+1).padStart(3,'0'),
-    experiment_id:'forge-'+String(tasks.length+1).padStart(3,'0'),
-    domain:task.domain,
-    strategy:task.strategy,
-    research_question:task.research_question,
-    variant:task.variant
-  });
-  return true;
-}
-
-// Carry unfinished/high-value evidence forward first. This makes the next run
-// an evidence-driven continuation rather than a fresh random matrix.
+const domains=catalog.domains||[];
+const retests=new Map();
 for(const target of (prior.retestTargets||[])){
-  if(!target.lane||!target.strategy) continue;
-  addTask({
-    domain:target.lane,
-    strategy:target.strategy,
-    research_question:`Retest the previous ${target.failureClass||'failed'} result and change one meaningful variable while preserving the same acceptance checks.`,
-    variant:target.variant||'cross-check-prior-evidence'
-  });
+  if(target.lane&&!retests.has(target.lane)) retests.set(target.lane,target);
 }
+const ideas=new Map();
 for(const idea of (prior.candidateWorkerIdeas||[])){
-  if(!idea.lane||!idea.strategy) continue;
-  addTask({
-    domain:idea.lane,
-    strategy:idea.strategy,
-    research_question:`Benchmark the proposed worker/controller idea from prior evidence: ${idea.note||'define a falsifiable worker experiment'}`,
-    variant:'fresh-context'
-  });
+  if(idea.lane&&!ideas.has(idea.lane)) ideas.set(idea.lane,idea);
 }
 
-// Fill the remainder with broad catalog coverage. Twenty passes gives the
-// director enough combinations to reach the 120-task cap across the ten domains.
-for(let pass=0;tasks.length<max && pass<20;pass++){
-  for(const domain of catalog.domains){
-    const strategies=domain.strategies||[], questions=domain.questions||[];
-    if(!strategies.length||!questions.length) continue;
-    const strategy=strategies[(pass+index)%strategies.length];
-    const question=questions[(pass+index*2)%questions.length];
-    const variant=variants[(pass+index)%variants.length]||'fresh-context';
-    addTask({domain:domain.id,strategy,research_question:question,variant});
-    index++;
-    if(tasks.length>=max) break;
+for(let i=0;i<domains.length;i++){
+  const domain=domains[i];
+  const retest=retests.get(domain.id);
+  const idea=ideas.get(domain.id);
+  let question;
+  let variant;
+  if(retest){
+    question=`Retest the previous ${retest.failureClass||'failed'} result for ${domain.id}, change one meaningful variable, and classify whether the failure reproduces or improves.`;
+    variant=retest.variant||'cross-check-prior-evidence';
+  }else if(idea){
+    question=`Benchmark the prior worker/controller idea for ${domain.id}: ${idea.note||'define a falsifiable experiment and acceptance check'}`;
+    variant='fresh-context';
+  }else{
+    const qs=domain.questions||[];
+    question=qs[i%Math.max(1,qs.length)]||`Run falsifiable research experiments for ${domain.id} and record materialisation, quality, scope and recovery outcomes.`;
+    variant=variants[i%Math.max(1,variants.length)]||'fresh-context';
   }
+  tasks.push({
+    slot:'r'+String(i+1).padStart(3,'0'),
+    experiment_id:'forge-lane-'+domain.id,
+    domain:domain.id,
+    strategy:'',
+    research_question:question,
+    variant
+  });
 }
 
 const matrix=JSON.stringify({include:tasks});
@@ -70,16 +52,17 @@ fs.mkdirSync('builder/working',{recursive:true});
 fs.writeFileSync(
   'builder/working/research-matrix.json',
   JSON.stringify({
-    schemaVersion:'forge-research-matrix-v2',
+    schemaVersion:'forge-research-matrix-v3-persistent-lanes',
     generatedAt:new Date().toISOString(),
     taskCount:tasks.length,
+    persistentLaneCount:tasks.length,
     priorEvidenceLoaded:Object.keys(prior).length>0,
     tasks
   },null,2)+'\n'
 );
 console.log(JSON.stringify({
   taskCount:tasks.length,
+  persistentLaneCount:tasks.length,
   priorEvidenceLoaded:Object.keys(prior).length>0,
-  domains:[...new Set(tasks.map(x=>x.domain))],
-  strategies:[...new Set(tasks.map(x=>x.strategy))]
+  domains:tasks.map(x=>x.domain)
 },null,2));

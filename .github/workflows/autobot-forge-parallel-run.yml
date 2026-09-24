@@ -167,7 +167,29 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      window_minutes: ${{ steps.window.outputs.window_minutes }}
     steps:
+      - name: Calculate persistent research window
+        id: window
+        env:
+          DURATION: ${{ inputs.duration }}
+        run: |
+          set -euo pipefail
+          WINDOW_MINUTES="$(python - "$DURATION" <<'PY'
+          import sys,re
+          raw=sys.argv[1].strip().lower()
+          m=re.fullmatch(r'(\\d+)h(?:(\\d+)m)?',raw)
+          if m:
+              print(int(m.group(1))*60 + int(m.group(2) or 0))
+          elif raw.endswith('m'):
+              print(int(raw[:-1]))
+          else:
+              raise SystemExit(f"Unsupported duration: {raw}")
+          PY
+          )"
+          echo "window_minutes=$WINDOW_MINUTES" >> "$GITHUB_OUTPUT"
+          echo "Persistent research window: $WINDOW_MINUTES minutes."
+
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
@@ -252,7 +274,7 @@ jobs:
       research_question: ${{ matrix.research_question }}
       variant: ${{ matrix.variant }}
       queue_slot: ${{ matrix.slot }}
-      deadline_ms: ${{ needs.production-dispatch.outputs.research_deadline_ms }}
+      window_minutes: ${{ needs.research-plan.outputs.window_minutes }}
   research-harvest:
     name: 📚 Harvest research evidence
     needs: research
@@ -285,7 +307,7 @@ jobs:
 
   production-finalize:
     name: 🧾 Finalize production evidence
-    needs: [production-dispatch, research-harvest]
+    needs: [production-dispatch]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 350

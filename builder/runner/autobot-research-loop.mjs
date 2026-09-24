@@ -6,8 +6,6 @@ import {performance} from 'node:perf_hooks';
 
 const lane=process.env.AUTOBOT_RESEARCH_LANE||'unassigned';
 const forcedStrategy=String(process.env.AUTOBOT_RESEARCH_STRATEGY||'').trim();
-// The run deadline is the real stop condition. maxCycles is only a defensive
-// ceiling for malformed/no-deadline invocations; Forge normally supplies a deadline.
 const maxCycles=Math.max(1,Number(process.env.AUTOBOT_RESEARCH_MAX_CYCLES||1000000));
 const configuredBudgetMs=Math.max(60_000,Number(process.env.AUTOBOT_RESEARCH_LOOP_BUDGET_MS||330*60_000));
 const deadlineMs=Math.max(0,Number(process.env.AUTOBOT_RESEARCH_DEADLINE_MS||0));
@@ -47,24 +45,26 @@ const started=performance.now();
 const experiments=[];
 let previous=null;
 let terminationReason=budgetMs<=0?'deadline-exhausted':'deadline-active';
-
 let experimentOrdinal=0;
 
-function makeExperimentId(cycle,attempt){
-  const root=baseExperimentId||`forge-${lane}-${queueSlot||'worker'}`;
-  return `${root}-c${String(cycle).padStart(4,'0')}-e${String(attempt).padStart(2,'0')}`;
+function remainingBudget(){
+  return Math.max(0,Math.min(
+    budgetMs-(performance.now()-started),
+    deadlineMs>0?deadlineMs-Date.now():Number.POSITIVE_INFINITY
+  ));
 }
-
+function makeExperimentId(cycle,attempt){
+  const root=baseExperimentId||`forge-${lane}-${queueSlot||'persistent'}`;
+  return `${root}-c${String(cycle).padStart(4,'0')}-e${String(attempt).padStart(3,'0')}`;
+}
 function makeVariant(cycle,variantIndex){
   if(cycle===1 && variantIndex===0 && requestedVariant) return requestedVariant;
   return variants[(cycle+variantIndex-2)%variants.length];
 }
-
 function makeQuestion(cycle,strategy,variant){
   const root=baseQuestion||`Test the ${strategy} path for ${lane} and classify materialisation, controller, quality and scope outcomes.`;
   return `${root} Controlled variation for cycle ${cycle}: ${variant}.`;
 }
-
 function runTrial(strategy,cycle,variantIndex){
   experimentOrdinal+=1;
   const variant=makeVariant(cycle,variantIndex);
@@ -81,51 +81,56 @@ function runTrial(strategy,cycle,variantIndex){
     AUTOBOT_RESEARCH_QUESTION:researchQuestion,
     AUTOBOT_RESEARCH_QUEUE_SLOT:queueSlot
   };
+  const remaining=Math.max(1,Math.floor(remainingBudget()));
+  const trialTimeoutMs=Math.max(1000,Math.min(minContinueMs,remaining));
   const t=performance.now();
-  const r=spawnSync(process.execPath,[trial],{env,stdio:'inherit'});
+  const r=spawnSync(process.execPath,[trial],{
+    env,
+    stdio:'inherit',
+    timeout:trialTimeoutMs,
+    killSignal:'SIGTERM'
+  });
   const durationMs=Math.round(performance.now()-t);
   let result={lane,cycle,strategy,variant,experimentId,researchQuestion,queueSlot,exitCode:r.status,durationMs};
+  if(r.error){
+    result.controllerError=String(r.error.message||r.error);
+    result.timedOut=Boolean(r.error.code==='ETIMEDOUT'||/timed out/i.test(String(r.error.message||'')));
+  }
   try{
     const p=JSON.parse(fs.readFileSync(process.env.AUTOBOT_RESEARCH_RESULT||'builder/working/autobot-research-result.json','utf8'));
-    result={...p,lane,cycle,strategy,variant,experimentId,researchQuestion,queueSlot,exitCode:r.status,durationMs};
+    result={
+      ...p,
+      lane,cycle,strategy,variant,experimentId,researchQuestion,queueSlot,
+      exitCode:r.status,durationMs,
+      ...(r.error?{
+        controllerError:String(r.error.message||r.error),
+        timedOut:Boolean(r.error.code==='ETIMEDOUT'||/timed out/i.test(String(r.error.message||'')))
+      }:{})
+    };
   }catch{}
-  if(r.error) result.controllerError=String(r.error.message||r.error);
   return result;
 }
 
 for(let cycle=1;cycle<=maxCycles;cycle++){
-  if(performance.now()-started>=budgetMs) break;
+  if(remainingBudget()<=0){terminationReason='deadline-exhausted';break;}
   const first=strategies[(cycle-1)%strategies.length];
   const selected=[first];
   if(maxExperimentsPerCycle>1 && strategies.length>1){
-    const second=strategies[(cycle)%strategies.length];
+    const second=strategies[cycle%strategies.length];
     if(second!==first) selected.push(second);
   }
   for(let i=0;i<selected.length;i++){
-    if(performance.now()-started>=budgetMs) break;
+    if(remainingBudget()<=0){terminationReason='deadline-exhausted';break;}
     const result=runTrial(selected[i],cycle,i);
     experiments.push(result);
     previous=result;
-    if(performance.now()-started>=budgetMs) {
-      terminationReason='budget-exhausted';
-      break;
-    }
-    // A slow/blocked attempt is intentionally bounded. Its evidence is
-    // harvested, then this worker exits so the rolling queue can replace it.
-    if(result.durationMs>=minContinueMs) {
-      terminationReason='bounded-slow-attempt';
-      break;
+    if(remainingBudget()<=0){terminationReason='deadline-exhausted';break;}
+    if(result.timedOut || result.durationMs>=minContinueMs){
+      console.log(`Bounded experiment ${result.experimentId}; continuing the persistent lane.`);
+      continue;
     }
   }
-  if(terminationReason!=='deadline-active') break;
-  if(performance.now()-started>=budgetMs) {
-    terminationReason='budget-exhausted';
-    break;
-  }
-  if((budgetMs-(performance.now()-started))<minContinueMs) {
-    terminationReason='insufficient-time-for-next-attempt';
-    break;
-  }
+  if(remainingBudget()<=0){terminationReason='deadline-exhausted';break;}
 }
 if(terminationReason==='deadline-active') terminationReason='max-cycles';
 
@@ -133,30 +138,16 @@ const successes=experiments.filter(x=>x.qualityPassed||x.status==='success').len
 const materialised=experiments.filter(x=>Number(x.diff)>0).length;
 const failures=experiments.filter(x=>!(x.qualityPassed||x.status==='success')).length;
 const out={
-  schemaVersion:'autobot-research-loop-v3',
-  lane,
-  strategies,
-  terminationReason,
-  forcedStrategy:forcedStrategy||null,
-  allowRevisits,
-  queueSlot:queueSlot||null,
-  rootExperimentId:baseExperimentId||null,
-  rootResearchQuestion:baseQuestion||null,
-  requestedVariant:requestedVariant||null,
+  schemaVersion:'autobot-research-loop-v4',
+  lane,strategies,terminationReason,forcedStrategy:forcedStrategy||null,allowRevisits,
+  queueSlot:queueSlot||null,rootExperimentId:baseExperimentId||null,
+  rootResearchQuestion:baseQuestion||null,requestedVariant:requestedVariant||null,
   cyclesRun:experiments.length?Math.max(...experiments.map(x=>Number(x.cycle||0))):0,
-  experimentsRun:experiments.length,
-  successExperiments:successes,
-  materialisationExperiments:materialised,
-  failedExperiments:failures,
-  totalDurationMs:Math.round(performance.now()-started),
-  budgetMs,
-  configuredBudgetMs,
-  deadlineMs: deadlineMs||null,
-  remainingToDeadlineMs,
-  maxCycles,
-  maxExperimentsPerCycle,
-  experiments,
-  lastResult:previous
+  experimentsRun:experiments.length,successExperiments:successes,
+  materialisationExperiments:materialised,failedExperiments:failures,
+  totalDurationMs:Math.round(performance.now()-started),budgetMs,configuredBudgetMs,
+  deadlineMs:deadlineMs||null,remainingToDeadlineMs:remainingBudget(),
+  maxCycles,maxExperimentsPerCycle,experiments,lastResult:previous
 };
 fs.writeFileSync(process.env.AUTOBOT_RESEARCH_RESULT||'autobot-research-result.json',JSON.stringify(out,null,2)+'\n');
 console.log(JSON.stringify(out,null,2));
