@@ -83,14 +83,15 @@ jobs:
       matrix:
         lane: ${{ inputs.lane && fromJSON(format('["{0}"]', inputs.lane)) || fromJSON('["agent-materialisation","edit-protocols","recovery-engineering","performance-runtime","adversarial-quality","architecture-controller","model-adapters","evolution-discovery","forge-orchestration","regression-replay"]') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 350
     env:
       LOCAL_AI_MODEL: ${{ inputs.local_model || 'qwen2.5-coder:7b' }}
       AUTOBOT_RESEARCH_LANE: ${{ matrix.lane }}
       AUTOBOT_RESEARCH_STRATEGY: ${{ inputs.strategy || '' }}
       AUTOBOT_RESEARCH_ALLOW_REVISITS: 'true'
-      AUTOBOT_RESEARCH_MAX_CYCLES: 1000
-      AUTOBOT_RESEARCH_LOOP_BUDGET_MS: 1200000
+      # A worker stays alive for the run window; the absolute deadline is authoritative.
+      AUTOBOT_RESEARCH_MAX_CYCLES: 1000000
+      AUTOBOT_RESEARCH_LOOP_BUDGET_MS: 19800000
       AUTOBOT_RESEARCH_MIN_CONTINUE_MS: 120000
       AUTOBOT_RESEARCH_MAX_EXPERIMENTS_PER_CYCLE: 2
       AUTOBOT_RESEARCH_DEADLINE_MS: ${{ inputs.deadline_ms || '0' }}
@@ -105,7 +106,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download latest Evolution evidence when available
-        if: matrix.lane == 'evolution-discovery' || matrix.lane == 'borg-orchestration'
+        if: matrix.lane == 'evolution-discovery'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -134,11 +135,11 @@ jobs:
           fi
 
       - name: Install Aider adapter
-        if: matrix.lane != 'performance-runtime' && matrix.lane != 'architecture-controller' && matrix.lane != 'borg-orchestration'
+        if: matrix.lane != 'performance-runtime' && matrix.lane != 'architecture-controller'
         run: python -m pip install --disable-pip-version-check --no-input aider-chat
 
       - name: Install OpenHands adapter
-        if: matrix.lane == 'model-adapters' || matrix.lane == 'borg-orchestration'
+        if: matrix.lane == 'model-adapters'
         run: python -m pip install --disable-pip-version-check --no-input openhands-sdk
 
       - name: Start isolated local model
