@@ -58,6 +58,23 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
       captionCueIndex: chosen.cue.index,
       captionConfidence: Number(chosen.cue.confidence.toFixed(2))
     };
+
+    if (!chosen.cue) return cut;
+
+    const textStart = Math.max(start, chosen.cue.start);
+    const textEnd = Math.min(end, chosen.cue.end);
+    const relativeIn = Math.max(0, Math.min(1, (textStart - start) / (end - start)));
+    const relativeOut = Math.max(relativeIn + .05, Math.min(1, (textEnd - start) / (end - start)));
+
+    return {
+      ...cut,
+      text: chosen.cue.text,
+      textIn: Number(Math.max(.02, relativeIn).toFixed(3)),
+      textOut: Number(Math.min(.98, relativeOut).toFixed(3)),
+      textStyle: 'caption',
+      captionCueIndex: chosen.cue.index,
+      captionConfidence: Number(chosen.cue.confidence.toFixed(2))
+    };
   });
   const appliedCount=cuts.filter(cut=>cut.captionCueIndex!=null).length;
   return {
