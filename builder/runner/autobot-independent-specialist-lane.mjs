@@ -47,6 +47,43 @@ function runNode(script, env, timeoutMs, args = []) {
   });
   return result.error ? 1 : (result.status ?? 1);
 }
+function loadPriorForgeResearch() {
+  const branchName = String(process.env.AUTOBOT_FORGE_RESEARCH_BRANCH || 'autobot/research-handoff').trim();
+  if (!/^[A-Za-z0-9._\\/-]+$/.test(branchName)) {
+    console.warn('[lane:'+botId+'] invalid Forge research branch name; ignoring prior research.');
+    return null;
+  }
+  const remoteRef = `refs/remotes/origin/${branchName}`;
+  const filePath = 'builder/brain/autobot-forge-next-cycle.json';
+  try {
+    execFileSync('git', ['fetch', 'origin', `+refs/heads/${branchName}:${remoteRef}`], { cwd: root, stdio: 'ignore' });
+    const raw = execFileSync('git', ['show', `${remoteRef}:${filePath}`], { cwd: root, encoding: 'utf8' });
+    const data = JSON.parse(raw);
+    fs.mkdirSync(path.join(root, 'builder/working'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'builder/working/forge-research-handoff.json'), JSON.stringify(data, null, 2) + '\n');
+    return data;
+  } catch (error) {
+    console.log('[lane:'+botId+'] no prior Forge research handoff available: '+String(error.message||error));
+    return null;
+  }
+}
+function formatPriorForgeResearch(data) {
+  if (!data || typeof data !== 'object') return 'No prior-cycle Forge research handoff was available.';
+  const handoff = data.productionHandoff || data;
+  const promising = Array.isArray(handoff.promising) ? handoff.promising.slice(0, 8) : [];
+  const ideas = Array.isArray(handoff.candidateWorkerIdeas) ? handoff.candidateWorkerIdeas.slice(0, 6) : [];
+  const retests = Array.isArray(handoff.retestTargets) ? handoff.retestTargets.slice(0, 8) : [];
+  const failures = handoff.failureClasses && typeof handoff.failureClasses === 'object' ? handoff.failureClasses : {};
+  return JSON.stringify({
+    generatedAt: data.generatedAt || null,
+    promising,
+    candidateWorkerIdeas: ideas,
+    retestTargets: retests,
+    failureClasses: failures
+  });
+}
+const priorForgeResearch = loadPriorForgeResearch();
+const priorForgeResearchContext = formatPriorForgeResearch(priorForgeResearch);
 function writeState(status, extra = {}) {
   const state = {
     schemaVersion: 1,
@@ -104,6 +141,8 @@ while (remainingNormalMs() > 90_000 && remainingHardMs() > 120_000) {
     'Inspect the current owned implementation and find the next smallest justified production improvement that satisfies the existing acceptance criteria.',
     'If the current implementation already satisfies one aspect, improve a different justified aspect of the same specialist responsibility.',
     'Preserve all existing contracts, safeguards and successful behaviour.',
+    'Prior-cycle Forge research is advisory evidence only. Use relevant findings to improve the engineering approach, validate them against the current source, and reject unsupported claims. Do not modify workflows, CI, secrets or orchestration from a production specialist lane.',
+    `Prior-cycle Forge research handoff: ${priorForgeResearchContext}`,
     'This cycle must leave a real owned-file candidate or report a truthful blocked/no-progress result.'
   ].join('\n');
 
