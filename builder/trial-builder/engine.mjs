@@ -67,11 +67,31 @@ if(process.argv.includes('--self-test')){
 }
 
 if(process.env.LOCAL_AI_READY!=='1')throw new Error('local AI unavailable; trial builder refuses paid fallback');
-const before=fs.readFileSync(enginePath,'utf8');
+
+const maxExperiments=Math.max(1,Math.min(12,Number(process.env.TRIAL_MAX_EXPERIMENTS||'6')));
+const windowMs=Math.max(120000,Number(process.env.TRIAL_WINDOW_MS||'1200000'));
+const deadline=Date.now()+windowMs;
 const state=loadState();
-const ev=evidence();
-const compact=ev.slice(0,9).map(x=>({name:x.name,summary:x.data?.summary||x.data?.lastResult||x.data?.terminationReason||x.data?.experiments||x.data, keyPoints: Object.keys(x.data).filter(k=>k!=='summary'&&!k.startsWith('last')&&!k.startsWith('termination')&&!k.startsWith('experiments')).map(k=>({key:k,value:x.data[k]}))})).slice(0,9);
-const prompt=`TRIAL EXPERIMENT ${(state.experiment||0)+1}
+
+let completed=0;
+let verified=0;
+let rejected=0;
+let lastExitError=null;
+
+while(completed<maxExperiments && Date.now()<deadline){
+  const experiment=(state.experiment||0)+1;
+  const before=fs.readFileSync(enginePath,'utf8');
+  const ev=evidence();
+  const compact=ev.slice(0,9).map(x=>({
+    name:x.name,
+    summary:x.data?.summary||x.data?.lastResult||x.data?.terminationReason,
+    totals:x.data?.totals,
+    topSignals:x.data?.topSignals,
+    promising:Array.isArray(x.data?.promising)?x.data.promising.slice(0,12):undefined,
+    retestTargets:Array.isArray(x.data?.retestTargets)?x.data.retestTargets.slice(0,12):undefined
+  }));
+
+  const prompt=`TRIAL EXPERIMENT ${experiment}
 
 CONTRACT:
 ${read(contractPath,9000)}
@@ -79,31 +99,58 @@ ${read(contractPath,9000)}
 CURRENT ENGINE — READ THIS BEFORE EDITING:
 ${before}
 
-CURRENT STATE:
+CURRENT STATE AND PRIOR EXPERIMENTS:
 ${JSON.stringify(state,null,2)}
 
 NINE RESEARCH-LANE EVIDENCE PACKETS:
 ${JSON.stringify(compact,null,2)}
 
-Choose one falsifiable improvement to the trial builder itself. Prefer improvements that make it better at inspecting evidence, selecting experiments, verifying changes, recovering from failure, or producing durable learning. Do not merely add documentation. Do not redesign it wholesale. Return one exact search-replace edit against the CURRENT ENGINE.`;
+This is one iteration of a bounded evolutionary loop. Choose one falsifiable improvement to the trial builder itself. Prefer improvements that make it better at inspecting evidence, selecting experiments, verifying changes, recovering from failure, or producing durable learning. Treat repeated research signals as hypotheses to test, not facts to hard-code. Do not merely add documentation. Do not redesign it wholesale. Return one exact search-replace edit against the CURRENT ENGINE. The next iteration will inspect the verified result of this iteration.`;
 
-let outcome={status:'rejected',experiment:(state.experiment||0)+1,startedAt:new Date().toISOString()};
-try{
-  const proposal=await askModel(prompt);
-  applyEdit(proposal);
-  const check=spawnSync(process.execPath,['--check',enginePath],{encoding:'utf8'});
-  if(check.status!==0)throw new Error(check.stderr||'node --check failed');
-  const test=spawnSync(process.execPath,[enginePath,'--self-test'],{encoding:'utf8'});
-  if(test.status!==0)throw new Error(test.stderr||'trial self-test failed');
-  outcome={...outcome,status:'verified',hypothesis:proposal.hypothesis,rationale:proposal.rationale,verification:test.stdout.trim(),completedAt:new Date().toISOString()};
-  state.history=Array.isArray(state.history)?state.history:[];state.history.push(outcome);
-  state.experiment=outcome.experiment;state.nextHypothesis=proposal.hypothesis;state.updatedAt=outcome.completedAt;writeJson(statePath,state);
-  console.log(JSON.stringify(outcome,null,2));
-}catch(err){
-  fs.writeFileSync(enginePath,before);
-  outcome={...outcome,status:'rejected',error:String(err.message||err),completedAt:new Date().toISOString()};
-  state.history=Array.isArray(state.history)?state.history:[];state.history.push(outcome);
-  state.experiment=outcome.experiment;state.nextHypothesis='Retry with a different bounded experiment after addressing: '+outcome.error;state.updatedAt=outcome.completedAt;writeJson(statePath,state);
-  console.error(JSON.stringify(outcome,null,2));
-  process.exit(1);
+  const outcome={status:'rejected',experiment,startedAt:new Date().toISOString()};
+  try{
+    const proposal=await askModel(prompt);
+    applyEdit(proposal);
+    const check=spawnSync(process.execPath,['--check',enginePath],{encoding:'utf8'});
+    if(check.status!==0)throw new Error(check.stderr||'node --check failed');
+    const test=spawnSync(process.execPath,[enginePath,'--self-test'],{encoding:'utf8'});
+    if(test.status!==0)throw new Error(test.stderr||'trial self-test failed');
+    const completedAt=new Date().toISOString();
+    Object.assign(outcome,{status:'verified',hypothesis:proposal.hypothesis,rationale:proposal.rationale,verification:test.stdout.trim(),completedAt});
+    state.history=Array.isArray(state.history)?state.history:[];
+    state.history.push(outcome);
+    state.experiment=experiment;
+    state.nextHypothesis=proposal.hypothesis;
+    state.updatedAt=completedAt;
+    writeJson(statePath,state);
+    verified++;
+    lastExitError=null;
+    console.log(JSON.stringify(outcome,null,2));
+  }catch(err){
+    fs.writeFileSync(enginePath,before);
+    const completedAt=new Date().toISOString();
+    Object.assign(outcome,{status:'rejected',error:String(err.message||err),completedAt});
+    state.history=Array.isArray(state.history)?state.history:[];
+    state.history.push(outcome);
+    state.experiment=experiment;
+    state.nextHypothesis='Retry with a different bounded experiment after addressing: '+outcome.error;
+    state.updatedAt=completedAt;
+    writeJson(statePath,state);
+    rejected++;
+    lastExitError=outcome.error;
+    console.error(JSON.stringify(outcome,null,2));
+  }
+  completed++;
 }
+
+console.log(JSON.stringify({
+  status:'completed',
+  experimentsAttempted:completed,
+  verified,
+  rejected,
+  maxExperiments,
+  windowMs,
+  remainingMs:Math.max(0,deadline-Date.now()),
+  lastExitError
+},null,2));
+process.exit(0);
