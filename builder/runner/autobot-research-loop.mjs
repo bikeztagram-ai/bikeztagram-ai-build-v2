@@ -22,7 +22,7 @@ const laneStrategies={
   'architecture-controller':['shadow-architecture','workflow-architecture','agent-protocol','dependency-plan','challenger'],
   'model-adapters':['direct-ollama-json','openhands-sdk','model-crosscheck','aider-direct','aider-diff'],
   'evolution-discovery':['evolution-selected','worker-discovery','program-synthesis','challenger','replay-known-failure'],
-  'borg-orchestration':['borg-orchestration','worker-discovery','workflow-architecture','memory-learning','agent-protocol'],
+  'forge-orchestration':['forge-orchestration','worker-discovery','workflow-architecture','memory-learning','agent-protocol'],
   'regression-replay':['deterministic-control','failure-replay','replay-known-failure','evolution-selected','performance-lab']
 };
 const variants=[
