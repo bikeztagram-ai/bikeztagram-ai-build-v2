@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "experiment": 1,
+  "experiment": 2,
   "history": [
     {
       "status": "verified",
@@ -10,8 +10,15 @@
       "rationale": "This change will help the trial builder better understand the key points of each evidence packet, making it easier to select relevant experiments and verify changes.",
       "verification": "{\n  \"ok\": true,\n  \"history\": 0,\n  \"experiment\": 0\n}",
       "completedAt": "2026-09-24T18:23:45.409Z"
+    },
+    {
+      "status": "rejected",
+      "experiment": 2,
+      "startedAt": "2026-09-24T20:02:55.909Z",
+      "error": "curl: (28) Operation timed out after 180002 milliseconds with 0 bytes received\n",
+      "completedAt": "2026-09-24T20:05:56.001Z"
     }
   ],
-  "nextHypothesis": "Improve the trial builder's ability to inspect evidence by adding a feature that summarizes the key points of each evidence packet.",
-  "updatedAt": "2026-09-24T18:23:45.409Z"
+  "nextHypothesis": "Retry with a different bounded experiment after addressing: curl: (28) Operation timed out after 180002 milliseconds with 0 bytes received\n",
+  "updatedAt": "2026-09-24T20:05:56.001Z"
 }
