@@ -14,7 +14,6 @@ const read=p=>fs.readFileSync(p,'utf8');
 const workflow=read('.github/workflows/autobot-forge-parallel-run.yml');
 const lane=read('builder/runner/autobot-independent-specialist-lane.mjs');
 const harvest=read('scripts/autobot/harvest-research-swarm.mjs');
-const trial=read('builder/trial-builder/engine.mjs');
 const failures=[];
 const assert=(ok,msg)=>{if(!ok)failures.push(msg);};
 
@@ -35,8 +34,9 @@ assert(workflow.indexOf('production-start-gate') < workflow.indexOf('research-pl
 assert(workflow.includes('needs: [production-dispatch]\n    if: always()'),'production finalization must depend only on the production child.');
 assert(!workflow.includes('needs: [production-dispatch, trial-builder]'),'production finalization must not wait for Trial Builder.');
 assert(workflow.includes('continue-on-error: true\n    runs-on: ubuntu-latest'),'Trial Builder must be experimental/non-blocking.');
-assert(trial.includes('only operates under builder/trial-builder'),'Trial Builder scope contract must remain isolated.');
-assert(trial.includes('LOCAL_AI_READY'),'Trial Builder must retain the local-model-only guard.');
+assert(workflow.includes('ref: autobot/trial-builder'),'Trial Builder must use the persistent isolated branch.');
+assert(workflow.includes('builder/trial-builder/engine.mjs'),'Forge workflow must execute the isolated Trial Builder engine.');
+assert(workflow.includes('git -C trial-branch status --short'),'Trial Builder must enforce its branch scope before persistence.');
 execFileSync(process.execPath,['--check','builder/runner/autobot-independent-specialist-lane.mjs'],{stdio:'inherit'});
 execFileSync(process.execPath,['--check','scripts/autobot/harvest-research-swarm.mjs'],{stdio:'inherit'});
 console.log(JSON.stringify({ok:failures.length===0,failures,productionConsumesPreviousResearch:true,researchProducesNextCycleHandoff:true,researchNonBlocking:true,trialNonBlocking:true},null,2));
