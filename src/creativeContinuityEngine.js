@@ -40,7 +40,22 @@ export function prepareCreativeContinuity(plan,{creativePrompt='',duration=0}={}
     if (i > 0 && source === cuts[i - 1].mediaIndex) {
       c.repetitionPenalty += 0.5;
     }
+
+    // Add a penalty for shots that are too similar in content
+    if (i > 0) {
+      const previousCut = cuts[i - 1];
+      const similarityScore = calculateContentSimilarity(previousCut, c);
+      if (similarityScore > 0.8) {
+        c.repetitionPenalty += 0.5;
+      }
+    }
   }
   const total=cuts.reduce((s,c)=>s+c.duration,0);
   return {...plan,cuts,duration:Number(total.toFixed(2)),creativeContinuity:{version:'1.0',action,dark,emotional,shotCount:cuts.length,targetDuration:Number(duration)||plan.targetDuration||total}};
+}
+
+function calculateContentSimilarity(cut1, cut2) {
+  // Placeholder for content similarity calculation logic
+  // This is a simple example that compares the length of the media indices
+  return Math.abs(cut1.mediaIndex - cut2.mediaIndex) / Math.max(Math.abs(cut1.mediaIndex), Math.abs(cut2.mediaIndex));
 }
