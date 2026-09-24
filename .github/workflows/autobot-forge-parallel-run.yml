@@ -176,7 +176,7 @@ jobs:
           WINDOW_MINUTES="$(python - "$DURATION" <<'PY'
           import sys,re
           raw=sys.argv[1].strip().lower()
-          m=re.fullmatch(r'(\\d+)h(?:(\\d+)m)?',raw)
+          m=re.fullmatch(r'(\d+)h(?:(\d+)m)?',raw)
           if m:
               print(int(m.group(1))*60 + int(m.group(2) or 0))
           elif raw.endswith('m'):
