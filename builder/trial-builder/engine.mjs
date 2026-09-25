@@ -36,6 +36,7 @@ function peerEvidence(){
   const out=[];
   for(const branch of peerBranches){
     try{
+      execFileSync('git',['fetch','origin',`+refs/heads/${branch}:refs/remotes/origin/${branch}`],{cwd:root,stdio:'ignore'});
       const raw=execFileSync('git',['show',`refs/remotes/origin/${branch}:builder/trial-builder/state.json`],{cwd:root,encoding:'utf8',stdio:['ignore','pipe','ignore']});
       const state=JSON.parse(raw);
       out.push({branch,role:state.trialRole||null,experiment:state.experiment||0,nextHypothesis:state.nextHypothesis||null,history:Array.isArray(state.history)?state.history.slice(-3):[]});
