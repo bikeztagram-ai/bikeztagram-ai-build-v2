@@ -295,6 +295,7 @@ jobs:
           path: builder/working/research-harvest/raw
           merge-multiple: false
       - name: Aggregate research results and next-cycle lessons
+        continue-on-error: true
         run: node scripts/autobot/harvest-research-swarm.mjs
       - name: Guarantee a research harvest artifact
         if: always()
