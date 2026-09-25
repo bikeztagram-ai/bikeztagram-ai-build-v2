@@ -52,17 +52,26 @@ export function applySpeechCaptionsToPlan(plan,captions,options={}){
     };
   });
   const appliedCount=cuts.filter(cut=>cut.captionCueIndex!=null).length;
+  const summaries = cuts.map((cut) => {
+    const cue = cues.find(c => c.index === cut.captionCueIndex);
+    return {
+      shotIndex: cut.index,
+      summary: cue ? cue.text : 'No caption available'
+    };
+  });
+
   return {
-    plan:{...plan,cuts,speechCaptions:cues,captioning:{enabled:true,mode:'verified-speech-cues',appliedShots:appliedCount,totalCues:cues.length}},
-    captions:cues,
-    captionCount:cues.length,
-    appliedCount
+    plan: { ...plan, cuts, speechCaptions: cues, captioning: { enabled: true, mode: 'verified-speech-cues', appliedShots: appliedCount, totalCues: cues.length } },
+    captions: cues,
+    captionCount: cues.length,
+    appliedCount,
+    summaries
   };
 }
 
-export function describeCaptionPlan(result){
-  if(!result?.captionCount)return 'No verified speech captions detected.';
-  return `📝 Speech captions: ${result.appliedCount}/${result.captionCount} verified cues attached to the edit.`;
+export function describeCaptionPlan(result) {
+  if (!result?.captionCount) return 'No verified speech captions detected.';
+  return `📝 Speech captions: ${result.appliedCount}/${result.captionCount} verified cues attached to the edit.\n\nShot summaries:\n${result.summaries.map(summary => `Shot ${summary.shotIndex}: ${summary.summary}`).join('\n')}`;
 }
 
 export function filterCaptionCues(cues=[],options={}){
