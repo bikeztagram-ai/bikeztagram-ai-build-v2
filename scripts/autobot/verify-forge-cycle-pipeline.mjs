@@ -18,7 +18,7 @@ const failures=[];
 const assert=(ok,msg)=>{if(!ok)failures.push(msg);};
 
 assert(workflow.includes('permissions:\n  actions: write\n  contents: read'),'Forge launcher must keep its top-level token permissions read-only for repository contents.');
-assert(/name: 📚 Harvest research evidence[\\s\\S]*?permissions:\\n      contents: write\\n      actions: read/.test(workflow),'research harvest job must have contents:write because job-level permissions override the workflow default.');
+assert(/name: 📚 Harvest research evidence[\s\S]*?permissions:\s*contents: write\s*actions: read/.test(workflow),'research harvest job must have contents:write because job-level permissions override the workflow default.');
 assert(workflow.includes('autobot/research-handoff'),'Forge workflow must persist research on a dedicated handoff branch.');
 assert(workflow.includes('builder/brain/autobot-forge-next-cycle.json'),'durable next-cycle handoff file must be written.');
 assert(workflow.includes('git push origin HEAD:autobot/research-handoff'),'research harvest must publish the handoff for the following cycle.');
@@ -40,7 +40,7 @@ assert(workflow.indexOf('production-dispatch') < workflow.indexOf('research-plan
 assert(workflow.indexOf('production-start-gate') < workflow.indexOf('research-plan'),'research must start only after the ten production lanes have claimed runners.');
 assert(workflow.includes('needs: [production-dispatch]\n    if: always()'),'production finalization must depend only on the production child.');
 assert(!workflow.includes('needs: [production-dispatch, trial-builder]'),'production finalization must not wait for Trial Builder.');
-assert(/trial-builder:[\\s\\S]*?continue-on-error: true[\\s\\S]*?runs-on: ubuntu-24\\.04/.test(workflow),'Trial Builder must be experimental/non-blocking.');
+assert(/trial-builder:[\s\S]*?continue-on-error:\s*true[\s\S]*?runs-on:\s*ubuntu-24\.04/.test(workflow),'Trial Builder must be experimental/non-blocking.');
 assert(workflow.includes('ref: autobot/trial-builder'),'Trial Builder must use the persistent isolated branch.');
 assert(workflow.includes('builder/trial-builder/engine.mjs'),'Forge workflow must execute the isolated Trial Builder engine.');
 assert(workflow.includes("TRIAL_MODEL_TIMEOUT_MS: '120000'"),'Trial Builder model calls should start with a bounded two-minute timeout; the engine adapts after timeouts.');
