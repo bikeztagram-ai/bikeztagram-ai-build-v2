@@ -92,7 +92,7 @@ jobs:
       max-parallel: 10
       matrix:
         lane: ${{ inputs.lane && fromJSON(format('["{0}"]', inputs.lane)) || fromJSON('["agent-materialisation","edit-protocols","recovery-engineering","performance-runtime","adversarial-quality","architecture-controller","model-adapters","evolution-discovery","forge-orchestration","regression-replay"]') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
       LOCAL_AI_MODEL: ${{ inputs.local_model || 'qwen2.5-coder:7b' }}
