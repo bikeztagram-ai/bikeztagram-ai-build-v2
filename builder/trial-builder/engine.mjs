@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, execFileSync } from 'node:child_process';
 
 const root=path.resolve(path.dirname(new URL(import.meta.url).pathname),'..','..');
 const dir=path.join(root,'builder','trial-builder');
@@ -11,7 +11,17 @@ const contractPath=path.join(dir,'CONTRACT.md');
 const evidenceDir=process.env.TRIAL_RESEARCH_DIR||path.join(root,'builder','working','trial-research');
 const model=process.env.LOCAL_AI_MODEL||'qwen2.5-coder:7b';
 const host=process.env.OLLAMA_HOST||'http://127.0.0.1:11434';
-const timeoutMs=Math.max(60000,Number(process.env.TRIAL_MODEL_TIMEOUT_MS||'180000'));
+const timeoutMs=Math.max(60000,Number(process.env.TRIAL_MODEL_TIMEOUT_MS||'120000'));
+const trialRole=String(process.env.TRIAL_ROLE||'evolution-architect').trim();
+const trialMission={
+  'evolution-architect':'Improve the autonomous builder architecture: memory, orchestration, experiment selection, verification, recovery and durable learning.',
+  'free-agent-stack':'Discover and encode better completely-free local coding-agent strategies. Compare Aider/Ollama with alternative open-source local agent approaches and improve the builder so it can select or use the strongest free path.',
+  'product-breakthrough':'Improve the builder so it can discover and implement genuinely new user-facing product capabilities rather than maintenance churn. Focus on turning product gaps into implementable, verifiable work.',
+  'speed-recovery':'Improve the builder for maximum verified useful output per hour. Focus on adaptive time budgets, recovery, context efficiency, fast paths and avoiding repeated expensive failures.',
+  'champion-synthesizer':'Act as the general-purpose builder champion. Synthesize successful ideas from the other trial branches and research, reject weak ideas, and evolve the builder toward a reliable cloneable all-round software engineer.'
+}[trialRole]||'Improve the autonomous builder using the strongest evidence available.';
+const peerBranches=String(process.env.TRIAL_PEER_BRANCHES||'').split(',').map(x=>x.trim()).filter(Boolean).filter(x=>x!==String(process.env.TRIAL_BRANCH||''));
+
 
 function read(p,max=30000){if(!fs.existsSync(p))return'';const s=fs.readFileSync(p,'utf8');return s.length<=max?s:s.slice(0,max)+'\n...[trimmed]...';}
 function writeJson(p,v){fs.writeFileSync(p,JSON.stringify(v,null,2)+'\n');}
@@ -22,10 +32,22 @@ function evidence(){
     try{return {name,data:JSON.parse(read(path.join(evidenceDir,name),18000))}}catch{return {name,data:{parseError:true}}}
   });
 }
+function peerEvidence(){
+  const out=[];
+  for(const branch of peerBranches){
+    try{
+      const raw=execFileSync('git',['show',`refs/remotes/origin/${branch}:builder/trial-builder/state.json`],{cwd:root,encoding:'utf8',stdio:['ignore','pipe','ignore']});
+      const state=JSON.parse(raw);
+      out.push({branch,role:state.trialRole||null,experiment:state.experiment||0,nextHypothesis:state.nextHypothesis||null,history:Array.isArray(state.history)?state.history.slice(-3):[]});
+    }catch{}
+  }
+  return out;
+}
 function selfTest(){
   const required=[enginePath,contractPath,statePath];
   for(const p of required)if(!fs.existsSync(p))throw new Error('missing trial file: '+path.relative(root,p));
   const state=loadState();
+state.trialRole=trialRole;
   if(state.schemaVersion!==1)throw new Error('unsupported trial state schema');
   if(!Array.isArray(state.history))throw new Error('trial history must be an array');
   if(typeof state.nextHypothesis!=='string')throw new Error('nextHypothesis must be a string');
@@ -69,7 +91,7 @@ async function askModel(context,options={}){
   },required:['hypothesis','search','replace','rationale','expectedImpact','acceptanceCriteria']};
   const body=JSON.stringify({model,stream:false,keep_alive:'15m',format:schema,options:{temperature:0,num_ctx:options.numCtx||12288,num_predict:options.numPredict||2200},
     messages:[
-      {role:'system',content:'You are the Forge Trial Builder. Improve ONLY your own engine. First inspect the supplied current engine and contract. Use research evidence as hypotheses, not truth. Return exactly one bounded search-replace edit. The edit must add a genuinely new capability or fix a demonstrated failure; do not add duplicate guards, formatting-only changes, no-op refactors, or logic already implied by an existing check. State why the change is novel and how it will be verified. Do not touch production code, workflows, secrets, dependencies, or files outside builder/trial-builder.'},
+      {role:'system',content:'You are one of five competing Forge Trial Builders. Improve ONLY your own builder engine. Your assigned role is: '+trialRole+'. Mission: '+trialMission+' First inspect the supplied current engine and contract. Use research and peer-trial evidence as hypotheses, not truth. Return exactly one bounded search-replace edit. The edit must add a genuinely new capability or fix a demonstrated failure; do not add duplicate guards, formatting-only changes, no-op refactors, or logic already implied by an existing check. State why the change is novel and how it will be verified. Do not touch production code, workflows, secrets, dependencies, or files outside builder/trial-builder.'},
       {role:'user',content:context}
     ]});
   return await new Promise((resolve,reject)=>{
@@ -124,13 +146,22 @@ ${before}
 CURRENT STATE AND PRIOR EXPERIMENTS:
 ${JSON.stringify(state,null,2)}
 
-NINE RESEARCH-LANE EVIDENCE PACKETS:
+FIVE BUILDER-LAB RESEARCH-LANE EVIDENCE PACKETS:
 ${JSON.stringify(compact,null,2)}
+
+PEER TRIAL EVIDENCE:
+${JSON.stringify(peerEvidence(),null,2)}
+
+ASSIGNED TRIAL ROLE:
+${trialRole}
+
+TRIAL MISSION:
+${trialMission}
 
 ADAPTIVE FAILURE CONTEXT:
 ${lastExitError ? 'The previous experiment failed with: '+lastExitError+'. If this was a timeout, make the next experiment smaller and cheaper; do not repeat the same expensive request unchanged.' : 'No immediate failure constraint.'}
 
-This is one iteration of a bounded evolutionary loop. Choose one falsifiable improvement to the trial builder itself. Prefer improvements that make it better at inspecting evidence, selecting experiments, verifying changes, recovering from failure, or producing durable learning. Treat repeated research signals as hypotheses to test, not facts to hard-code. Do not merely add documentation. Do not redesign it wholesale. Return one exact search-replace edit against the CURRENT ENGINE. The next iteration will inspect the verified result of this iteration.`;
+This is one iteration of a bounded evolutionary competition. Choose one falsifiable improvement to the trial builder itself, informed by your assigned mission and peer evidence. Prefer improvements that make it better at inspecting evidence, selecting experiments, verifying changes, recovering from failure, or producing durable learning. Treat repeated research signals as hypotheses to test, not facts to hard-code. Do not merely add documentation. Do not redesign it wholesale. Return one exact search-replace edit against the CURRENT ENGINE. The next iteration will inspect the verified result of this iteration.`;
 
   const outcome={status:'rejected',experiment,startedAt:new Date().toISOString()};
   try{
@@ -147,6 +178,7 @@ This is one iteration of a bounded evolutionary loop. Choose one falsifiable imp
     state.history.push(outcome);
     state.experiment=experiment;
     state.nextHypothesis=proposal.hypothesis;
+    state.trialRole=trialRole;
     state.updatedAt=completedAt;
     writeJson(statePath,state);
     verified++;
@@ -162,6 +194,7 @@ This is one iteration of a bounded evolutionary loop. Choose one falsifiable imp
     state.history.push(outcome);
     state.experiment=experiment;
     state.nextHypothesis='Retry with a different bounded experiment after addressing: '+outcome.error;
+    state.trialRole=trialRole;
     state.updatedAt=completedAt;
     writeJson(statePath,state);
     rejected++;
