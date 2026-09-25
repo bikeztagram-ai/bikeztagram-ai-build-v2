@@ -18,6 +18,7 @@ function walk(dir){
   return out;
 }
 const files=walk(rawRoot).filter(p=>p.endsWith('.json'));
+const MAX_RETAINED_EXPERIMENTS=2000;
 const experiments=[];
 const sources=[];
 for(const file of files){
@@ -51,8 +52,8 @@ for(const x of experiments){
 const successful=experiments.filter(x=>x.qualityPassed||x.status==='success');
 const normalizeSignalText=value=>String(value??'')
   .toLowerCase()
-  .replace(/\\d+/g,'#')
-  .replace(/\\s+/g,' ')
+  .replace(/\d+/g,'#')
+  .replace(/\s+/g,' ')
   .trim();
 const signalClass=x=>classify(x);
 const signalSignature=x=>[
@@ -89,6 +90,7 @@ const topSignals=[...signalClusters.values()]
     note:c.examples[0]?.note||null
   }));
 const reproducedSuccessfulSignals=topSignals.filter(x=>x.reproduced&&x.successfulCount>0);
+const retainedExperiments=experiments.slice(-MAX_RETAINED_EXPERIMENTS);
 const promising=reproducedSuccessfulSignals
   .filter(x=>Number(x.diff||0)>0)
   .sort((a,b)=>b.repeatCount-a.repeatCount || b.successfulCount-a.successfulCount)
