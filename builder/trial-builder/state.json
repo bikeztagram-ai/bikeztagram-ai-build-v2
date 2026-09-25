@@ -33,13 +33,14 @@
       "completedAt": "2026-09-24T22:39:53.741Z"
     },
     {
-      "status": "verified",
+      "status": "rejected",
       "experiment": 5,
       "startedAt": "2026-09-24T22:39:53.748Z",
       "hypothesis": "Add a feature that checks for unique search anchors before applying edits.",
       "rationale": "This change will ensure that the trial builder only applies edits if the search anchor is unique, preventing errors and ensuring the integrity of the engine.",
-      "verification": "{\n  \"ok\": true,\n  \"history\": 4,\n  \"experiment\": 4\n}",
-      "completedAt": "2026-09-24T22:42:44.668Z"
+      "completedAt": "2026-09-24T22:42:44.668Z",
+      "error": "post-run audit: redundant guard; existing hits!==1 check already proves payload.search is present",
+      "rejectionReason": "verified self-test passed, but diff-level audit found the change added no new capability and duplicated an invariant already enforced by applyEdit"
     },
     {
       "status": "rejected",
@@ -63,6 +64,6 @@
       "completedAt": "2026-09-24T22:51:44.729Z"
     }
   ],
-  "nextHypothesis": "Retry with a different bounded experiment after addressing: curl: (28) Operation timed out after 180001 milliseconds with 0 bytes received\n",
-  "updatedAt": "2026-09-24T22:51:44.729Z"
+  "nextHypothesis": "Build and enforce a deterministic meaningful-change gate; after model timeouts, reduce request cost and choose a materially different bounded experiment.",
+  "updatedAt": "2026-09-25T06:08:20.936Z"
 }
