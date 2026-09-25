@@ -24,7 +24,13 @@ assert(workflow.includes('builder/brain/autobot-forge-next-cycle.json'),'durable
 assert(workflow.includes('git push origin HEAD:autobot/research-handoff'),'research harvest must publish the handoff for the following cycle.');
 assert(harvest.includes("schemaVersion:'autobot-research-next-cycle-v2'"),'research harvest must emit the v2 next-cycle schema.');
 assert(harvest.includes('productionHandoff:'),'research harvest must include a production-facing advisory handoff.');
+assert(harvest.includes('signalClusters'),'research harvest must cluster repeated evidence signatures.');
+assert(harvest.includes('uniqueSignalSignatures'),'research harvest must report unique signal signatures.');
+assert(harvest.includes('duplicateExperiments'),'research harvest must report duplicate/repeated experiment volume.');
+assert(harvest.includes('reproducedSuccessfulSignals'),'research harvest must distinguish reproduced successful signals from single observations.');
+assert(harvest.includes('topSignals'),'research harvest must expose bounded top signals for the Trial Builder and next-cycle planner.');
 assert(harvest.includes('promising.slice(0,12)'),'production handoff must be bounded.');
+assert(workflow.includes('runs-on: ubuntu-24.04'),'Forge launcher should be pinned to Ubuntu 24.04 before ubuntu-latest migrates.');
 assert(lane.includes('autobot/research-handoff'),'production lane must read the durable prior-cycle research branch.');
 assert(lane.includes('autobot-forge-next-cycle.json'),'production lane must consume the durable next-cycle research file.');
 assert(lane.includes('Prior-cycle Forge research is advisory evidence only.'),'production lane must treat research as evidence, not authority.');
@@ -37,6 +43,7 @@ assert(!workflow.includes('needs: [production-dispatch, trial-builder]'),'produc
 assert(workflow.includes('continue-on-error: true\n    runs-on: ubuntu-latest'),'Trial Builder must be experimental/non-blocking.');
 assert(workflow.includes('ref: autobot/trial-builder'),'Trial Builder must use the persistent isolated branch.');
 assert(workflow.includes('builder/trial-builder/engine.mjs'),'Forge workflow must execute the isolated Trial Builder engine.');
+assert(workflow.includes("TRIAL_MODEL_TIMEOUT_MS: '120000'"),'Trial Builder model calls should start with a bounded two-minute timeout; the engine adapts after timeouts.');
 assert(workflow.includes('git -C trial-branch status --short'),'Trial Builder must enforce its branch scope before persistence.');
 execFileSync(process.execPath,['--check','builder/runner/autobot-independent-specialist-lane.mjs'],{stdio:'inherit'});
 execFileSync(process.execPath,['--check','scripts/autobot/harvest-research-swarm.mjs'],{stdio:'inherit'});
