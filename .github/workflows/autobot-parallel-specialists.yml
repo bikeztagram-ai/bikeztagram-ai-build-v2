@@ -46,7 +46,7 @@ jobs:
   # DIRECTOR — fully isolated production specialist. Its runner/worktree/Aider
   # stack is independent of every other specialist.
   experimental-director:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
       - name: Record specialist job start
@@ -132,7 +132,7 @@ jobs:
   # TIMELINE — fully isolated production specialist. Its runner/worktree/Aider
   # stack is independent of every other specialist.
   experimental-timeline:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
       - name: Record specialist job start
@@ -216,7 +216,7 @@ jobs:
           if-no-files-found: ignore
 
   experimental-music:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
       - name: Record specialist job start
@@ -306,7 +306,7 @@ jobs:
           if-no-files-found: ignore
 
   experimental-scene:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
       - name: Record specialist job start
@@ -396,7 +396,7 @@ jobs:
           if-no-files-found: ignore
 
   experimental-rhythm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
       - name: Record specialist job start
@@ -486,7 +486,7 @@ jobs:
           if-no-files-found: ignore
 
   experimental-render:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
       - name: Record specialist job start
@@ -577,7 +577,7 @@ jobs:
 
   # MEDIA INTELLIGENCE — isolated production specialist owning the analysis-to-edit planning boundary.
   experimental-media-intelligence:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
       - name: Record specialist job start
@@ -662,7 +662,7 @@ jobs:
 
   # CAPTION — isolated production specialist owning the speech-caption editorial boundary.
   experimental-caption:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
       - name: Record specialist job start
@@ -749,7 +749,7 @@ jobs:
   # coordination ledger. It never merges product code and never gates the
   # production persistent-autobot job.
   experimental-intent:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
       - name: Record specialist job start
@@ -839,7 +839,7 @@ jobs:
   # production persistent-autobot job.
 
   experimental-continuity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
       - name: Record specialist job start
@@ -931,7 +931,7 @@ jobs:
   experimental-fan-in:
     needs: [experimental-director, experimental-timeline, experimental-music, experimental-scene, experimental-rhythm, experimental-render, experimental-media-intelligence, experimental-caption, experimental-intent, experimental-continuity]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7

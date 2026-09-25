@@ -26,7 +26,7 @@ concurrency:
 jobs:
   production-dispatch:
     name: 🏭 Dispatch original 10 production workflow
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       run_id: ${{ steps.find.outputs.run_id }}
       research_deadline_ms: ${{ steps.find.outputs.research_deadline_ms }}
@@ -106,7 +106,7 @@ jobs:
   production-start-gate:
     name: 🚦 Wait for all 10 proven production specialists to start
     needs: production-dispatch
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -162,7 +162,7 @@ jobs:
   research-plan:
     name: 🧠 Forge Research Director
     needs: production-start-gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
       window_minutes: ${{ steps.window.outputs.window_minutes }}
@@ -279,7 +279,7 @@ jobs:
     name: 📚 Harvest research evidence
     needs: research
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       actions: read
@@ -335,7 +335,7 @@ jobs:
     needs: [research-harvest]
     if: always()
     continue-on-error: true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
@@ -383,7 +383,7 @@ jobs:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
           LOCAL_AI_READY: '1'
           TRIAL_RESEARCH_DIR: /tmp/trial-research
-          TRIAL_MODEL_TIMEOUT_MS: '180000'
+          TRIAL_MODEL_TIMEOUT_MS: '120000'
           TRIAL_MAX_EXPERIMENTS: '6'
           TRIAL_WINDOW_MS: '1200000'
         run: |
@@ -422,7 +422,7 @@ jobs:
     name: 🧾 Finalize production evidence
     needs: [production-dispatch]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 350
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
