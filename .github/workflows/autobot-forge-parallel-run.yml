@@ -296,6 +296,22 @@ jobs:
           merge-multiple: false
       - name: Aggregate research results and next-cycle lessons
         run: node scripts/autobot/harvest-research-swarm.mjs
+      - name: Guarantee a research harvest artifact
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p builder/working/research-harvest
+          if [ ! -f builder/working/research-harvest/autobot-research-harvest.json ]; then
+            cat > builder/working/research-harvest/autobot-research-harvest.json <<'EOF'
+          {"schemaVersion":"autobot-research-harvest-v1","generatedAt":"","purpose":"Fallback evidence record because aggregation failed.","sources":[],"totals":{"lanes":0,"experiments":0,"successful":0,"failed":0,"materialised":0,"retainedExperiments":0,"truncated":false,"uniqueSignalSignatures":0,"duplicateExperiments":0,"reproducedSuccessfulSignals":0},"byLane":{},"byStrategy":{},"byFailureClass":{"harvest-failure":1},"topSignals":[],"promising":[],"experiments":[]}
+          EOF
+          fi
+          if [ ! -f builder/working/research-harvest/autobot-research-next-cycle.json ]; then
+            cat > builder/working/research-harvest/autobot-research-next-cycle.json <<'EOF'
+          {"schemaVersion":"autobot-research-next-cycle-v2","generatedAt":"","observedFailureClasses":{"harvest-failure":1},"topSignals":[],"candidateWorkerIdeas":[],"retestTargets":[],"productionHandoff":{"purpose":"Fallback advisory handoff after research harvest failure.","promising":[],"topSignals":[],"candidateWorkerIdeas":[],"retestTargets":[],"failureClasses":{"harvest-failure":1}}}
+          EOF
+          fi
+
       - name: Upload research harvest
         uses: actions/upload-artifact@v7
         with:
@@ -424,7 +440,7 @@ jobs:
           git -C trial-branch config user.name "Bikeztagram Builder Lab"
           git -C trial-branch config user.email "autobot-lab@users.noreply.github.com"
           mapfile -t changed < <(git -C trial-branch status --short | awk '{print $2}' | sed '/^$/d')
-          for path in "${{changed[@]}}"; do
+          for path in "${changed[@]}"; do
             case "$path" in
               builder/trial-builder/*) ;;
               *) echo "Trial builder attempted an out-of-scope change: $path" >&2; git -C trial-branch reset --hard HEAD; git -C trial-branch clean -fd; exit 1 ;;
