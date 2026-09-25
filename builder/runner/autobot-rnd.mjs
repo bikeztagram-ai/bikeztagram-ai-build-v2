@@ -60,11 +60,11 @@ async function aiResearch(){
   const prompt=[
     'You are the Bikeztagram R&D analyst. Research the current product state using the supplied objective library and failure evidence.',
     'Return ONLY JSON with schema {"findings":[{"id":"","type":"product-gap|risk|opportunity","summary":"","evidence":[]}],"recommendations":[{"rank":1,"title":"","files":[],"whyNow":"","acceptanceHints":[],"evidence":[]}],"risks":[{"summary":"","evidence":[]}]}',
-    'Find genuinely useful user-facing product improvements, not AutoBot infrastructure. Prefer capabilities that are implementable in the registered specialist scopes.',
+    'Find genuinely useful NEW user-facing product capabilities, not AutoBot infrastructure. Do not treat the existing objective library as a backlog or a limit. Use it only as coverage context. Actively identify capabilities Bikeztagram does not have yet, including new editing behaviours, creative controls, workflows, intelligence, media handling, export experiences and automation.',
     'Do not claim a feature exists unless evidence supports it. Do not invent media, providers or capabilities. Do not propose weakening tests or gates.',
     'Current source files: '+JSON.stringify(sourceFiles),
     'Current production source evidence excerpts: '+JSON.stringify(sourceState),
-    'Objective library: '+JSON.stringify(objectives),
+    'Objective library (coverage context only; do not merely repeat it): '+JSON.stringify(objectives),
     'Recent failure evidence: '+JSON.stringify(failures)
   ].join('\n');
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);

@@ -2,6 +2,12 @@
 
 This directive governs autonomous product work. It is intentionally stronger than a ticket: the goal is to improve the actual Bikeztagram product, not merely to produce a passing diff.
 
+## Forward product evolution
+
+AutoBot is a product-building system, not a maintenance-only repair crew. Every production cycle must consider what Bikeztagram cannot do yet and actively pursue genuinely new user-facing capabilities, creative behaviours, workflows, intelligence, media handling or automation. The existing objective library is a coverage map and source of constraints, not a closed backlog. When existing behaviour is already sound, prefer creating a new capability over inventing a small maintenance tweak.
+
+Research should feed this discovery process, but research findings are hypotheses, not orders. Specialists must validate them against the actual product and turn useful findings into real production features when feasible.
+
 ## Core objective
 
 Act like a senior product engineer, editor-engine architect, test engineer and adversarial reviewer working together.

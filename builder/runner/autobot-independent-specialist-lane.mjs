@@ -18,6 +18,7 @@ import { spawnSync, execFileSync } from 'node:child_process';
 const root = process.cwd();
 const botId = String(process.env.AUTOBOT_SPECIALIST_BOT_ID || '').trim();
 const initialObjective = String(process.env.AUTOBOT_SPECIALIST_OBJECTIVE || '').trim();
+const registryOwnedFiles = (() => { try { const r = JSON.parse(fs.readFileSync(path.join(root, 'builder/brain/autobot-fleet.json'), 'utf8')); return Object.fromEntries((r.bots||[]).filter(x=>x.specialistBuilder&&x.ownsFiles).map(x=>[x.id,x.ownsFiles])); } catch { return {}; } })();
 const coordinationId = String(process.env.AUTOBOT_COORDINATION_ID || '').trim() || `lane-${process.env.GITHUB_RUN_ID || Date.now()}`;
 const model = process.env.AUTOBOT_AIDER_MODEL || process.env.LOCAL_AI_MODEL || 'qwen2.5-coder:7b';
 const skipNpmInstall = String(process.env.AUTOBOT_SKIP_NPM_INSTALL || '').toLowerCase() === 'true';
@@ -84,6 +85,20 @@ function formatPriorForgeResearch(data) {
 }
 const priorForgeResearch = loadPriorForgeResearch();
 const priorForgeResearchContext = formatPriorForgeResearch(priorForgeResearch);
+function runOpportunity(currentBase, cycle) {
+  const files = (registryOwnedFiles[botId] || []).join(',');
+  const result = spawnSync(process.execPath, ['builder/runner/autobot-specialist-opportunity.mjs'], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, AUTOBOT_SPECIALIST_FILES: files, AUTOBOT_CURRENT_BASE: currentBase,
+      AUTOBOT_FORGE_RESEARCH_CONTEXT: priorForgeResearchContext, AUTOBOT_OPPORTUNITY_TIMEOUT_MS: '45000' },
+    timeout: Math.min(50_000, Math.max(20_000, remainingHardMs() - 5_000))
+  });
+  if (result.error || result.status !== 0) return null;
+  try { const raw=String(result.stdout||'').trim().split(/\r?\n/).filter(Boolean).pop(); return raw ? JSON.parse(raw) : null; }
+  catch { return null; }
+}
+
 function writeState(status, extra = {}) {
   const state = {
     schemaVersion: 1,
@@ -132,19 +147,21 @@ while (remainingNormalMs() > 90_000 && remainingHardMs() > 120_000) {
   const thisCycleMinutes = Math.min(cycleBudget, availableMinutes);
   if (thisCycleMinutes < 8) break;
 
+  const opportunity = runOpportunity(currentBase, cycle);
   const cycleObjective = [
     initialObjective,
     '',
-    `Persistent lane cycle ${cycle}: this is a NEW improvement cycle on the current verified candidate.`,
+    `Autonomous product evolution cycle ${cycle}: independently discover and implement a NEW capability that moves Bikeztagram forward.`,
     `Previous verified candidate base: ${currentBase}`,
-    'Do not repeat an already-applied change merely to create churn.',
-    'Inspect the current owned implementation and find the next smallest justified production improvement that satisfies the existing acceptance criteria.',
-    'If the current implementation already satisfies one aspect, improve a different justified aspect of the same specialist responsibility.',
-    'Preserve all existing contracts, safeguards and successful behaviour.',
-    'Prior-cycle Forge research is advisory evidence only. Use relevant findings to improve the engineering approach, validate them against the current source, and reject unsupported claims. Do not modify workflows, CI, secrets or orchestration from a production specialist lane.',
+    opportunity ? `PRODUCT OPPORTUNITY SELECTED: ${JSON.stringify(opportunity)}` : 'PRODUCT OPPORTUNITY SELECTOR UNAVAILABLE: independently invent a new user-facing capability from the current source and domain mission.',
+    'Do not limit the work to bug fixing, tuning, refactoring or maintenance. Prefer genuinely new user-visible capability, creative behaviour, workflow, intelligence or automation that is not already present.',
+    'Do not repeat an already-applied feature merely to create churn. Inspect the current implementation and prior opportunity history before editing.',
+    'Implement the opportunity fully enough that it is connected to the real production decision path. Do not add dead helpers, metadata-only changes, placeholder behaviour or arbitrary limits.',
+    'Preserve all existing contracts, safeguards and successful behaviour while expanding capability.',
+    'Prior-cycle Forge research is advisory evidence only. Use relevant findings to discover and validate new product ideas; reject unsupported claims. Do not modify workflows, CI, secrets or orchestration from a production specialist lane.',
     `Prior-cycle Forge research handoff: ${priorForgeResearchContext}`,
-    'This cycle must leave a real owned-file candidate or report a truthful blocked/no-progress result.'
-  ].join('\n');
+    'This cycle must leave a real owned-file product candidate or report a truthful blocked/no-progress result.'
+  ].join('\\n');
 
   console.log(`[lane:${botId}] cycle ${cycle} starting from ${currentBase}; budget=${thisCycleMinutes}m; remaining=${availableMinutes}m`);
   writeState('building', { currentBase, verifiedCandidates, publishedBranches, failures, cycle, cycleObjective });
