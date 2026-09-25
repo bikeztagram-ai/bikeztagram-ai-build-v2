@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "experiment": 8,
+  "experiment": 14,
   "history": [
     {
       "status": "verified",
@@ -62,8 +62,51 @@
       "startedAt": "2026-09-24T22:48:44.716Z",
       "error": "curl: (28) Operation timed out after 180001 milliseconds with 0 bytes received\n",
       "completedAt": "2026-09-24T22:51:44.729Z"
+    },
+    {
+      "status": "rejected",
+      "experiment": 9,
+      "startedAt": "2026-09-25T09:02:16.812Z",
+      "error": "curl: (28) Operation timed out after 120002 milliseconds with 0 bytes received\n",
+      "completedAt": "2026-09-25T09:04:16.829Z"
+    },
+    {
+      "status": "rejected",
+      "experiment": 10,
+      "startedAt": "2026-09-25T09:04:18.223Z",
+      "error": "curl: (28) Operation timed out after 72002 milliseconds with 0 bytes received\n",
+      "completedAt": "2026-09-25T09:05:30.237Z"
+    },
+    {
+      "status": "rejected",
+      "experiment": 11,
+      "startedAt": "2026-09-25T09:05:31.556Z",
+      "error": "curl: (28) Operation timed out after 60002 milliseconds with 0 bytes received\n",
+      "completedAt": "2026-09-25T09:06:31.570Z"
+    },
+    {
+      "status": "rejected",
+      "experiment": 12,
+      "startedAt": "2026-09-25T09:06:32.978Z",
+      "error": "curl: (28) Operation timed out after 60002 milliseconds with 0 bytes received\n",
+      "completedAt": "2026-09-25T09:07:32.993Z"
+    },
+    {
+      "status": "rejected",
+      "experiment": 13,
+      "startedAt": "2026-09-25T09:07:34.282Z",
+      "error": "curl: (28) Operation timed out after 60001 milliseconds with 0 bytes received\n",
+      "completedAt": "2026-09-25T09:08:34.294Z"
+    },
+    {
+      "status": "rejected",
+      "experiment": 14,
+      "startedAt": "2026-09-25T09:08:35.684Z",
+      "error": "curl: (28) Operation timed out after 60002 milliseconds with 0 bytes received\n",
+      "completedAt": "2026-09-25T09:09:35.700Z"
     }
   ],
-  "nextHypothesis": "Build and enforce a deterministic meaningful-change gate; after model timeouts, reduce request cost and choose a materially different bounded experiment.",
-  "updatedAt": "2026-09-25T06:08:20.936Z"
+  "nextHypothesis": "Retry with a different bounded experiment after addressing: curl: (28) Operation timed out after 60002 milliseconds with 0 bytes received\n",
+  "updatedAt": "2026-09-25T09:09:35.700Z",
+  "trialRole": "champion-synthesizer"
 }
