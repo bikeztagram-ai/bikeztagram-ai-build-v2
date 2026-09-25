@@ -9,7 +9,7 @@ let prior={}; try{prior=JSON.parse(fs.readFileSync(priorPath,'utf8'));}catch{}
 
 const tasks=[];
 const variants=catalog.variants||[];
-const domains=(catalog.domains||[]).filter(domain=>domain.id!=='forge-orchestration');
+const domains=(catalog.labDomains||catalog.domains||[]).slice(0,5);
 const retests=new Map();
 for(const target of (prior.retestTargets||[])){
   if(target.lane&&!retests.has(target.lane)) retests.set(target.lane,target);
@@ -52,11 +52,12 @@ fs.mkdirSync('builder/working',{recursive:true});
 fs.writeFileSync(
   'builder/working/research-matrix.json',
   JSON.stringify({
-    schemaVersion:'forge-research-matrix-v3-persistent-lanes',
+    schemaVersion:'forge-research-matrix-v4-five-lab-lanes',
     generatedAt:new Date().toISOString(),
     taskCount:tasks.length,
     persistentLaneCount:tasks.length,
-    trialBuilderLane:'forge-orchestration',
+    labArchitecture:'five research lanes + five competing trial builders',
+    trialBuilderLanes:['lab-trial-1','lab-trial-2','lab-trial-3','lab-trial-4','lab-trial-5'],
     priorEvidenceLoaded:Object.keys(prior).length>0,
     tasks
   },null,2)+'\n'

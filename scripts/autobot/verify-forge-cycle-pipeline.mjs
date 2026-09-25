@@ -5,7 +5,7 @@
  * Contract:
  *   Cycle N production consumes Cycle N-1 research.
  *   Cycle N research is harvested into the durable handoff for Cycle N+1.
- *   Research and Trial Builder never gate production completion.
+ *   The ten production specialists remain independent; the builder lab uses five research lanes and five competing trial builders.
  */
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
@@ -40,11 +40,19 @@ assert(workflow.indexOf('production-dispatch') < workflow.indexOf('research-plan
 assert(workflow.indexOf('production-start-gate') < workflow.indexOf('research-plan'),'research must start only after the ten production lanes have claimed runners.');
 assert(workflow.includes('needs: [production-dispatch]\n    if: always()'),'production finalization must depend only on the production child.');
 assert(!workflow.includes('needs: [production-dispatch, trial-builder]'),'production finalization must not wait for Trial Builder.');
-assert(/trial-builder:[\s\S]*?continue-on-error:\s*true[\s\S]*?runs-on:\s*ubuntu-24\.04/.test(workflow),'Trial Builder must be experimental/non-blocking.');
-assert(workflow.includes('ref: autobot/trial-builder'),'Trial Builder must use the persistent isolated branch.');
+assert(workflow.includes('production-finalize:'),'Forge launcher must retain the production finalization/evidence gate.');
+assert(/research:[\s\S]*?max-parallel:\s*5/.test(workflow),'Builder lab research must run exactly five concurrent research lanes.');
+assert(/lab-trials:[\s\S]*?max-parallel:\s*5/.test(workflow),'Builder lab must run exactly five concurrent trial builders.');
+for(const slot of ['lab-trial-1','lab-trial-2','lab-trial-3','lab-trial-4','lab-trial-5']) assert(workflow.includes(slot),'Builder lab is missing '+slot+'.');
+for(const role of ['evolution-architect','free-agent-stack','product-breakthrough','speed-recovery','champion-synthesizer']) assert(workflow.includes(role),'Builder lab is missing '+role+'.');
+assert(workflow.includes('TRIAL_PEER_BRANCHES:'),'Trial builders must exchange evidence through isolated peer branches.');
 assert(workflow.includes('builder/trial-builder/engine.mjs'),'Forge workflow must execute the isolated Trial Builder engine.');
 assert(workflow.includes("TRIAL_MODEL_TIMEOUT_MS: '120000'"),'Trial Builder model calls should start with a bounded two-minute timeout; the engine adapts after timeouts.');
 assert(workflow.includes('git -C trial-branch status --short'),'Trial Builder must enforce its branch scope before persistence.');
+assert(workflow.includes('Guarantee a research harvest artifact'),'Research harvest must have a durable fallback artifact path.');
+assert(harvest.includes('const MAX_RETAINED_EXPERIMENTS=2000'),'Research harvest must cap retained experiments.');
+assert(harvest.includes('const retainedExperiments=experiments.slice(-MAX_RETAINED_EXPERIMENTS);'),'Research harvest must actually retain only the bounded tail.');
+assert(harvest.includes('.replace(/\\d+/g,\'#\')') || harvest.includes('.replace(/\\d+/g,\'#\')'),'Research signal normalization must normalize numeric variants.');
 execFileSync(process.execPath,['--check','builder/runner/autobot-independent-specialist-lane.mjs'],{stdio:'inherit'});
 execFileSync(process.execPath,['--check','scripts/autobot/harvest-research-swarm.mjs'],{stdio:'inherit'});
 console.log(JSON.stringify({ok:failures.length===0,failures,productionConsumesPreviousResearch:true,researchProducesNextCycleHandoff:true,researchNonBlocking:true,trialNonBlocking:true},null,2));

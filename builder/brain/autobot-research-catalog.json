@@ -141,6 +141,53 @@
       ]
     }
   ],
+  "labDomains": [
+    {
+      "id": "free-agent-discovery",
+      "strategies": ["local-agent-benchmark","openhands-local","aider-local","mini-swe-local"],
+      "questions": [
+        "Benchmark completely free local coding-agent stacks against the current Aider/Ollama path using the same bounded coding task.",
+        "Test whether an open-source workspace agent can materially improve repository exploration and implementation without paid APIs.",
+        "Measure successful materialisation, verified build and recovery for alternative local agents."
+      ]
+    },
+    {
+      "id": "autonomous-coding",
+      "strategies": ["planning-first","direct-build","iterative-repair","workspace-agent"],
+      "questions": [
+        "Test which coding protocol produces the largest verified useful change from a local model under a fixed time budget.",
+        "Compare single-shot implementation with plan-build-test-repair loops.",
+        "Test whether explicit acceptance criteria and post-edit self-review increase useful production changes."
+      ]
+    },
+    {
+      "id": "product-capability-discovery",
+      "strategies": ["gap-analysis","creative-invention","competitor-gap","capability-synthesis"],
+      "questions": [
+        "Discover genuinely new user-facing Bikeztagram capabilities rather than maintenance work, then test whether an agent can implement one safely.",
+        "Generate product capability hypotheses from the current source and test one falsifiable implementation path.",
+        "Identify missing cinematic editing, automation or intelligence capabilities and benchmark implementation success."
+      ]
+    },
+    {
+      "id": "speed-recovery",
+      "strategies": ["fast-path","adaptive-timeout","failure-recovery","parallel-planning"],
+      "questions": [
+        "Measure how to reduce time from product idea to verified code without reducing quality.",
+        "Test adaptive recovery after model timeout, stale anchor or no-materialisation failure.",
+        "Compare fast bounded attempts with longer monolithic coding requests."
+      ]
+    },
+    {
+      "id": "builder-benchmark",
+      "strategies": ["head-to-head","regression-suite","champion-selection","evidence-synthesis"],
+      "questions": [
+        "Build a repeatable benchmark that compares candidate autonomous builders on identical tasks and evidence requirements.",
+        "Replay prior failures and successful tasks to distinguish genuine builder improvement from random success.",
+        "Define evidence needed to select a general-purpose free builder that can later be cloned into other repositories."
+      ]
+    }
+  ],
   "variants": [
     "fresh-context",
     "acceptance-first",
