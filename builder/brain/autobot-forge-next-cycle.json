@@ -1,6 +1,6 @@
 {
   "schemaVersion": "autobot-research-next-cycle-v2",
-  "generatedAt": "2026-09-24T22:32:14.288Z",
+  "generatedAt": "2026-09-25T09:00:32.584Z",
   "rules": [
     "Keep all ten production Bikeztagram specialists isolated and protected.",
     "Re-test useful ideas even when previously tested; change one meaningful variable and record the delta.",
@@ -10,672 +10,730 @@
     "Production specialists must treat this handoff as advisory evidence, validate it against current source and reject unsupported claims."
   ],
   "observedFailureClasses": {
-    "contract-or-scope": 5,
-    "success": 18765,
-    "timeout": 17355,
-    "syntax": 25314,
-    "no-materialisation": 8127,
-    "adapter-or-runtime": 17373,
-    "other": 9
+    "no-materialisation": 115,
+    "success": 440,
+    "timeout": 30
   },
   "highValueStrategies": [
     {
-      "strategy": "aider-direct",
-      "count": 9355
-    },
-    {
-      "strategy": "fast-deep",
-      "count": 9326
-    },
-    {
       "strategy": "deterministic-control",
-      "count": 9297
+      "count": 150
     },
     {
-      "strategy": "performance-lab",
-      "count": 9296
+      "strategy": "challenger",
+      "count": 147
     },
     {
-      "strategy": "runtime-alternatives",
-      "count": 9288
+      "strategy": "aider-direct",
+      "count": 145
     },
     {
-      "strategy": "aider-diff",
-      "count": 8061
+      "strategy": "dependency-plan",
+      "count": 143
+    }
+  ],
+  "topSignals": [
+    {
+      "signature": "autonomous-coding|deterministic-control|success|materialised|baseline with fresh context|control path; no llm used",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "deterministic-control",
+      "variant": "baseline with fresh context",
+      "failureClass": "success",
+      "diff": 1,
+      "durationMs": 302,
+      "note": "control path; no LLM used"
     },
     {
-      "strategy": "aider-udiff",
-      "count": 8025
+      "signature": "autonomous-coding|challenger|success|no-materialisation|changed prompt framing and acceptance wording|strategic challenger; hypotheses only, no production edits",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "challenger",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 56310,
+      "note": "strategic challenger; hypotheses only, no production edits"
     },
     {
-      "strategy": "aider-scoped",
-      "count": 8002
+      "signature": "autonomous-coding|dependency-plan|success|no-materialisation|different edit protocol or runtime adapter|dependency-planning trial; no file edits permitted",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "dependency-plan",
+      "variant": "different edit protocol or runtime adapter",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 59057,
+      "note": "dependency-planning trial; no file edits permitted"
     },
     {
-      "strategy": "aider-whole",
-      "count": 7994
+      "signature": "autonomous-coding|deterministic-control|success|materialised|cross-check against prior evidence and classify the failure stage|control path; no llm used",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "deterministic-control",
+      "variant": "cross-check against prior evidence and classify the failure stage",
+      "failureClass": "success",
+      "diff": 1,
+      "durationMs": 69,
+      "note": "control path; no LLM used"
     },
     {
-      "strategy": "aider-architect",
-      "count": 7994
+      "signature": "autonomous-coding|challenger|success|no-materialisation|baseline with fresh context|strategic challenger; hypotheses only, no production edits",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "challenger",
+      "variant": "baseline with fresh context",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 29533,
+      "note": "strategic challenger; hypotheses only, no production edits"
     },
     {
-      "strategy": "direct-ollama-json",
-      "count": 67
+      "signature": "autonomous-coding|dependency-plan|success|no-materialisation|changed prompt framing and acceptance wording|dependency-planning trial; no file edits permitted",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "dependency-plan",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 59559,
+      "note": "dependency-planning trial; no file edits permitted"
     },
     {
-      "strategy": "openhands-sdk",
-      "count": 38
+      "signature": "autonomous-coding|deterministic-control|success|materialised|repeat known approach with a new timeout/context budget|control path; no llm used",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "deterministic-control",
+      "variant": "repeat known approach with a new timeout/context budget",
+      "failureClass": "success",
+      "diff": 1,
+      "durationMs": 64,
+      "note": "control path; no LLM used"
+    },
+    {
+      "signature": "autonomous-coding|challenger|success|no-materialisation|cross-check against prior evidence and classify the failure stage|strategic challenger; hypotheses only, no production edits",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "challenger",
+      "variant": "cross-check against prior evidence and classify the failure stage",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 45666,
+      "note": "strategic challenger; hypotheses only, no production edits"
+    },
+    {
+      "signature": "autonomous-coding|dependency-plan|success|no-materialisation|baseline with fresh context|dependency-planning trial; no file edits permitted",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "dependency-plan",
+      "variant": "baseline with fresh context",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 59117,
+      "note": "dependency-planning trial; no file edits permitted"
+    },
+    {
+      "signature": "autonomous-coding|deterministic-control|success|materialised|different edit protocol or runtime adapter|control path; no llm used",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "deterministic-control",
+      "variant": "different edit protocol or runtime adapter",
+      "failureClass": "success",
+      "diff": 1,
+      "durationMs": 61,
+      "note": "control path; no LLM used"
+    },
+    {
+      "signature": "autonomous-coding|challenger|success|no-materialisation|repeat known approach with a new timeout/context budget|strategic challenger; hypotheses only, no production edits",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "challenger",
+      "variant": "repeat known approach with a new timeout/context budget",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 36821,
+      "note": "strategic challenger; hypotheses only, no production edits"
+    },
+    {
+      "signature": "autonomous-coding|dependency-plan|success|no-materialisation|cross-check against prior evidence and classify the failure stage|dependency-planning trial; no file edits permitted",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "dependency-plan",
+      "variant": "cross-check against prior evidence and classify the failure stage",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 59567,
+      "note": "dependency-planning trial; no file edits permitted"
+    },
+    {
+      "signature": "autonomous-coding|deterministic-control|success|materialised|changed prompt framing and acceptance wording|control path; no llm used",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "deterministic-control",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "success",
+      "diff": 1,
+      "durationMs": 59,
+      "note": "control path; no LLM used"
+    },
+    {
+      "signature": "autonomous-coding|challenger|success|no-materialisation|different edit protocol or runtime adapter|strategic challenger; hypotheses only, no production edits",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "challenger",
+      "variant": "different edit protocol or runtime adapter",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 30019,
+      "note": "strategic challenger; hypotheses only, no production edits"
+    },
+    {
+      "signature": "autonomous-coding|dependency-plan|success|no-materialisation|repeat known approach with a new timeout/context budget|dependency-planning trial; no file edits permitted",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "autonomous-coding",
+      "strategy": "dependency-plan",
+      "variant": "repeat known approach with a new timeout/context budget",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 58930,
+      "note": "dependency-planning trial; no file edits permitted"
+    },
+    {
+      "signature": "free-agent-discovery|deterministic-control|success|materialised|baseline with fresh context|control path; no llm used",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "free-agent-discovery",
+      "strategy": "deterministic-control",
+      "variant": "baseline with fresh context",
+      "failureClass": "success",
+      "diff": 1,
+      "durationMs": 66,
+      "note": "control path; no LLM used"
+    },
+    {
+      "signature": "free-agent-discovery|challenger|success|no-materialisation|changed prompt framing and acceptance wording|strategic challenger; hypotheses only, no production edits",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "free-agent-discovery",
+      "strategy": "challenger",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 60935,
+      "note": "strategic challenger; hypotheses only, no production edits"
+    },
+    {
+      "signature": "product-capability-discovery|deterministic-control|success|materialised|baseline with fresh context|control path; no llm used",
+      "repeatCount": 8,
+      "successfulCount": 8,
+      "reproduced": true,
+      "lane": "product-capability-discovery",
+      "strategy": "deterministic-control",
+      "variant": "baseline with fresh context",
+      "failureClass": "success",
+      "diff": 1,
+      "durationMs": 70,
+      "note": "control path; no LLM used"
+    },
+    {
+      "signature": "builder-benchmark|deterministic-control|success|materialised|baseline with fresh context|control path; no llm used",
+      "repeatCount": 6,
+      "successfulCount": 6,
+      "reproduced": true,
+      "lane": "builder-benchmark",
+      "strategy": "deterministic-control",
+      "variant": "baseline with fresh context",
+      "failureClass": "success",
+      "diff": 1,
+      "durationMs": 84,
+      "note": "control path; no LLM used"
+    },
+    {
+      "signature": "builder-benchmark|challenger|success|no-materialisation|changed prompt framing and acceptance wording|strategic challenger; hypotheses only, no production edits",
+      "repeatCount": 6,
+      "successfulCount": 6,
+      "reproduced": true,
+      "lane": "builder-benchmark",
+      "strategy": "challenger",
+      "variant": "changed prompt framing and acceptance wording",
+      "failureClass": "success",
+      "diff": 0,
+      "durationMs": 96760,
+      "note": "strategic challenger; hypotheses only, no production edits"
     }
   ],
   "candidateWorkerIdeas": [
     {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      "lane": "autonomous-coding",
+      "strategy": "dependency-plan",
+      "note": "dependency-planning trial; no file edits permitted",
+      "repeatCount": 8,
+      "reproductionStatus": "reproduced"
     },
     {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      "lane": "autonomous-coding",
+      "strategy": "deterministic-control",
+      "note": "control path; no LLM used",
+      "repeatCount": 8,
+      "reproductionStatus": "reproduced"
     },
     {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      "lane": "autonomous-coding",
+      "strategy": "challenger",
+      "note": "strategic challenger; hypotheses only, no production edits",
+      "repeatCount": 8,
+      "reproductionStatus": "reproduced"
     },
     {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      "lane": "builder-benchmark",
+      "strategy": "dependency-plan",
+      "note": "dependency-planning trial; no file edits permitted",
+      "repeatCount": 6,
+      "reproductionStatus": "reproduced"
     },
     {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      "lane": "builder-benchmark",
+      "strategy": "deterministic-control",
+      "note": "control path; no LLM used",
+      "repeatCount": 6,
+      "reproductionStatus": "reproduced"
     },
     {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      "lane": "free-agent-discovery",
+      "strategy": "dependency-plan",
+      "note": "dependency-planning trial; no file edits permitted",
+      "repeatCount": 6,
+      "reproductionStatus": "reproduced"
     },
     {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      "lane": "free-agent-discovery",
+      "strategy": "deterministic-control",
+      "note": "control path; no LLM used",
+      "repeatCount": 6,
+      "reproductionStatus": "reproduced"
     },
     {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-    },
-    {
-      "lane": "agent-materialisation",
-      "strategy": "fast-deep",
-      "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+      "lane": "free-agent-discovery",
+      "strategy": "challenger",
+      "note": "strategic challenger; hypotheses only, no production edits",
+      "repeatCount": 6,
+      "reproductionStatus": "reproduced"
     }
   ],
-  "retestTargets": [
-    {
-      "lane": "adversarial-quality",
-      "strategy": "adversarial",
-      "variant": "different-edit-format",
-      "failureClass": "contract-or-scope"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "test-generation",
-      "variant": "baseline with fresh context",
-      "failureClass": "contract-or-scope"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "test-generation",
-      "variant": "baseline with fresh context",
-      "failureClass": "contract-or-scope"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "contract-fuzz",
-      "variant": "changed prompt framing and acceptance wording",
-      "failureClass": "contract-or-scope"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "contract-fuzz",
-      "variant": "changed prompt framing and acceptance wording",
-      "failureClass": "contract-or-scope"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "aider-scoped",
-      "variant": "repeat known approach with a new timeout/context budget",
-      "failureClass": "timeout"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "aider-scoped",
-      "variant": "repeat known approach with a new timeout/context budget",
-      "failureClass": "timeout"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "adversarial",
-      "variant": "cross-check against prior evidence and classify the failure stage",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "adversarial",
-      "variant": "cross-check against prior evidence and classify the failure stage",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "test-generation",
-      "variant": "baseline with fresh context",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "test-generation",
-      "variant": "baseline with fresh context",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "aider-scoped",
-      "variant": "repeat known approach with a new timeout/context budget",
-      "failureClass": "timeout"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "aider-scoped",
-      "variant": "repeat known approach with a new timeout/context budget",
-      "failureClass": "timeout"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "adversarial",
-      "variant": "cross-check against prior evidence and classify the failure stage",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "adversarial",
-      "variant": "cross-check against prior evidence and classify the failure stage",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "test-generation",
-      "variant": "baseline with fresh context",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "aider-scoped",
-      "variant": "repeat known approach with a new timeout/context budget",
-      "failureClass": "timeout"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "aider-scoped",
-      "variant": "repeat known approach with a new timeout/context budget",
-      "failureClass": "timeout"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "adversarial",
-      "variant": "cross-check against prior evidence and classify the failure stage",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "adversarial",
-      "variant": "cross-check against prior evidence and classify the failure stage",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "test-generation",
-      "variant": "baseline with fresh context",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "test-generation",
-      "variant": "baseline with fresh context",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "contract-fuzz",
-      "variant": "changed prompt framing and acceptance wording",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "contract-fuzz",
-      "variant": "changed prompt framing and acceptance wording",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "aider-scoped",
-      "variant": "repeat known approach with a new timeout/context budget",
-      "failureClass": "timeout"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "aider-scoped",
-      "variant": "repeat known approach with a new timeout/context budget",
-      "failureClass": "timeout"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "adversarial",
-      "variant": "cross-check against prior evidence and classify the failure stage",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "adversarial",
-      "variant": "cross-check against prior evidence and classify the failure stage",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "test-generation",
-      "variant": "baseline with fresh context",
-      "failureClass": "syntax"
-    },
-    {
-      "lane": "adversarial-quality",
-      "strategy": "test-generation",
-      "variant": "baseline with fresh context",
-      "failureClass": "syntax"
-    }
-  ],
+  "retestTargets": [],
   "productionHandoff": {
     "purpose": "Advisory evidence for the next ten-specialist production cycle.",
     "promising": [
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 9,
-        "variant": "different edit protocol or runtime adapter",
-        "durationMs": 117890,
+        "signature": "autonomous-coding|deterministic-control|success|materialised|baseline with fresh context|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "deterministic-control",
+        "variant": "baseline with fresh context",
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 302,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 13,
-        "variant": "different edit protocol or runtime adapter",
-        "durationMs": 117328,
+        "signature": "autonomous-coding|deterministic-control|success|materialised|cross-check against prior evidence and classify the failure stage|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "deterministic-control",
+        "variant": "cross-check against prior evidence and classify the failure stage",
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 69,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 14,
-        "variant": "different edit protocol or runtime adapter",
-        "durationMs": 116550,
+        "signature": "autonomous-coding|deterministic-control|success|materialised|repeat known approach with a new timeout/context budget|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "deterministic-control",
+        "variant": "repeat known approach with a new timeout/context budget",
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 64,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 18,
+        "signature": "autonomous-coding|deterministic-control|success|materialised|different edit protocol or runtime adapter|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "deterministic-control",
         "variant": "different edit protocol or runtime adapter",
-        "durationMs": 114428,
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 61,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 19,
-        "variant": "different edit protocol or runtime adapter",
-        "durationMs": 114098,
+        "signature": "autonomous-coding|deterministic-control|success|materialised|changed prompt framing and acceptance wording|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "deterministic-control",
+        "variant": "changed prompt framing and acceptance wording",
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 59,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 23,
-        "variant": "different edit protocol or runtime adapter",
-        "durationMs": 114676,
+        "signature": "free-agent-discovery|deterministic-control|success|materialised|baseline with fresh context|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "free-agent-discovery",
+        "strategy": "deterministic-control",
+        "variant": "baseline with fresh context",
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 66,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 24,
-        "variant": "different edit protocol or runtime adapter",
-        "durationMs": 116295,
+        "signature": "product-capability-discovery|deterministic-control|success|materialised|baseline with fresh context|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "product-capability-discovery",
+        "strategy": "deterministic-control",
+        "variant": "baseline with fresh context",
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 70,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 28,
-        "variant": "different edit protocol or runtime adapter",
-        "durationMs": 114885,
+        "signature": "builder-benchmark|deterministic-control|success|materialised|baseline with fresh context|control path; no llm used",
+        "repeatCount": 6,
+        "successfulCount": 6,
+        "reproduced": true,
+        "lane": "builder-benchmark",
+        "strategy": "deterministic-control",
+        "variant": "baseline with fresh context",
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 84,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 29,
-        "variant": "different edit protocol or runtime adapter",
-        "durationMs": 114547,
+        "signature": "builder-benchmark|deterministic-control|success|materialised|cross-check against prior evidence and classify the failure stage|control path; no llm used",
+        "repeatCount": 6,
+        "successfulCount": 6,
+        "reproduced": true,
+        "lane": "builder-benchmark",
+        "strategy": "deterministic-control",
+        "variant": "cross-check against prior evidence and classify the failure stage",
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 88,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 33,
-        "variant": "different edit protocol or runtime adapter",
-        "durationMs": 113527,
+        "signature": "builder-benchmark|deterministic-control|success|materialised|repeat known approach with a new timeout/context budget|control path; no llm used",
+        "repeatCount": 6,
+        "successfulCount": 6,
+        "reproduced": true,
+        "lane": "builder-benchmark",
+        "strategy": "deterministic-control",
+        "variant": "repeat known approach with a new timeout/context budget",
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 87,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 34,
+        "signature": "builder-benchmark|deterministic-control|success|materialised|different edit protocol or runtime adapter|control path; no llm used",
+        "repeatCount": 6,
+        "successfulCount": 6,
+        "reproduced": true,
+        "lane": "builder-benchmark",
+        "strategy": "deterministic-control",
         "variant": "different edit protocol or runtime adapter",
-        "durationMs": 115147,
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 82,
+        "note": "control path; no LLM used"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "cycle": 38,
-        "variant": "different edit protocol or runtime adapter",
-        "durationMs": 114479,
+        "signature": "free-agent-discovery|deterministic-control|success|materialised|cross-check against prior evidence and classify the failure stage|control path; no llm used",
+        "repeatCount": 6,
+        "successfulCount": 6,
+        "reproduced": true,
+        "lane": "free-agent-discovery",
+        "strategy": "deterministic-control",
+        "variant": "cross-check against prior evidence and classify the failure stage",
+        "failureClass": "success",
         "diff": 1,
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "durationMs": 67,
+        "note": "control path; no LLM used"
+      }
+    ],
+    "topSignals": [
+      {
+        "signature": "autonomous-coding|deterministic-control|success|materialised|baseline with fresh context|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "deterministic-control",
+        "variant": "baseline with fresh context",
+        "failureClass": "success",
+        "diff": 1,
+        "durationMs": 302,
+        "note": "control path; no LLM used"
+      },
+      {
+        "signature": "autonomous-coding|challenger|success|no-materialisation|changed prompt framing and acceptance wording|strategic challenger; hypotheses only, no production edits",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "challenger",
+        "variant": "changed prompt framing and acceptance wording",
+        "failureClass": "success",
+        "diff": 0,
+        "durationMs": 56310,
+        "note": "strategic challenger; hypotheses only, no production edits"
+      },
+      {
+        "signature": "autonomous-coding|dependency-plan|success|no-materialisation|different edit protocol or runtime adapter|dependency-planning trial; no file edits permitted",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "dependency-plan",
+        "variant": "different edit protocol or runtime adapter",
+        "failureClass": "success",
+        "diff": 0,
+        "durationMs": 59057,
+        "note": "dependency-planning trial; no file edits permitted"
+      },
+      {
+        "signature": "autonomous-coding|deterministic-control|success|materialised|cross-check against prior evidence and classify the failure stage|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "deterministic-control",
+        "variant": "cross-check against prior evidence and classify the failure stage",
+        "failureClass": "success",
+        "diff": 1,
+        "durationMs": 69,
+        "note": "control path; no LLM used"
+      },
+      {
+        "signature": "autonomous-coding|challenger|success|no-materialisation|baseline with fresh context|strategic challenger; hypotheses only, no production edits",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "challenger",
+        "variant": "baseline with fresh context",
+        "failureClass": "success",
+        "diff": 0,
+        "durationMs": 29533,
+        "note": "strategic challenger; hypotheses only, no production edits"
+      },
+      {
+        "signature": "autonomous-coding|dependency-plan|success|no-materialisation|changed prompt framing and acceptance wording|dependency-planning trial; no file edits permitted",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "dependency-plan",
+        "variant": "changed prompt framing and acceptance wording",
+        "failureClass": "success",
+        "diff": 0,
+        "durationMs": 59559,
+        "note": "dependency-planning trial; no file edits permitted"
+      },
+      {
+        "signature": "autonomous-coding|deterministic-control|success|materialised|repeat known approach with a new timeout/context budget|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "deterministic-control",
+        "variant": "repeat known approach with a new timeout/context budget",
+        "failureClass": "success",
+        "diff": 1,
+        "durationMs": 64,
+        "note": "control path; no LLM used"
+      },
+      {
+        "signature": "autonomous-coding|challenger|success|no-materialisation|cross-check against prior evidence and classify the failure stage|strategic challenger; hypotheses only, no production edits",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "challenger",
+        "variant": "cross-check against prior evidence and classify the failure stage",
+        "failureClass": "success",
+        "diff": 0,
+        "durationMs": 45666,
+        "note": "strategic challenger; hypotheses only, no production edits"
+      },
+      {
+        "signature": "autonomous-coding|dependency-plan|success|no-materialisation|baseline with fresh context|dependency-planning trial; no file edits permitted",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "dependency-plan",
+        "variant": "baseline with fresh context",
+        "failureClass": "success",
+        "diff": 0,
+        "durationMs": 59117,
+        "note": "dependency-planning trial; no file edits permitted"
+      },
+      {
+        "signature": "autonomous-coding|deterministic-control|success|materialised|different edit protocol or runtime adapter|control path; no llm used",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "deterministic-control",
+        "variant": "different edit protocol or runtime adapter",
+        "failureClass": "success",
+        "diff": 1,
+        "durationMs": 61,
+        "note": "control path; no LLM used"
+      },
+      {
+        "signature": "autonomous-coding|challenger|success|no-materialisation|repeat known approach with a new timeout/context budget|strategic challenger; hypotheses only, no production edits",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "challenger",
+        "variant": "repeat known approach with a new timeout/context budget",
+        "failureClass": "success",
+        "diff": 0,
+        "durationMs": 36821,
+        "note": "strategic challenger; hypotheses only, no production edits"
+      },
+      {
+        "signature": "autonomous-coding|dependency-plan|success|no-materialisation|cross-check against prior evidence and classify the failure stage|dependency-planning trial; no file edits permitted",
+        "repeatCount": 8,
+        "successfulCount": 8,
+        "reproduced": true,
+        "lane": "autonomous-coding",
+        "strategy": "dependency-plan",
+        "variant": "cross-check against prior evidence and classify the failure stage",
+        "failureClass": "success",
+        "diff": 0,
+        "durationMs": 59567,
+        "note": "dependency-planning trial; no file edits permitted"
       }
     ],
     "candidateWorkerIdeas": [
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "lane": "autonomous-coding",
+        "strategy": "dependency-plan",
+        "note": "dependency-planning trial; no file edits permitted",
+        "repeatCount": 8,
+        "reproductionStatus": "reproduced"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "lane": "autonomous-coding",
+        "strategy": "deterministic-control",
+        "note": "control path; no LLM used",
+        "repeatCount": 8,
+        "reproductionStatus": "reproduced"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "lane": "autonomous-coding",
+        "strategy": "challenger",
+        "note": "strategic challenger; hypotheses only, no production edits",
+        "repeatCount": 8,
+        "reproductionStatus": "reproduced"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "lane": "builder-benchmark",
+        "strategy": "dependency-plan",
+        "note": "dependency-planning trial; no file edits permitted",
+        "repeatCount": 6,
+        "reproductionStatus": "reproduced"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "lane": "builder-benchmark",
+        "strategy": "deterministic-control",
+        "note": "control path; no LLM used",
+        "repeatCount": 6,
+        "reproductionStatus": "reproduced"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "lane": "free-agent-discovery",
+        "strategy": "dependency-plan",
+        "note": "dependency-planning trial; no file edits permitted",
+        "repeatCount": 6,
+        "reproductionStatus": "reproduced"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "lane": "free-agent-discovery",
+        "strategy": "deterministic-control",
+        "note": "control path; no LLM used",
+        "repeatCount": 6,
+        "reproductionStatus": "reproduced"
       },
       {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-      },
-      {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-      },
-      {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-      },
-      {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
-      },
-      {
-        "lane": "agent-materialisation",
-        "strategy": "fast-deep",
-        "note": "fast/deep escalation: fast path satisfied benchmark without escalation"
+        "lane": "free-agent-discovery",
+        "strategy": "challenger",
+        "note": "strategic challenger; hypotheses only, no production edits",
+        "repeatCount": 6,
+        "reproductionStatus": "reproduced"
       }
     ],
-    "retestTargets": [
-      {
-        "lane": "adversarial-quality",
-        "strategy": "adversarial",
-        "variant": "different-edit-format",
-        "failureClass": "contract-or-scope",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "test-generation",
-        "variant": "baseline with fresh context",
-        "failureClass": "contract-or-scope",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "test-generation",
-        "variant": "baseline with fresh context",
-        "failureClass": "contract-or-scope",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "contract-fuzz",
-        "variant": "changed prompt framing and acceptance wording",
-        "failureClass": "contract-or-scope",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "contract-fuzz",
-        "variant": "changed prompt framing and acceptance wording",
-        "failureClass": "contract-or-scope",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "aider-scoped",
-        "variant": "repeat known approach with a new timeout/context budget",
-        "failureClass": "timeout",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "aider-scoped",
-        "variant": "repeat known approach with a new timeout/context budget",
-        "failureClass": "timeout",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "adversarial",
-        "variant": "cross-check against prior evidence and classify the failure stage",
-        "failureClass": "syntax",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "adversarial",
-        "variant": "cross-check against prior evidence and classify the failure stage",
-        "failureClass": "syntax",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "test-generation",
-        "variant": "baseline with fresh context",
-        "failureClass": "syntax",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "test-generation",
-        "variant": "baseline with fresh context",
-        "failureClass": "syntax",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "aider-scoped",
-        "variant": "repeat known approach with a new timeout/context budget",
-        "failureClass": "timeout",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "aider-scoped",
-        "variant": "repeat known approach with a new timeout/context budget",
-        "failureClass": "timeout",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "adversarial",
-        "variant": "cross-check against prior evidence and classify the failure stage",
-        "failureClass": "syntax",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "adversarial",
-        "variant": "cross-check against prior evidence and classify the failure stage",
-        "failureClass": "syntax",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "test-generation",
-        "variant": "baseline with fresh context",
-        "failureClass": "syntax",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "aider-scoped",
-        "variant": "repeat known approach with a new timeout/context budget",
-        "failureClass": "timeout",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "aider-scoped",
-        "variant": "repeat known approach with a new timeout/context budget",
-        "failureClass": "timeout",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "adversarial",
-        "variant": "cross-check against prior evidence and classify the failure stage",
-        "failureClass": "syntax",
-        "error": null
-      },
-      {
-        "lane": "adversarial-quality",
-        "strategy": "adversarial",
-        "variant": "cross-check against prior evidence and classify the failure stage",
-        "failureClass": "syntax",
-        "error": null
-      }
-    ],
+    "retestTargets": [],
     "failureClasses": {
-      "contract-or-scope": 5,
-      "success": 18765,
-      "timeout": 17355,
-      "syntax": 25314,
-      "no-materialisation": 8127,
-      "adapter-or-runtime": 17373,
-      "other": 9
+      "no-materialisation": 115,
+      "success": 440,
+      "timeout": 30
     }
   }
 }
