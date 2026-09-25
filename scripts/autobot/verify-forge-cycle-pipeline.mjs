@@ -40,6 +40,7 @@ assert(workflow.indexOf('production-dispatch') < workflow.indexOf('research-plan
 assert(workflow.indexOf('production-start-gate') < workflow.indexOf('research-plan'),'research must start only after the ten production lanes have claimed runners.');
 assert(workflow.includes('needs: [production-dispatch]\n    if: always()'),'production finalization must depend only on the production child.');
 assert(!workflow.includes('needs: [production-dispatch, trial-builder]'),'production finalization must not wait for Trial Builder.');
+assert(workflow.includes('production-finalize:'),'Forge launcher must retain the production finalization/evidence gate.');
 assert(/research:[\s\S]*?max-parallel:\s*5/.test(workflow),'Builder lab research must run exactly five concurrent research lanes.');
 assert(/lab-trials:[\s\S]*?max-parallel:\s*5/.test(workflow),'Builder lab must run exactly five concurrent trial builders.');
 for(const slot of ['lab-trial-1','lab-trial-2','lab-trial-3','lab-trial-4','lab-trial-5']) assert(workflow.includes(slot),'Builder lab is missing '+slot+'.');
