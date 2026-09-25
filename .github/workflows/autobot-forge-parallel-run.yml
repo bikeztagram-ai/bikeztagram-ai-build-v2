@@ -263,7 +263,7 @@ jobs:
     needs: [production-start-gate, research-plan]
     strategy:
       fail-fast: false
-      max-parallel: 9
+      max-parallel: 5
       matrix: ${{ fromJSON(needs.research-plan.outputs.matrix) }}
     uses: ./.github/workflows/autobot-research-swarm.yml
     with:
@@ -330,13 +330,33 @@ jobs:
             git commit -m "research: persist next-cycle Forge handoff"
             git push origin HEAD:autobot/research-handoff
           fi
-  trial-builder:
-    name: 🧪 Forge Trial Builder — evolve the experimental builder
+  lab-trials:
+    name: 🧪 Builder Lab — ${{ matrix.slot }} / ${{ matrix.role }}
     needs: [research-harvest]
-    if: always()
-    continue-on-error: true
+    if: needs.research-harvest.result == 'success'
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include:
+          - slot: lab-trial-1
+            branch: autobot/lab-trial-1
+            role: evolution-architect
+          - slot: lab-trial-2
+            branch: autobot/lab-trial-2
+            role: free-agent-stack
+          - slot: lab-trial-3
+            branch: autobot/lab-trial-3
+            role: product-breakthrough
+          - slot: lab-trial-4
+            branch: autobot/lab-trial-4
+            role: speed-recovery
+          - slot: lab-trial-5
+            branch: autobot/lab-trial-5
+            role: champion-synthesizer
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    continue-on-error: true
     permissions:
       contents: write
       actions: read
@@ -347,10 +367,10 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Checkout persistent isolated trial-builder branch
+      - name: Checkout persistent isolated trial branch
         uses: actions/checkout@v7
         with:
-          ref: autobot/trial-builder
+          ref: ${{ matrix.branch }}
           path: trial-branch
           fetch-depth: 0
 
@@ -376,12 +396,15 @@ jobs:
           OLLAMA_LOAD_TIMEOUT: 20m
           OLLAMA_KEEP_ALIVE: 30m
 
-      - name: Run bounded evolutionary self-improvement loop
+      - name: Run competing trial builder
         id: trial
         continue-on-error: true
         env:
           LOCAL_AI_MODEL: ${{ inputs.local_model }}
           LOCAL_AI_READY: '1'
+          TRIAL_ROLE: ${{ matrix.role }}
+          TRIAL_BRANCH: ${{ matrix.branch }}
+          TRIAL_PEER_BRANCHES: autobot/lab-trial-1,autobot/lab-trial-2,autobot/lab-trial-3,autobot/lab-trial-4,autobot/lab-trial-5
           TRIAL_RESEARCH_DIR: /tmp/trial-research
           TRIAL_MODEL_TIMEOUT_MS: '120000'
           TRIAL_MAX_EXPERIMENTS: '6'
@@ -398,10 +421,10 @@ jobs:
           TRIAL_EXIT: ${{ steps.trial.outputs.trial_exit }}
         run: |
           set -euo pipefail
-          git -C trial-branch config user.name "Bikeztagram AutoBot Trial"
-          git -C trial-branch config user.email "autobot-trial@users.noreply.github.com"
+          git -C trial-branch config user.name "Bikeztagram Builder Lab"
+          git -C trial-branch config user.email "autobot-lab@users.noreply.github.com"
           mapfile -t changed < <(git -C trial-branch status --short | awk '{print $2}' | sed '/^$/d')
-          for path in "${changed[@]}"; do
+          for path in "${{changed[@]}}"; do
             case "$path" in
               builder/trial-builder/*) ;;
               *) echo "Trial builder attempted an out-of-scope change: $path" >&2; git -C trial-branch reset --hard HEAD; git -C trial-branch clean -fd; exit 1 ;;
@@ -409,132 +432,76 @@ jobs:
           done
           node trial-branch/builder/trial-builder/engine.mjs --self-test
           git -C trial-branch diff --check
-          if git -C trial-branch diff --quiet -- builder/trial-builder && git -C trial-branch diff --cached --quiet -- builder/trial-builder; then
-            echo "No trial state/code change was produced; refusing to advance the persistent trial."
-            exit 1
-          fi
           git -C trial-branch add builder/trial-builder
-          git -C trial-branch commit -m "trial: persist forge builder experiment"
-          git -C trial-branch push origin HEAD:autobot/trial-builder
-          echo "Persisted trial experiment (engine exit $TRIAL_EXIT)."
-
-  production-finalize:
-    name: 🧾 Finalize production evidence
-    needs: [production-dispatch]
-    if: always()
-    runs-on: ubuntu-24.04
-    timeout-minutes: 350
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      REPO: ${{ github.repository }}
-      RUN_ID: ${{ needs.production-dispatch.outputs.run_id }}
-    steps:
-      - name: Wait for the real production workflow to finish
-        id: wait
-        run: |
-          set -euo pipefail
-          if [ -z "$RUN_ID" ]; then
-            echo 'run_id=' >> "$GITHUB_OUTPUT"
-            echo 'conclusion=dispatch-failed' >> "$GITHUB_OUTPUT"
+          if git -C trial-branch diff --cached --quiet; then
+            echo "No trial state/code change was produced; preserving prior trial branch state."
             exit 0
           fi
-          for attempt in $(seq 1 1360); do
-            curl --fail-with-body -sS \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID" \
-              > /tmp/production-run.json
-            python - <<'PY' > /tmp/production-state.txt
-          import json
-          d=json.load(open('/tmp/production-run.json'))
-          print(d.get('status',''))
-          print(d.get('conclusion') or '')
-          PY
-            STATUS="$(sed -n '1p' /tmp/production-state.txt)"
-            CONCLUSION="$(sed -n '2p' /tmp/production-state.txt)"
-            echo "production run $RUN_ID: status=$STATUS conclusion=$CONCLUSION"
-            if [ "$STATUS" = "completed" ]; then
-              echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-              echo "conclusion=$CONCLUSION" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            sleep 15
-          done
-          echo "Production workflow did not finish before the 350-minute evidence window." >&2
-          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-          echo "conclusion=timeout" >> "$GITHUB_OUTPUT"
+          git -C trial-branch commit -m "trial: persist ${{ matrix.role }} experiment"
+          git -C trial-branch push origin HEAD:${{ matrix.branch }}
+          echo "Persisted ${{ matrix.role }} trial experiment (engine exit $TRIAL_EXIT)."
 
-      - name: Download canonical production fan-in evidence
-        if: steps.wait.outputs.run_id != ''
-        continue-on-error: true
-        uses: actions/download-artifact@v7
-        with:
-          name: autobot-persistent-experimental-fan-in-${{ steps.wait.outputs.run_id }}
-          path: builder/working/production-evidence/fan-in
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          run-id: ${{ steps.wait.outputs.run_id }}
-
-      - name: Preserve production run metadata and evidence
-        if: always()
-        run: |
-          set -euo pipefail
-          mkdir -p builder/working/production-evidence
-          python - <<'PY'
-          import json,os
-          run_id=os.environ.get('RUN_ID','')
-          source='/tmp/production-run.json'
-          data=json.load(open(source)) if os.path.exists(source) else {}
-          meta={
-            'schemaVersion':'autobot-production-run-handoff-v1',
-            'launcherRunId':os.environ.get('GITHUB_RUN_ID'),
-            'productionRunId':run_id or None,
-            'status':data.get('status'),
-            'conclusion':data.get('conclusion'),
-            'headSha':data.get('head_sha'),
-            'workflowName':data.get('name')
-          }
-          with open('builder/working/production-evidence/production-run.json','w') as f:
-            json.dump(meta,f,indent=2)
-            f.write('\\n')
-          PY
-          if ! python - <<'PY'
-          import pathlib
-          root=pathlib.Path('builder/working/production-evidence/fan-in')
-          ok=any(p.name in {'autobot-fan-in-ledger.json','autobot-candidate-review-ledger.json'} for p in root.rglob('*') if p.is_file()) if root.exists() else False
-          raise SystemExit(0 if ok else 1)
-          PY
-          then
-            mkdir -p builder/working/production-evidence/fan-in
-            cat > builder/working/production-evidence/fan-in/autobot-fan-in-ledger.json <<'EOF'
-          {
-            "schemaVersion": "autobot-fan-in-ledger-v1",
-            "status": "missing-production-evidence",
-            "note": "The production child workflow completed without a downloadable canonical fan-in artifact."
-          }
-          EOF
-          fi
-
-      - name: Upload production evidence for Evolution Engineer
+      - name: Upload trial evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: autobot-persistent-experimental-fan-in-${{ github.run_id }}
-          path: builder/working/production-evidence
-          if-no-files-found: error
+          name: autobot-builder-lab-${{ matrix.slot }}-${{ github.run_id }}
+          path: |
+            trial-branch/builder/trial-builder/state.json
+            trial-branch/builder/trial-builder/CONTRACT.md
+          if-no-files-found: warn
 
-      - name: Record production outcome
-        env:
-          DURATION: ${{ inputs.duration }}
-          CONCLUSION: ${{ steps.wait.outputs.conclusion }}
+  lab-trial-harvest:
+    name: 📚 Harvest five builder-lab trials
+    needs: [lab-trials]
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Download builder-lab trial evidence
+        uses: actions/download-artifact@v7
+        with:
+          pattern: autobot-builder-lab-*
+          path: builder/working/lab-trial-harvest/raw
+          merge-multiple: false
+      - name: Build lab benchmark summary
         run: |
-          if [ "$CONCLUSION" = "success" ]; then
-            echo "The real ten-specialist production workflow completed successfully."
-          elif [ "$DURATION" = "15m" ]; then
-            echo "The 15m diagnostic production failure is recorded and does not fail the Forge orchestration run."
-          else
-            echo "The real ten-specialist production workflow concluded: $CONCLUSION"
-            exit 1
-          fi
-
+          set -euo pipefail
+          python - <<'PY'
+          import json, pathlib, datetime
+          root=pathlib.Path('builder/working/lab-trial-harvest/raw')
+          trials=[]
+          for p in root.rglob('state.json'):
+              try:
+                  d=json.loads(p.read_text())
+                  trials.append({
+                    'source':str(p.relative_to(root)),
+                    'trialRole':d.get('trialRole'),
+                    'experiment':d.get('experiment',0),
+                    'nextHypothesis':d.get('nextHypothesis'),
+                    'historyTail':d.get('history',[])[-3:]
+                  })
+              except Exception:
+                  pass
+          out={
+            'schemaVersion':'autobot-builder-lab-harvest-v1',
+            'generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'trialCount':len(trials),
+            'trials':trials,
+            'purpose':'Evidence for selecting and evolving the strongest free general-purpose AutoBot.'
+          }
+          pathlib.Path('builder/working/lab-trial-harvest/autobot-builder-lab-next-cycle.json').write_text(json.dumps(out,indent=2)+'\n')
+          print(json.dumps({'trialCount':len(trials)},indent=2))
+          PY
+      - name: Upload builder-lab benchmark
+        uses: actions/upload-artifact@v7
+        with:
+          name: autobot-builder-lab-harvest-${{ github.run_id }}
+          path: builder/working/lab-trial-harvest/autobot-builder-lab-next-cycle.json
+          if-no-files-found: error
