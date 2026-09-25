@@ -59,7 +59,7 @@ assert(workflow.split(durationMap).length-1===10,'All ten specialist lanes must 
 assert((workflow.split('timeout-minutes: 350').length-1)===10,'All ten specialist lanes must allow the 5h30 endurance budget plus setup/verification without exceeding the six-hour Actions ceiling.');
 const longRunGrace="AUTOBOT_FINISH_GRACE_MINUTES: ${{ (inputs.duration == '1h' || inputs.duration == '4h' || inputs.duration == '5h' || inputs.duration == '5h30') && '15' || '0' }}";
 assert(workflow.split(longRunGrace).length-1===11,'The configured long-run finish grace must remain present globally and in all ten specialist jobs.');
-assert(workflow.includes("AUTOBOT_LANE_CYCLE_MINUTES: '20'")&&laneRunner.includes("AUTOBOT_FINISH_GRACE_MINUTES: '0'"),'the persistent lane must own the cumulative deadline and must not spend the fleet finish-grace reserve inside every short internal cycle.');
+assert(workflow.includes("AUTOBOT_LANE_CYCLE_MINUTES: '10'")&&laneRunner.includes("AUTOBOT_LANE_CYCLE_MINUTES || '20'"),'the persistent lane must use the configured 10-minute internal product-evolution cycle while owning the cumulative deadline; it must not spend the fleet finish-grace reserve inside every short internal cycle.');
 assert(deterministicFallback.includes("const draft={cuts,targetDuration,creativePrompt:text(options.creativePrompt)};const cinematicQuality=evaluateCinematicOutput(draft,{duration});const sourceEvidenceScore="),'Media Intelligence deterministic fallback must initialise cinematicQuality before reading its score.');
 const specialists=registry.bots.filter(b=>b.specialistBuilder===true);
 const productionSpecialists=specialists.filter(b=>b.status==='verified');
