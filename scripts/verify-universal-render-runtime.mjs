@@ -4,7 +4,7 @@ import { resolveOutputPreset } from '../src/outputPresets.js';
 import { resolveRenderOutput } from '../src/renderOutputRuntime.js';
 import { evaluateRenderAcceptance, chooseRevisionActions } from '../src/renderQualityPolicy.js';
 assert.equal(typeof renderUniversalProduction,'function');
-assert.throws(()=>renderUniversalProduction({}),/render plan is required/);
+await assert.rejects(()=>renderUniversalProduction({}),/render plan is required/);
 const plan={cuts:[{mediaIndex:0,duration:2}],outputPreset:'landscape'};
 const out=resolveRenderOutput(plan);
 assert.equal(out.preset.id,'landscape');assert.equal(out.width,1920);assert.equal(out.height,1080);assert.equal(out.fps,30);
