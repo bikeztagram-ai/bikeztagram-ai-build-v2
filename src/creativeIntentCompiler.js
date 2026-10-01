@@ -8,7 +8,7 @@ const text = (v) => String(v ?? '').trim();
 const LIGHTING = { night: ['neon', 'moonlight', 'practical-lights'], sunset: ['golden-hour', 'rim-light', 'long-shadows'], dawn: ['soft-dawn', 'cool-fill', 'warm-rim'], day: ['natural-key', 'directional-sun', 'soft-fill'] };
 const ACTION_HINTS = [
   ['chase', 'pursue', 'overtake'], ['race', 'accelerate', 'drift'], ['reveal', 'discover', 'emerge'],
-  ['explode', 'impact', 'crash'], ['fly', 'soar', 'dive'], ['walk', 'approach', 'enter'], ['fight', 'attack', 'escape'], ['swerve', 'corner', 'lean', 'brake'], ['swerve', 'corner', 'lean', 'brake'], ['swerve', 'corner', 'lean', 'brake'],
+  ['explode', 'impact', 'crash'], ['fly', 'soar', 'dive'], ['walk', 'approach', 'enter'], ['fight', 'attack', 'escape'], ['swerve', 'corner', 'lean', 'brake'], ['swerve', 'corner', 'lean', 'brake'], ['swerve', 'corner', 'lean', 'brake'], ['swerve', 'corner', 'lean', 'brake'],
 ];
 function inferActions(prompt, brief, shot) {
   const p = text(prompt).toLowerCase();
