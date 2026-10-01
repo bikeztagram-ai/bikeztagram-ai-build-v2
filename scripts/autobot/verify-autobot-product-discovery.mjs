@@ -24,6 +24,7 @@ req(orchestrator.includes('eligibleObjective')&&orchestrator.includes('invokeDis
 req(orchestrator.includes("['proven','verified']"),'orchestrator does not require trusted specialist status');
 req(orchestrator.includes("unknownBots!=='blocked'"),'orchestrator does not enforce registry safety');
 req(orchestrator.includes('autobot-orchestrator-assignment.json'),'orchestrator does not persist assignment evidence');
-req(fs.readFileSync(file('builder/runner/aider-feature-brain.mjs'),'utf8').includes('AUTOBOT_ORCHESTRATOR_ENABLED'),'execution worker cannot consume explicit controller assignment');
+const worker=fs.readFileSync(file('builder/runner/aider-feature-brain.mjs'),'utf8');
+req(worker.includes('AUTOBOT_ORCHESTRATOR_ASSIGNMENT_PATH')&&worker.includes('function assignment()')&&worker.includes('const assigned=assignment()'),'execution worker cannot consume explicit controller assignment');
 if(errors.length){console.error(errors.map(e=>`FAIL: ${e}`).join('\n'));process.exit(1);}
 console.log(`PASS: AutoBot product discovery/orchestration contract (${(registry.specialists||[]).length} registered specialists)`);
