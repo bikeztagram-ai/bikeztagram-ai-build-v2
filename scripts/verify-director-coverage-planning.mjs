@@ -17,7 +17,7 @@ assert.equal(new Set(plan.map(p => p.mediaIndex)).size, plan.length);
 assert.ok(plan.every(p => p.selectionScore >= 0 && p.selectionScore <= 100));
 assert.ok(plan.some(p => p.subjectType === 'landscape'));
 const decision = buildDirectorDecision(media, { creativePrompt:'fast cinematic motorcycle reel', maxShots:5 });
-assert.equal(decision.version, 'universal-director-decision-v1');
+assert.equal(decision.version, 'universal-director-decision-v2');
 assert.equal(decision.shotCount, 5);
 assert.equal(decision.selectedMedia.length, 5);
 console.log('director-coverage-planning: PASS');

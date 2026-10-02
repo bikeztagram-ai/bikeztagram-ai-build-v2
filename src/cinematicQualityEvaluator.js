@@ -50,6 +50,16 @@ function scoreAudio(cuts,render={}){
  if(cuts.length>1){const beatCuts=cuts.filter(c=>c.nearestBeatTime!=null||c.beatAligned===true).length;if(audio.present&&beatCuts===0&&audio.beatAligned==null){score-=5;issues.push('No beat-boundary evidence');}}
  return{score:clamp(Math.round(score),0,100),issues};
 }
+function scoreRenderEvidence(render={}){
+ const issues=[];let score=90;const qa=render.qa||render;
+ const bytes=n(qa.blobBytes??qa.bytes,0);const width=n(qa.width,0),height=n(qa.height,0);const playback=n(qa.playbackProbeSeconds,0);const frame=qa.frameQA||{};const black=n(frame.blackFrameRatio,0);
+ if(bytes>0&&bytes<1024){score-=35;issues.push('Rendered output is implausibly small');}
+ if(('width' in qa||'height' in qa)&&(width<=0||height<=0)){score-=35;issues.push('Rendered output dimensions are missing');}
+ if('playbackProbeSeconds' in qa&&playback<=0){score-=35;issues.push('Rendered output did not provide playback evidence');}
+ if('frameQA' in qa&&black>=0.6){score-=35;issues.push('Rendered output contains excessive black-frame coverage');}
+ if(qa.passed===false){score-=25;issues.push('Rendered-output QA reported failure');}
+ return{score:clamp(Math.round(score),0,100),issues};
+}
 function scoreIntent(cuts,prompt=''){
  const p=text(prompt);if(!p)return{score:90,issues:[]};let score=100;const issues=[];
  const action=/action|fast|race|speed|chase|energetic|aggressive/.test(p);
@@ -63,11 +73,11 @@ function scoreIntent(cuts,prompt=''){
 }
 export function evaluateCinematicOutput(plan={},renderMetadata={}){
  const cuts=Array.isArray(plan?.cuts)?plan.cuts:[];const target=n(plan?.targetDuration,0)||n(renderMetadata?.duration,0)||15;
- const parts={narrative:scoreNarrative(cuts),diversity:scoreDiversity(cuts),pacing:scorePacing(cuts,target),audio:scoreAudio(cuts,renderMetadata),intent:scoreIntent(cuts,plan?.creativePrompt)};
- const weights={narrative:.25,diversity:.2,pacing:.2,audio:.15,intent:.2};
+ const parts={narrative:scoreNarrative(cuts),diversity:scoreDiversity(cuts),pacing:scorePacing(cuts,target),audio:scoreAudio(cuts,renderMetadata),intent:scoreIntent(cuts,plan?.creativePrompt),renderEvidence:scoreRenderEvidence(renderMetadata)};
+ const weights={narrative:.23,diversity:.18,pacing:.18,audio:.14,intent:.17,renderEvidence:.1};
  const score=Math.round(Object.entries(parts).reduce((sum,[key,value])=>sum+value.score*weights[key],0));
  const issues=[...new Set(Object.values(parts).flatMap(p=>p.issues))];
- const verdict=score>=90?'PASS':score>=75?'REVIEW':'REJECT';
+ const verdict=parts.renderEvidence.score<50||score<80?'REJECT':score>=90?'PASS':'REVIEW';
  return{version:'cinematic-quality-v1',score,verdict,targetDuration:target,actualDuration:Number(cuts.reduce((s,c)=>s+n(c.duration),0).toFixed(2)),dimensions:parts,issues};
 }
 export function compareCinematicOutputs(before,after){const delta=n(after?.score)-n(before?.score);return{beforeScore:n(before?.score),afterScore:n(after?.score),delta,improved:delta>0,verdict:delta>0?'STRONGER':delta<0?'WEAKER':'UNCHANGED'};}
