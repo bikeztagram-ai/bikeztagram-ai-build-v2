@@ -47,7 +47,7 @@ export default async function handler(req, res) {
 
     if (!baseUrl) {
       if (duration > 60) return json(res, 400, { error: 'The free ZeroGPU music worker currently supports up to 60 seconds per request from Bikeztagram.' });
-      return generateViaGradioWorker(res, workerUrl, token, { prompt, duration, forceInstrumental, bpm: body.bpm });
+      return generateViaGradioWorker(res, workerUrl, token, { prompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm });
     }
 
     const task = {
