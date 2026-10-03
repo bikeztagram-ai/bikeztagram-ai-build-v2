@@ -16,13 +16,14 @@ function treatmentFor({ role = '', subjectType = 'unknown', prompt = '', index =
   if (last) {
     return { motion: 'gentle-push', transition: 'fade', composition: 'clean hero framing', intensity: 'resolution' };
   }
-  if (hasAny(r, ['action', 'chase', 'race']) || hasAny(p, ['action', 'speed', 'race', 'chase'])) {
-    return { motion: 'speed-ramp', transition: 'impact-cut', composition: subject.includes('vehicle') ? 'low-angle tracking' : 'forward motion emphasis', intensity: 'high' };
-  }
-  if (hasAny(r, ['reveal', 'hero']) || hasAny(p, ['reveal', 'showcase', 'launch'])) {
+  const explicitRole = hasAny(r, ['reveal', 'hero', 'action', 'chase', 'race', 'build', 'variation', 'hook', 'opening']);
+  if (hasAny(r, ['reveal', 'hero']) || (!explicitRole && hasAny(p, ['reveal', 'showcase', 'launch']))) {
     return { motion: 'slow-orbit', transition: 'match-cut', composition: subject.includes('vehicle') ? 'three-quarter hero' : 'subject-first', intensity: 'rising' };
   }
-  if (hasAny(r, ['build', 'variation']) || hasAny(p, ['cinematic', 'trailer'])) {
+  if (hasAny(r, ['action', 'chase', 'race']) || (!explicitRole && hasAny(p, ['action', 'speed', 'race', 'chase']))) {
+    return { motion: 'speed-ramp', transition: 'impact-cut', composition: subject.includes('vehicle') ? 'low-angle tracking' : 'forward motion emphasis', intensity: 'high' };
+  }
+  if (hasAny(r, ['build', 'variation']) || (!explicitRole && hasAny(p, ['cinematic', 'trailer']))) {
     return { motion: index % 2 ? 'lateral-pan' : 'slow-push', transition: 'rhythmic-cut', composition: index % 2 ? 'environmental context' : 'medium detail', intensity: 'build' };
   }
   return { motion: 'subtle-drift', transition: 'clean-cut', composition: 'natural framing', intensity: 'controlled' };

@@ -3,6 +3,10 @@ import { evaluateRenderAcceptance, chooseRevisionActions } from '../src/renderQu
 
 const rejected=evaluateRenderAcceptance({qa:{passed:true,durationDifferenceSeconds:0},audioExpected:false,cinematicQuality:{score:62,verdict:'REJECT'}});
 assert.equal(rejected.accepted,false);
+
+const review=evaluateRenderAcceptance({qa:{passed:true,durationDifferenceSeconds:0},audioExpected:false,cinematicQuality:{score:85,verdict:'REVIEW'}});
+assert.equal(review.accepted,false);
+assert.ok(review.failures.includes('cinematic-quality-review'));
 assert.ok(rejected.failures.includes('cinematic-quality-rejected'));
 assert.ok(chooseRevisionActions(rejected).includes('run-cinematic-quality-revision'));
 
