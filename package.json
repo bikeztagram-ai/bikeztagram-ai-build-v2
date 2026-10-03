@@ -40,6 +40,7 @@
     "verify:batch78": "node scripts/verify-batch78-director-subject-diversity.mjs",
     "verify:batch79": "node scripts/verify-batch79-render-integrity.mjs",
     "verify:music-studio": "node scripts/verify-music-studio.mjs",
+    "verify:ace-step-music-provider": "node scripts/verify-ace-step-music-provider.mjs",
     "verify:music-arrangement": "node scripts/verify-music-arrangement.mjs",
     "verify:music-arrangement-quality": "node scripts/verify-music-arrangement-quality.mjs",
     "verify:music-quality-v3": "node scripts/verify-music-quality-v3.mjs",
