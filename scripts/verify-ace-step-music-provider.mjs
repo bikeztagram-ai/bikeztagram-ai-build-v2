@@ -8,8 +8,8 @@ const studio = fs.readFileSync(new URL('../src/musicStudio.jsx', import.meta.url
 const bridge = fs.readFileSync(new URL('../src/musicRenderBridge.js', import.meta.url), 'utf8');
 
 assert.match(api, /ACE_STEP_API_URL/);
-assert.match(api, /\/v1\/music\/generate/);
-assert.match(api, /\/v1\/jobs\//);
+assert.match(api, /\/release_task/);
+assert.match(api, /\/query_result/);
 assert.match(api, /ACE-Step 1\.5/);
 assert.doesNotMatch(api, /ELEVENLABS|Eleven Music/i);
 
