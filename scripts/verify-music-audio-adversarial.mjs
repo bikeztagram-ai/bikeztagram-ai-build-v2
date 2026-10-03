@@ -10,8 +10,8 @@ const bad=analyseMusicAudio({channels:[clipped,clipped],sampleRate:48000,duratio
 assert.ok(bad.issues.includes('true-peak-risk'));
 assert.ok(bad.issues.includes('over-dense-master'));
 assert.ok(bad.technicalScore<report.technicalScore);
-const anti=new Float32Array(48000*2);
-for(let i=0;i<anti.length;i+=2){anti[i]=.5;anti[i+1]=-.5;}
-const antiReport=analyseMusicAudio({channels:[anti,anti],sampleRate:48000,durationSeconds:2});
-assert.ok(antiReport.stereoCorrelation>=.99);
+const antiL=new Float32Array(48000*2).fill(.5);
+const antiR=new Float32Array(48000*2).fill(-.5);
+const antiReport=analyseMusicAudio({channels:[antiL,antiR],sampleRate:48000,durationSeconds:2});
+assert.ok(antiReport.issues.includes('phase-risk'));
 console.log('MUSIC AUDIO ADVERSARIAL PASS');
