@@ -86,7 +86,8 @@
     "verify:autobot-evolution-engineer": "node scripts/autobot/verify-autobot-evolution-engineer.mjs",
     "verify:autobot-independent-workers": "node scripts/autobot/verify-independent-worker-contract.mjs",
     "verify:autobot-specialist-edit-mode": "node scripts/autobot/verify-autobot-specialist-edit-mode.mjs",
-    "verify:music-audio-quality": "node scripts/verify-music-audio-quality.mjs"
+    "verify:music-audio-quality": "node scripts/verify-music-audio-quality.mjs",
+    "verify:cross-domain-acceptance": "node scripts/verify-cross-domain-acceptance.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
