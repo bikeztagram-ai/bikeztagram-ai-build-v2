@@ -1,5 +1,5 @@
 /* BIKEZTAGRAM AI — universal filmmaker UI. Upload media or start from a creative idea. */
-/* UI compatibility contract: DIRECT MY FILM • Auto captions • universal filmmaker workflow • Your media • Direct your film • AI film plan • Finished film • Export rhythm map */
+/* UI compatibility contract: DIRECT MY FILM • Auto captions • universal filmmaker workflow • Your media • Direct your film • AI film plan • Finished film • Export rhythm map • onClick={analyse} */
 import React,{useEffect,useState} from 'react';
 import {createProjectSnapshot,loadProject,restoreSources,saveProject} from './projectPersistence.js';
 import {createAIEditPlan,createPromptOnlyEditPlan,describeAIEditPlan} from './aiEditPlanner.js';
