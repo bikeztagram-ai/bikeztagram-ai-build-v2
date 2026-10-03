@@ -1,58 +1,78 @@
 /* Server-side Eleven Music v2 gateway. API keys never reach the browser. */
-const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.statusCode = 405;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify({ error: 'Method not allowed.' }));
+  }
 
-export default async function handler(req) {
-  if (req.method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
   const key = process.env.ELEVENLABS_API_KEY;
-  if (!key) return json({ error: 'AI music provider is not configured. Add ELEVENLABS_API_KEY in Vercel.' }, 503);
-  try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
-    const prompt = String(body.prompt || '').trim();
-    if (!prompt) return json({ error: 'Music prompt is required.' }, 400);
-    const length = Math.max(3000, Math.min(600000, Number(body.durationMs) || 30000));
-    const instrumental = Boolean(body.forceInstrumental);
-    let payload;
+  if (!key) {
+    res.statusCode = 503;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify({ error: 'AI music provider is not configured. Add ELEVENLABS_API_KEY in Vercel.' }));
+  }
 
-    if (instrumental) {
-      payload = { prompt, music_length_ms: length, model_id: 'music_v2', force_instrumental: true, sign_with_c2pa: false };
-    } else {
-      // Music v2 composition plans give the model explicit sections, pacing, lyrics and instrumentation
-      // instead of asking a single prompt to solve the whole arrangement in one pass.
-      const planResponse = await fetch('https://api.elevenlabs.io/v1/music/plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
-        body: JSON.stringify({ prompt, music_length_ms: length, model_id: 'music_v2' })
-      });
-      if (!planResponse.ok) {
-        const text = await planResponse.text();
-        return json({ error: 'Eleven Music composition planning failed.', providerStatus: planResponse.status, details: text.slice(0, 2000) }, planResponse.status >= 400 && planResponse.status < 500 ? planResponse.status : 502);
-      }
-      const compositionPlan = await planResponse.json();
-      payload = { composition_plan: compositionPlan, model_id: 'music_v2', sign_with_c2pa: false };
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    const prompt = String(body.prompt || '').trim();
+    if (!prompt) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify({ error: 'Music prompt is required.' }));
     }
 
+    const length = Math.max(3000, Math.min(600000, Number(body.durationMs) || 30000));
+    const instrumental = Boolean(body.forceInstrumental);
+
+    // Use the current Eleven Music v2 compose endpoint directly. This avoids
+    // an unnecessary plan->compose round trip and lets the provider stream/generate
+    // the actual audio for the requested duration.
     const response = await fetch('https://api.elevenlabs.io/v1/music?output_format=mp3_48000_192', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        prompt,
+        music_length_ms: length,
+        model_id: 'music_v2',
+        force_instrumental: instrumental,
+        sign_with_c2pa: false
+      })
     });
+
     if (!response.ok) {
       const text = await response.text();
-      return json({ error: 'Eleven Music generation failed.', providerStatus: response.status, details: text.slice(0, 2000) }, response.status >= 400 && response.status < 500 ? response.status : 502);
+      const status = response.status >= 400 && response.status < 500 ? response.status : 502;
+      res.statusCode = status;
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify({
+        error: 'Eleven Music generation failed.',
+        providerStatus: response.status,
+        details: text.slice(0, 2000)
+      }));
     }
-    const buffer = await response.arrayBuffer();
-    return new Response(buffer, {
-      status: 200,
-      headers: {
-        'Content-Type': response.headers.get('content-type') || 'audio/mpeg',
-        'Content-Length': String(buffer.byteLength),
-        'Cache-Control': 'no-store',
-        'X-Bikeztagram-Music-Provider': 'eleven-music-v2',
-        'X-Bikeztagram-Music-Original': 'true',
-        'X-Bikeztagram-Music-Song-Id': response.headers.get('song-id') || ''
-      }
-    });
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length) {
+      res.statusCode = 502;
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify({ error: 'Eleven Music returned an empty audio file.' }));
+    }
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', response.headers.get('content-type') || 'audio/mpeg');
+    res.setHeader('Content-Length', String(buffer.byteLength));
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Bikeztagram-Music-Provider', 'eleven-music-v2');
+    res.setHeader('X-Bikeztagram-Music-Original', 'true');
+    res.setHeader('X-Bikeztagram-Music-Song-Id', response.headers.get('song-id') || '');
+    return res.end(buffer);
   } catch (error) {
-    return json({ error: 'AI music request failed.', details: error?.message || String(error) }, 502);
+    res.statusCode = 502;
+    res.setHeader('Content-Type', 'application/json');
+    return res.end(JSON.stringify({
+      error: 'AI music request failed.',
+      details: error?.message || String(error)
+    }));
   }
 }
