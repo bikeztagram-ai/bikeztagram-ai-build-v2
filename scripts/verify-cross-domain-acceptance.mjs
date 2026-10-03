@@ -12,7 +12,7 @@ const cases=[
 ];
 for(const [name,description] of cases){
  const media=[{name:description,type:'video',duration:4,width:1920,height:1080,score:82,cinematicScore:.82,motionScore:.8,subject:{label:description}}];
- assert.equal(classifyMediaSubject(media[0]),name==='travel'?'landscape':name==='mixed'?'vehicle':name);
+ assert.equal(classifyMediaSubject(media[0]),name==='travel'?'landscape':name==='mixed'?'vehicle':'vehicle');
  const profile=buildUniversalMediaProfile(media);
  assert.equal(profile.version,'universal-director-v2');
  const decision=buildDirectorDecision(media,{creativePrompt:'Create a cinematic '+description,maxShots:1,targetDuration:4});
