@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const app=fs.readFileSync('src/App.jsx','utf8');
 assert.match(app,/renderAccepted/);
+assert.match(app,/transcodeRenderedFilmToPreset/);
 assert.match(app,/setRenderAccepted\(result\.accepted!==false\)/);
 assert.match(app,/Export is locked until render QA accepts the film/);
 assert.match(app,/Sharing is locked until render QA accepts the film/);
