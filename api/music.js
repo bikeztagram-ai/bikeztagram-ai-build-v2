@@ -65,6 +65,8 @@ export default async function handler(req, res) {
       use_random_seed: true,
       ...(body.lyrics ? { lyrics: String(body.lyrics) } : {}),
       ...(body.forceInstrumental ? { lyrics: '[inst]' } : {}),
+      ...(body.vocalLanguage ? { vocal_language: String(body.vocalLanguage) } : {}),
+      ...(body.vocalDirection ? { instruction: String(body.vocalDirection) } : {}),
       ...(Number.isFinite(Number(body.bpm)) ? { bpm: Number(body.bpm) } : {}),
       ...(body.key && body.key !== 'auto' ? { key_scale: String(body.key) } : {}),
       ...(body.timeSignature && body.timeSignature !== 'auto' ? { time_signature: String(body.timeSignature) } : {}),
