@@ -2,9 +2,6 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import OutputFormatEnhancer from './outputFormatEnhancer.jsx';
-import PromptSceneStudio from './promptSceneStudio.jsx';
-import MusicStudio from './musicStudio.jsx';
-import MusicArrangementStudio from './musicArrangementStudio.jsx';
 import { installLocalAnalysisRuntime } from './localAnalysisRuntime.js';
 import './registerCreativeCapabilities.js';
 import { creativeRuntime } from './creativeRuntimeBootstrap.js';
@@ -35,9 +32,6 @@ root.render(
   <React.StrictMode>
     <RuntimeBoundary><App /></RuntimeBoundary>
     <RuntimeBoundary><OutputFormatEnhancer /></RuntimeBoundary>
-    <RuntimeBoundary><PromptSceneStudio /></RuntimeBoundary>
-    <RuntimeBoundary><MusicStudio /></RuntimeBoundary>
-    <RuntimeBoundary><MusicArrangementStudio /></RuntimeBoundary>
   </React.StrictMode>
 );
 
