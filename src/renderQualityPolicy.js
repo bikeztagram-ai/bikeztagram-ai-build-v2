@@ -7,6 +7,7 @@ export function evaluateRenderAcceptance({qa=null,audioExpected=false,audioAttac
   if(audioExpected&&!audioAttached) failures.push('required-audio-not-attached');
   if(beatSyncScore!==null&&beatSyncScore<.35) failures.push('weak-music-edit-sync');
   if(cinematicQuality?.verdict==='REJECT') failures.push('cinematic-quality-rejected');
+  if(cinematicQuality?.verdict==='REVIEW') failures.push('cinematic-quality-review');
   const durationDiff=Math.abs(n(qa?.durationDifferenceSeconds,0));
   if(durationDiff>2) failures.push('duration-out-of-tolerance');
   const qualityScore=n(cinematicQuality?.score,100);
