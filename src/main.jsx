@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import OutputFormatEnhancer from './outputFormatEnhancer.jsx';
 import PromptSceneStudio from './promptSceneStudio.jsx';
-import PromptOnlyStudio from './promptOnlyStudio.jsx';
 import MusicStudio from './musicStudio.jsx';
 import MusicArrangementStudio from './musicArrangementStudio.jsx';
 import { installLocalAnalysisRuntime } from './localAnalysisRuntime.js';
