@@ -41,3 +41,17 @@ export function scoreDirectorContinuity(cuts=[]){
  return {score:Math.max(0,100-issues.length*20-repeats*5),issues};
 }
 // Verified product lane: keep this change isolated and production-consumed.
+
+export function scoreCinematicPacing(cuts=[]){
+ if(!Array.isArray(cuts)||!cuts.length)return {score:0,issues:['no-cuts']};
+ const durations=cuts.map(c=>Number(c?.duration)||0);
+ const motion=cuts.filter(c=>c?.motionStyle&&c.motionStyle!=='static').length;
+ const transitions=cuts.filter(c=>c?.transition&&c.transition!=='hard-cut').length;
+ const variation=new Set(cuts.map(c=>c?.purpose||'unknown')).size;
+ const avg=durations.reduce((a,b)=>a+b,0)/durations.length;
+ const issues=[];
+ if(motion===0)issues.push('no-motion');
+ if(variation<Math.min(3,cuts.length))issues.push('low-story-variation');
+ if(avg>4.5)issues.push('slow-average-cut');
+ return {score:Math.max(0,Math.min(100,55+Math.min(20,motion*4)+Math.min(15,transitions*3)+Math.min(10,variation*3)-issues.length*8)),issues};
+}
