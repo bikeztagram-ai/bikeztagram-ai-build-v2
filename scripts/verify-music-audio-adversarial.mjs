@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {analyseMusicAudio} from '../src/musicQualityEvaluator.js';
+const healthy=new Float32Array(48000*2);
+for(let i=0;i<healthy.length;i++)healthy[i]=Math.sin(i/20)*.25*Math.sin(i/48000*Math.PI);
+const report=analyseMusicAudio({channels:[healthy,healthy],sampleRate:48000,durationSeconds:2});
+assert.ok(Number.isFinite(report.technicalScore));
+assert.ok(['PASS','REVIEW','REGENERATE'].includes(report.verdict));
+const clipped=new Float32Array(48000*2).fill(1);
+const bad=analyseMusicAudio({channels:[clipped,clipped],sampleRate:48000,durationSeconds:2});
+assert.ok(bad.issues.includes('true-peak-risk'));
+assert.ok(bad.issues.includes('over-dense-master'));
+assert.ok(bad.technicalScore<report.technicalScore);
+const anti=new Float32Array(48000*2);
+for(let i=0;i<anti.length;i+=2){anti[i]=.5;anti[i+1]=-.5;}
+const antiReport=analyseMusicAudio({channels:[anti,anti],sampleRate:48000,durationSeconds:2});
+assert.ok(antiReport.stereoCorrelation>=.99);
+console.log('MUSIC AUDIO ADVERSARIAL PASS');
