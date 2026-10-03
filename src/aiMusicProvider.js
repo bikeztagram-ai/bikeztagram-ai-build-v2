@@ -7,7 +7,7 @@ export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrum
   const response = await fetch('/api/music', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: String(prompt || '').trim(), durationMs, forceInstrumental, bpm, key, mode, lyrics })
+    body: JSON.stringify({ prompt: String(prompt || '').trim(), durationMs, forceInstrumental, bpm, key, mode, timeSignature: mode, lyrics })
   });
   if (!response.ok) {
     let detail = 'Open-source AI music generation failed.';

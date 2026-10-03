@@ -13,6 +13,7 @@ const clamp = (value, min, max, fallback) => {
   return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
 };
 const env = name => String(process.env[name] || '').trim().replace(/\/$/, '');
+const DEFAULT_ZERO_GPU_WORKER = 'https://2btainment-ace-step.hf.space';
 
 async function readJson(response) {
   const text = await response.text();
@@ -27,7 +28,8 @@ export default async function handler(req, res) {
 
   const baseUrl = env('ACE_STEP_API_URL');
   const token = env('ACE_STEP_API_TOKEN');
-  if (!baseUrl) return json(res, 503, {
+  const workerUrl = env('ACE_STEP_WORKER_URL') || DEFAULT_ZERO_GPU_WORKER;
+  if (!baseUrl && !workerUrl) return json(res, 503, {
     error: 'Open-source music engine is not connected yet.',
     details: 'Set ACE_STEP_API_URL to an ACE-Step 1.5 REST API server. No commercial music API key is required.'
   });
@@ -42,6 +44,11 @@ export default async function handler(req, res) {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: 'Bearer ' + token } : {})
     };
+
+    if (!baseUrl) {
+      if (duration > 60) return json(res, 400, { error: 'The free ZeroGPU music worker currently supports up to 60 seconds per request from Bikeztagram.' });
+      return generateViaGradioWorker(res, workerUrl, token, { prompt, duration, forceInstrumental, bpm: body.bpm });
+    }
 
     const task = {
       prompt,
@@ -136,7 +143,7 @@ export default async function handler(req, res) {
   }
 }
 
-async function proxyAudio(res, baseUrl, token, audioPath, taskId) {
+async function proxyAudio(res, baseUrl, token, audioPath, taskId, providerName = 'ACE-Step 1.5') {
   const url = audioPath.startsWith('http')
     ? audioPath
     : baseUrl + (audioPath.startsWith('/') ? '' : '/') + audioPath;
@@ -160,8 +167,62 @@ async function proxyAudio(res, baseUrl, token, audioPath, taskId) {
   res.setHeader('Content-Type', response.headers.get('content-type') || 'audio/mpeg');
   res.setHeader('Content-Length', String(buffer.byteLength));
   res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Bikeztagram-Music-Provider', 'ACE-Step 1.5');
+  res.setHeader('X-Bikeztagram-Music-Provider', providerName);
   res.setHeader('X-Bikeztagram-Music-Original', 'true');
   res.setHeader('X-Bikeztagram-Music-Song-Id', String(taskId || ''));
   return res.end(buffer);
+}
+
+
+async function generateViaGradioWorker(res, workerUrl, token, { prompt, duration, forceInstrumental, bpm }) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: 'Bearer ' + token } : {})
+  };
+  const data = [
+    prompt,
+    duration,
+    -1,
+    8,
+    Boolean(forceInstrumental)
+  ];
+  if (Number.isFinite(Number(bpm))) data[0] = `${prompt}. Tempo ${Number(bpm)} BPM.`;
+
+  const submit = await fetch(workerUrl + '/gradio_api/call/_generate', {
+    method: 'POST', headers, body: JSON.stringify({ data })
+  });
+  const submitted = await readJson(submit);
+  if (!submit.ok || !submitted?.event_id) {
+    return json(res, submit.status >= 400 && submit.status < 500 ? submit.status : 502, {
+      error: 'ACE-Step ZeroGPU worker rejected the request.',
+      providerStatus: submit.status,
+      details: JSON.stringify(submitted).slice(0, 2500)
+    });
+  }
+
+  const eventResponse = await fetch(workerUrl + '/gradio_api/call/_generate/' + encodeURIComponent(submitted.event_id), {
+    headers: token ? { Authorization: 'Bearer ' + token } : {}
+  });
+  if (!eventResponse.ok) {
+    const text = await eventResponse.text();
+    return json(res, 502, { error: 'ACE-Step ZeroGPU worker status could not be read.', providerStatus: eventResponse.status, details: text.slice(0, 2500) });
+  }
+
+  const sseText = await eventResponse.text();
+  const complete = parseSseComplete(sseText);
+  if (!complete) return json(res, 502, { error: 'ACE-Step ZeroGPU worker did not return a completed track.', details: sseText.slice(-2500) });
+  const first = Array.isArray(complete) ? complete[0] : complete;
+  const audioUrl = first?.url || first?.path;
+  if (!audioUrl) return json(res, 502, { error: 'ACE-Step ZeroGPU worker completed without an audio file.', details: JSON.stringify(first).slice(0, 2500) });
+  return proxyAudio(res, workerUrl, token, audioUrl, submitted.event_id, 'ACE-Step 1.5 ZeroGPU Worker');
+}
+
+function parseSseComplete(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() !== 'event: complete') continue;
+    const data = lines[i + 1]?.startsWith('data:') ? lines[i + 1].slice(5).trim() : '';
+    try { return JSON.parse(data); } catch { return null; }
+  }
+  return null;
 }
