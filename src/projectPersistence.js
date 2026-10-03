@@ -122,3 +122,10 @@ export function clearProjectPersistence() {
 }
 
 export { SCHEMA_VERSION };
+
+export function migrateProjectSnapshot(snapshot){
+ if(!isObject(snapshot))return {ok:false,reason:'invalid-snapshot',snapshot:null};
+ if(snapshot.schemaVersion===SCHEMA_VERSION)return {ok:true,migrated:false,snapshot};
+ if(snapshot.schemaVersion===0){return {ok:true,migrated:true,snapshot:{...snapshot,schemaVersion:SCHEMA_VERSION,savedAt:snapshot.savedAt||new Date().toISOString(),sources:Array.isArray(snapshot.sources)?snapshot.sources:[]}};}
+ return {ok:false,migrated:false,reason:'unsupported-schema',snapshot:null};
+}

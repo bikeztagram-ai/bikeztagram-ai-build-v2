@@ -7,6 +7,7 @@ export function evaluateRenderAcceptance({qa=null,audioExpected=false,audioAttac
   if(audioExpected&&!audioAttached) failures.push('required-audio-not-attached');
   if(beatSyncScore!==null&&beatSyncScore<.35) failures.push('weak-music-edit-sync');
   if(cinematicQuality?.verdict==='REJECT') failures.push('cinematic-quality-rejected');
+  if(cinematicQuality?.verdict==='REVIEW') failures.push('cinematic-quality-review');
   const durationDiff=Math.abs(n(qa?.durationDifferenceSeconds,0));
   if(durationDiff>2) failures.push('duration-out-of-tolerance');
   const qualityScore=n(cinematicQuality?.score,100);
@@ -18,7 +19,7 @@ export function chooseRevisionActions(policy){
   for(const failure of policy?.failures||[]){
     if(failure==='weak-music-edit-sync') actions.push('retime-cuts-to-musical-phrases');
     if(failure==='required-audio-not-attached') actions.push('retry-audio-mux');
-    if(failure==='cinematic-quality-rejected') actions.push('run-cinematic-quality-revision');
+    if(failure==='cinematic-quality-rejected'||failure==='cinematic-quality-review') actions.push('run-cinematic-quality-revision');
     if(failure==='duration-out-of-tolerance') actions.push('rebalance-cut-durations');
     if(failure==='qa-failed'||String(failure).startsWith('FAIL_')) actions.push('repair-render-output');
   }

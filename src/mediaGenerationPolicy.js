@@ -3,7 +3,7 @@ const text=(value)=>String(value??'').trim().toLowerCase();
 const GENERATION_INTENT=/\b(create|generate|invent|imagine|make|show me|design|produce|build|render|animate|film|scene|world|character|creature|environment|story|trailer|commercial|advert|music video)\b/i;
 const EDIT_SOURCE_INTENT=/\b(edit|editing|cut|trim|reframe|grade|enhance|improve|remix|use|uploaded|footage|clip|clips|recording|source media)\b/i;
 const IMAGE_ONLY_INTENT=/\b(image|picture|photo|poster|illustration|artwork|still)\b/i;
-const MOVING_MEDIA_INTENT=/\b(video|film|animate|animation|motion|moving|scene|shot|trailer|commercial|advert|music video|reel)\b/i;
+const MOVING_MEDIA_INTENT=/\b(video|film|animate|animation|motion|moving|scene|shot|trailer|commercial|advert|music video|reel|flying|driving|running|chase|action|camera|fpv|aerial|cinematic)\b/i;
 export function chooseVisualStrategy({prompt='',hasUploadedMedia=false,canGenerateVideo=false,canGenerateImage=false}={}){
  const brief=text(prompt);const asksForGeneration=GENERATION_INTENT.test(brief);const asksForMovingMedia=MOVING_MEDIA_INTENT.test(brief);const asksForStill=IMAGE_ONLY_INTENT.test(brief)&&!asksForMovingMedia;
  const explicitlyEditsSource=hasUploadedMedia&&EDIT_SOURCE_INTENT.test(brief)&&!/(create|generate|invent|imagine|design|produce|build|animate|from scratch|new scene)/i.test(brief);
