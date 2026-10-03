@@ -24,7 +24,14 @@ export default function PromptSceneStudio() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('Ready');
-  const [scene, setScene] = useState(null);\n  const [open, setOpen] = useState(false);
+  const [scene, setScene] = useState(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const openScene = () => setOpen(true);
+    window.addEventListener('bikeztagram:open-scene', openScene);
+    return () => window.removeEventListener('bikeztagram:open-scene', openScene);
+  }, []);
 
   useEffect(() => () => {
     if (scene?.url) URL.revokeObjectURL(scene.url);
@@ -88,11 +95,13 @@ export default function PromptSceneStudio() {
     setStatus('✓ Original scene added to the film media library.');
   }
 
+  if (!open) return null;
+
   return (
     <section style={shell} aria-label="Original prompt scene studio">
       <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'flex-start',flexWrap:'wrap'}}>
         <div>
-          <div style={{display:'flex',alignItems:'center',gap:10}}><div style={{fontSize:11,letterSpacing:1.8,fontWeight:800,opacity:.7}}>ORIGINAL SCENE STUDIO</div><button type="button" onClick={() => setOpen(false)} style={{marginLeft:'auto',border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.04)',color:'inherit',borderRadius:8,padding:'5px 9px',cursor:'pointer'}} aria-label="Close scene studio">×</button></div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}><div style={{display:'flex',alignItems:'center',gap:10}}><div style={{fontSize:11,letterSpacing:1.8,fontWeight:800,opacity:.7}}>ORIGINAL SCENE STUDIO</div><button type="button" onClick={() => setOpen(false)} style={{marginLeft:'auto',border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.04)',color:'inherit',borderRadius:8,padding:'5px 9px',cursor:'pointer'}} aria-label="Close scene studio">×</button></div><button type="button" onClick={() => setOpen(false)} style={{marginLeft:'auto',border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.04)',color:'inherit',borderRadius:8,padding:'5px 9px',cursor:'pointer'}} aria-label="Close scene studio">×</button></div>
           <h3 style={{margin:'6px 0 5px',fontSize:22}}>Generate a scene from a prompt</h3>
           <p style={{margin:0,opacity:.72,fontSize:13,maxWidth:650,lineHeight:1.5}}>
             Provider-free, copyright-safe scene generation in the browser. This is a deterministic cinematic generator, not a claim of foundation-model video generation.
