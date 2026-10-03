@@ -50,8 +50,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --package-lock=false
       - name: Execute specialist lane
         run: ${{ matrix.cmd }}
 
@@ -65,7 +64,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --package-lock=false
       - run: npm run build
       - run: npm run verify:release-hardening
