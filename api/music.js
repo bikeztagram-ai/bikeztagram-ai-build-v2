@@ -50,7 +50,10 @@ export default async function handler(req, res) {
     if (!baseUrl) {
       if (sourceAudio) return json(res, 501, { error: 'True audio remix needs the full ACE-Step engine.', details: 'The current free ZeroGPU worker only exposes text-to-music. Connect ACE_STEP_API_URL to enable source-audio cover/remix.' });
       if (duration > 60) return json(res, 400, { error: 'The free ZeroGPU music worker currently supports up to 60 seconds per request from Bikeztagram.' });
-      return generateViaGradioWorker(res, workerUrl, token, { prompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm });
+      const vocalPrompt = Boolean(body.forceInstrumental)
+        ? prompt
+        : `${prompt}. Generate a complete song with clearly audible sung lead vocals, original lyrics and a real melodic vocal performance. Do not make this instrumental. ${body.vocalDirection ? `Vocal direction: ${String(body.vocalDirection)}.` : 'Use a natural lead singer appropriate to the requested genre.'} ${body.lyrics ? `Use these original lyrics exactly as the lyric source: ${String(body.lyrics)}` : 'Write original lyrics that fit the requested song and genre.'} Language: ${String(body.vocalLanguage || 'en')}.`;
+      return generateViaGradioWorker(res, workerUrl, token, { prompt: vocalPrompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm });
     }
 
     const task = {
