@@ -37,5 +37,13 @@ export function prepareCreativeContinuity(plan,{creativePrompt='',duration=0}={}
     c.continuity={shotIndex:i,shotCount:cuts.length,previousSourceIndex:i?cuts[i-1].mediaIndex:null,nextSourceIndex:i<cuts.length-1?cuts[i+1].mediaIndex:null,avoidRepeatedSource:Boolean(c.repetitionPenalty)};
   }
   const total=cuts.reduce((s,c)=>s+c.duration,0);
-  return {...plan,cuts,duration:Number(total.toFixed(2)),creativeContinuity:{version:'1.0',action,dark,emotional,shotCount:cuts.length,targetDuration:Number(duration)||plan.targetDuration||total}};
+  const sources=cuts.map(c=>Number.isInteger(Number(c.mediaIndex))?Number(c.mediaIndex):null).filter(v=>v!=null);
+  const repeated=sources.length-new Set(sources).size;
+  const roles=cuts.map(c=>String(c.editorialRole||c.directorStoryRole||c.purpose||'').toLowerCase()).filter(Boolean);
+  const roleRepeats=roles.length-new Set(roles).size;
+  const hasOpening=cuts.length>0;
+  const hasEnding=cuts.length>1;
+  const continuityScore=clamp(Math.round(100-(repeated*14)-(roleRepeats*7)+(hasOpening?4:0)+(hasEnding?4:0)),0,100);
+  const continuityVerdict=continuityScore>=90?'PASS':continuityScore>=75?'REVIEW':'REPAIR';
+  return {...plan,cuts,duration:Number(total.toFixed(2)),creativeContinuity:{version:'1.1',action,dark,emotional,shotCount:cuts.length,targetDuration:Number(duration)||plan.targetDuration||total,continuityScore,continuityVerdict,repeatedSources:repeated,repeatedRoles:roleRepeats,openingPresent:hasOpening,endingPresent:hasEnding}};
 }
