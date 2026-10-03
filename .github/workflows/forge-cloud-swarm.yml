@@ -1,0 +1,71 @@
+name: Forge Cloud Swarm
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: forge-swarm-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  swarm:
+    name: "Forge worker: ${{ matrix.lane }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        include:
+          - lane: director-explicit-role
+            cmd: npm run verify:director-explicit-role-selection
+          - lane: director-runtime
+            cmd: npm run verify:director-render-runtime
+          - lane: director-handoff
+            cmd: npm run verify:director-timeline-handoff
+          - lane: cinematic-quality
+            cmd: npm run verify:cinematic-quality-gate
+          - lane: render-acceptance
+            cmd: npm run verify:render-acceptance-quality-gate
+          - lane: audio-arrangement
+            cmd: npm run verify:music-arrangement-quality
+          - lane: audio-v4
+            cmd: npm run verify:music-quality-v4
+          - lane: universal-runtime
+            cmd: npm run verify:universal-creative-runtime-v2
+          - lane: capability-registry
+            cmd: npm run verify:universal-capability-registry-v2
+          - lane: persistence
+            cmd: npm run verify:project-memory
+          - lane: autobot-qa
+            cmd: npm run verify:autobot-qa
+          - lane: autobot-specialists
+            cmd: npm run verify:autobot-specialist-handoff
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Execute specialist lane
+        run: ${{ matrix.cmd }}
+
+  integration:
+    name: Forge integration gate
+    needs: swarm
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run verify:release-hardening
