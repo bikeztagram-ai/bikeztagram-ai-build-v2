@@ -7,14 +7,16 @@ assert.equal(buildShotMotion({ role: 'action', subjectType: 'vehicle' }).type, '
 assert.equal(buildShotMotion({ role: 'action', subjectType: 'person' }).type, 'orbit-push');
 assert.equal(buildShotMotion({ role: 'hero-ending', subjectType: 'product' }).type, 'precision-push');
 assert.equal(buildShotDirection({ role: 'hero-ending', subjectType: 'vehicle' }).preserveSubject, true);
+assert.equal(buildShotDirection({ role: 'action', subjectType: 'vehicle' }).motion.type, 'orbit-push');
+assert.equal(buildShotDirection({ role: 'action', subjectType: 'vehicle' }).motion.intensity, 1.15);
 
 const timeline = refineCinematicTimeline([
-  { mediaId: 'bike-a', duration: 2 },
-  { mediaId: 'bike-b', duration: 2 },
-  { mediaId: 'bike-c', duration: 2 }
+  { mediaId: 'bike-a', name: 'motorcycle cornering', duration: 2 },
+  { mediaId: 'bike-b', name: 'motorcycle road ride', duration: 2 },
+  { mediaId: 'bike-c', name: 'motorcycle hero reveal', duration: 2 }
 ], { creativePrompt: 'dark cinematic action trailer' });
 assert.equal(timeline.length, 3);
 assert.ok(timeline.every(cut => cut.subjectType === 'vehicle'));
-assert.ok(timeline.some(cut => cut.motionStyle === 'tracking-push-pan'));
+assert.ok(timeline.some(cut => cut.motionStyle === 'orbit-push'));
 assert.ok(timeline.every(cut => cut.coverage.preserveSubject === true));
 console.log('subject-aware-cinematic-direction: PASS');
