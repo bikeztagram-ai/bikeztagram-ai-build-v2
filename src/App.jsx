@@ -1,6 +1,7 @@
 /* BIKEZTAGRAM AI — universal filmmaker UI. Upload media or start from a creative idea. */
 import React,{useEffect,useState} from 'react';
 import {createProjectSnapshot,loadProject,restoreSources,saveProject} from './projectPersistence.js';
+/* BIKEZTAGRAM_PERSISTENCE_LIFECYCLE */
 import {createAIEditPlan,createPromptOnlyEditPlan,describeAIEditPlan} from './aiEditPlanner.js';
 import {renderUniversalProduction} from './universalRenderRuntime.js';
 import {renderWorldScene} from './worldScene.js';
