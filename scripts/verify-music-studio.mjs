@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { createMusicBrief,composeFullMusic,renderMusicWav,analyseMusicComposition } from '../src/musicStudioEngine.js';
+import { createMusicBrief,composeFullMusic,renderMusicWav } from '../src/musicStudioEngine.js';
+import { analyseMusicComposition } from '../src/musicStudioEngineCompatibility.js';
 import { createSongProject,renderStemWav,exportSongProject,validateSongProject } from '../src/musicProjectRuntime.js';
 const brief=createMusicBrief({prompt:'dark cinematic motorcycle chase with rising tension',duration:24});
 assert.equal(brief.copyright.originalOnly,true);assert.equal(brief.copyright.noKnownSongImitation,true);assert.equal(brief.copyright.noExternalAudioSamples,true);assert.ok(brief.bpm>=55&&brief.bpm<=190);

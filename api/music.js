@@ -1,58 +1,268 @@
-/* Server-side Eleven Music v2 gateway. API keys never reach the browser. */
-const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
+/* Bikeztagram AI — server-side ACE-Step 1.5 REST gateway.
+   Official ACE-Step API flow: POST /release_task -> POST /query_result -> GET /v1/audio.
+*/
+export const maxDuration = 60;
 
-export default async function handler(req) {
-  if (req.method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
-  const key = process.env.ELEVENLABS_API_KEY;
-  if (!key) return json({ error: 'AI music provider is not configured. Add ELEVENLABS_API_KEY in Vercel.' }, 503);
+const json = (res, status, payload) => {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json');
+  return res.end(JSON.stringify(payload));
+};
+const clamp = (value, min, max, fallback) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+};
+const env = name => String(process.env[name] || '').trim().replace(/\/$/, '');
+const DEFAULT_ZERO_GPU_WORKER = 'https://2btainment-ace-step.hf.space';
+
+async function readJson(response) {
+  const text = await response.text();
+  try { return JSON.parse(text); } catch { return { raw: text }; }
+}
+function unwrap(payload) {
+  return payload?.data ?? payload;
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed.' });
+
+  const baseUrl = env('ACE_STEP_API_URL');
+  const token = env('ACE_STEP_API_TOKEN');
+  const workerUrl = env('ACE_STEP_WORKER_URL') || DEFAULT_ZERO_GPU_WORKER;
+  if (!baseUrl && !workerUrl) return json(res, 503, {
+    error: 'Open-source music engine is not connected yet.',
+    details: 'Set ACE_STEP_API_URL to an ACE-Step 1.5 REST API server. No commercial music API key is required.'
+  });
+
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
+    const { body, sourceAudio } = await parseMusicRequest(req);
     const prompt = String(body.prompt || '').trim();
-    if (!prompt) return json({ error: 'Music prompt is required.' }, 400);
-    const length = Math.max(3000, Math.min(600000, Number(body.durationMs) || 30000));
-    const instrumental = Boolean(body.forceInstrumental);
-    let payload;
+    if (!prompt) return json(res, 400, { error: 'Music prompt is required.' });
 
-    if (instrumental) {
-      payload = { prompt, music_length_ms: length, model_id: 'music_v2', force_instrumental: true, sign_with_c2pa: false };
+    const taskType = String(body.taskType || (sourceAudio ? 'cover' : 'text2music')).trim();
+    const coverStrength = clamp(body.coverStrength, 0.1, 1, 0.75);
+    const duration = clamp((Number(body.durationMs) || 30000) / 1000, 10, 600, 30);
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {})
+    };
+
+    if (!baseUrl) {
+      if (sourceAudio) return json(res, 501, { error: 'True audio remix needs the full ACE-Step engine.', details: 'The current free ZeroGPU worker only exposes text-to-music. Connect ACE_STEP_API_URL to enable source-audio cover/remix.' });
+      if (duration > 60) return json(res, 400, { error: 'The free ZeroGPU music worker currently supports up to 60 seconds per request from Bikeztagram.' });
+      const vocalPrompt = Boolean(body.forceInstrumental)
+        ? prompt
+        : `${prompt}. Generate a complete song with clearly audible sung lead vocals, original lyrics and a real melodic vocal performance. Do not make this instrumental. ${body.vocalDirection ? `Vocal direction: ${String(body.vocalDirection)}.` : 'Use a natural lead singer appropriate to the requested genre.'} ${body.lyrics ? `Use these original lyrics exactly as the lyric source: ${String(body.lyrics)}` : 'Write original lyrics that fit the requested song and genre.'} Language: ${String(body.vocalLanguage || 'en')}.`;
+      return generateViaGradioWorker(res, workerUrl, token, { prompt: vocalPrompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm });
+    }
+
+    const task = {
+      prompt,
+      task_type: taskType,
+      thinking: true,
+      model: 'acestep-v15-turbo',
+      audio_duration: duration,
+      audio_format: 'mp3',
+      inference_steps: 8,
+      batch_size: 1,
+      use_random_seed: true,
+      ...(body.lyrics ? { lyrics: String(body.lyrics) } : {}),
+      ...(body.forceInstrumental ? { lyrics: '[inst]' } : {}),
+      ...(body.vocalLanguage ? { vocal_language: String(body.vocalLanguage) } : {}),
+      ...(body.vocalDirection ? { instruction: String(body.vocalDirection) } : {}),
+      ...(Number.isFinite(Number(body.bpm)) ? { bpm: Number(body.bpm) } : {}),
+      ...(body.key && body.key !== 'auto' ? { key_scale: String(body.key) } : {}),
+      ...(body.timeSignature && body.timeSignature !== 'auto' ? { time_signature: String(body.timeSignature) } : {}),
+      ...(sourceAudio ? { audio_cover_strength: coverStrength, cover_noise_strength: Math.max(0, 1 - coverStrength) } : {})
+    };
+
+    let submitResponse;
+    if (sourceAudio) {
+      const form = new FormData();
+      Object.entries(task).forEach(([key, value]) => { if (value !== undefined && value !== null) form.append(key, String(value)); });
+      form.append('src_audio', new Blob([Buffer.from(await sourceAudio.arrayBuffer())], { type: sourceAudio.type || 'audio/mpeg' }), sourceAudio.name || 'source-audio');
+      submitResponse = await fetch(baseUrl + '/release_task', { method: 'POST', headers: token ? { Authorization: 'Bearer ' + token } : {}, body: form });
     } else {
-      // Music v2 composition plans give the model explicit sections, pacing, lyrics and instrumentation
-      // instead of asking a single prompt to solve the whole arrangement in one pass.
-      const planResponse = await fetch('https://api.elevenlabs.io/v1/music/plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
-        body: JSON.stringify({ prompt, music_length_ms: length, model_id: 'music_v2' })
+      submitResponse = await fetch(baseUrl + '/release_task', { method: 'POST', headers, body: JSON.stringify(task) });
+    }
+    const submittedEnvelope = await readJson(submitResponse);
+    if (!submitResponse.ok || submittedEnvelope.code && submittedEnvelope.code !== 200) {
+      return json(res, submitResponse.status >= 400 && submitResponse.status < 500 ? submitResponse.status : 502, {
+        error: 'ACE-Step music generation request was rejected.',
+        providerStatus: submitResponse.status,
+        details: JSON.stringify(submittedEnvelope).slice(0, 2500)
       });
-      if (!planResponse.ok) {
-        const text = await planResponse.text();
-        return json({ error: 'Eleven Music composition planning failed.', providerStatus: planResponse.status, details: text.slice(0, 2000) }, planResponse.status >= 400 && planResponse.status < 500 ? planResponse.status : 502);
-      }
-      const compositionPlan = await planResponse.json();
-      payload = { composition_plan: compositionPlan, model_id: 'music_v2', sign_with_c2pa: false };
     }
 
-    const response = await fetch('https://api.elevenlabs.io/v1/music?output_format=mp3_48000_192', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
-      body: JSON.stringify(payload)
+    const submitted = unwrap(submittedEnvelope);
+    const taskId = submitted?.task_id;
+    if (!taskId) return json(res, 502, {
+      error: 'ACE-Step did not return a task ID.',
+      details: JSON.stringify(submittedEnvelope).slice(0, 2500)
     });
-    if (!response.ok) {
-      const text = await response.text();
-      return json({ error: 'Eleven Music generation failed.', providerStatus: response.status, details: text.slice(0, 2000) }, response.status >= 400 && response.status < 500 ? response.status : 502);
-    }
-    const buffer = await response.arrayBuffer();
-    return new Response(buffer, {
-      status: 200,
-      headers: {
-        'Content-Type': response.headers.get('content-type') || 'audio/mpeg',
-        'Content-Length': String(buffer.byteLength),
-        'Cache-Control': 'no-store',
-        'X-Bikeztagram-Music-Provider': 'eleven-music-v2',
-        'X-Bikeztagram-Music-Original': 'true',
-        'X-Bikeztagram-Music-Song-Id': response.headers.get('song-id') || ''
+
+    const deadline = Date.now() + 54000;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      const pollResponse = await fetch(baseUrl + '/query_result', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ task_id_list: [taskId] })
+      });
+      const pollEnvelope = await readJson(pollResponse);
+      if (!pollResponse.ok) {
+        return json(res, 502, {
+          error: 'ACE-Step task status could not be read.',
+          providerStatus: pollResponse.status,
+          details: JSON.stringify(pollEnvelope).slice(0, 2500)
+        });
       }
+
+      const items = unwrap(pollEnvelope);
+      const item = Array.isArray(items) ? items[0] : items;
+      const status = Number(item?.status);
+
+      if (status === 2) {
+        return json(res, 502, {
+          error: 'ACE-Step generation failed.',
+          details: String(item?.error || item?.result || 'Provider reported failure.').slice(0, 2500)
+        });
+      }
+
+      if (status === 1) {
+        let results = item?.result;
+        if (typeof results === 'string') {
+          try { results = JSON.parse(results); } catch {}
+        }
+        const first = Array.isArray(results) ? results[0] : results;
+        const audioPath = first?.file || first?.url;
+        if (!audioPath) return json(res, 502, {
+          error: 'ACE-Step completed but returned no audio file.',
+          details: JSON.stringify(item).slice(0, 2500)
+        });
+        return proxyAudio(res, baseUrl, token, audioPath, taskId);
+      }
+    }
+
+    return json(res, 504, {
+      error: 'ACE-Step is still generating the track.',
+      details: 'The model accepted the task but Vercel stopped waiting. The production version should use the same task ID asynchronously; short 15–30 second tests are recommended first.'
     });
   } catch (error) {
-    return json({ error: 'AI music request failed.', details: error?.message || String(error) }, 502);
+    return json(res, 502, {
+      error: 'Open-source AI music request failed.',
+      details: error?.message || String(error)
+    });
   }
+}
+
+async function proxyAudio(res, baseUrl, token, audioPath, taskId, providerName = 'ACE-Step 1.5') {
+  const url = audioPath.startsWith('http')
+    ? audioPath
+    : baseUrl + (audioPath.startsWith('/') ? '' : '/') + audioPath;
+
+  const response = await fetch(url, {
+    headers: token ? { Authorization: 'Bearer ' + token } : {}
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    return json(res, 502, {
+      error: 'ACE-Step generated audio but it could not be downloaded.',
+      providerStatus: response.status,
+      details: text.slice(0, 2500)
+    });
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (!buffer.length) return json(res, 502, { error: 'ACE-Step returned an empty audio file.' });
+
+  res.statusCode = 200;
+  res.setHeader('Content-Type', response.headers.get('content-type') || 'audio/mpeg');
+  res.setHeader('Content-Length', String(buffer.byteLength));
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Bikeztagram-Music-Provider', providerName);
+  res.setHeader('X-Bikeztagram-Music-Original', 'true');
+  res.setHeader('X-Bikeztagram-Music-Song-Id', String(taskId || ''));
+  return res.end(buffer);
+}
+
+
+async function generateViaGradioWorker(res, workerUrl, token, { prompt, duration, forceInstrumental, bpm }, attempt = 0) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: 'Bearer ' + token } : {})
+  };
+  const data = [
+    prompt,
+    duration,
+    -1,
+    8,
+    Boolean(forceInstrumental)
+  ];
+  if (Number.isFinite(Number(bpm))) data[0] = `${prompt}. Tempo ${Number(bpm)} BPM.`;
+
+  const submit = await fetch(workerUrl + '/gradio_api/call/_generate', {
+    method: 'POST', headers, body: JSON.stringify({ data })
+  });
+  const submitted = await readJson(submit);
+  if (!submit.ok || !submitted?.event_id) {
+    return json(res, submit.status >= 400 && submit.status < 500 ? submit.status : 502, {
+      error: 'ACE-Step ZeroGPU worker rejected the request.',
+      providerStatus: submit.status,
+      details: JSON.stringify(submitted).slice(0, 2500)
+    });
+  }
+
+  const eventResponse = await fetch(workerUrl + '/gradio_api/call/_generate/' + encodeURIComponent(submitted.event_id), {
+    headers: token ? { Authorization: 'Bearer ' + token } : {}
+  });
+  if (!eventResponse.ok) {
+    const text = await eventResponse.text();
+    return json(res, 502, { error: 'ACE-Step ZeroGPU worker status could not be read.', providerStatus: eventResponse.status, details: text.slice(0, 2500) });
+  }
+
+  const sseText = await eventResponse.text();
+  const complete = parseSseComplete(sseText);
+  if (!complete) {
+    const workerError = parseSseError(sseText);
+    if (attempt < 1) return generateViaGradioWorker(res, workerUrl, token, { prompt, duration, forceInstrumental, bpm }, attempt + 1);
+    return json(res, 502, { error: 'ACE-Step ZeroGPU worker did not return a completed track.', details: workerError || sseText.slice(-2500) });
+  }
+  const first = Array.isArray(complete) ? complete[0] : complete;
+  const audioUrl = first?.url || first?.path;
+  if (!audioUrl) return json(res, 502, { error: 'ACE-Step ZeroGPU worker completed without an audio file.', details: JSON.stringify(first).slice(0, 2500) });
+  return proxyAudio(res, workerUrl, token, audioUrl, submitted.event_id, 'ACE-Step 1.5 ZeroGPU Worker');
+}
+
+async function parseMusicRequest(req) {
+  const contentType = String(req.headers?.['content-type'] || '').toLowerCase();
+  if (contentType.includes('multipart/form-data')) {
+    const request = new Request('http://bikeztagram.local/api/music', { method: 'POST', headers: req.headers, body: req, duplex: 'half' });
+    const form = await request.formData();
+    const body = {};
+    for (const [key, value] of form.entries()) if (!(value instanceof File)) body[key] = value;
+    const sourceAudio = form.get('sourceAudio');
+    return { body, sourceAudio: sourceAudio instanceof File ? sourceAudio : null };
+  }
+  const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+  return { body, sourceAudio: null };
+}
+
+function parseSseError(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() !== 'event: error') continue;
+    return lines[i + 1]?.startsWith('data:') ? lines[i + 1].slice(5).trim() : 'worker error';
+  }
+  return '';
+}
+
+function parseSseComplete(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim() !== 'event: complete') continue;
+    const data = lines[i + 1]?.startsWith('data:') ? lines[i + 1].slice(5).trim() : '';
+    try { return JSON.parse(data); } catch { return null; }
+  }
+  return null;
 }
