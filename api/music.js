@@ -178,40 +178,27 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
     String(opts.prompt || '').trim(),
     opts.vocalDirection ? `Vocal direction: ${String(opts.vocalDirection).trim()}` : ''
   ].filter(Boolean).join(' ');
-  const contentParts = [];
+  const contentParts = [{ type: 'text', text: '<prompt>' + messageText + '</prompt>' }];
   const appendAudio = async (file, label) => {
     if (!file) return;
     const bytes = Buffer.from(await file.arrayBuffer());
-    if (!bytes.length) throw new Error(`${label} audio is empty.`);
-    contentParts.push({ type: 'text', text: label === 'reference' ? '[REFERENCE AUDIO — use this as the requested secondary musical/vocal reference]' : '[SOURCE AUDIO — use this as the primary transformation source]' });
-    const extension = String(file.name || 'audio.mp3').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp3';
-    const supported = new Set(['mp3','wav','flac','ogg','m4a','aac']);
-    contentParts.push({ type: 'input_audio', input_audio: { data: bytes.toString('base64'), format: supported.has(extension) ? extension : 'mp3' } });
+    if (!bytes.length) throw new Error(String(label) + ' audio is empty.');
+    // Match ACE-Step's current official ComfyUI integration: reference audio
+    // first, source audio second. No extra label text is injected.
+    const extension = String(file.name || 'audio.wav').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'wav';
+    const supported = new Set(['mp3','wav','flac','ogg','m4a','aac','opus']);
+    contentParts.push({ type: 'input_audio', input_audio: { data: bytes.toString('base64'), format: supported.has(extension) ? extension : 'wav' } });
   };
   try {
-    // ACE-Step's current multimodal API accepts multiple input_audio blocks.
-    // For cover/remix, ACE-Step routes audio[0] to src_audio and audio[1] to reference_audio.
-    // Keep the primary source first; the optional second input is the style/vocal reference.
-    await appendAudio(sourceAudio, 'source');
     await appendAudio(referenceAudio, 'reference');
+    await appendAudio(sourceAudio, 'source');
   } catch (error) {
     return json(res, 400, { error: error.message });
   }
 
-  const isCover = Boolean(sourceAudio || referenceAudio) && (opts.taskType || 'cover') === 'cover';
-
-  // ACE-Step's current completion API has a deliberately small cover contract.
-  // Keep cover jobs on the documented multimodal path: audio[0] = source audio,
-  // optional audio[1] = secondary/reference audio.  Cover jobs do not need the
-  // text-generation/CoT controls used by text2music, and the source duration is
-  // authoritative for cover tasks.
-  const promptTag = `<prompt>${messageText}</prompt>`;
   const payload = {
     model: 'acemusic/acestep-v15-turbo',
-    messages: [{ role: 'user', content: contentParts.length ? [
-      { type: 'text', text: promptTag },
-      ...contentParts.filter(part => part.type !== 'text' || !String(part.text || '').startsWith('['))
-    ] : promptTag }],
+    messages: [{ role: 'user', content: contentParts.length > 1 ? contentParts : messageText }],
     modalities: ['audio'],
     stream: false,
     task_type: isCover ? 'cover' : (opts.taskType || 'text2music'),
