@@ -225,3 +225,6 @@
 
 .music-song-dna{display:grid;gap:4px;margin-top:9px;padding:10px;border:1px solid rgba(126,207,226,.16);border-radius:10px;background:linear-gradient(145deg,rgba(39,121,139,.11),rgba(255,255,255,.025));font-size:9px;color:#a9c6cc}.music-song-dna strong{font-size:9px;letter-spacing:.12em;color:#bfeff4}.music-song-dna span{line-height:1.4}.music-song-dna small{font-size:8px!important;color:#718c93!important;margin-top:3px!important}
 @media(max-width:600px){.music-song-dna{font-size:10px!important;padding:11px!important}.music-song-dna strong{font-size:10px!important}.music-song-dna small{font-size:9px!important;line-height:1.4!important}}
+
+.music-transform-director{display:grid;gap:4px;margin-top:8px;padding:9px;border-left:2px solid rgba(180,109,229,.65);background:rgba(180,109,229,.06);border-radius:0 8px 8px 0}.music-transform-director strong{font-size:8px;letter-spacing:.12em;color:#d9b8f2}.music-transform-director span{font-size:9px;color:#d6e9ec}.music-transform-director small{font-size:8px!important;line-height:1.4;color:#8ea9b0!important}
+@media(max-width:600px){.music-transform-director{padding:10px}.music-transform-director strong{font-size:9px}.music-transform-director span{font-size:10px}.music-transform-director small{font-size:9px!important}}
