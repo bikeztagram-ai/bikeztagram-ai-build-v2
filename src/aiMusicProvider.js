@@ -12,110 +12,47 @@ const MINIMAX_MUSIC_WORKER = 'https://minimaxai-minimax-music3-workflow.hf.space
 const MINIMAX_MAX_DURATION = 300;
 
 async function generateViaMiniMaxMusic3({ prompt, lyrics, duration, vocalDirection = '', vocalLanguage = 'en', huggingFaceToken = '' }) {
-  const workerUrl = MINIMAX_MUSIC_WORKER;
-  const languageHint = String(vocalLanguage || 'en').toLowerCase() === 'en' ? 'English' : String(vocalLanguage);
-  const lyricText = String(lyrics || '').trim();
-  if (!lyricText) throw new Error('MiniMax Music 3 requires explicit lyrics for the direct generation route.');
-
-  const globalMeta = [
-    String(prompt || '').trim(),
-    'Professional finished song, coherent arrangement, polished commercial mix.',
-    'Vocal language: ' + languageHint + '.'
-  ].filter(Boolean).join(' ');
-
-  const vocals = [
-    vocalDirection ? String(vocalDirection).trim() : 'Clear, melodic lead vocal with audible words from the opening section.',
-    'Do not use spoken-word delivery; sing the supplied lyrics.',
-    'Keep the requested subject and concrete names/details audible and intelligible.'
-  ].join(' ');
-
-  const arrangement = [
-    'Build the arrangement around the supplied lyric section tags.',
-    'Use a strong intro, developing verse, memorable chorus, musical contrast and satisfying ending.',
-    'Choose instrumentation and groove that match the requested genre/style.',
-    'Prioritise the story and lyrics over generic genre filler.'
-  ].join(' ');
-
-  const data = JSON.stringify({
-    data: [lyricText, globalMeta, vocals, arrangement, Math.max(5, Math.min(MINIMAX_MAX_DURATION, Number(duration) || 30)), 0, true, 20, 1.7, 'Bikeztagram AI']
-  });
-
-  const submit = await fetch(workerUrl + '/gradio_api/call/output_song', {
+  // MiniMax is proxied through our own Vercel function. This avoids browser
+  // CORS/preflight failures when an authenticated Hugging Face token is used,
+  // while keeping the token device-local and forwarding it only for this request.
+  const response = await fetch('/api/music', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(String(huggingFaceToken || '').trim() ? { Authorization: 'Bearer ' + String(huggingFaceToken).trim() } : {}) },
-    body: data
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: String(prompt || '').trim(),
+      lyrics: String(lyrics || '').trim(),
+      durationMs: Math.max(5000, Math.min(MINIMAX_MAX_DURATION * 1000, Number(duration || 30) * 1000)),
+      forceInstrumental: false,
+      vocalLanguage: String(vocalLanguage || 'en'),
+      vocalDirection: String(vocalDirection || ''),
+      taskType: 'text2music',
+      huggingFaceToken: String(huggingFaceToken || '').trim()
+    })
   });
-  const submitted = await submit.json().catch(() => ({}));
-  if (!submit.ok || !submitted?.event_id) {
-    throw new Error(
-      'MiniMax Music 3 worker rejected the request' +
-      (submit.status ? ' (HTTP ' + submit.status + ')' : '') +
-      (submitted?.detail ? ': ' + String(submitted.detail) : '')
-    );
-  }
 
-  const resultResponse = await fetch(
-    workerUrl + '/gradio_api/call/output_song/' + encodeURIComponent(submitted.event_id),
-    { headers: { Accept: 'text/event-stream', ...(String(huggingFaceToken || '').trim() ? { Authorization: 'Bearer ' + String(huggingFaceToken).trim() } : {}) } }
-  );
-  if (!resultResponse.ok) {
-    const detail = (await resultResponse.text()).slice(0, 800);
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const payload = await response.json();
+      detail = [payload?.error, payload?.details].filter(Boolean).join(' ');
+    } catch {
+      detail = (await response.text()).slice(0, 1200);
+    }
     throw new Error(
-      'MiniMax Music 3 worker status failed (HTTP ' + resultResponse.status + ')' +
+      'MiniMax Music 3 worker failed' +
+      (response.status ? ' (HTTP ' + response.status + ')' : '') +
       (detail ? ': ' + detail : '')
     );
   }
 
-  const sse = await resultResponse.text();
-  let completed = null;
-  let workerError = '';
-  let activeEvent = '';
-  for (const raw of sse.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (line.startsWith('event:')) {
-      activeEvent = line.slice(6).trim();
-      continue;
-    }
-    if (!line.startsWith('data:')) continue;
-    const rawData = line.slice(5).trim();
-    if (activeEvent === 'error') workerError = rawData || workerError;
-    if (activeEvent === 'complete' || activeEvent === 'completed') {
-      let value = rawData;
-      for (let pass = 0; pass < 6 && typeof value === 'string'; pass++) {
-        try { value = JSON.parse(value); } catch { break; }
-      }
-      completed = value;
-    }
-  }
-
-  if (!completed) {
-    const cleanError = workerError && workerError !== 'null' ? workerError : '';
-    if (/ZeroGPU|quota|authenticate|token/i.test(cleanError)) {
-      throw new Error('MiniMax Music 3 public ZeroGPU quota is exhausted or unauthenticated. Authenticate a Hugging Face account for its free ZeroGPU quota, then retry.');
-    }
-    throw new Error(cleanError ? 'MiniMax Music 3 worker failed: ' + cleanError : 'MiniMax Music 3 worker did not return a completed song.');
-  }
-
-  const first = Array.isArray(completed) ? completed[0] : completed;
-  const rawUrl = first?.url || first?.path;
-  if (!rawUrl) throw new Error('MiniMax Music 3 completed without an audio file.');
-
-  const audioUrl = /^https?:\/\//i.test(rawUrl)
-    ? rawUrl
-    : workerUrl + (String(rawUrl).startsWith('/') ? String(rawUrl) : '/' + String(rawUrl));
-
-  const audio = await fetch(audioUrl);
-  if (!audio.ok) {
-    throw new Error('MiniMax Music 3 generated the song but the audio file could not be downloaded (HTTP ' + audio.status + ').');
-  }
-  const blob = await audio.blob();
+  const blob = await response.blob();
   if (!blob.size) throw new Error('MiniMax Music 3 returned an empty audio file.');
 
   return {
     blob,
     mimeType: blob.type || 'audio/wav',
-    songId: submitted.event_id,
-    provider: 'MiniMax Music 3 Vocal Worker',
+    songId: response.headers.get('X-Bikeztagram-Music-Song-Id') || '',
+    provider: response.headers.get('X-Bikeztagram-Music-Provider') || 'MiniMax Music 3 Vocal Worker',
     original: true
   };
 }
