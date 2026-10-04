@@ -13,8 +13,6 @@ const clamp = (value, min, max, fallback) => {
   return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
 };
 const env = name => String(process.env[name] || '').trim().replace(/\/$/, '');
-const DEFAULT_ZERO_GPU_WORKER = 'https://2btainment-ace-step.hf.space';
-const DEFAULT_VOCAL_WORKER = 'https://timefractal-ace-step-turbo-music-gen.hf.space';
 const DEFAULT_CLOUD_API = 'https://api.acemusic.ai';
 
 async function readJson(response) {
@@ -33,10 +31,9 @@ export default async function handler(req, res) {
   // The official hosted ACE-Step API is only selected when a key is actually configured.
   // This keeps the zero-cost public worker as the no-key fallback.
   const baseUrl = configuredBaseUrl || (token ? DEFAULT_CLOUD_API : '');
-  const workerUrl = env('ACE_STEP_WORKER_URL') || DEFAULT_ZERO_GPU_WORKER;
-  if (!baseUrl && !workerUrl) return json(res, 503, {
-    error: 'Open-source music engine is not connected yet.',
-    details: 'Set ACE_STEP_API_URL to an ACE-Step 1.5 REST API server. No commercial music API key is required.'
+  if (!baseUrl) return json(res, 503, {
+    error: 'Private music engine is not connected.',
+    details: 'Set VITE_MUSIC_ENGINE_URL to the Bikeztagram Music Engine. Source-audio transforms require a separately configured authorised-audio engine.'
   });
 
   try {
@@ -45,12 +42,12 @@ export default async function handler(req, res) {
     if (!prompt) return json(res, 400, { error: 'Music prompt is required.' });
 
     // Text-to-music is owned by the private Bikeztagram Music Engine.
-    // Never fall back to Hugging Face or another hosted generator here.
+    // Never fall back to a hosted generator here.
     if (!sourceAudio && !referenceAudio) {
       return json(res, 410, {
         error: 'Bikeztagram Music Engine is required for text-to-music generation.',
         provider: 'Bikeztagram Music Engine',
-        details: 'The production app no longer uses Hugging Face ZeroGPU for song generation. Configure VITE_MUSIC_ENGINE_URL to the private renderer.'
+        details: 'Text-to-music is generated only by the private Bikeztagram Music Engine.'
       });
     }
     const taskType = String(body.taskType || (sourceAudio ? 'cover' : 'text2music')).trim();
@@ -74,27 +71,11 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!baseUrl || !needsCloud) {
-      if (sourceAudio || referenceAudio) return json(res, 501, { error: 'True multi-source audio transformation needs the full ACE-Step engine.', details: 'The current free ZeroGPU worker only exposes text-to-music. Connect ACE_STEP_API_URL to enable source-audio cover/remix and reference-audio workflows.' });
-      if (duration > 60) return json(res, 503, {
-        error: 'Long-form song generation needs an available MiniMax Music 3 ZeroGPU slot.',
-        details: huggingFaceToken
-          ? 'MiniMax Music 3 was attempted with your Hugging Face token, but the long-form worker did not complete. No generic ACE-Step track was substituted.'
-          : 'Add your free Hugging Face token in Advanced Options to use your own ZeroGPU quota for 60–300 second MiniMax Music 3 generations.'
+    if (!needsCloud) {
+      return json(res, 410, {
+        error: 'Private Bikeztagram Music Engine is required for text-to-music generation.',
+        details: 'The browser should call VITE_MUSIC_ENGINE_URL directly for song generation.'
       });
-      const vocalPrompt = Boolean(body.forceInstrumental)
-        ? prompt
-        : buildFallbackVocalPrompt(prompt, body);
-      if (!body.forceInstrumental) {
-        return generateViaLyricsWorker(res, env('ACE_STEP_VOCAL_WORKER_URL') || DEFAULT_VOCAL_WORKER, token, {
-          prompt: vocalPrompt,
-          lyrics: String(body.lyrics || '').trim(),
-          duration,
-          seed: -1,
-          steps: 8
-        });
-      }
-      return generateViaGradioWorker(res, workerUrl, token, { prompt: vocalPrompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm });
     }
 
     const task = {
