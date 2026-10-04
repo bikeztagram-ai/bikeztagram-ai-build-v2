@@ -304,13 +304,14 @@ async function proxyAudio(res, baseUrl, token, audioPath, taskId, providerName =
 
 
 function buildFallbackVocalPrompt(prompt, body) {
-  const direction = String(body.vocalDirection || 'natural lead singer appropriate to the genre').trim();
-  const language = String(body.vocalLanguage || 'en').trim();
-  const lyrics = String(body.lyrics || '').trim();
-  const lyricBrief = lyrics ? `Sing these original lyrics: ${lyrics}` : 'Write and sing original lyrics for the song.';
-  const opening = ['verse-first','hook-first','chorus-first'][Math.floor(Math.random() * 3)];
-  // Keep the fallback prompt compact: the public worker has a text-only interface and long prompts can dilute vocal conditioning.
-  return `${String(prompt || '').trim()}. Sung song, not instrumental. Clearly audible melodic lead vocals from the first 1-2 seconds. Vocal: ${direction}. Language: ${language}. ${lyricBrief} Start ${opening}; no long instrumental intro.`.slice(0, 480);
+  const subject=String(prompt||'').replace(/\\s+/g,' ').trim();
+  const direction=String(body.vocalDirection||'natural lead singer appropriate to the genre').trim();
+  const language=String(body.vocalLanguage||'en').trim();
+  const lyrics=String(body.lyrics||'').trim();
+  const lyricBrief=lyrics
+    ? `Use these original lyrics as the actual sung words: ${lyrics}`
+    : `WRITE AND SING ORIGINAL LYRICS ABOUT THIS EXACT USER REQUEST: "${subject}". Preserve the concrete nouns, names, animal/person, actions, places and funny/story details from the request. The chorus must clearly repeat the main subject/name. Do not replace the story with generic lyrics about love, feelings, night, dreams, freedom or music.`;
+  return `SONG SUBJECT AND STORY: "${subject}". ${lyricBrief} This is a SONG WITH CLEAR MELODIC VOCALS, not an instrumental. Start with sung words within the first few seconds. Vocal language: ${language}. Vocal direction: ${direction}. Make the musical genre support the story, but never let genre description replace the story. ${body.bpm?`Tempo ${Number(body.bpm)} BPM.`:''}`.slice(0, 900);
 }
 
 async function generateViaGradioWorker(res, workerUrl, token, { prompt, duration, forceInstrumental, bpm }, attempt = 0) {
