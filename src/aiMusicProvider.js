@@ -52,14 +52,18 @@ async function generateViaKinesApi({ prompt, lyrics, duration }) {
   let currentEvent = '';
   let completed = null;
   let workerError = '';
+  let lastData = '';
+  const seenEvents = [];
   for (const raw of lines) {
     const line = raw.trim();
     if (line.startsWith('event:')) {
       currentEvent = line.slice(6).trim();
+      if (currentEvent && !seenEvents.includes(currentEvent)) seenEvents.push(currentEvent);
       continue;
     }
     if (!line.startsWith('data:')) continue;
     const data = line.slice(5).trim();
+    if (data) lastData = data.slice(0, 800);
     if (currentEvent === 'error') workerError = data || workerError;
     if (currentEvent === 'complete' || currentEvent === 'completed') {
       let value = data;
@@ -72,11 +76,11 @@ async function generateViaKinesApi({ prompt, lyrics, duration }) {
 
   if (completed == null) {
     const cleanError = workerError && workerError !== 'null' ? workerError : '';
-    throw new Error(
-      cleanError
-        ? 'ACE-Step 1.5 vocal worker failed: ' + cleanError
-        : 'ACE-Step 1.5 vocal worker did not return a completed sung track.'
+    const diagnostic = cleanError || (
+      'no completed event; events=' + (seenEvents.join(',') || 'none') +
+      (lastData ? '; last data=' + lastData : '')
     );
+    throw new Error('ACE-Step 1.5 vocal worker failed: ' + diagnostic);
   }
 
   let value = completed;
@@ -86,7 +90,12 @@ async function generateViaKinesApi({ prompt, lyrics, duration }) {
   const first = Array.isArray(value) ? value[0] : value;
   const rawUrl = typeof first === 'string' ? first : first?.url || first?.path;
   if (!rawUrl) {
-    throw new Error('ACE-Step 1.5 vocal worker completed without an audio file.');
+    let shape = '';
+    try { shape = JSON.stringify(value).slice(0, 1000); } catch {}
+    throw new Error(
+      'ACE-Step 1.5 vocal worker completed without an audio file.' +
+      (shape ? ' Returned data: ' + shape : '')
+    );
   }
 
   const audioUrl = /^https?:\/\//i.test(rawUrl)
@@ -133,22 +142,34 @@ async function generateViaTimefractalWorker({ prompt, lyrics, duration }) {
   let currentEvent = '';
   let completed = null;
   let workerError = '';
+  let lastData = '';
+  const seenEvents = [];
   for (const raw of lines) {
     const line = raw.trim();
     if (line.startsWith('event:')) {
       currentEvent = line.slice(6).trim();
+      if (currentEvent && !seenEvents.includes(currentEvent)) seenEvents.push(currentEvent);
       continue;
     }
     if (!line.startsWith('data:')) continue;
     const data = line.slice(5).trim();
+    if (data) lastData = data.slice(0, 800);
     if (currentEvent === 'error') workerError = data || workerError;
     if (currentEvent === 'complete' || currentEvent === 'completed') {
-      try { completed = JSON.parse(data); } catch { completed = data; }
+      let value = data;
+      for (let pass = 0; pass < 5 && typeof value === 'string'; pass++) {
+        try { value = JSON.parse(value); } catch { break; }
+      }
+      completed = value;
     }
   }
   if (completed == null) {
     const cleanError = workerError && workerError !== 'null' ? workerError : '';
-    throw new Error(cleanError ? 'ACE-Step Turbo vocal worker failed: ' + cleanError : 'ACE-Step Turbo vocal worker did not return a completed sung track.');
+    const diagnostic = cleanError || (
+      'no completed event; events=' + (seenEvents.join(',') || 'none') +
+      (lastData ? '; last data=' + lastData : '')
+    );
+    throw new Error('ACE-Step Turbo vocal worker failed: ' + diagnostic);
   }
 
   let value = completed;
@@ -172,16 +193,25 @@ async function generateViaTimefractalWorker({ prompt, lyrics, duration }) {
 }
 
 async function generateShortVocalDirect({ prompt, lyrics, duration }) {
-  let lastError = '';
-  for (const generator of [generateViaKinesApi, generateViaTimefractalWorker]) {
+  const failures = [];
+  const providers = [
+    ['ACE-Step 1.5', generateViaKinesApi],
+    ['ACE-Step Turbo', generateViaTimefractalWorker]
+  ];
+  for (const [name, generator] of providers) {
     try {
       return await generator({ prompt, lyrics, duration });
     } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
-      console.warn('[Bikeztagram Music] vocal provider failed:', lastError);
+      const detail = error instanceof Error ? error.message : String(error);
+      failures.push(name + ': ' + detail);
+      console.warn('[Bikeztagram Music] vocal provider failed:', name, detail);
     }
   }
-  throw new Error(lastError || 'No open-source vocal music provider completed the song.');
+  throw new Error(
+    failures.length
+      ? 'Vocal generation failed. ' + failures.join(' | ')
+      : 'No open-source vocal music provider completed the song.'
+  );
 }
 
 export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75 } = {}) {
