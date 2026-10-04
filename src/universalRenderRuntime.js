@@ -7,7 +7,7 @@ import { generatePromptOnlyVideoCutsParallel } from './promptOnlyVideoBatch.js';
 import { prepareCreativeContinuity } from './creativeContinuityEngine.js';
 import { compileCreativeIntent, mergeCreativeIntent } from './creativeIntentCompiler.js';
 import { generationContract } from './mediaGenerationPolicy.js';
-export async function renderUniversalProduction({ media = [], mediaItems = null, plan, prompt = '', duration = 15, music = true, outputPreset = 'portrait', onProgress } = {}) {
+export async function renderUniversalProduction({ media = [], mediaItems = null, plan, prompt = '', duration = 15, music = true, selectedMusic = null, outputPreset = 'portrait', onProgress } = {}) {
   if (!plan) throw new Error('A render plan is required.');
   const suppliedMedia = Array.isArray(mediaItems) ? mediaItems : media;
   onProgress?.({ stage: 'creative-intent', value: 5 });
@@ -26,7 +26,7 @@ export async function renderUniversalProduction({ media = [], mediaItems = null,
   for (const item of productionMedia) { const contract = generationContract(item); if (!contract.valid) throw new Error(`Generated media contract failed: ${contract.reason}`); }
   if (aiVideo.generatedCount) onProgress?.({ stage: 'ai-video-complete', value: 100, generatedCount: aiVideo.generatedCount, provider: aiVideo.provider });
   const cuts = directedPlan.cuts || directedPlan.clips || [];
-  const musicBridge = music ? await buildMusicRenderBridge({ prompt, duration, cuts, onProgress }) : null;
+  const musicBridge = music ? await buildMusicRenderBridge({ prompt, duration, cuts, selectedMusic, onProgress }) : null;
   const musicAudioUrl = musicBridge?.renderAudio?.audioDataUrl || null;
   const beatGrid = musicBridge?.renderAudio?.beatGrid || [];
   const audioAnalysis = musicBridge?.renderAudio?.audioAnalysis || null;
