@@ -9,6 +9,7 @@ const DEFAULT_VOCAL_WORKERS = [
 ];
 const LEGACY_KINES_WORKER = 'https://kines9661-acestepv1-5ai.hf.space';
 const MINIMAX_MUSIC_WORKER = 'https://minimaxai-minimax-music3-workflow.hf.space';
+const MINIMAX_MAX_DURATION = 300;
 
 async function generateViaMiniMaxMusic3({ prompt, lyrics, duration, vocalDirection = '', vocalLanguage = 'en' }) {
   const workerUrl = MINIMAX_MUSIC_WORKER;
@@ -36,7 +37,7 @@ async function generateViaMiniMaxMusic3({ prompt, lyrics, duration, vocalDirecti
   ].join(' ');
 
   const data = JSON.stringify({
-    data: [lyricText, globalMeta, vocals, arrangement, Math.max(5, Math.min(60, Number(duration) || 30)), 0, true, 20, 1.7, 'Bikeztagram AI']
+    data: [lyricText, globalMeta, vocals, arrangement, Math.max(5, Math.min(MINIMAX_MAX_DURATION, Number(duration) || 30)), 0, true, 20, 1.7, 'Bikeztagram AI']
   });
 
   const submit = await fetch(workerUrl + '/gradio_api/call/output_song', {
@@ -88,11 +89,11 @@ async function generateViaMiniMaxMusic3({ prompt, lyrics, duration, vocalDirecti
   }
 
   if (!completed) {
-    throw new Error(
-      workerError && workerError !== 'null'
-        ? 'MiniMax Music 3 worker failed: ' + workerError
-        : 'MiniMax Music 3 worker did not return a completed song.'
-    );
+    const cleanError = workerError && workerError !== 'null' ? workerError : '';
+    if (/ZeroGPU|quota|authenticate|token/i.test(cleanError)) {
+      throw new Error('MiniMax Music 3 public ZeroGPU quota is exhausted or unauthenticated. Authenticate a Hugging Face account for its free ZeroGPU quota, then retry.');
+    }
+    throw new Error(cleanError ? 'MiniMax Music 3 worker failed: ' + cleanError : 'MiniMax Music 3 worker did not return a completed song.');
   }
 
   const first = Array.isArray(completed) ? completed[0] : completed;
@@ -541,7 +542,7 @@ async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirecti
 }
 
 export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75 } = {}) {
-  if (!sourceAudio && !referenceAudio && !forceInstrumental && Number(durationMs) <= 60000) {
+  if (!sourceAudio && !referenceAudio && !forceInstrumental && Number(durationMs) <= MINIMAX_MAX_DURATION * 1000) {
     return generateShortVocalDirect({
       prompt,
       lyrics,
