@@ -52,8 +52,8 @@ export default async function handler(req, res) {
       if (duration > 60) return json(res, 400, { error: 'The free ZeroGPU music worker currently supports up to 60 seconds per request from Bikeztagram.' });
       const vocalPrompt = Boolean(body.forceInstrumental)
         ? prompt
-        : `${prompt}. Generate a complete song with clearly audible sung lead vocals, original lyrics and a real melodic vocal performance. Do not make this instrumental. ${body.vocalDirection ? `Vocal direction: ${String(body.vocalDirection)}.` : 'Use a natural lead singer appropriate to the requested genre.'} ${body.lyrics ? `Use these original lyrics exactly as the lyric source: ${String(body.lyrics)}` : 'Write original lyrics that fit the requested song and genre.'} Language: ${String(body.vocalLanguage || 'en')}.`;
-      return generateViaGradioWorker(res, workerUrl, token, { prompt: vocalPrompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm });
+        : `${prompt}. Generate a complete song with clearly audible sung lead vocals, original lyrics and a real melodic vocal performance. Do not make this instrumental. ${body.vocalDirection ? `Vocal direction: ${String(body.vocalDirection)}.` : 'Use a natural lead singer appropriate to the requested genre.'} ${body.lyrics ? `Use these original lyrics exactly as the lyric source: ${String(body.lyrics)}` : 'Write original lyrics that fit the requested song and genre.'} Language: ${String(body.vocalLanguage || 'en')}. IMPORTANT: start the musical performance at a vocal section, not an instrumental intro. Bring the lead singer in immediately or within the first 1–2 seconds. The opening must contain clearly audible sung words. Start from a ${['verse-first opening','hook-first opening','chorus-first opening'][Math.floor(Math.random() * 3)]}, not a long instrumental introduction.`;
+      return generateViaGradioWorker(res, workerUrl, token, { prompt: vocalPrompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm, vocalMode: !body.forceInstrumental });
     }
 
     const task = {
