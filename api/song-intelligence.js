@@ -72,6 +72,27 @@ function inferDna(track,mb){
   };
 }
 
+function inferTransformation(prompt){
+  const text=clean(prompt).toLowerCase();
+  const genres=['trance','house','techno','edm','pop','rock','metal','punk','rap','hip-hop','jazz','blues','soul','funk','disco','country','folk','classical','reggae','acoustic','indie','grunge','gospel'];
+  const genre=genres.find(x=>text.includes(x))||'custom style';
+  const female=/\\bfemale\\b|\\bwomen\\b|\\bwoman\\b|\\bher\\b/.test(text)?'female':/\\bmale\\b|\\bman\\b|\\bhis\\b/.test(text)?'male':'requested vocal';
+  const yearMatch=text.match(/\\b(20\\d{2})\\b/);
+  const modern=yearMatch?yearMatch[1]:'current';
+  const radical=/radical|completely|totally|massive|unrecognisable|different/.test(text);
+  const preserve=/preserve|keep|recognisable|same song|same structure|same melody/.test(text);
+  return {
+    targetGenre:genre,
+    vocalProfile:female==='female'?'female lead vocal':female==='male'?'male lead vocal':'lead vocal as requested',
+    productionEra:modern,
+    transformationDepth:radical?'radical':preserve?'strong but identity-preserving':'strong',
+    instruction:[preserve?'Preserve the requested source identity and structural/melodic intent where possible.':'Retain the recognisable source concept while rebuilding the production.',
+      'Rebuild the instrumentation, rhythm, vocal character and mix for '+genre+'.',
+      female==='female'?'Use a female lead vocal.':female==='male'?'Use a male lead vocal.':'Follow the requested vocal character.',
+      'Aim for a '+modern+' production aesthetic.'].join(' ')
+  };
+}
+
 async function searchMusicBrainz(track){
   const endpoint=new URL('https://musicbrainz.org/ws/2/recording');
   endpoint.searchParams.set('query','recording:"'+clean(track.trackName).replace(/"/g,'')+'" AND artist:"'+clean(track.artistName).replace(/"/g,'')+'"');
@@ -93,7 +114,7 @@ async function searchMusicBrainz(track){
 export default async function handler(req,res){
   if(req.method!=='GET') return json(res,405,{error:'Method not allowed.'});
   const url=new URL(req.url||'','http://bikeztagram.local');
-  const query=clean(url.searchParams.get('q'));
+  const query=clean(url.searchParams.get('q'));\n  const transform=clean(url.searchParams.get('transform'));
   if(query.length<3) return json(res,400,{error:'Name the artist and song you want Bikeztagram to reconstruct.'});
 
   try{
@@ -116,7 +137,7 @@ export default async function handler(req,res){
     for(const {track,score} of ranked){
       let mb=null;
       try{mb=await searchMusicBrainz(track);}catch{}
-      const songDna=inferDna(track,mb);
+      const songDna=inferDna(track,mb);\n      const transformation=inferTransformation(transform);
       matches.push({
         id:track.trackId,
         title:track.trackName,
