@@ -66,3 +66,36 @@
 }
 
 .music-test-source{margin-top:10px;padding:10px;border:1px solid rgba(104,191,207,.22);border-radius:10px;background:linear-gradient(145deg,rgba(45,126,145,.14),rgba(255,255,255,.025))}.music-test-source button{width:100%;border:1px solid rgba(101,198,214,.38);background:rgba(65,173,192,.12);color:#c9f6fa;border-radius:9px;padding:10px;font-size:10px;font-weight:900;letter-spacing:.04em;cursor:pointer}.music-test-source button:disabled{opacity:.5;cursor:wait}.music-test-source small{margin-top:7px!important;color:#7f9ca3!important}
+
+/* FORGE MOBILE V2 — readable without zoom */
+@media(max-width:600px){
+ .music-studio-page{padding:0 8px 24px!important;font-size:12px!important}
+ .music-studio-page>.music-studio-head{margin:0 -8px!important;padding:7px 8px!important;min-height:56px!important}
+ .music-studio-title h3{font-size:15px!important}
+ .music-studio-title span{font-size:6px!important}
+ .music-back{font-size:8px!important;padding:7px 8px!important}
+ .music-studio-page>.music-studio-copy{font-size:11px!important;line-height:1.5!important;margin:13px 0 9px!important}
+ .music-intent-tabs{margin:8px 0!important}
+ .music-intent-tabs button{min-height:42px!important;font-size:10px!important;padding:8px 4px!important}
+ .music-studio-page>textarea{min-height:105px!important;font-size:14px!important;line-height:1.45!important;padding:12px!important}
+ .music-remix-box{padding:11px!important}
+ .music-source-head{font-size:9px!important}
+ .music-remix-box small{font-size:10px!important;line-height:1.45!important}
+ .music-source-match strong{font-size:12px!important}
+ .music-source-match small{font-size:9px!important}
+ .music-transform-row{font-size:10px!important}
+ .music-transform-row b{font-size:9px!important}
+ .music-upload{font-size:10px!important}
+ .music-test-source{padding:9px!important}
+ .music-test-source button{min-height:42px!important;font-size:10px!important}
+ .music-vocal-row>label{font-size:10px!important;padding:9px!important}
+ .music-vocal-row select,.music-controls select{font-size:11px!important}
+ .music-lyrics-row textarea{font-size:12px!important;min-height:82px!important}
+ .music-lyrics-row input{font-size:11px!important}
+ .music-controls label{font-size:10px!important}
+ .music-actions button{font-size:10px!important}
+ .music-stats{font-size:10px!important;padding:10px!important;overflow:hidden!important}
+ .music-stats b{font-size:11px!important;line-height:1.4!important;overflow-wrap:anywhere!important;word-break:break-word!important}
+ .music-stats span{font-size:9px!important;overflow-wrap:anywhere!important}
+ .music-footnote{font-size:9px!important;line-height:1.5!important}
+}
