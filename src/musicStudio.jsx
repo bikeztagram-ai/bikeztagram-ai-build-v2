@@ -162,7 +162,7 @@ export default function MusicStudio(){
   speechRef.current=recognition;
   try{recognition.start();}catch(error){setIsPromptListening(false);speechRef.current=null;setStatus(error?.message||'Could not start voice input.');}
  };
-useEffect(()=>{const openMusic=()=>setOpen(true);window.addEventListener('bikeztagram:open-music',openMusic);return()=>window.removeEventListener('bikeztagram:open-music',openMusic)},[]);
+useEffect(()=>{const openMusic=()=>setOpen(true);window.addEventListener('bikeztagram:open-music',openMusic);try{const params=new URLSearchParams(window.location.search);const requested=params.get('music')==='1'||params.get('studio')==='music'||window.location.hash==='#music';if(requested)setOpen(true)}catch{}return()=>window.removeEventListener('bikeztagram:open-music',openMusic)},[]);
  useEffect(()=>{if(!open){document.body.style.overflow='';return}document.body.style.overflow='hidden';return()=>{document.body.style.overflow=''}},[open]);
  useEffect(()=>{
   let active=true;
