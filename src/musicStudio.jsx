@@ -276,6 +276,11 @@ const saveLibrary=async(item)=>{
  };
  const saveHuggingFaceToken=value=>{const next=String(value||'').trim();setHuggingFaceToken(next);try{if(next)localStorage.setItem('bikeztagram.huggingface.token',next);else localStorage.removeItem('bikeztagram.huggingface.token')}catch{}};
  const make=async({full=false}={})=>{
+  if(full&&!huggingFaceToken){
+   setAdvancedOpen(true);
+   setStatus('FULL SONGS NEED HUGGING FACE AUTH — add your free hf_ token in Advanced Options, then press MAKE FULL SONG again.');
+   return;
+  }
   const remixing=intent==='remix';
   const musicIntent=buildMusicIntent(prompt);
   if(remixing&&!sourceAudio&&!sourceMatch){setStatus('SOURCE SONG NOT FOUND YET — name the artist and song clearly so Bikeztagram can build the reconstruction plan.');return;}

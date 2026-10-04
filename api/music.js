@@ -45,6 +45,21 @@ export default async function handler(req, res) {
     if (!prompt) return json(res, 400, { error: 'Music prompt is required.' });
 
     const huggingFaceToken = String(body.huggingFaceToken || '').trim();
+    const requestedDuration = clamp((Number(body.durationMs) || 30000) / 1000, 5, 300, 30);
+
+    // Hugging Face's public ZeroGPU pool can reject long MiniMax jobs before
+    // generation starts because the anonymous visitor has only a small runtime
+    // allowance. Do not send an illegal long job to the fallback worker and then
+    // report its low-level "GPU duration" error to the user. Short jobs may still
+    // use the anonymous pool; 61–300 second jobs require the user's own HF token.
+    if (!sourceAudio && !referenceAudio && !Boolean(body.forceInstrumental) && requestedDuration > 60 && !huggingFaceToken) {
+      return json(res, 503, {
+        error: 'Full-length MiniMax Music 3 generation needs your Hugging Face token.',
+        provider: 'MiniMax Music 3',
+        details: 'The shared anonymous ZeroGPU pool cannot reserve enough GPU time for a ' + requestedDuration + ' second song. Add your free Hugging Face token in Advanced Options, then press MAKE FULL SONG again.',
+        hint: 'Your token is used for this generation request and is stored only on this device.'
+      });
+    }
 
     // MiniMax Music 3 must be called server-side. Browser -> Hugging Face
     // requests can fail on CORS/preflight when an authenticated HF token is
@@ -54,7 +69,7 @@ export default async function handler(req, res) {
       const minimax = await generateViaMiniMaxServer({
         prompt,
         lyrics: String(body.lyrics || '').trim(),
-        duration: clamp((Number(body.durationMs) || 30000) / 1000, 5, 300, 30),
+        duration: requestedDuration,
         vocalLanguage: String(body.vocalLanguage || 'en'),
         vocalDirection: String(body.vocalDirection || ''),
         huggingFaceToken
@@ -68,7 +83,7 @@ export default async function handler(req, res) {
       const minimaxFallback = await generateViaMiniMaxUpsampler({
         prompt,
         lyrics: String(body.lyrics || '').trim(),
-        duration: clamp((Number(body.durationMs) || 30000) / 1000, 5, 300, 30),
+        duration: requestedDuration,
         vocalDirection: String(body.vocalDirection || ''),
         huggingFaceToken
       });
