@@ -199,41 +199,40 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
   }
 
   const isCover = Boolean(sourceAudio || referenceAudio) && (opts.taskType || 'cover') === 'cover';
+
+  // ACE-Step's current completion API has a deliberately small cover contract.
+  // Keep cover jobs on the documented multimodal path: audio[0] = source audio,
+  // optional audio[1] = secondary/reference audio.  Cover jobs do not need the
+  // text-generation/CoT controls used by text2music, and the source duration is
+  // authoritative for cover tasks.
+  const promptTag = `<prompt>${messageText}</prompt>`;
   const payload = {
     model: 'acemusic/acestep-v15-turbo',
-    messages: [{ role: 'user', content: contentParts.length ? contentParts : messageText }],
+    messages: [{ role: 'user', content: contentParts.length ? [
+      { type: 'text', text: promptTag },
+      ...contentParts.filter(part => part.type !== 'text' || !String(part.text || '').startsWith('['))
+    ] : promptTag }],
     modalities: ['audio'],
     stream: false,
-    temperature: 0.85,
-    top_p: 0.9,
-    thinking: !sourceAudio && !referenceAudio,
-    use_format: !sourceAudio && !referenceAudio,
-    sample_mode: false,
-    use_cot_caption: !sourceAudio && !referenceAudio,
-    use_cot_language: !sourceAudio && !referenceAudio,
-    use_cot_metas: !sourceAudio && !referenceAudio,
-    guidance_scale: 1.0,
-    inference_steps: 8,
-    infer_method: 'ode',
-    shift: 3.0,
-    batch_size: 1,
-    task_type: opts.taskType || (sourceAudio ? 'cover' : 'text2music'),
+    task_type: isCover ? 'cover' : (opts.taskType || 'text2music'),
     audio_config: {
-      format: 'mp3',
+      // WAV avoids adding an MP3 encode/decode step while we validate the
+      // source-transform pipeline. The browser handles the returned WAV.
+      format: isCover ? 'wav' : 'mp3',
       vocal_language: String(opts.vocalLanguage || 'en'),
-      duration: Number(opts.duration),
       instrumental: Boolean(opts.forceInstrumental),
-      ...(Number.isFinite(Number(opts.bpm)) ? { bpm: Number(opts.bpm) } : {}),
-      ...(opts.key && opts.key !== 'auto' ? { key_scale: String(opts.key) } : {}),
-      ...(opts.mode && opts.mode !== 'auto' ? { time_signature: String(opts.mode) } : {})
+      ...(!isCover && Number.isFinite(Number(opts.duration)) ? { duration: Number(opts.duration) } : {}),
+      ...(!isCover && Number.isFinite(Number(opts.bpm)) ? { bpm: Number(opts.bpm) } : {}),
+      ...(!isCover && opts.key && opts.key !== 'auto' ? { key_scale: String(opts.key) } : {}),
+      ...(!isCover && opts.mode && opts.mode !== 'auto' ? { time_signature: String(opts.mode) } : {})
     },
     ...(opts.lyrics ? { lyrics: String(opts.lyrics).trim() } : {}),
     ...(isCover ? {
-      // ACE-Step semantics: audio_cover_strength controls structural fidelity,
-      // while cover_noise_strength controls how much source latent survives.
-      // 0.0 is pure noise, so never tie this directly to the UI transform slider.
-      audio_cover_strength: Number(opts.coverStrength),
-      cover_noise_strength: 0.9
+      // ACE-Step docs: audio_cover_strength controls how strongly the source
+      // conditioning is used; cover_noise_strength controls source-latent
+      // preservation (0 = reimagine, 1 = closest to source).
+      audio_cover_strength: 1.0,
+      cover_noise_strength: Math.max(0, Math.min(1, Number(opts.coverStrength)))
     } : {})
   };
 
@@ -250,7 +249,7 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
   if (!response.ok) {
     const providerStatus = response.status;
     const friendly = providerStatus === 504
-      ? 'ACE-Step cloud timed out while processing the source transformation. The source was accepted, but the hosted model did not finish within its response window. Try the short test source again; Bikeztagram will keep the request small.'
+      ? 'ACE-Step cloud timed out while processing the source transformation. The source was accepted, but the hosted model did not finish within its response window. Bikeztagram will not substitute generic music for a failed source transformation.'
       : providerStatus === 502
         ? 'ACE-Step cloud temporarily returned a gateway error. Try the transform again.'
         : 'ACE-Step hosted music API rejected the request.';
