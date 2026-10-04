@@ -136,7 +136,33 @@ function extractSourceQuery(text){
 
 export default function MusicStudio(){
  const [open,setOpen]=useState(false),[advancedOpen,setAdvancedOpen]=useState(false),[intent,setIntent]=useState('create'),[prompt,setPrompt]=useState(''),[projectName,setProjectName]=useState(''),[duration,setDuration]=useState(30),[sourceDuration,setSourceDuration]=useState(null),[bpm,setBpm]=useState('auto'),[key,setKey]=useState('auto'),[mode,setMode]=useState('auto'),[lyrics,setLyrics]=useState(''),[instrumental,setInstrumental]=useState(false),[vocalLanguage,setVocalLanguage]=useState('en'),[vocalDirection,setVocalDirection]=useState(''),[sourceAudio,setSourceAudio]=useState(null),[sourcePreviewUrl,setSourcePreviewUrl]=useState(''),[referenceAudio,setReferenceAudio]=useState(null),[mixAudio,setMixAudio]=useState(null),[mixMode,setMixMode]=useState('layer'),[sourceMatch,setSourceMatch]=useState(null),[editingVersionId,setEditingVersionId]=useState(null),[editingVersion,setEditingVersion]=useState(1),[sourceSearching,setSourceSearching]=useState(false),[coverStrength,setCoverStrength]=useState(.55),[huggingFaceToken,setHuggingFaceToken]=useState(()=>{try{return localStorage.getItem('bikeztagram.huggingface.token')||''}catch{return''}}),[project,setProject]=useState(null),[audioUrl,setAudioUrl]=useState(''),[audioMime,setAudioMime]=useState('audio/wav'),[provider,setProvider]=useState(''),[songId,setSongId]=useState(''),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[playing,setPlaying]=useState(false),[library,setLibrary]=useState(readLibrary),audioRef=useRef(null),playerRef=useRef(null);
- useEffect(()=>{const openMusic=()=>setOpen(true);window.addEventListener('bikeztagram:open-music',openMusic);return()=>window.removeEventListener('bikeztagram:open-music',openMusic)},[]);
+ useEffect(()=>{
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+  setSpeechSupported(Boolean(SpeechRecognition));
+  return ()=>{try{speechRef.current?.stop?.()}catch{}}
+ },[]);
+ const togglePromptVoice=()=>{
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SpeechRecognition){setStatus('VOICE INPUT IS NOT AVAILABLE in this browser. Try Chrome on Android.');return;}
+  if(isPromptListening){try{speechRef.current?.stop?.()}catch{};setIsPromptListening(false);return;}
+  const recognition=new SpeechRecognition();
+  recognition.lang='en-GB'; recognition.continuous=true; recognition.interimResults=true;
+  let finalText=String(prompt||'').trim();
+  recognition.onstart=()=>{setIsPromptListening(true);setStatus('🎙 LISTENING — describe exactly what you want the song to do.');};
+  recognition.onresult=event=>{
+   let interim='';
+   for(let i=event.resultIndex;i<event.results.length;i++){
+    const text=event.results[i][0]?.transcript||'';
+    if(event.results[i].isFinal){finalText=(finalText?finalText+' ':'')+text.trim();} else interim+=(interim?' ':'')+text.trim();
+   }
+   setPrompt((finalText+(interim?' '+interim:'')).trim());
+  };
+  recognition.onerror=event=>{setIsPromptListening(false);if(event.error!=='aborted')setStatus(event.error==='not-allowed'?'VOICE INPUT BLOCKED — allow microphone access for this site.':'VOICE INPUT ERROR — '+event.error+'.');};
+  recognition.onend=()=>{setIsPromptListening(false);speechRef.current=null;if(finalText)setStatus('✓ VOICE PROMPT CAPTURED — edit it if you like, then create the song.');};
+  speechRef.current=recognition;
+  try{recognition.start();}catch(error){setIsPromptListening(false);speechRef.current=null;setStatus(error?.message||'Could not start voice input.');}
+ };
+useEffect(()=>{const openMusic=()=>setOpen(true);window.addEventListener('bikeztagram:open-music',openMusic);return()=>window.removeEventListener('bikeztagram:open-music',openMusic)},[]);
  useEffect(()=>{if(!open){document.body.style.overflow='';return}document.body.style.overflow='hidden';return()=>{document.body.style.overflow=''}},[open]);
  useEffect(()=>{
   let active=true;
@@ -314,7 +340,7 @@ const saveLibrary=async(item)=>{
    <div className="music-create-eyebrow">AI MUSIC DIRECTOR</div>
    <h1>What do you want to make?</h1>
    <p>Describe the song in your own words. Bikeztagram will work out the music, lyrics, vocals and arrangement for you.</p>
-   <label className="music-project-name"><span>PROJECT NAME <small>optional — saved songs are easier to find</small></span><input value={projectName} onChange={e=>setProjectName(e.target.value)} disabled={busy} maxLength={80} placeholder="e.g. Bowie's House Rules"/></label><textarea className="music-prompt-hub" value={prompt} onChange={e=>setPrompt(e.target.value)} disabled={busy} aria-label="Describe the song you want" placeholder="e.g. Make a funny upbeat rock song about my dog Bowie who farts all the time and thinks he is the king of the house…"/>
+   <label className="music-project-name"><span>PROJECT NAME <small>optional — saved songs are easier to find</small></span><input value={projectName} onChange={e=>setProjectName(e.target.value)} disabled={busy} maxLength={80} placeholder="e.g. Bowie's House Rules"/></label><div className="music-prompt-wrap"><textarea className="music-prompt-hub" value={prompt} onChange={e=>setPrompt(e.target.value)} disabled={busy} aria-label="Describe the song you want" placeholder="Tell Bikeztagram exactly what you want the song to do…"/><button type="button" className={"music-prompt-mic"+(isPromptListening?" listening":"")} onClick={togglePromptVoice} disabled={busy} aria-label={isPromptListening?"Stop voice input":"Speak your music prompt"} title={speechSupported?"Speak your music prompt":"Voice input needs a browser with Web Speech support"}>{isPromptListening?'■':'🎙'}</button></div>
    <div className="music-prompt-hints"><button type="button" onClick={()=>setPrompt('Make a funny upbeat rock song about my dog Bowie who farts all the time and thinks he is the king of the house.')}>🐶 Try an idea</button><button type="button" onClick={()=>setPrompt('Make an emotional cinematic song about riding my motorcycle through the Lake District at sunset.')}>🏍️ Try another</button></div>
    <button className="primary-cta music-create-main" onClick={()=>make()} disabled={busy||(intent==='remix'&&!sourceAudio)}>{busy?'◌ CREATING YOUR SONG…':'✦ CREATE SONG'}</button>
    <button className="music-advanced-toggle" type="button" onClick={()=>setAdvancedOpen(v=>!v)} aria-expanded={advancedOpen}>{advancedOpen?'⌃ HIDE ADVANCED OPTIONS':'⚙ ADVANCED OPTIONS'}<span>{advancedOpen?'Use the simple creator':'Remix, manual lyrics, vocals and technical controls'}</span></button>
