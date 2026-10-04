@@ -114,7 +114,8 @@ async function searchMusicBrainz(track){
 export default async function handler(req,res){
   if(req.method!=='GET') return json(res,405,{error:'Method not allowed.'});
   const url=new URL(req.url||'','http://bikeztagram.local');
-  const query=clean(url.searchParams.get('q'));\n  const transform=clean(url.searchParams.get('transform'));
+  const query=clean(url.searchParams.get('q'));
+  const transform=clean(url.searchParams.get('transform'));
   if(query.length<3) return json(res,400,{error:'Name the artist and song you want Bikeztagram to reconstruct.'});
 
   try{
@@ -137,7 +138,8 @@ export default async function handler(req,res){
     for(const {track,score} of ranked){
       let mb=null;
       try{mb=await searchMusicBrainz(track);}catch{}
-      const songDna=inferDna(track,mb);\n      const transformation=inferTransformation(transform);
+      const songDna=inferDna(track,mb);
+      const transformation=inferTransformation(transform);
       matches.push({
         id:track.trackId,
         title:track.trackName,
@@ -153,7 +155,8 @@ export default async function handler(req,res){
         matchScore:score,
         musicBrainzId:mb?.id||'',
         isrc:mb?.isrc||'',
-        songDna
+        songDna,
+        transformation
       });
       if(matches.length>=3) break;
     }
@@ -163,6 +166,7 @@ export default async function handler(req,res){
       matched:matches.length>0,
       architecture:'Song Intelligence → Song DNA → Transformation Director → Reconstruction',
       sourcePolicy:'Catalogue metadata only. No streaming audio is downloaded or treated as a transformable master.',
+      transform,
       matches
     });
   }catch(error){
