@@ -41,6 +41,25 @@ Set VITE_MUSIC_ENGINE_URL to the private HTTPS gateway. The browser talks to the
 
 The Android/Termux environment is a development/control client, not the production GPU renderer.
 
+## Pay-only-while-rendering lifecycle
+
+The intended production lifecycle is **wake -> wait for GPU/model readiness -> render -> return WAV -> shut the GPU down**. The web app calls the server-side `/api/music-engine-wake` controller before generation. That controller calls the provider's configured wake endpoint without exposing provider credentials to the browser.
+
+The gateway can then request provider shutdown after a successful render. Configure these on the GPU host:
+
+    MUSIC_ENGINE_STOP_URL=https://provider.example/stop
+    MUSIC_ENGINE_STOP_TOKEN=replace-with-provider-secret
+    MUSIC_ENGINE_STOP_DELAY_SECONDS=2
+
+The gateway serializes renders so two browser requests cannot race the automatic shutdown. A failed render does not trigger a provider shutdown until the active render state has been released. If no stop URL is configured, the engine remains running; this makes local development safe.
+
+Configure the Vercel/server-side wake controller with:
+
+    MUSIC_ENGINE_WAKE_URL=https://provider.example/start
+    MUSIC_ENGINE_WAKE_TOKEN=replace-with-provider-secret
+
+The provider-specific start/stop URLs are deliberately abstract. Once a GPU host is selected, only these environment variables need to be wired to its authorised API; the Music Studio and MiniMax renderer do not need to be redesigned.
+
 ## Security
 
 Do not expose SGLang directly to the public internet. Protect the Bikeztagram gateway with an application secret and rate limits.
