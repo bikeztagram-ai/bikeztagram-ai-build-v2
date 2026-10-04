@@ -19,8 +19,8 @@ async function generateViaKinesApi({ prompt, lyrics, duration }) {
         String(lyrics || '').trim(),
         Number(duration) || 30,
         null,
-        'en',
-        false,
+        '英文 (en)',
+        '否',
         7,
         -1
       ]
