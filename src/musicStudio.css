@@ -64,3 +64,5 @@
 @media(min-width:601px){
   .music-studio-page{padding-left:clamp(20px,5vw,80px);padding-right:clamp(20px,5vw,80px)}
 }
+
+.music-test-source{margin-top:10px;padding:10px;border:1px solid rgba(104,191,207,.22);border-radius:10px;background:linear-gradient(145deg,rgba(45,126,145,.14),rgba(255,255,255,.025))}.music-test-source button{width:100%;border:1px solid rgba(101,198,214,.38);background:rgba(65,173,192,.12);color:#c9f6fa;border-radius:9px;padding:10px;font-size:10px;font-weight:900;letter-spacing:.04em;cursor:pointer}.music-test-source button:disabled{opacity:.5;cursor:wait}.music-test-source small{margin-top:7px!important;color:#7f9ca3!important}
