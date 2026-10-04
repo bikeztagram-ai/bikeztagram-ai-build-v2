@@ -520,28 +520,43 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
   };
 
   try {
-    const submit = await fetch(workerUrl + '/gradio_api/call/generate_song', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        data: [
-          lyricText, globalMeta, vocals, arrangement,
-          Math.max(5, Math.min(300, Number(duration) || 30)),
-          0, true, 30, 1.7
-        ]
-      })
-    });
-    const submitted = await readJson(submit);
-    if (!submit.ok || !submitted?.event_id) {
-      const detail = JSON.stringify(submitted).slice(0, 1800);
-      const quota = /quota|authenticate|token|zerogpu/i.test(detail);
+    const requestData = {
+      data: [
+        lyricText, globalMeta, vocals, arrangement,
+        Math.max(5, Math.min(300, Number(duration) || 30)),
+        0, true, 30, 1.7
+      ]
+    };
+
+    // ZeroGPU is shared. A transient 500 commonly means the worker could not
+    // acquire a GPU on that attempt, so retry a couple of times before falling
+    // through to the other music engines.
+    let submit;
+    let submitted;
+    let lastDetail = '';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      submit = await fetch(workerUrl + '/gradio_api/call/generate_song', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestData)
+      });
+      submitted = await readJson(submit);
+      if (submit.ok && submitted?.event_id) break;
+      lastDetail = JSON.stringify(submitted).slice(0, 1800);
+      if (![429, 500, 502, 503, 504].includes(submit.status)) break;
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 2500));
+    }
+
+    if (!submit?.ok || !submitted?.event_id) {
+      const detail = lastDetail || JSON.stringify(submitted || {}).slice(0, 1800);
+      const quota = /quota|authenticate|token|zerogpu|gpu.*(busy|limit|capacity)|too many|concurrent/i.test(detail);
       return {
         ok: false,
         fatal: true,
-        status: submit.status >= 400 ? submit.status : 502,
+        status: quota ? 429 : (submit?.status >= 400 ? submit.status : 502),
         error: quota
-          ? 'MiniMax Music 3 Hugging Face quota/authentication was rejected.'
-          : 'MiniMax Music 3 worker rejected the request.',
+          ? 'MiniMax Music 3 shared ZeroGPU is currently busy. Bikeztagram retried automatically but the provider did not accept the job.'
+          : 'MiniMax Music 3 worker rejected the request after automatic retries.',
         details: detail
       };
     }
