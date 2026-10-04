@@ -60,10 +60,24 @@ export default async function handler(req, res) {
         huggingFaceToken
       });
       if (minimax.ok) return sendAudioBuffer(res, minimax.buffer, minimax.mimeType, 'MiniMax Music 3 Vocal Worker', minimax.songId);
-      // A transient 5xx from the public MiniMax Space must not make the whole
-      // original-song route fail. Continue into the open ACE-Step vocal worker.
-      // Hard 4xx/auth/quota failures remain fatal because retrying them cannot help.
-      if (minimax.fatal) return json(res, minimax.status || 502, { error: minimax.error, details: minimax.details || '' });
+
+      // The official workflow Space can return transient 5xx/quota failures.
+      // Before dropping to ACE-Step, try an independent MiniMax Music 3 Space
+      // with a stable five-input Gradio API. This keeps MiniMax as the preferred
+      // engine while removing a single Space as a single point of failure.
+      const minimaxFallback = await generateViaMiniMaxUpsampler({
+        prompt,
+        lyrics: String(body.lyrics || '').trim(),
+        duration: clamp((Number(body.durationMs) || 30000) / 1000, 5, 300, 30),
+        vocalDirection: String(body.vocalDirection || '')
+      });
+      if (minimaxFallback.ok) {
+        return sendAudioBuffer(res, minimaxFallback.buffer, minimaxFallback.mimeType, 'MiniMax Music 3 Fallback Worker', minimaxFallback.songId);
+      }
+
+      // If both MiniMax routes fail, continue into the ACE-Step vocal worker.
+      // Hard official-workflow auth/quota failures no longer block independent
+      // fallback providers.
     }
 
     const taskType = String(body.taskType || (sourceAudio ? 'cover' : 'text2music')).trim();
@@ -625,6 +639,134 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
       ? 'MiniMax Music 3 exceeded the 294-second server wait window.'
       : (error?.message || String(error));
     return { ok: false, fatal: false, status: 502, error: 'MiniMax Music 3 request failed.', details: message };
+  }
+}
+
+async function generateViaMiniMaxUpsampler({ prompt, lyrics, duration, vocalDirection = '' }) {
+  // Independent MiniMax Music 3 fallback. This Space exposes a deliberately
+  // small stable Gradio endpoint (description, duration, seed, instrumental, lyrics)
+  // and uses the same MiniMax Music 3 model, so an outage in the official workflow
+  // Space does not take the whole vocal path down.
+  const workerUrl = 'https://upsampler-minimax-music3.hf.space';
+  const description = [
+    String(prompt || '').trim(),
+    vocalDirection ? 'Vocal direction: ' + String(vocalDirection).trim() : '',
+    'Professional finished song with clearly audible sung vocals.'
+  ].filter(Boolean).join(' ');
+  const lyricText = String(lyrics || '').trim();
+  if (!description || !lyricText) return { ok: false, error: 'MiniMax fallback requires a description and lyrics.' };
+
+  try {
+    const submit = await fetch(workerUrl + '/gradio_api/call/generate_music', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        data: [
+          description,
+          Math.max(5, Math.min(300, Number(duration) || 30)),
+          Math.floor(Math.random() * 2147483647),
+          false,
+          lyricText
+        ]
+      })
+    });
+    const submitted = await readJson(submit);
+    if (!submit.ok || !submitted?.event_id) {
+      return {
+        ok: false,
+        status: submit.status || 502,
+        error: 'MiniMax Music 3 fallback worker rejected the request.',
+        details: JSON.stringify(submitted).slice(0, 1200)
+      };
+    }
+
+    const eventResponse = await fetch(
+      workerUrl + '/gradio_api/call/generate_music/' + encodeURIComponent(submitted.event_id),
+      { headers: { Accept: 'text/event-stream' } }
+    );
+    if (!eventResponse.ok) {
+      return {
+        ok: false,
+        status: eventResponse.status,
+        error: 'MiniMax Music 3 fallback worker status failed.',
+        details: (await eventResponse.text()).slice(0, 1200)
+      };
+    }
+
+    const sse = await eventResponse.text();
+    let activeEvent = '';
+    let completed = null;
+    let workerError = '';
+    for (const raw of sse.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (line.startsWith('event:')) {
+        activeEvent = line.slice(6).trim();
+        continue;
+      }
+      if (!line.startsWith('data:')) continue;
+      const rawData = line.slice(5).trim();
+      if (activeEvent === 'error') workerError = rawData || workerError;
+      if (activeEvent === 'complete' || activeEvent === 'completed') {
+        let value = rawData;
+        for (let pass = 0; pass < 6 && typeof value === 'string'; pass++) {
+          try { value = JSON.parse(value); } catch { break; }
+        }
+        completed = value;
+      }
+    }
+
+    if (completed == null) {
+      return {
+        ok: false,
+        status: 502,
+        error: 'MiniMax Music 3 fallback worker did not complete.',
+        details: workerError && workerError !== 'null'
+          ? workerError.slice(0, 1800)
+          : 'No completed Gradio event was returned.'
+      };
+    }
+
+    let value = completed;
+    for (let pass = 0; pass < 6 && typeof value === 'string'; pass++) {
+      try { value = JSON.parse(value); } catch { break; }
+    }
+    const first = Array.isArray(value) ? value[0] : value;
+    const rawUrl = typeof first === 'string' ? first : first?.url || first?.path;
+    if (!rawUrl) {
+      return { ok: false, status: 502, error: 'MiniMax Music 3 fallback completed without an audio file.' };
+    }
+
+    const raw = String(rawUrl);
+    const audioUrl = /^https?:\/\//i.test(raw)
+      ? raw
+      : raw.startsWith('/gradio_api/file=')
+        ? workerUrl + raw
+        : workerUrl + '/gradio_api/file=' + raw;
+
+    const audio = await fetch(audioUrl);
+    if (!audio.ok) {
+      return {
+        ok: false,
+        status: 502,
+        error: 'MiniMax Music 3 fallback generated audio but download failed.',
+        details: (await audio.text()).slice(0, 1000)
+      };
+    }
+    const buffer = Buffer.from(await audio.arrayBuffer());
+    if (!buffer.length) return { ok: false, status: 502, error: 'MiniMax Music 3 fallback returned an empty audio file.' };
+    return {
+      ok: true,
+      buffer,
+      mimeType: audio.headers.get('content-type') || 'audio/wav',
+      songId: submitted.event_id
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 502,
+      error: 'MiniMax Music 3 fallback request failed.',
+      details: error?.message || String(error)
+    };
   }
 }
 
