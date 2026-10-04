@@ -1,0 +1,104 @@
+name: MiniMax Music 3 — Kaggle T4x2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-minimax-music3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 720
+    permissions:
+      contents: read
+
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KERNEL_SLUG: bikeztagram-minimax-music3-t4x2
+
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/kaggle-minimax-music3-t4x2-test
+
+      - name: Validate Kaggle credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KAGGLE_API_TOKEN}" || { echo "Missing GitHub secret KAGGLE_API_TOKEN"; exit 1; }
+          test -n "${KAGGLE_USERNAME}" || { echo "Missing GitHub secret KAGGLE_USERNAME"; exit 1; }
+          echo "Kaggle credentials present for configured user."
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Prepare Kaggle kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .kaggle-music3-kernel
+          mkdir -p .kaggle-music3-kernel
+          cp scripts/kaggle/minimax_music3_batch.py .kaggle-music3-kernel/
+          cat > .kaggle-music3-kernel/kernel-metadata.json <<EOF
+          {
+            "id": "${KAGGLE_USERNAME}/${KERNEL_SLUG}",
+            "title": "Bikeztagram MiniMax Music 3 T4x2",
+            "code_file": "minimax_music3_batch.py",
+            "language": "python",
+            "kernel_type": "script",
+            "is_private": "true",
+            "enable_gpu": "true",
+            "enable_internet": "true",
+            "machine_shape": "NvidiaTeslaT4"
+          }
+          EOF
+          cat .kaggle-music3-kernel/kernel-metadata.json
+
+      - name: Push and start Kaggle GPU job
+        shell: bash
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p .kaggle-music3-kernel --accelerator NvidiaTeslaT4 --timeout 43200
+
+      - name: Wait for Kaggle job and print progress
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 720); do
+            echo "=== Kaggle status check $i/720 ==="
+            kaggle kernels status "${KAGGLE_USERNAME}/${KERNEL_SLUG}" || true
+            if [ $((i % 6)) -eq 0 ]; then
+              echo "=== Recent Kaggle logs ==="
+              kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 80 || true
+            fi
+            STATUS="$(kaggle kernels status "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 || true)"
+            if echo "$STATUS" | grep -Eiq 'complete|success|error|failed|cancel'; then
+              echo "$STATUS"
+              break
+            fi
+            sleep 60
+          done
+
+      - name: Download Kaggle output
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p kaggle-output
+          kaggle kernels output "${KAGGLE_USERNAME}/${KERNEL_SLUG}" -p kaggle-output -o --file-pattern '.*\\.wav'
+          find kaggle-output -maxdepth 2 -type f -print
+          test -n "$(find kaggle-output -type f -name '*.wav' -print -quit)" || {
+            echo "No WAV output was produced."
+            echo "Final Kaggle logs:"
+            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 300 || true
+            exit 1
+          }
+
+      - name: Upload WAV as GitHub Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimax-music3-test-wav
+          path: kaggle-output/*.wav
+          if-no-files-found: error
