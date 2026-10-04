@@ -14,6 +14,7 @@ const clamp = (value, min, max, fallback) => {
 };
 const env = name => String(process.env[name] || '').trim().replace(/\/$/, '');
 const DEFAULT_ZERO_GPU_WORKER = 'https://2btainment-ace-step.hf.space';
+const DEFAULT_VOCAL_WORKER = 'https://timefractal-ace-step-turbo-music-gen.hf.space';
 const DEFAULT_CLOUD_API = 'https://api.acemusic.ai';
 
 async function readJson(response) {
@@ -70,7 +71,16 @@ export default async function handler(req, res) {
       const vocalPrompt = Boolean(body.forceInstrumental)
         ? prompt
         : buildFallbackVocalPrompt(prompt, body);
-      return generateViaGradioWorker(res, workerUrl, token, { prompt: vocalPrompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm, vocalMode: !body.forceInstrumental });
+      if (!body.forceInstrumental) {
+        return generateViaLyricsWorker(res, env('ACE_STEP_VOCAL_WORKER_URL') || DEFAULT_VOCAL_WORKER, token, {
+          prompt: vocalPrompt,
+          lyrics: String(body.lyrics || '').trim(),
+          duration,
+          seed: -1,
+          steps: 8
+        });
+      }
+      return generateViaGradioWorker(res, workerUrl, token, { prompt: vocalPrompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm });
     }
 
     const task = {
@@ -280,7 +290,7 @@ function cleanProviderDetails(payload) {
 async function proxyAudio(res, baseUrl, token, audioPath, taskId, providerName = 'ACE-Step 1.5') {
   const url = audioPath.startsWith('http')
     ? audioPath
-    : baseUrl + (audioPath.startsWith('/') ? '' : '/') + audioPath;
+    : baseUrl + (audioPath.startsWith('/tmp/') ? '/file=' + audioPath : (audioPath.startsWith('/') ? '' : '/') + audioPath);
 
   const response = await fetch(url, {
     headers: token ? { Authorization: 'Bearer ' + token } : {}
@@ -317,6 +327,37 @@ function buildFallbackVocalPrompt(prompt, body) {
     ? `Use these original lyrics as the actual sung words: ${lyrics}`
     : `WRITE AND SING ORIGINAL LYRICS ABOUT THIS EXACT USER REQUEST: "${subject}". Preserve the concrete nouns, names, animal/person, actions, places and funny/story details from the request. The chorus must clearly repeat the main subject/name. Do not replace the story with generic lyrics about love, feelings, night, dreams, freedom or music.`;
   return `SONG SUBJECT AND STORY: "${subject}". ${lyricBrief} This is a SONG WITH CLEAR MELODIC VOCALS, not an instrumental. Start with sung words within the first few seconds. Vocal language: ${language}. Vocal direction: ${direction}. Make the musical genre support the story, but never let genre description replace the story. ${body.bpm?`Tempo ${Number(body.bpm)} BPM.`:''}`.slice(0, 900);
+}
+
+async function generateViaLyricsWorker(res, workerUrl, token, { prompt, lyrics, duration, seed = -1, steps = 8 }) {
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) };
+  const data = [prompt, lyrics, duration, seed, steps];
+  const submit = await fetch(workerUrl + '/gradio_api/call/generate_music', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ data })
+  });
+  const submitted = await readJson(submit);
+  if (!submit.ok || !submitted?.event_id) {
+    return json(res, submit.status >= 400 && submit.status < 500 ? submit.status : 502, {
+      error: 'ACE-Step vocal worker rejected the request.',
+      providerStatus: submit.status,
+      details: JSON.stringify(submitted).slice(0, 2500)
+    });
+  }
+  const eventResponse = await fetch(workerUrl + '/gradio_api/call/generate_music/' + encodeURIComponent(submitted.event_id), {
+    headers: token ? { Authorization: 'Bearer ' + token } : {}
+  });
+  if (!eventResponse.ok) {
+    const text = await eventResponse.text();
+    return json(res, 502, { error: 'ACE-Step vocal worker status could not be read.', providerStatus: eventResponse.status, details: text.slice(0, 2500) });
+  }
+  const complete = parseSseComplete(await eventResponse.text());
+  if (!complete) return json(res, 502, { error: 'ACE-Step vocal worker did not return a completed sung track.', details: 'No completed Gradio event was returned.' });
+  const first = Array.isArray(complete) ? complete[0] : complete;
+  const audioUrl = typeof first === 'string' ? first : first?.url || first?.path;
+  if (!audioUrl) return json(res, 502, { error: 'ACE-Step vocal worker completed without an audio file.', details: JSON.stringify(first).slice(0, 2500) });
+  return proxyAudio(res, workerUrl, token, audioUrl, submitted.event_id, 'ACE-Step 1.5 Vocal Worker');
 }
 
 async function generateViaGradioWorker(res, workerUrl, token, { prompt, duration, forceInstrumental, bpm }, attempt = 0) {

@@ -52,6 +52,56 @@ function buildMusicIntent(text){
 }
 
 
+function buildFallbackVocalLyrics(prompt){
+ const text=String(prompt||'').replace(/\s+/g,' ').trim();
+ const dog=text.match(/my dog\s+([A-Za-z][A-Za-z0-9'-]*)/i)?.[1] || text.match(/dog\s+([A-Za-z][A-Za-z0-9'-]*)/i)?.[1];
+ if(dog && /fart|king of the house|king of this house/i.test(text)){
+  return `[Verse 1]
+${dog} walks in like he owns the place
+Head held high with a royal face
+Every room is his, every chair is his throne
+He rules the house like it's all his own
+
+[Chorus]
+Oh ${dog}, king of the house
+Farting loud like a trumpet blast
+Oh ${dog}, king of the house
+Everybody knows that you're the boss
+We live with the smell, we live with the sound
+Long live ${dog}, the king of the house
+
+[Verse 2]
+He lets one rip and he doesn't care
+Then looks around like he wasn't there
+We open the windows, we wave the air
+But ${dog} just grins like a millionaire
+
+[Chorus]
+Oh ${dog}, king of the house
+Farting loud like a trumpet blast
+Oh ${dog}, king of the house
+Everybody knows that you're the boss`;
+ }
+ const story=text
+   .replace(/make (the )?lyrics[^.]*\.?/ig,'')
+   .replace(/with a memorable funny chorus\.?/ig,'')
+   .trim();
+ return `[Verse 1]
+${story}
+
+[Chorus]
+This is our story, sing it loud
+${story}
+This is our story, sing it loud
+
+[Verse 2]
+${story}
+
+[Chorus]
+This is our story, sing it loud
+${story}`;
+}
+
 function buildAutoCoverLyrics(prompt){
  const text=String(prompt||'').toLowerCase();
  const country=/country|western|twang|honky|slide guitar/.test(text);
@@ -136,7 +186,7 @@ const saveLibrary=async(item)=>{
   setBusy(true);setStatus(full?'Building a 60-second full-song draft with ACE-Step…':remixing?(sourceAudio?'Remixing the source audio into your new style with a sung performance…':'Creating an original reinterpretation of the requested remix concept…'):'Generating a real original song with ACE-Step…');
   try{
    const seconds=full?60:remixing&&sourceDuration?Math.min(600,Math.max(10,sourceDuration)):Number(duration);
-   const effectiveLyrics=!instrumental&&remixing&&!lyrics.trim()?buildAutoCoverLyrics(prompt):lyrics;
+   const effectiveLyrics=!instrumental?(lyrics.trim()?(lyrics):(remixing?buildAutoCoverLyrics(prompt):buildFallbackVocalLyrics(prompt))):'';
    const brief=remixing
      ? `${prompt}. ${musicIntent.mode==='identity_preserve'?'Preserve the recognisable musical identity, main musical movement, groove, arrangement shape and overall feel of the named source unless the request explicitly replaces one of those elements. Do not turn a source-song request into a merely similar generic song.':musicIntent.mode==='cross_source'?'Treat this as a deliberate cross-source mashup: keep the requested vocal identity/source separate from the requested musical/instrumental identity/source, and combine them only in the roles the user specified.': 'Transform the named source deliberately into the requested genre/style while retaining its recognisable musical skeleton unless the user explicitly asks for a different song identity.'} Rebuild the production around the requested style, with instruments, rhythm, tempo, vocal character and mix appropriate to that style. Avoid generic genre music that loses the source identity.`
      : full?prompt+'. Develop this musical idea into a complete song with a clear intro, evolving sections, a strong chorus/drop and a satisfying ending.':prompt;
