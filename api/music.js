@@ -394,8 +394,7 @@ async function parseMusicRequest(req) {
 }
 
 function parseSseError(text) {
-  const lines = String(text || '').split(/\r?
-/);
+  const lines = String(text || '').split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim() !== 'event: error') continue;
     return lines[i + 1]?.startsWith('data:') ? lines[i + 1].slice(5).trim() : 'worker error';
@@ -404,8 +403,7 @@ function parseSseError(text) {
 }
 
 function parseSseComplete(text) {
-  const lines = String(text || '').split(/\r?
-/);
+  const lines = String(text || '').split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim() !== 'event: complete' && lines[i].trim() !== 'event: completed') continue;
     const data = lines[i + 1]?.startsWith('data:') ? lines[i + 1].slice(5).trim() : '';
