@@ -13,6 +13,8 @@ MAX_SECONDS = int(os.getenv("MUSIC_ENGINE_MAX_SECONDS", "300"))
 STOP_URL = os.getenv("MUSIC_ENGINE_STOP_URL", "").strip()
 STOP_TOKEN = os.getenv("MUSIC_ENGINE_STOP_TOKEN", "").strip()
 STOP_DELAY_SECONDS = float(os.getenv("MUSIC_ENGINE_STOP_DELAY_SECONDS", "2"))
+ACTIVE_GENERATIONS = 0
+ACTIVE_LOCK = asyncio.Lock()
 
 class GenerateRequest(BaseModel):
     prompt: str = ""
@@ -76,6 +78,27 @@ def caption(req):
     ]
     return ". ".join(x for x in parts if x)
 
+async def finish_generation():
+    global ACTIVE_GENERATIONS
+    async with ACTIVE_LOCK:
+        ACTIVE_GENERATIONS = max(0, ACTIVE_GENERATIONS - 1)
+        should_stop = ACTIVE_GENERATIONS == 0
+    if not should_stop:
+        return
+    await shutdown_after_response()
+
+async def reserve_generation():
+    global ACTIVE_GENERATIONS
+    async with ACTIVE_LOCK:
+        if ACTIVE_GENERATIONS > 0:
+            raise HTTPException(409, "Music Engine is already rendering another song. Try again when it finishes.")
+        ACTIVE_GENERATIONS += 1
+
+async def release_failed_generation():
+    global ACTIVE_GENERATIONS
+    async with ACTIVE_LOCK:
+        ACTIVE_GENERATIONS = max(0, ACTIVE_GENERATIONS - 1)
+
 async def shutdown_after_response():
     """Tell the GPU provider to stop this worker after audio has been returned."""
     if not STOP_URL:
@@ -117,7 +140,9 @@ async def health():
 
 @app.post("/v1/generate")
 async def generate(req: GenerateRequest, background_tasks: BackgroundTasks):
+    await reserve_generation()
     if req.duration > MAX_SECONDS:
+        await release_failed_generation()
         raise HTTPException(400, f"Maximum duration is {MAX_SECONDS} seconds.")
 
     lyrics = director_lyrics(req)
@@ -136,19 +161,22 @@ async def generate(req: GenerateRequest, background_tasks: BackgroundTasks):
         async with httpx.AsyncClient(timeout=max(600, req.duration * 8)) as client:
             r = await client.post(SGLANG_URL + "/v1/audio/speech", json=payload)
     except Exception as exc:
+        await release_failed_generation()
         raise HTTPException(503, "MiniMax-Music3 self-host renderer is unavailable.") from exc
 
     if r.status_code != 200:
+        await release_failed_generation()
         raise HTTPException(
             502,
             f"MiniMax-Music3 renderer failed (HTTP {r.status_code}). {r.text[:1200]}",
         )
     if not r.content:
+        await release_failed_generation()
         raise HTTPException(502, "MiniMax-Music3 renderer returned empty audio.")
 
-    # Queue shutdown only after the response has been sent. A failed/empty render
-    # never consumes the lifecycle stop action.
-    background_tasks.add_task(shutdown_after_response)
+    # Queue lifecycle finalization only after the response has been sent. The
+    # provider is stopped only when this was the last active generation.
+    background_tasks.add_task(finish_generation)
 
     return Response(
         content=r.content,
