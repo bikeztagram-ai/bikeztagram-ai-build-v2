@@ -180,20 +180,29 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
     opts.lyrics ? `<lyrics>${String(opts.lyrics).trim()}</lyrics>` : ''
   ].filter(Boolean).join(' ');
   const content = [{ type: 'text', text: messageText }];
-  if (sourceAudio) {
-    const bytes = Buffer.from(await sourceAudio.arrayBuffer());
-    if (!bytes.length) return json(res, 400, { error: 'Source audio is empty.' });
-    const ext = String(sourceAudio.name || 'source.mp3').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp3';
-    content.push({ type: 'input_audio', input_audio: { data: bytes.toString('base64'), format: ext } });
-  }
-  // The hosted completion interface exposes one input-audio role. Reference-audio remains available through a full native ACE-Step server.
-  if (referenceAudio) {
-    return json(res, 501, { error: 'The hosted ACE-Step completion API currently accepts one source audio input. Use a full ACE-Step native server for separate source/reference audio roles.' });
+  const appendAudio = async (file, label) => {
+    if (!file) return;
+    const bytes = Buffer.from(await file.arrayBuffer());
+    if (!bytes.length) throw new Error(`${label} audio is empty.`);
+    content.push({ type: 'text', text: label === 'reference' ? '[REFERENCE AUDIO — use this as the requested secondary musical/vocal reference]' : '[SOURCE AUDIO — use this as the primary transformation source]' });
+    const extension = String(file.name || 'audio.mp3').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp3';
+    const supported = new Set(['mp3','wav','flac','ogg','m4a','aac']);
+    content.push({ type: 'input_audio', input_audio: { data: bytes.toString('base64'), format: supported.has(extension) ? extension : 'mp3' } });
+  };
+  try {
+    // ACE-Step's current multimodal API accepts multiple input_audio blocks.
+    // For cover/remix, ACE-Step routes audio[0] to src_audio and audio[1] to reference_audio.
+    // Keep the primary source first; the optional second input is the style/vocal reference.
+    await appendAudio(sourceAudio, 'source');
+    await appendAudio(referenceAudio, 'reference');
+  } catch (error) {
+    return json(res, 400, { error: error.message });
   }
 
   const payload = {
-    model: 'acemusic/acestep-v1.5-turbo',
+    model: 'acemusic/acestep-v15-turbo',
     messages: [{ role: 'user', content }],
+    modalities: ['audio'],
     stream: false,
     thinking: false,
     use_format: false,
@@ -205,11 +214,12 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
       format: 'mp3',
       vocal_language: String(opts.vocalLanguage || 'en'),
       duration: Number(opts.duration),
+      instrumental: Boolean(opts.forceInstrumental),
       ...(Number.isFinite(Number(opts.bpm)) ? { bpm: Number(opts.bpm) } : {}),
       ...(opts.key && opts.key !== 'auto' ? { key_scale: String(opts.key) } : {}),
       ...(opts.mode && opts.mode !== 'auto' ? { time_signature: String(opts.mode) } : {})
     },
-    ...(sourceAudio ? {
+    ...((sourceAudio || referenceAudio) ? {
       audio_cover_strength: Number(opts.coverStrength),
       cover_noise_strength: Math.max(0, 1 - Number(opts.coverStrength))
     } : {})
