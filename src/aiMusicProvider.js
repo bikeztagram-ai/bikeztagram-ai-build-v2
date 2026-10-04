@@ -546,7 +546,8 @@ export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrum
       prompt,
       lyrics,
       duration: Number(durationMs) / 1000,
-      vocalDirection
+      vocalDirection,
+      vocalLanguage
     });
   }
   const hasSource = sourceAudio instanceof Blob;
