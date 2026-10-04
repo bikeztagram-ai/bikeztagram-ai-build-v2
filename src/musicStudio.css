@@ -228,3 +228,38 @@
 
 .music-transform-director{display:grid;gap:4px;margin-top:8px;padding:9px;border-left:2px solid rgba(180,109,229,.65);background:rgba(180,109,229,.06);border-radius:0 8px 8px 0}.music-transform-director strong{font-size:8px;letter-spacing:.12em;color:#d9b8f2}.music-transform-director span{font-size:9px;color:#d6e9ec}.music-transform-director small{font-size:8px!important;line-height:1.4;color:#8ea9b0!important}
 @media(max-width:600px){.music-transform-director{padding:10px}.music-transform-director strong{font-size:9px}.music-transform-director span{font-size:10px}.music-transform-director small{font-size:9px!important}}
+
+
+/* MUSIC PROMPT — final readability override */
+.music-prompt-hub{
+  color:#f4fbff!important;
+  -webkit-text-fill-color:#f4fbff!important;
+  caret-color:#7ed0df!important;
+  background:#101c28!important;
+  text-shadow:none!important;
+}
+.music-prompt-hub::placeholder{
+  color:#a9c3cc!important;
+  -webkit-text-fill-color:#a9c3cc!important;
+  opacity:1!important;
+}
+.music-prompt-hub:disabled{
+  color:#dcecf2!important;
+  -webkit-text-fill-color:#dcecf2!important;
+  opacity:1!important;
+}
+.music-prompt-hub:focus{
+  color:#ffffff!important;
+  -webkit-text-fill-color:#ffffff!important;
+}
+@media(max-width:600px){
+  .music-prompt-hub{
+    color:#f7fcff!important;
+    -webkit-text-fill-color:#f7fcff!important;
+    background:#101c28!important;
+  }
+  .music-prompt-hub::placeholder{
+    color:#b4cbd3!important;
+    -webkit-text-fill-color:#b4cbd3!important;
+  }
+}
