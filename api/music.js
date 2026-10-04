@@ -44,70 +44,15 @@ export default async function handler(req, res) {
     const prompt = String(body.prompt || '').trim();
     if (!prompt) return json(res, 400, { error: 'Music prompt is required.' });
 
-    const huggingFaceToken = String(body.huggingFaceToken || '').trim();
-    const requestedDuration = clamp((Number(body.durationMs) || 30000) / 1000, 5, 300, 30);
-
-    // Hugging Face's public ZeroGPU pool can reject long MiniMax jobs before
-    // generation starts because the anonymous visitor has only a small runtime
-    // allowance. Do not send an illegal long job to the fallback worker and then
-    // report its low-level "GPU duration" error to the user. Short jobs may still
-    // use the anonymous pool; 61–300 second jobs require the user's own HF token.
-    if (!sourceAudio && !referenceAudio && !Boolean(body.forceInstrumental) && requestedDuration > 60 && !huggingFaceToken) {
-      return json(res, 503, {
-        error: 'Full-length MiniMax Music 3 generation needs your Hugging Face token.',
-        provider: 'MiniMax Music 3',
-        details: 'The shared anonymous ZeroGPU pool cannot reserve enough GPU time for a ' + requestedDuration + ' second song. Add your free Hugging Face token in Advanced Options, then press MAKE FULL SONG again.',
-        hint: 'Your token is used for this generation request and is stored only on this device.'
+    // Text-to-music is owned by the private Bikeztagram Music Engine.
+    // Never fall back to Hugging Face or another hosted generator here.
+    if (!sourceAudio && !referenceAudio) {
+      return json(res, 410, {
+        error: 'Bikeztagram Music Engine is required for text-to-music generation.',
+        provider: 'Bikeztagram Music Engine',
+        details: 'The production app no longer uses Hugging Face ZeroGPU for song generation. Configure VITE_MUSIC_ENGINE_URL to the private renderer.'
       });
     }
-
-    // MiniMax Music 3 must be called server-side. Browser -> Hugging Face
-    // requests can fail on CORS/preflight when an authenticated HF token is
-    // attached. The token is forwarded for this request only and is never
-    // persisted by Bikeztagram.
-    if (!sourceAudio && !referenceAudio && !Boolean(body.forceInstrumental)) {
-      const minimax = await generateViaMiniMaxServer({
-        prompt,
-        lyrics: String(body.lyrics || '').trim(),
-        duration: requestedDuration,
-        vocalLanguage: String(body.vocalLanguage || 'en'),
-        vocalDirection: String(body.vocalDirection || ''),
-        huggingFaceToken
-      });
-      if (minimax.ok) return sendAudioBuffer(res, minimax.buffer, minimax.mimeType, 'MiniMax Music 3 Vocal Worker', minimax.songId);
-
-      // The official workflow Space can return transient 5xx/quota failures.
-      // Before dropping to ACE-Step, try an independent MiniMax Music 3 Space
-      // with a stable five-input Gradio API. This keeps MiniMax as the preferred
-      // engine while removing a single Space as a single point of failure.
-      const minimaxFallback = await generateViaMiniMaxUpsampler({
-        prompt,
-        lyrics: String(body.lyrics || '').trim(),
-        duration: requestedDuration,
-        vocalDirection: String(body.vocalDirection || ''),
-        huggingFaceToken
-      });
-      if (minimaxFallback.ok) {
-        return sendAudioBuffer(res, minimaxFallback.buffer, minimaxFallback.mimeType, 'MiniMax Music 3 Fallback Worker', minimaxFallback.songId);
-      }
-
-      // Do not hide a MiniMax failure behind ACE-Step. This endpoint is the
-      // MiniMax Music 3 route, so returning an ACE-Step error here makes the
-      // browser incorrectly label the failure as "MiniMax". Keep the provider
-      // contract honest and give the UI the two actual MiniMax failures.
-      return json(res, 503, {
-        error: 'MiniMax Music 3 could not complete this song.',
-        provider: 'MiniMax Music 3',
-        details: [
-          minimax.error ? 'Primary: ' + minimax.error + (minimax.details ? ' ' + minimax.details : '') : '',
-          minimaxFallback.error ? 'Fallback: ' + minimaxFallback.error + (minimaxFallback.details ? ' ' + minimaxFallback.details : '') : ''
-        ].filter(Boolean).join(' | ').slice(0, 3200),
-        hint: huggingFaceToken
-          ? 'Your Hugging Face token was supplied. Retry once the ZeroGPU worker is available again.'
-          : 'For longer generations, add your free Hugging Face token in Advanced Options so MiniMax can use your authenticated ZeroGPU quota.'
-      });
-    }
-
     const taskType = String(body.taskType || (sourceAudio ? 'cover' : 'text2music')).trim();
     const coverStrength = clamp(body.coverStrength, 0.1, 1, 0.75);
     const duration = clamp((Number(body.durationMs) || 30000) / 1000, 10, 600, 30);
