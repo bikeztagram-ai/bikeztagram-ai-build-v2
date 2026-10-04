@@ -333,7 +333,17 @@ async function generateViaGradioWorker(res, workerUrl, token, { prompt, duration
   ];
   if (Number.isFinite(Number(bpm))) data[0] = `${prompt}. Tempo ${Number(bpm)} BPM.`;
 
-  // Current 2Btainment worker exposes /generate; retain _generate fallback for older revisions.\n  let submit = await fetch(workerUrl + '/gradio_api/call/generate', {\n    method: 'POST', headers, body: JSON.stringify({ data })\n  });\n  let submitted = await readJson(submit);\n  if ((!submit.ok || !submitted?.event_id) && submit.status !== 429) {\n    submit = await fetch(workerUrl + '/gradio_api/call/_generate', {\n      method: 'POST', headers, body: JSON.stringify({ data })\n    });\n    submitted = await readJson(submit);\n  }
+  // Current 2Btainment worker exposes /generate; retain _generate fallback for older revisions.
+  let submit = await fetch(workerUrl + '/gradio_api/call/generate', {
+    method: 'POST', headers, body: JSON.stringify({ data })
+  });
+  let submitted = await readJson(submit);
+  if ((!submit.ok || !submitted?.event_id) && submit.status !== 429) {
+    submit = await fetch(workerUrl + '/gradio_api/call/_generate', {
+      method: 'POST', headers, body: JSON.stringify({ data })
+    });
+    submitted = await readJson(submit);
+  }
   if (!submit.ok || !submitted?.event_id) {
     return json(res, submit.status >= 400 && submit.status < 500 ? submit.status : 502, {
       error: 'ACE-Step ZeroGPU worker rejected the request.',
@@ -342,7 +352,14 @@ async function generateViaGradioWorker(res, workerUrl, token, { prompt, duration
     });
   }
 
-  let eventResponse = await fetch(workerUrl + '/gradio_api/call/generate/' + encodeURIComponent(submitted.event_id), {\n    headers: token ? { Authorization: 'Bearer ' + token } : {}\n  });\n  if (!eventResponse.ok) {\n    eventResponse = await fetch(workerUrl + '/gradio_api/call/_generate/' + encodeURIComponent(submitted.event_id), {\n      headers: token ? { Authorization: 'Bearer ' + token } : {}\n    });\n  }
+  let eventResponse = await fetch(workerUrl + '/gradio_api/call/generate/' + encodeURIComponent(submitted.event_id), {
+    headers: token ? { Authorization: 'Bearer ' + token } : {}
+  });
+  if (!eventResponse.ok) {
+    eventResponse = await fetch(workerUrl + '/gradio_api/call/_generate/' + encodeURIComponent(submitted.event_id), {
+      headers: token ? { Authorization: 'Bearer ' + token } : {}
+    });
+  }
   if (!eventResponse.ok) {
     const text = await eventResponse.text();
     return json(res, 502, { error: 'ACE-Step ZeroGPU worker status could not be read.', providerStatus: eventResponse.status, details: text.slice(0, 2500) });
@@ -377,7 +394,8 @@ async function parseMusicRequest(req) {
 }
 
 function parseSseError(text) {
-  const lines = String(text || '').split(/\r?\n/);
+  const lines = String(text || '').split(/\r?
+/);
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim() !== 'event: error') continue;
     return lines[i + 1]?.startsWith('data:') ? lines[i + 1].slice(5).trim() : 'worker error';
@@ -386,11 +404,16 @@ function parseSseError(text) {
 }
 
 function parseSseComplete(text) {
-  const lines = String(text || '').split(/\r?\n/);
+  const lines = String(text || '').split(/\r?
+/);
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim() !== 'event: complete' && lines[i].trim() !== 'event: completed') continue;
     const data = lines[i + 1]?.startsWith('data:') ? lines[i + 1].slice(5).trim() : '';
-    let value = data;\n    for (let pass = 0; pass < 3 && typeof value === 'string'; pass++) {\n      try { value = JSON.parse(value); } catch { break; }\n    }\n    return value;
+    let value = data;
+    for (let pass = 0; pass < 3 && typeof value === 'string'; pass++) {
+      try { value = JSON.parse(value); } catch { break; }
+    }
+    return value;
   }
   return null;
 }
