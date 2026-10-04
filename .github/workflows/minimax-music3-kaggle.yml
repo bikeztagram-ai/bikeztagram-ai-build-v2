@@ -16,10 +16,10 @@ jobs:
       KERNEL_SLUG: bikeztagram-minimax-music3-t4x2
 
     steps:
-      - name: Checkout test branch
+      - name: Checkout workflow revision
         uses: actions/checkout@v4
         with:
-          ref: feat/kaggle-minimax-music3-t4x2-test
+          ref: ${{ github.ref_name }}
 
       - name: Validate Kaggle credentials
         shell: bash
