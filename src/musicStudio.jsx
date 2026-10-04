@@ -71,7 +71,7 @@ function extractSourceQuery(text){
 }
 
 export default function MusicStudio(){
- const [open,setOpen]=useState(false),[advancedOpen,setAdvancedOpen]=useState(false),[intent,setIntent]=useState('create'),[prompt,setPrompt]=useState(''),[duration,setDuration]=useState(30),[sourceDuration,setSourceDuration]=useState(null),[bpm,setBpm]=useState('auto'),[key,setKey]=useState('auto'),[mode,setMode]=useState('auto'),[lyrics,setLyrics]=useState(''),[instrumental,setInstrumental]=useState(false),[vocalLanguage,setVocalLanguage]=useState('en'),[vocalDirection,setVocalDirection]=useState(''),[sourceAudio,setSourceAudio]=useState(null),[sourcePreviewUrl,setSourcePreviewUrl]=useState(''),[referenceAudio,setReferenceAudio]=useState(null),[sourceMatch,setSourceMatch]=useState(null),[sourceSearching,setSourceSearching]=useState(false),[coverStrength,setCoverStrength]=useState(.55),[project,setProject]=useState(null),[audioUrl,setAudioUrl]=useState(''),[audioMime,setAudioMime]=useState('audio/wav'),[provider,setProvider]=useState(''),[songId,setSongId]=useState(''),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[playing,setPlaying]=useState(false),[library,setLibrary]=useState(readLibrary),audioRef=useRef(null),playerRef=useRef(null);
+ const [open,setOpen]=useState(false),[advancedOpen,setAdvancedOpen]=useState(false),[intent,setIntent]=useState('create'),[prompt,setPrompt]=useState(''),[duration,setDuration]=useState(30),[sourceDuration,setSourceDuration]=useState(null),[bpm,setBpm]=useState('auto'),[key,setKey]=useState('auto'),[mode,setMode]=useState('auto'),[lyrics,setLyrics]=useState(''),[instrumental,setInstrumental]=useState(false),[vocalLanguage,setVocalLanguage]=useState('en'),[vocalDirection,setVocalDirection]=useState(''),[sourceAudio,setSourceAudio]=useState(null),[sourcePreviewUrl,setSourcePreviewUrl]=useState(''),[referenceAudio,setReferenceAudio]=useState(null),[sourceMatch,setSourceMatch]=useState(null),[editingVersionId,setEditingVersionId]=useState(null),[editingVersion,setEditingVersion]=useState(1),[sourceSearching,setSourceSearching]=useState(false),[coverStrength,setCoverStrength]=useState(.55),[project,setProject]=useState(null),[audioUrl,setAudioUrl]=useState(''),[audioMime,setAudioMime]=useState('audio/wav'),[provider,setProvider]=useState(''),[songId,setSongId]=useState(''),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[playing,setPlaying]=useState(false),[library,setLibrary]=useState(readLibrary),audioRef=useRef(null),playerRef=useRef(null);
  useEffect(()=>{const openMusic=()=>setOpen(true);window.addEventListener('bikeztagram:open-music',openMusic);return()=>window.removeEventListener('bikeztagram:open-music',openMusic)},[]);
  useEffect(()=>{if(!open){document.body.style.overflow='';return}document.body.style.overflow='hidden';return()=>{document.body.style.overflow=''}},[open]);
  useEffect(()=>{
@@ -85,7 +85,28 @@ export default function MusicStudio(){
  },[]);
  useEffect(()=>{if(intent!=='remix'||busy)return;const query=extractSourceQuery(prompt);if(query.length<3){setSourceMatch(null);setSourceSearching(false);return}const timer=setTimeout(async()=>{setSourceSearching(true);try{const r=await fetch('/api/music-source?q='+encodeURIComponent(query));const data=await r.json();setSourceMatch(data?.matches?.[0]||null)}catch{setSourceMatch(null)}finally{setSourceSearching(false)}},400);return()=>clearTimeout(timer)},[intent,prompt,busy]);
  useEffect(()=>()=>{if(audioUrl)URL.revokeObjectURL(audioUrl);if(sourcePreviewUrl)URL.revokeObjectURL(sourcePreviewUrl);audioRef.current?.pause?.()},[audioUrl,sourcePreviewUrl]);
- const saveLibrary=async(item)=>{
+ const beginNewVersion=async(item)=>{
+  if(!item)return;
+  const storedBlob=item.blob instanceof Blob?item.blob:await readTrackBlob(item.id);
+  if(!storedBlob){setStatus('This track has no local audio available for editing. Generate or open the track again first.');return;}
+  if(sourcePreviewUrl)URL.revokeObjectURL(sourcePreviewUrl);
+  setSourceAudio(storedBlob);
+  setSourcePreviewUrl(URL.createObjectURL(storedBlob));
+  setSourceDuration(Number(item.duration)||null);
+  setReferenceAudio(null);
+  setSourceMatch(null);
+  setIntent('remix');
+  setAdvancedOpen(true);
+  setPrompt(item.prompt||'');
+  setLyrics('');
+  setInstrumental(false);
+  setVocalDirection('');
+  setEditingVersionId(item.id);
+  setEditingVersion(Number(item.version)||1);
+  setStatus(`✓ EDITING VERSION ${Number(item.version)||1} — change the brief below and create the next version. The original stays in your library.`);
+  requestAnimationFrame(()=>window.scrollTo({top:0,behavior:'smooth'}));
+};
+const saveLibrary=async(item)=>{
   const next=[item,...library.filter(x=>x.id!==item.id)].slice(0,12);
   setLibrary(next);
   try{localStorage.setItem(LIB_KEY,JSON.stringify(next.map(({blob,url,...meta})=>meta)))}catch{}
@@ -119,8 +140,9 @@ export default function MusicStudio(){
    const ai=await generateAIMusic({prompt:brief+vocalBrief,durationMs:seconds*1000,forceInstrumental:instrumental,bpm:bpm==='auto'?undefined:Number(bpm),key:key==='auto'?undefined:key,mode:mode==='auto'?undefined:mode,lyrics:effectiveLyrics,vocalLanguage,vocalDirection,sourceAudio:remixing?sourceAudio:null,referenceAudio:remixing?referenceAudio:null,taskType:remixing&&(sourceAudio||referenceAudio)?'cover':'text2music',coverStrength});
    if(audioUrl)URL.revokeObjectURL(audioUrl);
    const url=URL.createObjectURL(ai.blob);setAudioUrl(url);setAudioMime(ai.mimeType);setProvider(ai.provider);setSongId(ai.songId||'');
-   const item={id:ai.songId||crypto.randomUUID(),title:full?'Full Song Draft':'AI Song',prompt:brief,duration:seconds,provider:ai.provider,createdAt:new Date().toISOString(),mimeType:ai.mimeType,blob:ai.blob,url};
-   setLibrary(prev=>[item,...prev.filter(x=>x.id!==item.id)].slice(0,12));setProvider(ai.provider);setStatus(full?'FULL SONG DRAFT READY — 60 seconds generated.':remixing?'SOURCE TRANSFORM READY — real transformed audio':'AI MUSIC READY — real generated audio');emitTrack(item);
+   const previousVersion=editingVersionId?Number(editingVersion)||1:0;
+   const item={id:ai.songId||crypto.randomUUID(),title:previousVersion?`${String((library.find(x=>x.id===editingVersionId)?.title||'AI Song')).replace(/ · V\\d+$/,'')} · V${previousVersion+1}`:full?'Full Song Draft':'AI Song',prompt:brief,duration:seconds,provider:ai.provider,createdAt:new Date().toISOString(),mimeType:ai.mimeType,blob:ai.blob,url,parentId:editingVersionId||null,version:previousVersion+1};
+   setLibrary(prev=>[item,...prev.filter(x=>x.id!==item.id)].slice(0,12));setEditingVersionId(null);setEditingVersion(item.version||1);setProvider(ai.provider);setStatus(full?'FULL SONG DRAFT READY — 60 seconds generated.':remixing?'SOURCE TRANSFORM READY — real transformed audio':'AI MUSIC READY — real generated audio');emitTrack(item);
    const p=createSongProject({prompt:brief,duration:seconds,bpm,key,mode});if(validateSongProject(p).ok)setProject(p);
    saveLibrary(item);
   }catch(error){setStatus(error?.message||'ACE-Step music generation failed.')}
@@ -181,10 +203,10 @@ export default function MusicStudio(){
    <div className="music-actions"><button className="primary-cta" onClick={()=>make()} disabled={busy||(intent==='remix'&&!sourceAudio)}>{busy?'◌ GENERATING…':intent==='remix'?'↻ TRANSFORM SOURCE':'✦ CREATE SONG'}</button></div>
   </section>}
 
-  {audioUrl&&<div className="music-actions music-output-actions"><div className="music-player" ref={playerRef}><div><strong>{playing?'NOW PLAYING':'GENERATED AUDIO'}</strong><small>{audioMime.includes('mpeg')?'MP3':'WAV'} · {provider||'ACE-Step'}</small></div><audio controls preload="metadata" src={audioUrl} onPlay={()=>setPlaying(true)} onPause={()=>setPlaying(false)} onEnded={()=>setPlaying(false)} /></div><button onClick={preview} disabled={playing}>▶ {playing?'PLAYING':'PLAY'}</button><button onClick={download}>⬇ DOWNLOAD</button><button onClick={useInVideo}>🎬 USE IN VIDEO</button><button className="full-song-cta" onClick={()=>make({full:true})} disabled={busy}>↗ MAKE FULL SONG</button></div>}
+  {audioUrl&&<div className="music-actions music-output-actions"><div className="music-player" ref={playerRef}><div><strong>{playing?'NOW PLAYING':'GENERATED AUDIO'}</strong><small>{audioMime.includes('mpeg')?'MP3':'WAV'} · {provider||'ACE-Step'}</small></div><audio controls preload="metadata" src={audioUrl} onPlay={()=>setPlaying(true)} onPause={()=>setPlaying(false)} onEnded={()=>setPlaying(false)} /></div><button onClick={preview} disabled={playing}>▶ {playing?'PLAYING':'PLAY'}</button><button onClick={download}>⬇ DOWNLOAD</button><button onClick={useInVideo}>🎬 USE IN VIDEO</button><button className="full-song-cta" onClick={()=>make({full:true})} disabled={busy}>↗ MAKE FULL SONG</button>{editingVersionId&&<button className="version-note" type="button" onClick={()=>{setEditingVersionId(null);setSourceAudio(null);if(sourcePreviewUrl)URL.revokeObjectURL(sourcePreviewUrl);setSourcePreviewUrl('');setIntent('create');setStatus('✓ VERSION EDITING CLEARED — you are back to the original song creator.')}}>↩ NEW SONG INSTEAD</button>}</div>}
   {status&&<div className="music-stats"><b>{status}</b>{provider&&<span>Engine: {provider}</span>}{songId&&<span>Track ID: {songId}</span>}</div>}
   {project&&<div className="music-actions"><button onClick={downloadProject}>⬇ PROJECT</button><button onClick={()=>downloadStem('drums')}>🥁 STEM</button><button onClick={localDraft}>⚙ LOCAL ARRANGEMENT DRAFT</button><button onClick={()=>window.dispatchEvent(new CustomEvent('bikeztagram:open-arrangement'))}>🎚️ MUSIC LAB</button></div>}
-  <section className="music-library"><div className="music-library-head"><strong>YOUR MUSIC</strong><span>{library.length}/12 session tracks</span></div>{library.length?<div className="music-library-list">{library.map(item=><article className="music-track-card" key={item.id}><div className="track-art">♫</div><div className="track-info"><strong>{item.title}</strong><small>{item.duration}s · {item.provider}</small><em>{new Date(item.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</em></div><button onClick={()=>loadSaved(item)}>OPEN</button><button onClick={()=>loadSaved(item,{autoplay:true})}>▶ PLAY</button><button onClick={()=>emitTrack(item)}>USE</button></article>)}</div>:<p className="music-empty">Your generated songs will appear here.</p>}</section>
+  <section className="music-library"><div className="music-library-head"><strong>YOUR MUSIC</strong><span>{library.length}/12 session tracks</span></div>{library.length?<div className="music-library-list">{library.map(item=><article className="music-track-card" key={item.id}><div className="track-art">♫</div><div className="track-info"><strong>{item.title}</strong><small>{item.duration}s · {item.provider}</small><em>{new Date(item.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</em></div><button onClick={()=>loadSaved(item)}>OPEN</button><button onClick={()=>loadSaved(item,{autoplay:true})}>▶ PLAY</button><button onClick={()=>beginNewVersion(item)}>✎ MODIFY</button><button onClick={()=>emitTrack(item)}>USE</button></article>)}</div>:<p className="music-empty">Your generated songs will appear here.</p>}</section>
   <div className="music-footnote">The simple creator is the default. Describe the idea and Bikeztagram's AI Director handles the musical decisions. Advanced mode exposes remix/source transformation and manual vocal controls when you need them.</div>
  </main>}</>
 }
