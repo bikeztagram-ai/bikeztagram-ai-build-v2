@@ -479,16 +479,11 @@ async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirecti
 }
 
 export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75, huggingFaceToken = '' } = {}) {
-  if (!sourceAudio && !referenceAudio && !forceInstrumental && Number(durationMs) <= MINIMAX_MAX_DURATION * 1000) {
-    return generateShortVocalDirect({
-      prompt,
-      lyrics,
-      duration: Number(durationMs) / 1000,
-      vocalDirection,
-      vocalLanguage,
-      huggingFaceToken
-    });
-  }
+  // All vocal text-to-music requests must go through /api/music. The server
+  // owns MiniMax Music 3 authentication, ZeroGPU quota handling and the
+  // MiniMax-only failure contract. Do not call browser-side fallback workers
+  // here, or a MiniMax quota failure gets incorrectly wrapped in ACE-Step
+  // errors and full-song requests can bypass the server route entirely.
   const hasSource = sourceAudio instanceof Blob;
   const hasReference = referenceAudio instanceof Blob;
   const requestBody = hasSource || hasReference ? (() => { const form = new FormData(); form.append('prompt', String(prompt || '').trim()); form.append('durationMs', String(durationMs)); form.append('forceInstrumental', String(Boolean(forceInstrumental))); if (bpm != null) form.append('bpm', String(bpm)); if (key) form.append('key', String(key)); if (mode) form.append('mode', String(mode)); if (lyrics) form.append('lyrics', String(lyrics)); form.append('taskType', String(taskType || 'cover')); form.append('coverStrength', String(coverStrength)); form.append('vocalLanguage', String(vocalLanguage || 'en')); if (vocalDirection) form.append('vocalDirection', String(vocalDirection)); if (hasSource) form.append('sourceAudio', sourceAudio, sourceAudio.name || 'source-audio'); if (hasReference) form.append('referenceAudio', referenceAudio, referenceAudio.name || 'reference-audio'); return form; })() : JSON.stringify({ prompt: String(prompt || '').trim(), durationMs, forceInstrumental, bpm, key, mode, timeSignature: mode, lyrics, vocalLanguage, vocalDirection, taskType, coverStrength });
@@ -502,7 +497,14 @@ export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrum
     try {
       const data = await response.json();
       detail = data.error || detail;
-      if (data.details) detail += ' ' + data.details;
+      const combined = [data.error, data.details, data.hint].filter(Boolean).join(' ');
+      if (/zerogpu quota exceeded|quota\/authentication|quota.*exhausted|hugging face quota/i.test(combined)) {
+        detail = 'MiniMax Music 3 is temporarily out of available Hugging Face GPU quota for this generation. ' +
+          'Your current quota is too low for the requested song. Wait for your free quota to reset, or use a Hugging Face token with available ZeroGPU quota in Advanced Options.';
+      } else if (data.details) {
+        detail += ' ' + data.details;
+      }
+      if (data.hint && !/zerogpu quota exceeded|quota\/authentication|quota.*exhausted|hugging face quota/i.test(combined)) detail += ' ' + data.hint;
       if (data.providerStatus) detail += ' (provider HTTP ' + data.providerStatus + ')';
     } catch {}
     throw new Error(detail);
