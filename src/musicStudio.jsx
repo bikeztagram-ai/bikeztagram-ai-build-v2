@@ -49,10 +49,10 @@ export default function MusicStudio(){
  const createTestSource=async()=>{
   setBusy(true);setStatus('Creating a short original test source with ACE-Step…');
   try{
-   const ai=await generateAIMusic({prompt:'Create a short original rock song for a transformation test: punchy live drums, electric guitar riff, bass, clear sung lead vocal, strong verse and chorus, no reference to any existing song.',durationMs:15000,forceInstrumental:false,vocalLanguage:'en',lyrics:buildAutoCoverLyrics('rock'),vocalDirection:'confident gritty lead singer, clearly sung from the opening seconds',taskType:'text2music'});
+   const ai=await generateAIMusic({prompt:'Create a short original rock song for a transformation test: punchy live drums, electric guitar riff, bass, clear sung lead vocal, strong verse and chorus, no reference to any existing song.',durationMs:10000,forceInstrumental:false,vocalLanguage:'en',lyrics:buildAutoCoverLyrics('rock'),vocalDirection:'confident gritty lead singer, clearly sung from the opening seconds',taskType:'text2music'});
    const file=new File([ai.blob],'bikeztagram-test-source.mp3',{type:ai.mimeType||'audio/mpeg'});
    const d=await readAudioDuration(file);
-   setSourceAudio(file);setSourceDuration(d?Math.min(600,Math.max(10,d)):15);setReferenceAudio(null);setSourceMatch(null);setIntent('remix');
+   setSourceAudio(file);setSourceDuration(d?Math.min(600,Math.max(10,d)):10);setReferenceAudio(null);setSourceMatch(null);setIntent('remix');
    setPrompt('Transform this test source into a deep country version. Preserve its recognisable musical movement and song structure, but use twangy guitars, slide guitar, live country drums, bass and a proper lead vocal. Keep the source identity rather than making generic country music.');
    setInstrumental(false);setLyrics('');setVocalDirection('gritty country lead singer');setProvider(ai.provider);setSongId(ai.songId||'');setStatus('✓ TEST SOURCE READY — now press TRANSFORM SOURCE to test the real source-audio pipeline.');
   }catch(error){setStatus(error?.message||'Could not create the test source.')}
