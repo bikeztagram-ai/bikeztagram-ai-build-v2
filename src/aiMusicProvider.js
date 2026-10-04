@@ -4,9 +4,10 @@ function providerBaseUrl() {
 }
 
 const DEFAULT_VOCAL_WORKERS = [
-  'https://kines9661-acestepv1-5ai.hf.space',
+  'https://victor-ace-step-jam.hf.space',
   'https://timefractal-ace-step-turbo-music-gen.hf.space'
 ];
+const LEGACY_KINES_WORKER = 'https://kines9661-acestepv1-5ai.hf.space';
 
 async function generateViaKinesApi({ prompt, lyrics, duration }) {
   const workerUrl = DEFAULT_VOCAL_WORKERS[0];
@@ -111,7 +112,7 @@ async function generateViaKinesApi({ prompt, lyrics, duration }) {
   throw new Error('ACE-Step Studio vocal generation timed out after waiting for the worker result (last status: ' + String(lastStatus) + ').');
 }
 async function generateViaKinesGradioFallback({ prompt, lyrics, duration }) {
-  const workerUrl = DEFAULT_VOCAL_WORKERS[0];
+  const workerUrl = LEGACY_KINES_WORKER;
   const submit = await fetch(workerUrl + '/gradio_api/call/generate_music', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -297,8 +298,8 @@ async function generateViaTimefractalWorker({ prompt, lyrics, duration }) {
 async function generateShortVocalDirect({ prompt, lyrics, duration }) {
   const failures = [];
   const providers = [
-    ['ACE-Step 1.5 API', generateViaKinesApi],
-    ['ACE-Step 1.5 Gradio fallback', generateViaKinesGradioFallback],
+    ['ACE-Step Studio API', generateViaKinesApi],
+    ['ACE-Step 1.5 legacy Gradio', generateViaKinesGradioFallback],
     ['ACE-Step Turbo', generateViaTimefractalWorker]
   ];
   for (const [name, generator] of providers) {
