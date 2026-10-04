@@ -51,7 +51,12 @@ export default async function handler(req, res) {
       ...(token ? { Authorization: 'Bearer ' + token } : {})
     };
 
-    if (baseUrl === DEFAULT_CLOUD_API) {
+    // Keep ordinary text-to-music on the free ZeroGPU worker for short tests and
+    // everyday creation. The hosted cloud API is reserved for source/reference
+    // transformations (or longer tracks) where its extra capabilities matter.
+    // This prevents a slow cloud request from blocking the normal song workflow.
+    const needsCloud = Boolean(sourceAudio || referenceAudio) || duration > 60;
+    if (baseUrl === DEFAULT_CLOUD_API && needsCloud) {
       return generateViaAceCloud(res, baseUrl, token, {
         prompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm, key: body.key,
         mode: body.timeSignature || body.mode, lyrics: body.lyrics, vocalLanguage: body.vocalLanguage,
@@ -59,7 +64,7 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!baseUrl) {
+    if (!baseUrl || !needsCloud) {
       if (sourceAudio || referenceAudio) return json(res, 501, { error: 'True multi-source audio transformation needs the full ACE-Step engine.', details: 'The current free ZeroGPU worker only exposes text-to-music. Connect ACE_STEP_API_URL to enable source-audio cover/remix and reference-audio workflows.' });
       if (duration > 60) return json(res, 400, { error: 'The free ZeroGPU music worker currently supports up to 60 seconds per request from Bikeztagram.' });
       const vocalPrompt = Boolean(body.forceInstrumental)
