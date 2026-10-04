@@ -198,19 +198,28 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
     return json(res, 400, { error: error.message });
   }
 
+  const isCover = Boolean(sourceAudio || referenceAudio) && (opts.taskType || 'cover') === 'cover';
   const payload = {
     model: 'acemusic/acestep-v15-turbo',
     messages: [{ role: 'user', content }],
     modalities: ['audio'],
     stream: false,
+    temperature: 0.85,
+    top_p: 0.9,
     thinking: !sourceAudio && !referenceAudio,
     use_format: false,
     sample_mode: false,
     use_cot_caption: !sourceAudio && !referenceAudio,
     use_cot_language: !sourceAudio && !referenceAudio,
+    use_cot_metas: !sourceAudio && !referenceAudio,
+    guidance_scale: 1.0,
+    inference_steps: 8,
+    infer_method: 'ode',
+    shift: 3.0,
+    batch_size: 1,
     task_type: opts.taskType || (sourceAudio ? 'cover' : 'text2music'),
     audio_config: {
-      format: 'wav',
+      format: 'mp3',
       vocal_language: String(opts.vocalLanguage || 'en'),
       duration: Number(opts.duration),
       instrumental: Boolean(opts.forceInstrumental),
@@ -219,9 +228,12 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
       ...(opts.mode && opts.mode !== 'auto' ? { time_signature: String(opts.mode) } : {})
     },
     ...(opts.lyrics ? { lyrics: String(opts.lyrics).trim() } : {}),
-    ...((sourceAudio || referenceAudio) ? {
+    ...(isCover ? {
+      // ACE-Step semantics: audio_cover_strength controls structural fidelity,
+      // while cover_noise_strength controls how much source latent survives.
+      // 0.0 is pure noise, so never tie this directly to the UI transform slider.
       audio_cover_strength: Number(opts.coverStrength),
-      cover_noise_strength: Number(opts.coverStrength)
+      cover_noise_strength: 0.9
     } : {})
   };
 
