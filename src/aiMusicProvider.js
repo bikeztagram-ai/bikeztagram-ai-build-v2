@@ -11,7 +11,7 @@ const LEGACY_KINES_WORKER = 'https://kines9661-acestepv1-5ai.hf.space';
 const MINIMAX_MUSIC_WORKER = 'https://minimaxai-minimax-music3-workflow.hf.space';
 const MINIMAX_MAX_DURATION = 300;
 
-async function generateViaMiniMaxMusic3({ prompt, lyrics, duration, vocalDirection = '', vocalLanguage = 'en' }) {
+async function generateViaMiniMaxMusic3({ prompt, lyrics, duration, vocalDirection = '', vocalLanguage = 'en', huggingFaceToken = '' }) {
   const workerUrl = MINIMAX_MUSIC_WORKER;
   const languageHint = String(vocalLanguage || 'en').toLowerCase() === 'en' ? 'English' : String(vocalLanguage);
   const lyricText = String(lyrics || '').trim();
@@ -42,7 +42,7 @@ async function generateViaMiniMaxMusic3({ prompt, lyrics, duration, vocalDirecti
 
   const submit = await fetch(workerUrl + '/gradio_api/call/output_song', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(String(huggingFaceToken || '').trim() ? { Authorization: 'Bearer ' + String(huggingFaceToken).trim() } : {}) },
     body: data
   });
   const submitted = await submit.json().catch(() => ({}));
@@ -56,7 +56,7 @@ async function generateViaMiniMaxMusic3({ prompt, lyrics, duration, vocalDirecti
 
   const resultResponse = await fetch(
     workerUrl + '/gradio_api/call/output_song/' + encodeURIComponent(submitted.event_id),
-    { headers: { Accept: 'text/event-stream' } }
+    { headers: { Accept: 'text/event-stream', ...(String(huggingFaceToken || '').trim() ? { Authorization: 'Bearer ' + String(huggingFaceToken).trim() } : {}) } }
   );
   if (!resultResponse.ok) {
     const detail = (await resultResponse.text()).slice(0, 800);
@@ -516,7 +516,7 @@ async function generateViaTimefractalWorker({ prompt, lyrics, duration }) {
   return { blob, mimeType: blob.type || 'audio/wav', songId: submitted.event_id, provider: 'ACE-Step 1.5 Turbo Vocal Worker', original: true };
 }
 
-async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirection, vocalLanguage }) {
+async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirection, vocalLanguage, huggingFaceToken }) {
   const failures = [];
   const providers = [
     ['MiniMax Music 3', generateViaMiniMaxMusic3],
@@ -548,7 +548,8 @@ export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrum
       lyrics,
       duration: Number(durationMs) / 1000,
       vocalDirection,
-      vocalLanguage
+      vocalLanguage,
+      huggingFaceToken
     });
   }
   const hasSource = sourceAudio instanceof Blob;
