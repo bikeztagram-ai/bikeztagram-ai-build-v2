@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       if (duration > 60) return json(res, 400, { error: 'The free ZeroGPU music worker currently supports up to 60 seconds per request from Bikeztagram.' });
       const vocalPrompt = Boolean(body.forceInstrumental)
         ? prompt
-        : `${prompt}. Generate a complete song with clearly audible sung lead vocals, original lyrics and a real melodic vocal performance. Do not make this instrumental. ${body.vocalDirection ? `Vocal direction: ${String(body.vocalDirection)}.` : 'Use a natural lead singer appropriate to the requested genre.'} ${body.lyrics ? `Use these original lyrics exactly as the lyric source: ${String(body.lyrics)}` : 'Write original lyrics that fit the requested song and genre.'} Language: ${String(body.vocalLanguage || 'en')}. IMPORTANT: start the musical performance at a vocal section, not an instrumental intro. Bring the lead singer in immediately or within the first 1–2 seconds. The opening must contain clearly audible sung words. Start from a ${['verse-first opening','hook-first opening','chorus-first opening'][Math.floor(Math.random() * 3)]}, not a long instrumental introduction.`;
+        : buildFallbackVocalPrompt(prompt, body);
       return generateViaGradioWorker(res, workerUrl, token, { prompt: vocalPrompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm, vocalMode: !body.forceInstrumental });
     }
 
@@ -187,6 +187,16 @@ async function proxyAudio(res, baseUrl, token, audioPath, taskId, providerName =
   return res.end(buffer);
 }
 
+
+function buildFallbackVocalPrompt(prompt, body) {
+  const direction = String(body.vocalDirection || 'natural lead singer appropriate to the genre').trim();
+  const language = String(body.vocalLanguage || 'en').trim();
+  const lyrics = String(body.lyrics || '').trim();
+  const lyricBrief = lyrics ? `Sing these original lyrics: ${lyrics}` : 'Write and sing original lyrics for the song.';
+  const opening = ['verse-first','hook-first','chorus-first'][Math.floor(Math.random() * 3)];
+  // Keep the fallback prompt compact: the public worker has a text-only interface and long prompts can dilute vocal conditioning.
+  return `${String(prompt || '').trim()}. Sung song, not instrumental. Clearly audible melodic lead vocals from the first 1-2 seconds. Vocal: ${direction}. Language: ${language}. ${lyricBrief} Start ${opening}; no long instrumental intro.`.slice(0, 480);
+}
 
 async function generateViaGradioWorker(res, workerUrl, token, { prompt, duration, forceInstrumental, bpm }, attempt = 0) {
   const headers = {
