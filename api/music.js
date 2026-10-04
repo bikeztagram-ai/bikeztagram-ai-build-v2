@@ -436,23 +436,36 @@ async function parseMusicRequest(req) {
 
 function parseSseError(text) {
   const lines = String(text || '').split(/\r?\n/);
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() !== 'event: error') continue;
-    return lines[i + 1]?.startsWith('data:') ? lines[i + 1].slice(5).trim() : 'worker error';
+  let activeEvent = '';
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.startsWith('event:')) {
+      activeEvent = line.slice(6).trim();
+      continue;
+    }
+    if (activeEvent === 'error' && line.startsWith('data:')) return line.slice(5).trim() || 'worker error';
   }
   return '';
 }
 
 function parseSseComplete(text) {
   const lines = String(text || '').split(/\r?\n/);
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].trim() !== 'event: complete' && lines[i].trim() !== 'event: completed') continue;
-    const data = lines[i + 1]?.startsWith('data:') ? lines[i + 1].slice(5).trim() : '';
-    let value = data;
-    for (let pass = 0; pass < 3 && typeof value === 'string'; pass++) {
-      try { value = JSON.parse(value); } catch { break; }
+  let activeEvent = '';
+  let completed = null;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.startsWith('event:')) {
+      activeEvent = line.slice(6).trim();
+      continue;
     }
-    return value;
+    if ((activeEvent === 'complete' || activeEvent === 'completed') && line.startsWith('data:')) {
+      const data = line.slice(5).trim();
+      let value = data;
+      for (let pass = 0; pass < 5 && typeof value === 'string'; pass++) {
+        try { value = JSON.parse(value); } catch { break; }
+      }
+      completed = value;
+    }
   }
-  return null;
+  return completed;
 }
