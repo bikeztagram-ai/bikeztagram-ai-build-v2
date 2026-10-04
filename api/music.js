@@ -76,9 +76,21 @@ export default async function handler(req, res) {
         return sendAudioBuffer(res, minimaxFallback.buffer, minimaxFallback.mimeType, 'MiniMax Music 3 Fallback Worker', minimaxFallback.songId);
       }
 
-      // If both MiniMax routes fail, continue into the ACE-Step vocal worker.
-      // Hard official-workflow auth/quota failures no longer block independent
-      // fallback providers.
+      // Do not hide a MiniMax failure behind ACE-Step. This endpoint is the
+      // MiniMax Music 3 route, so returning an ACE-Step error here makes the
+      // browser incorrectly label the failure as "MiniMax". Keep the provider
+      // contract honest and give the UI the two actual MiniMax failures.
+      return json(res, 503, {
+        error: 'MiniMax Music 3 could not complete this song.',
+        provider: 'MiniMax Music 3',
+        details: [
+          minimax.error ? 'Primary: ' + minimax.error + (minimax.details ? ' ' + minimax.details : '') : '',
+          minimaxFallback.error ? 'Fallback: ' + minimaxFallback.error + (minimaxFallback.details ? ' ' + minimaxFallback.details : '') : ''
+        ].filter(Boolean).join(' | ').slice(0, 3200),
+        hint: huggingFaceToken
+          ? 'Your Hugging Face token was supplied. Retry once the ZeroGPU worker is available again.'
+          : 'For longer generations, add your free Hugging Face token in Advanced Options so MiniMax can use your authenticated ZeroGPU quota.'
+      });
     }
 
     const taskType = String(body.taskType || (sourceAudio ? 'cover' : 'text2music')).trim();
