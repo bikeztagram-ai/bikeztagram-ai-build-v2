@@ -14,6 +14,7 @@ const clamp = (value, min, max, fallback) => {
 };
 const env = name => String(process.env[name] || '').trim().replace(/\/$/, '');
 const DEFAULT_ZERO_GPU_WORKER = 'https://2btainment-ace-step.hf.space';
+const DEFAULT_CLOUD_API = 'https://api.acemusic.ai';
 
 async function readJson(response) {
   const text = await response.text();
@@ -26,8 +27,11 @@ function unwrap(payload) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed.' });
 
-  const baseUrl = env('ACE_STEP_API_URL');
-  const token = env('ACE_STEP_API_TOKEN');
+  const configuredBaseUrl = env('ACE_STEP_API_URL');
+  const token = env('ACE_STEP_API_TOKEN') || env('ACESTEP_API_KEY');
+  // The official hosted ACE-Step API is only selected when a key is actually configured.
+  // This keeps the zero-cost public worker as the no-key fallback.
+  const baseUrl = configuredBaseUrl || (token ? DEFAULT_CLOUD_API : '');
   const workerUrl = env('ACE_STEP_WORKER_URL') || DEFAULT_ZERO_GPU_WORKER;
   if (!baseUrl && !workerUrl) return json(res, 503, {
     error: 'Open-source music engine is not connected yet.',
@@ -46,6 +50,14 @@ export default async function handler(req, res) {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: 'Bearer ' + token } : {})
     };
+
+    if (baseUrl === DEFAULT_CLOUD_API) {
+      return generateViaAceCloud(res, baseUrl, token, {
+        prompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm, key: body.key,
+        mode: body.timeSignature || body.mode, lyrics: body.lyrics, vocalLanguage: body.vocalLanguage,
+        vocalDirection: body.vocalDirection, taskType, coverStrength, sourceAudio, referenceAudio
+      });
+    }
 
     if (!baseUrl) {
       if (sourceAudio || referenceAudio) return json(res, 501, { error: 'True multi-source audio transformation needs the full ACE-Step engine.', details: 'The current free ZeroGPU worker only exposes text-to-music. Connect ACE_STEP_API_URL to enable source-audio cover/remix and reference-audio workflows.' });
@@ -155,6 +167,82 @@ export default async function handler(req, res) {
       details: error?.message || String(error)
     });
   }
+}
+
+async function generateViaAceCloud(res, baseUrl, token, opts) {
+  if (!token) return json(res, 503, { error: 'ACE-Step cloud generation needs an API key.', details: 'Configure ACE_STEP_API_TOKEN or ACESTEP_API_KEY on Vercel. The official ACE-Step cloud API currently offers API keys for free.' });
+
+  const sourceAudio = opts.sourceAudio;
+  const referenceAudio = opts.referenceAudio;
+  const messageText = [
+    `<prompt>${String(opts.prompt || '').trim()}</prompt>`,
+    opts.vocalDirection ? `<vocal_direction>${String(opts.vocalDirection).trim()}</vocal_direction>` : '',
+    opts.lyrics ? `<lyrics>${String(opts.lyrics).trim()}</lyrics>` : ''
+  ].filter(Boolean).join(' ');
+  const content = [{ type: 'text', text: messageText }];
+  if (sourceAudio) {
+    const bytes = Buffer.from(await sourceAudio.arrayBuffer());
+    if (!bytes.length) return json(res, 400, { error: 'Source audio is empty.' });
+    const ext = String(sourceAudio.name || 'source.mp3').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp3';
+    content.push({ type: 'input_audio', input_audio: { data: bytes.toString('base64'), format: ext } });
+  }
+  // The hosted completion interface exposes one input-audio role. Reference-audio remains available through a full native ACE-Step server.
+  if (referenceAudio) {
+    return json(res, 501, { error: 'The hosted ACE-Step completion API currently accepts one source audio input. Use a full ACE-Step native server for separate source/reference audio roles.' });
+  }
+
+  const payload = {
+    model: 'acemusic/acestep-v1.5-turbo',
+    messages: [{ role: 'user', content }],
+    stream: false,
+    thinking: false,
+    use_format: false,
+    sample_mode: false,
+    use_cot_caption: false,
+    use_cot_language: false,
+    task_type: opts.taskType || (sourceAudio ? 'cover' : 'text2music'),
+    audio_config: {
+      format: 'mp3',
+      vocal_language: String(opts.vocalLanguage || 'en'),
+      duration: Number(opts.duration),
+      ...(Number.isFinite(Number(opts.bpm)) ? { bpm: Number(opts.bpm) } : {}),
+      ...(opts.key && opts.key !== 'auto' ? { key_scale: String(opts.key) } : {}),
+      ...(opts.mode && opts.mode !== 'auto' ? { time_signature: String(opts.mode) } : {})
+    },
+    ...(sourceAudio ? {
+      audio_cover_strength: Number(opts.coverStrength),
+      cover_noise_strength: Math.max(0, 1 - Number(opts.coverStrength))
+    } : {})
+  };
+
+  const response = await fetch(baseUrl + '/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + token,
+      'User-Agent': 'curl/8.7.1'
+    },
+    body: JSON.stringify(payload)
+  });
+  const envelope = await readJson(response);
+  if (!response.ok) return json(res, response.status >= 400 && response.status < 500 ? response.status : 502, {
+    error: 'ACE-Step hosted music API rejected the request.', providerStatus: response.status, details: JSON.stringify(envelope).slice(0, 3000)
+  });
+
+  const audio = envelope?.choices?.[0]?.message?.audio?.[0]?.audio_url?.url;
+  if (!audio) return json(res, 502, { error: 'ACE-Step hosted API completed without returning audio.', details: JSON.stringify(envelope).slice(0, 3000) });
+  const match = /^data:([^;]+);base64,(.+)$/s.exec(String(audio));
+  if (!match) return json(res, 502, { error: 'ACE-Step hosted API returned an unsupported audio payload.' });
+  const buffer = Buffer.from(match[2], 'base64');
+  if (!buffer.length) return json(res, 502, { error: 'ACE-Step hosted API returned empty audio.' });
+  res.statusCode = 200;
+  res.setHeader('Content-Type', match[1] || 'audio/mpeg');
+  res.setHeader('Content-Length', String(buffer.byteLength));
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Bikeztagram-Music-Provider', 'ACE-Step 1.5 Cloud');
+  res.setHeader('X-Bikeztagram-Music-Original', 'true');
+  res.setHeader('X-Bikeztagram-Music-Song-Id', String(envelope?.id || 'cloud-' + Date.now()));
+  return res.end(buffer);
 }
 
 async function proxyAudio(res, baseUrl, token, audioPath, taskId, providerName = 'ACE-Step 1.5') {
