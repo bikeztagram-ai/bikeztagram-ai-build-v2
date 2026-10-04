@@ -527,7 +527,7 @@ async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirecti
   ];
   for (const [name, generator] of providers) {
     try {
-      return await generator({ prompt, lyrics, duration, vocalDirection, vocalLanguage });
+      return await generator({ prompt, lyrics, duration, vocalDirection, vocalLanguage, huggingFaceToken });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       failures.push(name + ': ' + detail);
@@ -541,7 +541,7 @@ async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirecti
   );
 }
 
-export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75 } = {}) {
+export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75, huggingFaceToken = '' } = {}) {
   if (!sourceAudio && !referenceAudio && !forceInstrumental && Number(durationMs) <= MINIMAX_MAX_DURATION * 1000) {
     return generateShortVocalDirect({
       prompt,
