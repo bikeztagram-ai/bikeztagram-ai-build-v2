@@ -6,7 +6,7 @@ on:
 jobs:
   run-minimax-music3:
     runs-on: ubuntu-latest
-    timeout-minutes: 720
+    timeout-minutes: 90
     permissions:
       contents: read
 
@@ -28,6 +28,7 @@ jobs:
           test -n "${KAGGLE_API_TOKEN}" || { echo "Missing GitHub secret KAGGLE_API_TOKEN"; exit 1; }
           test -n "${KAGGLE_USERNAME}" || { echo "Missing GitHub secret KAGGLE_USERNAME"; exit 1; }
           echo "Kaggle credentials present for configured user."
+          echo "Kaggle kernel: https://www.kaggle.com/code/${KAGGLE_USERNAME}/${KERNEL_SLUG}"
 
       - name: Install Kaggle CLI
         run: |
@@ -61,25 +62,42 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          kaggle kernels push -p .kaggle-music3-kernel --accelerator NvidiaTeslaT4 --timeout 43200
+          echo "=== SUBMITTING KAGGLE GPU JOB ==="
+          kaggle kernels push -p .kaggle-music3-kernel --accelerator NvidiaTeslaT4 --timeout 5400
+          echo "=== KAGGLE JOB SUBMITTED ==="
+          echo "Kaggle kernel: https://www.kaggle.com/code/${KAGGLE_USERNAME}/${KERNEL_SLUG}"
 
-      - name: Wait for Kaggle job and print progress
+      - name: Monitor Kaggle job with live diagnostics
         shell: bash
         run: |
           set -euo pipefail
-          for i in $(seq 1 720); do
-            echo "=== Kaggle status check $i/720 ==="
-            kaggle kernels status "${KAGGLE_USERNAME}/${KERNEL_SLUG}" || true
-            if [ $((i % 6)) -eq 0 ]; then
-              echo "=== Recent Kaggle logs ==="
-              kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 80 || true
-            fi
+          MAX_CHECKS=120
+          for i in $(seq 1 "$MAX_CHECKS"); do
+            echo ""
+            echo "============================================================"
+            echo "KAGGLE MONITOR CHECK $i/$MAX_CHECKS — $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "============================================================"
+
             STATUS="$(kaggle kernels status "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 || true)"
-            if echo "$STATUS" | grep -Eiq 'complete|success|error|failed|cancel'; then
+            echo "STATUS:"
+            echo "$STATUS"
+
+            echo ""
+            echo "RECENT KAGGLE LOGS:"
+            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 160 2>&1 | tail -n 160 || true
+
+            if echo "$STATUS" | grep -Eiq 'COMPLETE|SUCCESS|ERROR|FAILED|CANCEL'; then
+              echo ""
+              echo "=== KAGGLE TERMINAL STATE ==="
               echo "$STATUS"
               break
             fi
-            sleep 60
+
+            if [ "$i" -eq "$MAX_CHECKS" ]; then
+              echo "Kaggle job did not reach a terminal state within 60 minutes."
+              exit 1
+            fi
+            sleep 30
           done
 
       - name: Download Kaggle output
@@ -87,14 +105,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p kaggle-output
-          kaggle kernels output "${KAGGLE_USERNAME}/${KERNEL_SLUG}" -p kaggle-output -o --file-pattern '.*\\.wav'
+          echo "=== DOWNLOADING WAV OUTPUT ==="
+          kaggle kernels output "${KAGGLE_USERNAME}/${KERNEL_SLUG}" -p kaggle-output -o --file-pattern '.*\.wav' || true
           find kaggle-output -maxdepth 2 -type f -print
-          test -n "$(find kaggle-output -type f -name '*.wav' -print -quit)" || {
+          if ! find kaggle-output -type f -name '*.wav' -print -quit | grep -q .; then
             echo "No WAV output was produced."
-            echo "Final Kaggle logs:"
-            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 300 || true
+            echo "=== FINAL KAGGLE LOGS ==="
+            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 500 || true
             exit 1
-          }
+          fi
 
       - name: Upload WAV as GitHub Actions artifact
         uses: actions/upload-artifact@v4
