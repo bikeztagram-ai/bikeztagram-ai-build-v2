@@ -174,6 +174,7 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
 
   const sourceAudio = opts.sourceAudio;
   const referenceAudio = opts.referenceAudio;
+  const isCover = Boolean(sourceAudio || referenceAudio) && (opts.taskType || 'cover') === 'cover';
   const messageText = [
     String(opts.prompt || '').trim(),
     opts.vocalDirection ? `Vocal direction: ${String(opts.vocalDirection).trim()}` : ''
