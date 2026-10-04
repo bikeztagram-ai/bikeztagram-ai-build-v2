@@ -21,6 +21,14 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
 
+      - name: Validate submitted Python runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== PYTHON SYNTAX PREFLIGHT ==="
+          python -m py_compile scripts/kaggle/minimax_music3_batch.py
+          echo "Python runner syntax: PASS"
+
       - name: Validate Kaggle credentials
         shell: bash
         run: |
