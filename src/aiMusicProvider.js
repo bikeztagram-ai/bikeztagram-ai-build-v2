@@ -471,10 +471,11 @@ async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirecti
       console.warn('[Bikeztagram Music] vocal provider failed:', name, detail);
     }
   }
+  // Never dump the full provider cascade into the mobile UI. Keep the
+  // detailed diagnostics in the console and give the user one actionable status.
+  console.warn('[Bikeztagram Music] all vocal providers failed:', failures);
   throw new Error(
-    failures.length
-      ? 'Vocal generation failed. ' + failures.join(' | ')
-      : 'No open-source vocal music provider completed the song.'
+    'Music generation is temporarily busy. Bikeztagram tried the available AI music engines automatically, but none accepted this song right now. Please try CREATE SONG again in a moment.'
   );
 }
 

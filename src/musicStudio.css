@@ -178,7 +178,7 @@
 .music-create-eyebrow{font-size:9px;letter-spacing:.24em;color:#7ed0df;font-weight:900;margin-bottom:12px}
 .music-create-hub h1{margin:0;font-size:clamp(30px,5vw,52px);line-height:1.04;letter-spacing:-.035em}
 .music-create-hub>p{max-width:620px;margin:14px auto 24px;color:#a9c0c6;font-size:14px;line-height:1.55}
-.music-prompt-hub{display:block!important;width:100%!important;min-height:150px!important;padding:18px 20px!important;font-size:17px!important;line-height:1.5!important;border:1px solid rgba(126,207,226,.22)!important;background:rgba(255,255,255,.055)!important;box-shadow:0 18px 60px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.03);resize:vertical}
+.music-prompt-hub{display:block!important;width:100%!important;min-height:150px!important;padding:18px 20px!important;font-size:17px!important;line-height:1.5!important;border:1px solid rgba(126,207,226,.22)!important;background:#0b1a26!important;color:#f2fbff!important;box-shadow:0 18px 60px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.03);resize:vertical}
 .music-prompt-hub:focus{outline:none;border-color:rgba(126,207,226,.55)!important;box-shadow:0 0 0 3px rgba(83,210,225,.08),0 22px 70px rgba(0,0,0,.25)}
 .music-prompt-hints{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
 .music-prompt-hints button{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.035);color:#9eb9bf;border-radius:999px;padding:7px 11px;font-size:9px;cursor:pointer}

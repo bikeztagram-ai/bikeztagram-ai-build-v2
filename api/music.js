@@ -520,28 +520,45 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
   };
 
   try {
-    const submit = await fetch(workerUrl + '/gradio_api/call/output_song', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        data: [
-          lyricText, globalMeta, vocals, arrangement,
-          Math.max(5, Math.min(300, Number(duration) || 30)),
-          0, true, 20, 1.7, 'Bikeztagram AI'
-        ]
-      })
-    });
-    const submitted = await readJson(submit);
-    if (!submit.ok || !submitted?.event_id) {
-      const detail = JSON.stringify(submitted).slice(0, 1800);
-      const quota = /quota|authenticate|token|zerogpu/i.test(detail);
+    const requestData = {
+      data: [
+        lyricText, globalMeta, vocals, arrangement,
+        Math.max(5, Math.min(300, Number(duration) || 30)),
+        0, true, 30, 1.7
+      ]
+    };
+
+    // ZeroGPU is shared. A transient 500 commonly means the worker could not
+    // acquire a GPU on that attempt, so retry a couple of times before falling
+    // through to the other music engines.
+    let submit;
+    let submitted;
+    let lastDetail = '';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      submit = await fetch(workerUrl + '/gradio_api/call/generate_song', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestData)
+      });
+      submitted = await readJson(submit);
+      if (submit.ok && submitted?.event_id) break;
+      lastDetail = JSON.stringify(submitted).slice(0, 1800);
+      if (![429, 500, 502, 503, 504].includes(submit.status)) break;
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 2500));
+    }
+
+    if (!submit?.ok || !submitted?.event_id) {
+      const detail = lastDetail || JSON.stringify(submitted || {}).slice(0, 1800);
+      const quota = /quota|authenticate|token|zerogpu|gpu.*(busy|limit|capacity)|too many|concurrent/i.test(detail);
       return {
         ok: false,
-        fatal: true,
-        status: submit.status >= 400 ? submit.status : 502,
+        // A provider-side 429/5xx is recoverable: let the next music engine
+        // take over instead of surfacing a dead-provider error to the user.
+        fatal: false,
+        status: quota ? 429 : (submit?.status >= 400 ? submit.status : 502),
         error: quota
-          ? 'MiniMax Music 3 Hugging Face quota/authentication was rejected.'
-          : 'MiniMax Music 3 worker rejected the request.',
+          ? 'MiniMax Music 3 is temporarily busy.'
+          : 'MiniMax Music 3 is temporarily unavailable.',
         details: detail
       };
     }
@@ -551,7 +568,7 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
     let eventResponse;
     try {
       eventResponse = await fetch(
-        workerUrl + '/gradio_api/call/output_song/' + encodeURIComponent(submitted.event_id),
+        workerUrl + '/gradio_api/call/generate_song/' + encodeURIComponent(submitted.event_id),
         { headers: { Accept: 'text/event-stream', ...(auth ? { Authorization: 'Bearer ' + auth } : {}) }, signal: controller.signal }
       );
     } catch (error) {
