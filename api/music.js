@@ -520,14 +520,14 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
   };
 
   try {
-    const submit = await fetch(workerUrl + '/gradio_api/call/output_song', {
+    const submit = await fetch(workerUrl + '/gradio_api/call/generate_song', {
       method: 'POST',
       headers,
       body: JSON.stringify({
         data: [
           lyricText, globalMeta, vocals, arrangement,
           Math.max(5, Math.min(300, Number(duration) || 30)),
-          0, true, 20, 1.7, 'Bikeztagram AI'
+          0, true, 20, 1.7
         ]
       })
     });
@@ -551,7 +551,7 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
     let eventResponse;
     try {
       eventResponse = await fetch(
-        workerUrl + '/gradio_api/call/output_song/' + encodeURIComponent(submitted.event_id),
+        workerUrl + '/gradio_api/call/generate_song/' + encodeURIComponent(submitted.event_id),
         { headers: { Accept: 'text/event-stream', ...(auth ? { Authorization: 'Bearer ' + auth } : {}) }, signal: controller.signal }
       );
     } catch (error) {
