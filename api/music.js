@@ -221,18 +221,20 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
       format: isCover ? 'wav' : 'mp3',
       vocal_language: String(opts.vocalLanguage || 'en'),
       instrumental: Boolean(opts.forceInstrumental),
-      ...(!isCover && Number.isFinite(Number(opts.duration)) ? { duration: Number(opts.duration) } : {}),
+      ...(Number.isFinite(Number(opts.duration)) ? { duration: Number(opts.duration) } : {}),
       ...(!isCover && Number.isFinite(Number(opts.bpm)) ? { bpm: Number(opts.bpm) } : {}),
       ...(!isCover && opts.key && opts.key !== 'auto' ? { key_scale: String(opts.key) } : {}),
       ...(!isCover && opts.mode && opts.mode !== 'auto' ? { time_signature: String(opts.mode) } : {})
     },
     ...(opts.lyrics ? { lyrics: String(opts.lyrics).trim() } : {}),
     ...(isCover ? {
-      // ACE-Step docs: audio_cover_strength controls how strongly the source
-      // conditioning is used; cover_noise_strength controls source-latent
-      // preservation (0 = reimagine, 1 = closest to source).
-      audio_cover_strength: 1.0,
-      cover_noise_strength: Math.max(0, Math.min(1, Number(opts.coverStrength)))
+      // IMPORTANT: do not map the UI transformation slider to
+      // cover_noise_strength. In ACE-Step, any non-zero value re-noises the
+      // source latent before diffusion and can produce full-duration static.
+      // The UI slider belongs on audio_cover_strength, which controls how
+      // strongly the source structure is followed.
+      audio_cover_strength: Math.max(0.2, Math.min(0.9, Number(opts.coverStrength) || 0.55)),
+      cover_noise_strength: 0.0
     } : {})
   };
 
