@@ -160,6 +160,49 @@ export default function MusicStudio(){
   setStatus(`✓ EDITING VERSION ${Number(item.version)||1} — change the brief below and create the next version. The original stays in your library.`);
   requestAnimationFrame(()=>window.scrollTo({top:0,behavior:'smooth'}));
 };
+const persistLibraryMeta=next=>{
+  try{localStorage.setItem(LIB_KEY,JSON.stringify(next.map(({blob,url,...meta})=>meta)))}catch{}
+};
+const renameTrack=(item,title)=>{
+  const nextTitle=String(title||'').trim();
+  const next=library.map(x=>x.id===item.id?{...x,title:nextTitle||'AI Song'}:x);
+  setLibrary(next);
+  persistLibraryMeta(next);
+};
+const deleteTrack=async item=>{
+  if(!item)return;
+  const removeIds=new Set([item.id]);
+  let changed=true;
+  while(changed){
+    changed=false;
+    for(const candidate of library){
+      if(candidate.parentId&&removeIds.has(candidate.parentId)&&!removeIds.has(candidate.id)){
+        removeIds.add(candidate.id);
+        changed=true;
+      }
+    }
+  }
+  const count=removeIds.size;
+  const confirmed=window.confirm(
+    count>1
+      ? `Delete "${item.title||'AI Song'}" and its ${count-1} saved version${count===2?'':'s'}? This cannot be undone.`
+      : `Delete "${item.title||'AI Song'}"? This cannot be undone.`
+  );
+  if(!confirmed)return;
+  const next=library.filter(x=>!removeIds.has(x.id));
+  setLibrary(next);
+  persistLibraryMeta(next);
+  await Promise.all([...removeIds].map(id=>deleteTrackBlob(id)));
+  if(removeIds.has(songId)){
+    if(audioRef.current)audioRef.current.pause();
+    if(audioUrl)URL.revokeObjectURL(audioUrl);
+    setAudioUrl('');
+    setAudioMime('audio/wav');
+    setSongId('');
+    setPlaying(false);
+  }
+  setStatus(`✓ DELETED "${item.title||'AI Song'}"${count>1?' AND ITS SAVED VERSIONS':''}.`);
+};
 const saveLibrary=async(item)=>{
   const next=[item,...library.filter(x=>x.id!==item.id)].slice(0,12);
   setLibrary(next);
