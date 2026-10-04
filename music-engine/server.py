@@ -59,16 +59,17 @@ def caption(req):
 @app.get("/health")
 async def health():
  try:
-  async with httpx.AsyncClient(timeout=5) as client:r=await client.get(SGLANG_URL+"/health");upstream=r.status_code==200
+  async with httpx.AsyncClient(timeout=5) as client:r=await client.get(SGLANG_URL+"/v1/models");upstream=r.status_code==200
  except Exception:upstream=False
- return {"ok":upstream,"engine":"Bikeztagram Music Engine","renderer":"MiniMax-Music3 via SGLang-Omni","upstream":SGLANG_URL}
+ return {"ok":upstream,"engine":"Bikeztagram Music Engine","renderer":"MiniMax-Music3 via SGLang-Omni","upstream":SGLANG_URL,"contract":"OpenAI-compatible /v1/audio/speech"}
 @app.post("/v1/generate")
 async def generate(req:GenerateRequest):
  if req.duration>MAX_SECONDS:raise HTTPException(400,f"Maximum duration is {MAX_SECONDS} seconds.")
  lyrics=director_lyrics(req);instructions=caption(req)
- payload={"model":"MiniMaxAI/MiniMax-Music3","input":lyrics,"instructions":instructions,"max_new_tokens":int(req.duration*25),"seed":req.seed if req.seed is not None else 0}
+ payload={"model":"MiniMaxAI/MiniMax-Music3","input":lyrics,"instructions":instructions,"max_new_tokens":int(req.duration*25),"seed":req.seed if req.seed is not None else 0,"response_format":"wav","stream":False}
  try:
   async with httpx.AsyncClient(timeout=max(600,req.duration*8)) as client:r=await client.post(SGLANG_URL+"/v1/audio/speech",json=payload)
  except Exception as exc:raise HTTPException(503,"MiniMax-Music3 self-host renderer is unavailable.") from exc
  if r.status_code!=200:raise HTTPException(502,f"MiniMax-Music3 renderer failed (HTTP {r.status_code}). {r.text[:1200]}")
+    if not r.content: raise HTTPException(502,"MiniMax-Music3 renderer returned empty audio.")
  return Response(content=r.content,media_type=r.headers.get("content-type","audio/wav"),headers={"X-Bikeztagram-Music-Provider":"Bikeztagram Music Engine · MiniMax-Music3","X-Bikeztagram-Music-Song-Id":str(uuid.uuid4()),"X-Bikeztagram-Music-Lyrics-Generated":"yes" if not req.lyrics.strip() else "no"})
