@@ -178,15 +178,15 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
     String(opts.prompt || '').trim(),
     opts.vocalDirection ? `Vocal direction: ${String(opts.vocalDirection).trim()}` : ''
   ].filter(Boolean).join(' ');
-  const content = [{ type: 'text', text: messageText }];
+  const contentParts = [];
   const appendAudio = async (file, label) => {
     if (!file) return;
     const bytes = Buffer.from(await file.arrayBuffer());
     if (!bytes.length) throw new Error(`${label} audio is empty.`);
-    content.push({ type: 'text', text: label === 'reference' ? '[REFERENCE AUDIO — use this as the requested secondary musical/vocal reference]' : '[SOURCE AUDIO — use this as the primary transformation source]' });
+    contentParts.push({ type: 'text', text: label === 'reference' ? '[REFERENCE AUDIO — use this as the requested secondary musical/vocal reference]' : '[SOURCE AUDIO — use this as the primary transformation source]' });
     const extension = String(file.name || 'audio.mp3').split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp3';
     const supported = new Set(['mp3','wav','flac','ogg','m4a','aac']);
-    content.push({ type: 'input_audio', input_audio: { data: bytes.toString('base64'), format: supported.has(extension) ? extension : 'mp3' } });
+    contentParts.push({ type: 'input_audio', input_audio: { data: bytes.toString('base64'), format: supported.has(extension) ? extension : 'mp3' } });
   };
   try {
     // ACE-Step's current multimodal API accepts multiple input_audio blocks.
@@ -201,13 +201,13 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
   const isCover = Boolean(sourceAudio || referenceAudio) && (opts.taskType || 'cover') === 'cover';
   const payload = {
     model: 'acemusic/acestep-v15-turbo',
-    messages: [{ role: 'user', content }],
+    messages: [{ role: 'user', content: contentParts.length ? contentParts : messageText }],
     modalities: ['audio'],
     stream: false,
     temperature: 0.85,
     top_p: 0.9,
     thinking: !sourceAudio && !referenceAudio,
-    use_format: false,
+    use_format: !sourceAudio && !referenceAudio,
     sample_mode: false,
     use_cot_caption: !sourceAudio && !referenceAudio,
     use_cot_language: !sourceAudio && !referenceAudio,
