@@ -62,9 +62,9 @@ export default function MusicStudio(){
   const remixing=intent==='remix';
   const musicIntent=buildMusicIntent(prompt);
   if(remixing&&!sourceAudio){setStatus('SOURCE AUDIO REQUIRED — the song has been identified, but Bikeztagram will not pretend a catalogue preview is a transformable master. Upload an authorised source recording to perform a true source transformation.');return;}
-  setBusy(true);setStatus(full?'Building a longer full-song draft with ACE-Step…':remixing?(sourceAudio?'Remixing the source audio into your new style…':'Creating an original reinterpretation of the requested remix concept…'):'Generating a real original song with ACE-Step…');
+  setBusy(true);setStatus(full?'Building a 60-second full-song draft with ACE-Step…':remixing?(sourceAudio?'Remixing the source audio into your new style with a sung performance…':'Creating an original reinterpretation of the requested remix concept…'):'Generating a real original song with ACE-Step…');
   try{
-   const seconds=remixing&&sourceDuration?Math.min(600,Math.max(10,sourceDuration)):full?60:Number(duration);
+   const seconds=full?60:remixing&&sourceDuration?Math.min(600,Math.max(10,sourceDuration)):Number(duration);
    const effectiveLyrics=!instrumental&&remixing&&!lyrics.trim()?buildAutoCoverLyrics(prompt):lyrics;
    const brief=remixing
      ? `${prompt}. ${musicIntent.mode==='identity_preserve'?'Preserve the recognisable musical identity, main musical movement, groove, arrangement shape and overall feel of the named source unless the request explicitly replaces one of those elements. Do not turn a source-song request into a merely similar generic song.':musicIntent.mode==='cross_source'?'Treat this as a deliberate cross-source mashup: keep the requested vocal identity/source separate from the requested musical/instrumental identity/source, and combine them only in the roles the user specified.': 'Transform the named source deliberately into the requested genre/style while retaining its recognisable musical skeleton unless the user explicitly asks for a different song identity.'} Rebuild the production around the requested style, with instruments, rhythm, tempo, vocal character and mix appropriate to that style. Avoid generic genre music that loses the source identity.`
@@ -74,7 +74,7 @@ export default function MusicStudio(){
    if(audioUrl)URL.revokeObjectURL(audioUrl);
    const url=URL.createObjectURL(ai.blob);setAudioUrl(url);setAudioMime(ai.mimeType);setProvider(ai.provider);setSongId(ai.songId||'');
    const item={id:ai.songId||crypto.randomUUID(),title:full?'Full Song Draft':'AI Song',prompt:brief,duration:seconds,provider:ai.provider,createdAt:new Date().toISOString(),mimeType:ai.mimeType,blob:ai.blob,url};
-   setLibrary(prev=>[item,...prev.filter(x=>x.id!==item.id)].slice(0,12));setProvider(ai.provider);setStatus(full?'FULL SONG DRAFT READY — 60 seconds generated.':'AI MUSIC READY — real generated audio');emitTrack(item);
+   setLibrary(prev=>[item,...prev.filter(x=>x.id!==item.id)].slice(0,12));setProvider(ai.provider);setStatus(full?'FULL SONG DRAFT READY — 60 seconds generated.':remixing?'SOURCE TRANSFORM READY — real transformed audio':'AI MUSIC READY — real generated audio');emitTrack(item);
    const p=createSongProject({prompt:brief,duration:seconds,bpm,key,mode});if(validateSongProject(p).ok)setProject(p);
    saveLibrary(item);
   }catch(error){setStatus(error?.message||'ACE-Step music generation failed.')}
