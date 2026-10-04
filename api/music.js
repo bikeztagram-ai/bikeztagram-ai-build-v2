@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   });
 
   try {
-    const { body, sourceAudio } = await parseMusicRequest(req);
+    const { body, sourceAudio, referenceAudio } = await parseMusicRequest(req);
     const prompt = String(body.prompt || '').trim();
     if (!prompt) return json(res, 400, { error: 'Music prompt is required.' });
 
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
     };
 
     if (!baseUrl) {
-      if (sourceAudio) return json(res, 501, { error: 'True audio remix needs the full ACE-Step engine.', details: 'The current free ZeroGPU worker only exposes text-to-music. Connect ACE_STEP_API_URL to enable source-audio cover/remix.' });
+      if (sourceAudio || referenceAudio) return json(res, 501, { error: 'True multi-source audio transformation needs the full ACE-Step engine.', details: 'The current free ZeroGPU worker only exposes text-to-music. Connect ACE_STEP_API_URL to enable source-audio cover/remix and reference-audio workflows.' });
       if (duration > 60) return json(res, 400, { error: 'The free ZeroGPU music worker currently supports up to 60 seconds per request from Bikeztagram.' });
       const vocalPrompt = Boolean(body.forceInstrumental)
         ? prompt
@@ -77,10 +77,11 @@ export default async function handler(req, res) {
     };
 
     let submitResponse;
-    if (sourceAudio) {
+    if (sourceAudio || referenceAudio) {
       const form = new FormData();
       Object.entries(task).forEach(([key, value]) => { if (value !== undefined && value !== null) form.append(key, String(value)); });
-      form.append('src_audio', new Blob([Buffer.from(await sourceAudio.arrayBuffer())], { type: sourceAudio.type || 'audio/mpeg' }), sourceAudio.name || 'source-audio');
+      if (sourceAudio) form.append('src_audio', new Blob([Buffer.from(await sourceAudio.arrayBuffer())], { type: sourceAudio.type || 'audio/mpeg' }), sourceAudio.name || 'source-audio');
+      if (referenceAudio) form.append('reference_audio', new Blob([Buffer.from(await referenceAudio.arrayBuffer())], { type: referenceAudio.type || 'audio/mpeg' }), referenceAudio.name || 'reference-audio');
       submitResponse = await fetch(baseUrl + '/release_task', { method: 'POST', headers: token ? { Authorization: 'Bearer ' + token } : {}, body: form });
     } else {
       submitResponse = await fetch(baseUrl + '/release_task', { method: 'POST', headers, body: JSON.stringify(task) });
@@ -242,10 +243,11 @@ async function parseMusicRequest(req) {
     const body = {};
     for (const [key, value] of form.entries()) if (!(value instanceof File)) body[key] = value;
     const sourceAudio = form.get('sourceAudio');
-    return { body, sourceAudio: sourceAudio instanceof File ? sourceAudio : null };
+    const referenceAudio = form.get('referenceAudio');
+    return { body, sourceAudio: sourceAudio instanceof File ? sourceAudio : null, referenceAudio: referenceAudio instanceof File ? referenceAudio : null };
   }
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-  return { body, sourceAudio: null };
+  return { body, sourceAudio: null, referenceAudio: null };
 }
 
 function parseSseError(text) {
