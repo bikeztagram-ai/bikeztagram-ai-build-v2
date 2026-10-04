@@ -173,7 +173,7 @@ useEffect(()=>{const openMusic=()=>setOpen(true);window.addEventListener('bikezt
   })();
   return()=>{active=false};
  },[]);
- useEffect(()=>{if(intent!=='remix'||busy)return;const query=extractSourceQuery(prompt);if(query.length<3){setSourceMatch(null);setSongDna(null);setSourceSearching(false);return}const timer=setTimeout(async()=>{setSourceSearching(true);try{const r=await fetch('/api/music-source?q='+encodeURIComponent(query));const data=await r.json();const match=data?.matches?.[0]||null;setSourceMatch(match);setSongDna(match?.songDna||null)}catch{setSourceMatch(null);setSongDna(null)}finally{setSourceSearching(false)}},400);return()=>clearTimeout(timer)},[intent,prompt,busy]);
+ useEffect(()=>{if(intent!=='remix'||busy)return;const query=extractSourceQuery(prompt);if(query.length<3){setSourceMatch(null);setSongDna(null);setSourceSearching(false);return}const timer=setTimeout(async()=>{setSourceSearching(true);try{const r=await fetch('/api/song-intelligence?q='+encodeURIComponent(query));const data=await r.json();const match=data?.matches?.[0]||null;setSourceMatch(match);setSongDna(match?.songDna||null)}catch{setSourceMatch(null);setSongDna(null)}finally{setSourceSearching(false)}},400);return()=>clearTimeout(timer)},[intent,prompt,busy]);
  useEffect(()=>()=>{if(audioUrl)URL.revokeObjectURL(audioUrl);if(sourcePreviewUrl)URL.revokeObjectURL(sourcePreviewUrl);audioRef.current?.pause?.()},[audioUrl,sourcePreviewUrl]);
  const beginNewVersion=async(item)=>{
   if(!item)return;
