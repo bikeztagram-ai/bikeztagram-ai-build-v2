@@ -53,6 +53,15 @@ function buildMusicIntent(text){
 }
 
 
+function expandLyricsForFullSong(baseLyrics,prompt){
+ const base=String(baseLyrics||'').trim();
+ if(!base)return base;
+ const text=String(prompt||'').toLowerCase();
+ if(/dog\s+bowie|my dog\s+bowie/.test(text)||(/fart/.test(text)&&/king of the house/.test(text))){
+  return base+'\n\n[Bridge]\nThe sofa is his kingdom, the floor is his domain\nOne royal little trumpet and we all know his name\nWe open every window, but the king will have his way\nBowie rules the house again and again every day\n\n[Final Chorus]\nOh Bowie, king of the house\nFarting loud like a trumpet blast\nOh Bowie, king of the house\nEverybody knows that you are the boss\nWe live with the smell, we live with the sound\nLong live Bowie, the king of the house\nLong live Bowie, the king of the house';
+ }
+ return base+'\n\n[Bridge]\nBring the story back, let the music rise\nBuild it bigger now beneath the open skies\n\n[Final Chorus]\n'+base.split('\n').filter(line=>line.trim()).slice(-6).join('\n');
+}
 function buildFallbackVocalLyrics(prompt){
  const text=String(prompt||'').replace(/\s+/g,' ').trim();
  const dog=text.match(/my dog\s+([A-Za-z][A-Za-z0-9'-]*)/i)?.[1] || text.match(/dog\s+([A-Za-z][A-Za-z0-9'-]*)/i)?.[1];
@@ -243,10 +252,10 @@ const saveLibrary=async(item)=>{
   const remixing=intent==='remix';
   const musicIntent=buildMusicIntent(prompt);
   if(remixing&&!sourceAudio){setStatus('SOURCE AUDIO REQUIRED — the song has been identified, but Bikeztagram will not pretend a catalogue preview is a transformable master. Upload an authorised source recording to perform a true source transformation.');return;}
-  setBusy(true);setStatus(full?'Building a 60-second full-song draft with ACE-Step…':remixing?(sourceAudio?'Remixing the source audio into your new style with a sung performance…':'Creating an original reinterpretation of the requested remix concept…'):'Generating a real original song with ACE-Step…');
+  setBusy(true);setStatus(full?'Building a full-song draft (up to 180 seconds) with MiniMax Music 3…':remixing?(sourceAudio?'Remixing the source audio into your new style with a sung performance…':'Creating an original reinterpretation of the requested remix concept…'):'Generating a real original song with ACE-Step…');
   try{
-   const seconds=full?60:remixing&&sourceDuration?Math.min(600,Math.max(10,sourceDuration)):Number(duration);
-   const effectiveLyrics=!instrumental?(lyrics.trim()?(lyrics):(remixing?buildAutoCoverLyrics(prompt):buildFallbackVocalLyrics(prompt))):'';
+   const seconds=full?180:remixing&&sourceDuration?Math.min(600,Math.max(10,sourceDuration)):Number(duration);
+   const effectiveLyrics=!instrumental?(lyrics.trim()?(full?expandLyricsForFullSong(lyrics,prompt):lyrics):(remixing?buildAutoCoverLyrics(prompt):expandLyricsForFullSong(buildFallbackVocalLyrics(prompt),prompt))):'';
    const brief=remixing
      ? `${prompt}. ${musicIntent.mode==='identity_preserve'?'Preserve the recognisable musical identity, main musical movement, groove, arrangement shape and overall feel of the named source unless the request explicitly replaces one of those elements. Do not turn a source-song request into a merely similar generic song.':musicIntent.mode==='cross_source'?'Treat this as a deliberate cross-source mashup: keep the requested vocal identity/source separate from the requested musical/instrumental identity/source, and combine them only in the roles the user specified.': 'Transform the named source deliberately into the requested genre/style while retaining its recognisable musical skeleton unless the user explicitly asks for a different song identity.'} Rebuild the production around the requested style, with instruments, rhythm, tempo, vocal character and mix appropriate to that style. Avoid generic genre music that loses the source identity.`
      : full?prompt+'. Develop this musical idea into a complete song with a clear intro, evolving sections, a strong chorus/drop and a satisfying ending.':prompt;
@@ -258,7 +267,7 @@ const saveLibrary=async(item)=>{
    const cleanProjectName=String(projectName||'').trim();
    const baseTitle=cleanProjectName||(library.find(x=>x.id===editingVersionId)?.title||'AI Song').replace(/ · V\d+$/,'');
    const item={id:ai.songId||crypto.randomUUID(),title:previousVersion?`${baseTitle} · V${previousVersion+1}`:full?(baseTitle||'Full Song Draft'):(baseTitle||'AI Song'),prompt:brief,duration:seconds,provider:ai.provider,createdAt:new Date().toISOString(),mimeType:ai.mimeType,blob:ai.blob,url,parentId:editingVersionId||null,version:previousVersion+1};
-   setLibrary(prev=>[item,...prev.filter(x=>x.id!==item.id)].slice(0,12));setProjectName(baseTitle);setEditingVersionId(null);setEditingVersion(item.version||1);setProvider(ai.provider);setStatus(full?'FULL SONG DRAFT READY — 60 seconds generated.':remixing?'SOURCE TRANSFORM READY — real transformed audio':'AI MUSIC READY — real generated audio');emitTrack(item);
+   setLibrary(prev=>[item,...prev.filter(x=>x.id!==item.id)].slice(0,12));setProjectName(baseTitle);setEditingVersionId(null);setEditingVersion(item.version||1);setProvider(ai.provider);setStatus(full?'FULL SONG DRAFT READY — up to 180 seconds requested.':remixing?'SOURCE TRANSFORM READY — real transformed audio':'AI MUSIC READY — real generated audio');emitTrack(item);
    const p=createSongProject({prompt:brief,duration:seconds,bpm,key,mode});if(validateSongProject(p).ok)setProject(p);
    saveLibrary(item);
   }catch(error){setStatus(error?.message||'ACE-Step music generation failed.')}
