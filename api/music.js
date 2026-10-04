@@ -554,8 +554,9 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
         workerUrl + '/gradio_api/call/output_song/' + encodeURIComponent(submitted.event_id),
         { headers: { Accept: 'text/event-stream', ...(auth ? { Authorization: 'Bearer ' + auth } : {}) }, signal: controller.signal }
       );
-    } finally {
+    } catch (error) {
       clearTimeout(timeout);
+      throw error;
     }
 
     if (!eventResponse.ok) {
@@ -564,10 +565,11 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
     }
 
     const sse = await eventResponse.text();
+    clearTimeout(timeout);
     let activeEvent = '';
     let completed = null;
     let workerError = '';
-    for (const raw of sse.split(/\\r?\\n/)) {
+    for (const raw of sse.split(/\r?\n/)) {
       const line = raw.trim();
       if (line.startsWith('event:')) { activeEvent = line.slice(6).trim(); continue; }
       if (!line.startsWith('data:')) continue;
@@ -600,7 +602,7 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
     const rawUrl = first?.url || first?.path;
     if (!rawUrl) return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 completed without an audio file.' };
 
-    const audioUrl = /^https?:\\/\\//i.test(String(rawUrl))
+    const audioUrl = /^https?:\/\//i.test(String(rawUrl))
       ? String(rawUrl)
       : workerUrl + (String(rawUrl).startsWith('/') ? String(rawUrl) : '/' + String(rawUrl));
     const audio = await fetch(audioUrl, { headers: auth ? { Authorization: 'Bearer ' + auth } : {} });
