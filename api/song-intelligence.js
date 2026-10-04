@@ -76,8 +76,8 @@ function inferTransformation(prompt){
   const text=clean(prompt).toLowerCase();
   const genres=['trance','house','techno','edm','pop','rock','metal','punk','rap','hip-hop','jazz','blues','soul','funk','disco','country','folk','classical','reggae','acoustic','indie','grunge','gospel'];
   const genre=genres.find(x=>text.includes(x))||'custom style';
-  const female=/\\bfemale\\b|\\bwomen\\b|\\bwoman\\b|\\bher\\b/.test(text)?'female':/\\bmale\\b|\\bman\\b|\\bhis\\b/.test(text)?'male':'requested vocal';
-  const yearMatch=text.match(/\\b(20\\d{2})\\b/);
+  const female=/\bfemale\b|\bwomen\b|\bwoman\b|\bher\b/.test(text)?'female':/\bmale\b|\bman\b|\bhis\b/.test(text)?'male':'requested vocal';
+  const yearMatch=text.match(/\b(20\d{2})\b/);
   const modern=yearMatch?yearMatch[1]:'current';
   const radical=/radical|completely|totally|massive|unrecognisable|different/.test(text);
   const preserve=/preserve|keep|recognisable|same song|same structure|same melody/.test(text);
