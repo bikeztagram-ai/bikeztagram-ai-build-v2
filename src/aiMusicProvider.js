@@ -8,6 +8,117 @@ const DEFAULT_VOCAL_WORKERS = [
   'https://timefractal-ace-step-turbo-music-gen.hf.space'
 ];
 const LEGACY_KINES_WORKER = 'https://kines9661-acestepv1-5ai.hf.space';
+const MINIMAX_MUSIC_WORKER = 'https://minimaxai-minimax-music3-workflow.hf.space';
+
+async function generateViaMiniMaxMusic3({ prompt, lyrics, duration, vocalDirection = '', vocalLanguage = 'en' }) {
+  const workerUrl = MINIMAX_MUSIC_WORKER;
+  const languageHint = String(vocalLanguage || 'en').toLowerCase() === 'en' ? 'English' : String(vocalLanguage);
+  const lyricText = String(lyrics || '').trim();
+  if (!lyricText) throw new Error('MiniMax Music 3 requires explicit lyrics for the direct generation route.');
+
+  const globalMeta = [
+    String(prompt || '').trim(),
+    'Professional finished song, coherent arrangement, polished commercial mix.',
+    'Vocal language: ' + languageHint + '.'
+  ].filter(Boolean).join(' ');
+
+  const vocals = [
+    vocalDirection ? String(vocalDirection).trim() : 'Clear, melodic lead vocal with audible words from the opening section.',
+    'Do not use spoken-word delivery; sing the supplied lyrics.',
+    'Keep the requested subject and concrete names/details audible and intelligible.'
+  ].join(' ');
+
+  const arrangement = [
+    'Build the arrangement around the supplied lyric section tags.',
+    'Use a strong intro, developing verse, memorable chorus, musical contrast and satisfying ending.',
+    'Choose instrumentation and groove that match the requested genre/style.',
+    'Prioritise the story and lyrics over generic genre filler.'
+  ].join(' ');
+
+  const data = JSON.stringify({
+    data: [lyricText, globalMeta, vocals, arrangement, Math.max(5, Math.min(60, Number(duration) || 30)), 0, true, 20, 1.7, 'Bikeztagram AI']
+  });
+
+  const submit = await fetch(workerUrl + '/gradio_api/call/output_song', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: data
+  });
+  const submitted = await submit.json().catch(() => ({}));
+  if (!submit.ok || !submitted?.event_id) {
+    throw new Error(
+      'MiniMax Music 3 worker rejected the request' +
+      (submit.status ? ' (HTTP ' + submit.status + ')' : '') +
+      (submitted?.detail ? ': ' + String(submitted.detail) : '')
+    );
+  }
+
+  const resultResponse = await fetch(
+    workerUrl + '/gradio_api/call/output_song/' + encodeURIComponent(submitted.event_id),
+    { headers: { Accept: 'text/event-stream' } }
+  );
+  if (!resultResponse.ok) {
+    const detail = (await resultResponse.text()).slice(0, 800);
+    throw new Error(
+      'MiniMax Music 3 worker status failed (HTTP ' + resultResponse.status + ')' +
+      (detail ? ': ' + detail : '')
+    );
+  }
+
+  const sse = await resultResponse.text();
+  let completed = null;
+  let workerError = '';
+  let activeEvent = '';
+  for (const raw of sse.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith('event:')) {
+      activeEvent = line.slice(6).trim();
+      continue;
+    }
+    if (!line.startsWith('data:')) continue;
+    const rawData = line.slice(5).trim();
+    if (activeEvent === 'error') workerError = rawData || workerError;
+    if (activeEvent === 'complete' || activeEvent === 'completed') {
+      let value = rawData;
+      for (let pass = 0; pass < 6 && typeof value === 'string'; pass++) {
+        try { value = JSON.parse(value); } catch { break; }
+      }
+      completed = value;
+    }
+  }
+
+  if (!completed) {
+    throw new Error(
+      workerError && workerError !== 'null'
+        ? 'MiniMax Music 3 worker failed: ' + workerError
+        : 'MiniMax Music 3 worker did not return a completed song.'
+    );
+  }
+
+  const first = Array.isArray(completed) ? completed[0] : completed;
+  const rawUrl = first?.url || first?.path;
+  if (!rawUrl) throw new Error('MiniMax Music 3 completed without an audio file.');
+
+  const audioUrl = /^https?:\/\//i.test(rawUrl)
+    ? rawUrl
+    : workerUrl + (String(rawUrl).startsWith('/') ? String(rawUrl) : '/' + String(rawUrl));
+
+  const audio = await fetch(audioUrl);
+  if (!audio.ok) {
+    throw new Error('MiniMax Music 3 generated the song but the audio file could not be downloaded (HTTP ' + audio.status + ').');
+  }
+  const blob = await audio.blob();
+  if (!blob.size) throw new Error('MiniMax Music 3 returned an empty audio file.');
+
+  return {
+    blob,
+    mimeType: blob.type || 'audio/wav',
+    songId: submitted.event_id,
+    provider: 'MiniMax Music 3 Vocal Worker',
+    original: true
+  };
+}
+
 const WEBNOWA_VOCAL_WORKER = 'https://webnowa-ace-step-jam.hf.space';
 
 async function generateViaWebnowa({ prompt, lyrics, duration, vocalDirection = '' }) {
@@ -404,9 +515,10 @@ async function generateViaTimefractalWorker({ prompt, lyrics, duration }) {
   return { blob, mimeType: blob.type || 'audio/wav', songId: submitted.event_id, provider: 'ACE-Step 1.5 Turbo Vocal Worker', original: true };
 }
 
-async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirection }) {
+async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirection, vocalLanguage }) {
   const failures = [];
   const providers = [
+    ['MiniMax Music 3', generateViaMiniMaxMusic3],
     ['ACE-Step WebNowa', generateViaWebnowa],
     ['ACE-Step Studio API', generateViaKinesApi],
     ['ACE-Step 1.5 legacy Gradio', generateViaKinesGradioFallback],
@@ -414,7 +526,7 @@ async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirecti
   ];
   for (const [name, generator] of providers) {
     try {
-      return await generator({ prompt, lyrics, duration, vocalDirection });
+      return await generator({ prompt, lyrics, duration, vocalDirection, vocalLanguage });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       failures.push(name + ': ' + detail);
@@ -434,7 +546,8 @@ export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrum
       prompt,
       lyrics,
       duration: Number(durationMs) / 1000,
-      vocalDirection
+      vocalDirection,
+      vocalLanguage
     });
   }
   const hasSource = sourceAudio instanceof Blob;
