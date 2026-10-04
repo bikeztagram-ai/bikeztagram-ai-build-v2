@@ -15,7 +15,7 @@ const MOOD_RULES=[
   ['emotional',/sad|emotional|melancholy|heartbreak|moving/i],['dreamy',/dreamy|ambient|ethereal|peaceful|calm/i],
   ['energetic',/energetic|driving|racing|action|powerful|aggressive/i]
 ];
-const ENERGY_RULES=[['low',/calm|ambient|soft|gentle|intimate|slow/i],['high',/energetic|driving|racing|aggressive|heavy|explosive|anthem/i]];
+const ENERGY_RULES=[['low',/calm|ambient|soft|gentle|intimate|slow/i],['high',/energetic|upbeat|driving|racing|aggressive|heavy|explosive|anthem/i]];
 const INSTRUMENTS={
  'drum and bass':['sub bass','breakbeat drums','atmospheric pads','vocal chops','bright synth lead'],
  'hip-hop':['808 bass','tight kick','snare/clap','sampled textures','electric piano/synth'],
