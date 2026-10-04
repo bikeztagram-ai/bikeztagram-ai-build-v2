@@ -520,14 +520,14 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
   };
 
   try {
-    const submit = await fetch(workerUrl + '/gradio_api/call/output_song', {
+    const submit = await fetch(workerUrl + '/gradio_api/call/generate_song', {
       method: 'POST',
       headers,
       body: JSON.stringify({
         data: [
           lyricText, globalMeta, vocals, arrangement,
           Math.max(5, Math.min(300, Number(duration) || 30)),
-          0, true, 20, 1.7, 'Bikeztagram AI'
+          0, true, 30, 1.7
         ]
       })
     });
