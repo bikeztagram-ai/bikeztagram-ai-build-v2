@@ -1,0 +1,1 @@
+fastapi>=0.115\nuvicorn[standard]>=0.30\nhttpx>=0.27\npydantic>=2.8\n
