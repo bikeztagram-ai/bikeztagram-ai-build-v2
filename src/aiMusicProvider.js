@@ -3,10 +3,49 @@ function providerBaseUrl() {
   return String(import.meta?.env?.VITE_ACE_STEP_API_URL || '').trim().replace(/\/$/, '');
 }
 
-const DEFAULT_VOCAL_WORKER = 'https://timefractal-ace-step-turbo-music-gen.hf.space';
+const DEFAULT_VOCAL_WORKERS = [
+  'https://kines9661-acestepv1-5ai.hf.space',
+  'https://timefractal-ace-step-turbo-music-gen.hf.space'
+];
 
-async function generateShortVocalDirect({ prompt, lyrics, duration }) {
-  const workerUrl = DEFAULT_VOCAL_WORKER;
+async function generateViaKinesApi({ prompt, lyrics, duration }) {
+  const workerUrl = DEFAULT_VOCAL_WORKERS[0];
+  const response = await fetch(workerUrl + '/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      messages: [{ role: 'user', content: String(prompt || '').trim() }],
+      lyrics: String(lyrics || '').trim(),
+      sample_mode: true,
+      audio_config: {
+        vocal_language: 'en',
+        instrumental: false,
+        duration: Number(duration) || 30
+      }
+    })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error('ACE-Step vocal API returned HTTP ' + response.status + (data?.detail ? ': ' + String(data.detail) : '.'));
+  }
+  const audioUrl = data?.choices?.[0]?.message?.audio?.[0]?.audio_url?.url;
+  if (!audioUrl) throw new Error('ACE-Step vocal API completed without an audio result.');
+  if (!audioUrl.startsWith('data:')) throw new Error('ACE-Step vocal API returned an unsupported audio URL.');
+  const comma = audioUrl.indexOf(',');
+  if (comma < 0) throw new Error('ACE-Step vocal API returned malformed audio data.');
+  const header = audioUrl.slice(0, comma);
+  const encoded = audioUrl.slice(comma + 1);
+  const mimeType = header.match(/^data:([^;]+)/i)?.[1] || 'audio/wav';
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: mimeType });
+  if (!blob.size) throw new Error('ACE-Step vocal API returned an empty audio file.');
+  return { blob, mimeType, songId: data?.id || '', provider: 'ACE-Step 1.5 Vocal API', original: true };
+}
+
+async function generateViaTimefractalWorker({ prompt, lyrics, duration }) {
+  const workerUrl = DEFAULT_VOCAL_WORKERS[1];
   const submit = await fetch(workerUrl + '/gradio_api/call/generate_music', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -15,14 +54,12 @@ async function generateShortVocalDirect({ prompt, lyrics, duration }) {
     })
   });
   const submitted = await submit.json().catch(() => ({}));
-  if (!submit.ok || !submitted.event_id) {
-    throw new Error('ACE-Step vocal worker rejected the request.');
-  }
+  if (!submit.ok || !submitted.event_id) throw new Error('ACE-Step Turbo vocal worker rejected the request.');
 
   const resultResponse = await fetch(workerUrl + '/gradio_api/call/generate_music/' + encodeURIComponent(submitted.event_id), {
     headers: { Accept: 'text/event-stream' }
   });
-  if (!resultResponse.ok) throw new Error('ACE-Step vocal worker status could not be read.');
+  if (!resultResponse.ok) throw new Error('ACE-Step Turbo vocal worker status returned HTTP ' + resultResponse.status + '.');
 
   const sse = await resultResponse.text();
   const lines = sse.split(/\r?\n/);
@@ -43,7 +80,8 @@ async function generateShortVocalDirect({ prompt, lyrics, duration }) {
     }
   }
   if (completed == null) {
-    throw new Error(workerError ? 'ACE-Step vocal worker failed: ' + workerError : 'ACE-Step vocal worker did not return a completed sung track.');
+    const cleanError = workerError && workerError !== 'null' ? workerError : '';
+    throw new Error(cleanError ? 'ACE-Step Turbo vocal worker failed: ' + cleanError : 'ACE-Step Turbo vocal worker did not return a completed sung track.');
   }
 
   let value = completed;
@@ -52,7 +90,7 @@ async function generateShortVocalDirect({ prompt, lyrics, duration }) {
   }
   const first = Array.isArray(value) ? value[0] : value;
   const rawUrl = typeof first === 'string' ? first : first?.url || first?.path;
-  if (!rawUrl) throw new Error('ACE-Step vocal worker completed without an audio file.');
+  if (!rawUrl) throw new Error('ACE-Step Turbo vocal worker completed without an audio file.');
   const audioUrl = /^https?:\/\//i.test(rawUrl)
     ? rawUrl
     : rawUrl.startsWith('/gradio_api/file=') ? workerUrl + rawUrl
@@ -60,16 +98,23 @@ async function generateShortVocalDirect({ prompt, lyrics, duration }) {
         : rawUrl.startsWith('/tmp/') ? workerUrl + '/file=' + rawUrl
           : workerUrl + (rawUrl.startsWith('/') ? rawUrl : '/' + rawUrl);
   const audio = await fetch(audioUrl);
-  if (!audio.ok) throw new Error('ACE-Step generated the song but the audio file could not be downloaded.');
+  if (!audio.ok) throw new Error('ACE-Step Turbo generated the song but the audio file could not be downloaded.');
   const blob = await audio.blob();
-  if (!blob.size) throw new Error('ACE-Step returned an empty audio file.');
-  return {
-    blob,
-    mimeType: blob.type || 'audio/wav',
-    songId: submitted.event_id,
-    provider: 'ACE-Step 1.5 Vocal Worker',
-    original: true
-  };
+  if (!blob.size) throw new Error('ACE-Step Turbo returned an empty audio file.');
+  return { blob, mimeType: blob.type || 'audio/wav', songId: submitted.event_id, provider: 'ACE-Step 1.5 Turbo Vocal Worker', original: true };
+}
+
+async function generateShortVocalDirect({ prompt, lyrics, duration }) {
+  let lastError = '';
+  for (const generator of [generateViaKinesApi, generateViaTimefractalWorker]) {
+    try {
+      return await generator({ prompt, lyrics, duration });
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      console.warn('[Bikeztagram Music] vocal provider failed:', lastError);
+    }
+  }
+  throw new Error(lastError || 'No open-source vocal music provider completed the song.');
 }
 
 export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75 } = {}) {
