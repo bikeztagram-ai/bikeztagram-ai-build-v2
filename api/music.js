@@ -60,6 +60,9 @@ export default async function handler(req, res) {
         huggingFaceToken
       });
       if (minimax.ok) return sendAudioBuffer(res, minimax.buffer, minimax.mimeType, 'MiniMax Music 3 Vocal Worker', minimax.songId);
+      // A transient 5xx from the public MiniMax Space must not make the whole
+      // original-song route fail. Continue into the open ACE-Step vocal worker.
+      // Hard 4xx/auth/quota failures remain fatal because retrying them cannot help.
       if (minimax.fatal) return json(res, minimax.status || 502, { error: minimax.error, details: minimax.details || '' });
     }
 
@@ -537,7 +540,9 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
       const quota = /quota|authenticate|token|zerogpu/i.test(detail);
       return {
         ok: false,
-        fatal: true,
+        // 5xx means the public Space itself failed; let the next open provider
+        // take over. 4xx remains fatal unless it is a transient rate/quota response.
+        fatal: quota || (submit.status >= 400 && submit.status < 500 && submit.status !== 429),
         status: submit.status >= 400 ? submit.status : 502,
         error: quota
           ? 'MiniMax Music 3 Hugging Face quota/authentication was rejected.'
@@ -561,7 +566,7 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
 
     if (!eventResponse.ok) {
       const detail = (await eventResponse.text()).slice(0, 1800);
-      return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 worker status request failed.', details: detail };
+      return { ok: false, fatal: eventResponse.status < 500, status: 502, error: 'MiniMax Music 3 worker status request failed.', details: detail };
     }
 
     const sse = await eventResponse.text();
