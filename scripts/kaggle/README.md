@@ -1,11 +1,25 @@
-# MiniMax Music 3 — Termux to Kaggle runner
+# MiniMax Music 3 — unattended Kaggle runner
 
-This bypasses the Kaggle browser notebook editor entirely.
+The preferred route is now **GitHub Actions → Kaggle T4×2**. This bypasses the Kaggle browser notebook editor and avoids installing the Kaggle Python CLI in Termux.
 
-Run in Termux:
+## One-time GitHub setup
 
-    curl -fsSL https://raw.githubusercontent.com/bikeztagram-ai/bikeztagram-ai-build-v2/feat/kaggle-minimax-music3-t4x2-test/scripts/kaggle/run-minimax-music3-termux.sh | bash
+Add these repository Actions secrets:
 
-The runner installs the Kaggle CLI, authenticates with Kaggle OAuth if needed, creates a tiny Python kernel instead of importing an ipynb, requests Kaggle's T4 x2 accelerator, starts the remote run, and prints commands for logs, status, and output.
+- `KAGGLE_USERNAME`: your Kaggle username
+- `KAGGLE_API_TOKEN`: your Kaggle API token
 
-The current Kaggle CLI documents NvidiaTeslaT4 as the accelerator identifier for GPU T4 x2.
+Kaggle documents `KAGGLE_API_TOKEN` as a supported non-interactive authentication method. Do not put the token in source code or commit it.
+
+## Start the test
+
+In GitHub:
+
+1. Open **Actions**.
+2. Select **MiniMax Music 3 — Kaggle T4x2**.
+3. Choose **Run workflow**.
+4. Run it from `feat/kaggle-minimax-music3-t4x2-test`.
+
+The GitHub runner installs the Kaggle CLI on Ubuntu, pushes the Python kernel, requests `NvidiaTeslaT4` (Kaggle's current T4×2 accelerator), waits for completion, downloads the WAV, and uploads it as a GitHub Actions artifact.
+
+Termux is no longer required for the actual GPU launch.
