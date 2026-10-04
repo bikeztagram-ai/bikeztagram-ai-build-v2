@@ -4,11 +4,6 @@ function providerBaseUrl() {
   return String(import.meta?.env?.VITE_ACE_STEP_API_URL || '').trim().replace(/\/$/, '');
 }
 
-const DEFAULT_VOCAL_WORKERS = [
-  'https://victor-ace-step-jam.hf.space',
-  'https://timefractal-ace-step-turbo-music-gen.hf.space'
-];
-const LEGACY_KINES_WORKER = 'https://kines9661-acestepv1-5ai.hf.space';
 async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInstrumental, bpm, key, mode, vocalLanguage, vocalDirection }) {
   const baseUrl = getConfiguredMusicEngineUrl();
   if (!baseUrl) return null;
