@@ -175,9 +175,8 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
   const sourceAudio = opts.sourceAudio;
   const referenceAudio = opts.referenceAudio;
   const messageText = [
-    `<prompt>${String(opts.prompt || '').trim()}</prompt>`,
-    opts.vocalDirection ? `<vocal_direction>${String(opts.vocalDirection).trim()}</vocal_direction>` : '',
-    opts.lyrics ? `<lyrics>${String(opts.lyrics).trim()}</lyrics>` : ''
+    String(opts.prompt || '').trim(),
+    opts.vocalDirection ? `Vocal direction: ${String(opts.vocalDirection).trim()}` : ''
   ].filter(Boolean).join(' ');
   const content = [{ type: 'text', text: messageText }];
   const appendAudio = async (file, label) => {
@@ -204,14 +203,14 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
     messages: [{ role: 'user', content }],
     modalities: ['audio'],
     stream: false,
-    thinking: false,
+    thinking: !sourceAudio && !referenceAudio,
     use_format: false,
     sample_mode: false,
-    use_cot_caption: false,
-    use_cot_language: false,
+    use_cot_caption: !sourceAudio && !referenceAudio,
+    use_cot_language: !sourceAudio && !referenceAudio,
     task_type: opts.taskType || (sourceAudio ? 'cover' : 'text2music'),
     audio_config: {
-      format: 'mp3',
+      format: 'wav',
       vocal_language: String(opts.vocalLanguage || 'en'),
       duration: Number(opts.duration),
       instrumental: Boolean(opts.forceInstrumental),
@@ -219,9 +218,10 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
       ...(opts.key && opts.key !== 'auto' ? { key_scale: String(opts.key) } : {}),
       ...(opts.mode && opts.mode !== 'auto' ? { time_signature: String(opts.mode) } : {})
     },
+    ...(opts.lyrics ? { lyrics: String(opts.lyrics).trim() } : {}),
     ...((sourceAudio || referenceAudio) ? {
       audio_cover_strength: Number(opts.coverStrength),
-      cover_noise_strength: Math.max(0, 1 - Number(opts.coverStrength))
+      cover_noise_strength: Number(opts.coverStrength)
     } : {})
   };
 
