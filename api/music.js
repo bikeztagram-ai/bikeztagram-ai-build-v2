@@ -552,11 +552,13 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
       const quota = /quota|authenticate|token|zerogpu|gpu.*(busy|limit|capacity)|too many|concurrent/i.test(detail);
       return {
         ok: false,
-        fatal: true,
+        // A provider-side 429/5xx is recoverable: let the next music engine
+        // take over instead of surfacing a dead-provider error to the user.
+        fatal: false,
         status: quota ? 429 : (submit?.status >= 400 ? submit.status : 502),
         error: quota
-          ? 'MiniMax Music 3 shared ZeroGPU is currently busy. Bikeztagram retried automatically but the provider did not accept the job.'
-          : 'MiniMax Music 3 worker rejected the request after automatic retries.',
+          ? 'MiniMax Music 3 is temporarily busy.'
+          : 'MiniMax Music 3 is temporarily unavailable.',
         details: detail
       };
     }
@@ -566,7 +568,7 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
     let eventResponse;
     try {
       eventResponse = await fetch(
-        workerUrl + '/gradio_api/call/output_song/' + encodeURIComponent(submitted.event_id),
+        workerUrl + '/gradio_api/call/generate_song/' + encodeURIComponent(submitted.event_id),
         { headers: { Accept: 'text/event-stream', ...(auth ? { Authorization: 'Bearer ' + auth } : {}) }, signal: controller.signal }
       );
     } catch (error) {
