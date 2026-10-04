@@ -222,3 +222,6 @@
 .music-prompt-mic:hover{transform:translateY(-1px);border-color:rgba(120,210,255,.55)}
 .music-prompt-mic.listening{border-color:rgba(255,90,110,.8);box-shadow:0 0 0 3px rgba(255,90,110,.12);animation:musicPromptPulse 1.1s ease-in-out infinite}
 @keyframes musicPromptPulse{50%{transform:scale(1.06)}}
+
+.music-song-dna{display:grid;gap:4px;margin-top:9px;padding:10px;border:1px solid rgba(126,207,226,.16);border-radius:10px;background:linear-gradient(145deg,rgba(39,121,139,.11),rgba(255,255,255,.025));font-size:9px;color:#a9c6cc}.music-song-dna strong{font-size:9px;letter-spacing:.12em;color:#bfeff4}.music-song-dna span{line-height:1.4}.music-song-dna small{font-size:8px!important;color:#718c93!important;margin-top:3px!important}
+@media(max-width:600px){.music-song-dna{font-size:10px!important;padding:11px!important}.music-song-dna strong{font-size:10px!important}.music-song-dna small{font-size:9px!important;line-height:1.4!important}}
