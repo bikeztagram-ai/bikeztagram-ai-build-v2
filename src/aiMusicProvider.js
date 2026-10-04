@@ -10,60 +10,106 @@ const DEFAULT_VOCAL_WORKERS = [
 
 async function generateViaKinesApi({ prompt, lyrics, duration }) {
   const workerUrl = DEFAULT_VOCAL_WORKERS[0];
-  const apiResponse = await fetch(workerUrl + '/v1/chat/completions', {
+  const release = await fetch(workerUrl + '/release_task', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
-      messages: [{
-        role: 'user',
-        content: '<prompt>' + String(prompt || '').trim() + '</prompt>'
-      }],
+      prompt: String(prompt || '').trim(),
       lyrics: String(lyrics || '').trim(),
-      sample_mode: true,
-      audio_config: {
-        duration: Number(duration) || 30,
-        vocal_language: 'en',
-        instrumental: false
-      },
-      guidance_scale: 7
+      thinking: false,
+      sample_mode: false,
+      use_format: false,
+      model: 'acestep-v15-turbo',
+      vocal_language: 'en',
+      inference_steps: 8,
+      guidance_scale: 7,
+      use_random_seed: true,
+      seed: -1,
+      batch_size: 1,
+      audio_duration: Number(duration) || 30,
+      task_type: 'text2music',
+      audio_format: 'mp3',
+      use_tiled_decode: true,
+      constrained_decoding: true,
+      use_cot_caption: false,
+      use_cot_language: false
     })
   });
-
-  const apiData = await apiResponse.json().catch(() => ({}));
-  if (!apiResponse.ok) {
+  const releaseData = await release.json().catch(() => ({}));
+  if (!release.ok || !releaseData?.task_id) {
     throw new Error(
-      'ACE-Step 1.5 API rejected the request (HTTP ' + apiResponse.status + ')' +
-      (apiData?.detail ? ': ' + String(apiData.detail) : '') +
-      (apiData?.error ? ': ' + String(apiData.error) : '')
+      'ACE-Step Studio API rejected the request (HTTP ' + release.status + ')' +
+      (releaseData?.detail ? ': ' + String(releaseData.detail) : '')
     );
   }
 
-  const rawAudioUrl = apiData?.choices?.[0]?.message?.audio?.[0]?.audio_url?.url;
-  if (!rawAudioUrl) {
-    throw new Error(
-      'ACE-Step 1.5 API completed without an audio URL.' +
-      (apiData?.choices?.[0]?.message?.content
-        ? ' Response: ' + String(apiData.choices[0].message.content).slice(0, 500)
-        : '')
-    );
+  const taskId = String(releaseData.task_id);
+  const deadline = Date.now() + Math.max(90000, (Number(duration) || 30) * 3500);
+  let lastStatus = 'queued';
+
+  while (Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 1200));
+
+    const query = await fetch(workerUrl + '/query_result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ task_id_list: [taskId] })
+    });
+    const payload = await query.json().catch(() => []);
+    if (!query.ok) {
+      throw new Error('ACE-Step Studio result check failed (HTTP ' + query.status + ').');
+    }
+
+    const row = Array.isArray(payload) ? payload[0] : null;
+    lastStatus = row?.status ?? lastStatus;
+
+    let resultRows = [];
+    if (row?.result) {
+      let value = row.result;
+      for (let pass = 0; pass < 5 && typeof value === 'string'; pass++) {
+        try { value = JSON.parse(value); } catch { break; }
+      }
+      resultRows = Array.isArray(value) ? value : [];
+    }
+
+    if (Number(row?.status) === 2) {
+      const detail = resultRows?.[0]?.status_message || resultRows?.[0]?.generation_info || '';
+      throw new Error(
+        'ACE-Step Studio generation failed.' +
+        (detail ? ' ' + String(detail).slice(0, 700) : '')
+      );
+    }
+
+    if (Number(row?.status) !== 1) continue;
+
+    const first = resultRows.find(item => item?.file) || resultRows[0];
+    const rawPath = first?.file;
+    if (!rawPath) {
+      throw new Error('ACE-Step Studio completed without an audio file.');
+    }
+
+    const audioUrl = /^https?:\/\//i.test(rawPath)
+      ? rawPath
+      : workerUrl + '/v1/audio?path=' + encodeURIComponent(String(rawPath));
+
+    const audio = await fetch(audioUrl);
+    if (!audio.ok) {
+      throw new Error('ACE-Step Studio generated the song but audio download failed (HTTP ' + audio.status + ').');
+    }
+    const blob = await audio.blob();
+    if (!blob.size) throw new Error('ACE-Step Studio returned an empty audio file.');
+
+    return {
+      blob,
+      mimeType: blob.type || 'audio/mpeg',
+      songId: taskId,
+      provider: 'ACE-Step Studio Vocal Worker',
+      original: true
+    };
   }
 
-  const audio = await fetch(rawAudioUrl);
-  if (!audio.ok) {
-    throw new Error('ACE-Step 1.5 API returned audio but it could not be downloaded (HTTP ' + audio.status + ').');
-  }
-  const blob = await audio.blob();
-  if (!blob.size) throw new Error('ACE-Step 1.5 API returned an empty audio file.');
-
-  return {
-    blob,
-    mimeType: blob.type || 'audio/wav',
-    songId: apiData?.id || '',
-    provider: 'ACE-Step 1.5 Vocal Worker',
-    original: true
-  };
+  throw new Error('ACE-Step Studio vocal generation timed out after waiting for the worker result (last status: ' + String(lastStatus) + ').');
 }
-
 async function generateViaKinesGradioFallback({ prompt, lyrics, duration }) {
   const workerUrl = DEFAULT_VOCAL_WORKERS[0];
   const submit = await fetch(workerUrl + '/gradio_api/call/generate_music', {
