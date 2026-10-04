@@ -10,40 +10,107 @@ const DEFAULT_VOCAL_WORKERS = [
 
 async function generateViaKinesApi({ prompt, lyrics, duration }) {
   const workerUrl = DEFAULT_VOCAL_WORKERS[0];
-  const response = await fetch(workerUrl + '/v1/chat/completions', {
+  const submit = await fetch(workerUrl + '/gradio_api/call/generate_music', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
-      messages: [{ role: 'user', content: String(prompt || '').trim() }],
-      lyrics: String(lyrics || '').trim(),
-      sample_mode: true,
-      audio_config: {
-        vocal_language: 'en',
-        instrumental: false,
-        duration: Number(duration) || 30
-      }
+      data: [
+        String(prompt || '').trim(),
+        String(lyrics || '').trim(),
+        Number(duration) || 30,
+        null,
+        'en',
+        false,
+        7,
+        -1
+      ]
     })
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error('ACE-Step vocal API returned HTTP ' + response.status + (data?.detail ? ': ' + String(data.detail) : '.'));
+  const submitted = await submit.json().catch(() => ({}));
+  if (!submit.ok || !submitted?.event_id) {
+    throw new Error(
+      'ACE-Step 1.5 vocal worker rejected the request' +
+      (submit.status ? ' (HTTP ' + submit.status + ')' : '') +
+      (submitted?.detail ? ': ' + String(submitted.detail) : '.')
+    );
   }
-  const audioUrl = data?.choices?.[0]?.message?.audio?.[0]?.audio_url?.url;
-  if (!audioUrl) throw new Error('ACE-Step vocal API completed without an audio result.');
-  if (!audioUrl.startsWith('data:')) throw new Error('ACE-Step vocal API returned an unsupported audio URL.');
-  const comma = audioUrl.indexOf(',');
-  if (comma < 0) throw new Error('ACE-Step vocal API returned malformed audio data.');
-  const header = audioUrl.slice(0, comma);
-  const encoded = audioUrl.slice(comma + 1);
-  const mimeType = header.match(/^data:([^;]+)/i)?.[1] || 'audio/wav';
-  const binary = atob(encoded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  const blob = new Blob([bytes], { type: mimeType });
-  if (!blob.size) throw new Error('ACE-Step vocal API returned an empty audio file.');
-  return { blob, mimeType, songId: data?.id || '', provider: 'ACE-Step 1.5 Vocal API', original: true };
-}
 
+  const resultResponse = await fetch(
+    workerUrl + '/gradio_api/call/generate_music/' + encodeURIComponent(submitted.event_id),
+    { headers: { Accept: 'text/event-stream' } }
+  );
+  if (!resultResponse.ok) {
+    const detail = (await resultResponse.text()).slice(0, 500);
+    throw new Error(
+      'ACE-Step 1.5 vocal worker status failed (HTTP ' + resultResponse.status + ')' +
+      (detail ? ': ' + detail : '.')
+    );
+  }
+
+  const sse = await resultResponse.text();
+  const lines = sse.split(/\r?\n/);
+  let currentEvent = '';
+  let completed = null;
+  let workerError = '';
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.startsWith('event:')) {
+      currentEvent = line.slice(6).trim();
+      continue;
+    }
+    if (!line.startsWith('data:')) continue;
+    const data = line.slice(5).trim();
+    if (currentEvent === 'error') workerError = data || workerError;
+    if (currentEvent === 'complete' || currentEvent === 'completed') {
+      let value = data;
+      for (let pass = 0; pass < 5 && typeof value === 'string'; pass++) {
+        try { value = JSON.parse(value); } catch { break; }
+      }
+      completed = value;
+    }
+  }
+
+  if (completed == null) {
+    const cleanError = workerError && workerError !== 'null' ? workerError : '';
+    throw new Error(
+      cleanError
+        ? 'ACE-Step 1.5 vocal worker failed: ' + cleanError
+        : 'ACE-Step 1.5 vocal worker did not return a completed sung track.'
+    );
+  }
+
+  let value = completed;
+  for (let pass = 0; pass < 5 && typeof value === 'string'; pass++) {
+    try { value = JSON.parse(value); } catch { break; }
+  }
+  const first = Array.isArray(value) ? value[0] : value;
+  const rawUrl = typeof first === 'string' ? first : first?.url || first?.path;
+  if (!rawUrl) {
+    throw new Error('ACE-Step 1.5 vocal worker completed without an audio file.');
+  }
+
+  const audioUrl = /^https?:\/\//i.test(rawUrl)
+    ? rawUrl
+    : rawUrl.startsWith('/gradio_api/file=') ? workerUrl + rawUrl
+      : rawUrl.startsWith('/file=') ? workerUrl + rawUrl
+        : rawUrl.startsWith('/tmp/') ? workerUrl + '/file=' + rawUrl
+          : workerUrl + (rawUrl.startsWith('/') ? rawUrl : '/' + rawUrl);
+
+  const audio = await fetch(audioUrl);
+  if (!audio.ok) {
+    throw new Error('ACE-Step 1.5 generated the vocal track but the audio file could not be downloaded.');
+  }
+  const blob = await audio.blob();
+  if (!blob.size) throw new Error('ACE-Step 1.5 vocal worker returned an empty audio file.');
+
+  return {
+    blob,
+    mimeType: blob.type || 'audio/wav',
+    songId: submitted.event_id,
+    provider: 'ACE-Step 1.5 Vocal Worker',
+    original: true
+  };
+}
 async function generateViaTimefractalWorker({ prompt, lyrics, duration }) {
   const workerUrl = DEFAULT_VOCAL_WORKERS[1];
   const submit = await fetch(workerUrl + '/gradio_api/call/generate_music', {
