@@ -84,7 +84,7 @@ jobs:
 
             echo ""
             echo "RECENT KAGGLE LOGS:"
-            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 160 2>&1 | tail -n 160 || true
+            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 | tail -n 160 || true
 
             if echo "$STATUS" | grep -Eiq 'COMPLETE|SUCCESS|ERROR|FAILED|CANCEL'; then
               echo ""
@@ -111,7 +111,7 @@ jobs:
           if ! find kaggle-output -type f -name '*.wav' -print -quit | grep -q .; then
             echo "No WAV output was produced."
             echo "=== FINAL KAGGLE LOGS ==="
-            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 500 || true
+            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 | tail -n 500 || true
             exit 1
           fi
 
