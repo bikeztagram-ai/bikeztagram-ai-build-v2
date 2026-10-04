@@ -1,7 +1,7 @@
 /* Bikeztagram AI — server-side ACE-Step 1.5 REST gateway.
    Official ACE-Step API flow: POST /release_task -> POST /query_result -> GET /v1/audio.
 */
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const json = (res, status, payload) => {
   res.statusCode = status;
@@ -43,6 +43,25 @@ export default async function handler(req, res) {
     const { body, sourceAudio, referenceAudio } = await parseMusicRequest(req);
     const prompt = String(body.prompt || '').trim();
     if (!prompt) return json(res, 400, { error: 'Music prompt is required.' });
+
+    const huggingFaceToken = String(body.huggingFaceToken || '').trim();
+
+    // MiniMax Music 3 must be called server-side. Browser -> Hugging Face
+    // requests can fail on CORS/preflight when an authenticated HF token is
+    // attached. The token is forwarded for this request only and is never
+    // persisted by Bikeztagram.
+    if (!sourceAudio && !referenceAudio && !Boolean(body.forceInstrumental)) {
+      const minimax = await generateViaMiniMaxServer({
+        prompt,
+        lyrics: String(body.lyrics || '').trim(),
+        duration: clamp((Number(body.durationMs) || 30000) / 1000, 5, 300, 30),
+        vocalLanguage: String(body.vocalLanguage || 'en'),
+        vocalDirection: String(body.vocalDirection || ''),
+        huggingFaceToken
+      });
+      if (minimax.ok) return sendAudioBuffer(res, minimax.buffer, minimax.mimeType, 'MiniMax Music 3 Vocal Worker', minimax.songId);
+      if (minimax.fatal) return json(res, minimax.status || 502, { error: minimax.error, details: minimax.details || '' });
+    }
 
     const taskType = String(body.taskType || (sourceAudio ? 'cover' : 'text2music')).trim();
     const coverStrength = clamp(body.coverStrength, 0.1, 1, 0.75);
@@ -468,4 +487,147 @@ function parseSseComplete(text) {
     }
   }
   return completed;
+}
+
+async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguage = 'en', vocalDirection = '', huggingFaceToken = '' }) {
+  const workerUrl = 'https://minimaxai-minimax-music3-workflow.hf.space';
+  const lyricText = String(lyrics || '').trim();
+  if (!lyricText) return { ok: false, fatal: true, status: 400, error: 'MiniMax Music 3 requires lyrics for the vocal route.' };
+
+  const language = String(vocalLanguage || 'en').toLowerCase() === 'en' ? 'English' : String(vocalLanguage);
+  const globalMeta = [
+    String(prompt || '').trim(),
+    'Professional finished song, coherent arrangement, polished commercial mix.',
+    'Vocal language: ' + language + '.'
+  ].filter(Boolean).join(' ');
+  const vocals = [
+    vocalDirection ? String(vocalDirection).trim() : 'Clear, melodic lead vocal with audible words from the opening section.',
+    'Do not use spoken-word delivery; sing the supplied lyrics.',
+    'Keep the requested subject and concrete names/details audible and intelligible.'
+  ].join(' ');
+  const arrangement = [
+    'Build the arrangement around the supplied lyric section tags.',
+    'Use a strong intro, developing verse, memorable chorus, musical contrast and satisfying ending.',
+    'Choose instrumentation and groove that match the requested genre/style.',
+    'Prioritise the story and lyrics over generic genre filler.'
+  ].join(' ');
+
+  const auth = String(huggingFaceToken || '').trim();
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    ...(auth ? { Authorization: 'Bearer ' + auth } : {})
+  };
+
+  try {
+    const submit = await fetch(workerUrl + '/gradio_api/call/output_song', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        data: [
+          lyricText, globalMeta, vocals, arrangement,
+          Math.max(5, Math.min(300, Number(duration) || 30)),
+          0, true, 20, 1.7, 'Bikeztagram AI'
+        ]
+      })
+    });
+    const submitted = await readJson(submit);
+    if (!submit.ok || !submitted?.event_id) {
+      const detail = JSON.stringify(submitted).slice(0, 1800);
+      const quota = /quota|authenticate|token|zerogpu/i.test(detail);
+      return {
+        ok: false,
+        fatal: true,
+        status: submit.status >= 400 ? submit.status : 502,
+        error: quota
+          ? 'MiniMax Music 3 Hugging Face quota/authentication was rejected.'
+          : 'MiniMax Music 3 worker rejected the request.',
+        details: detail
+      };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 294000);
+    let eventResponse;
+    try {
+      eventResponse = await fetch(
+        workerUrl + '/gradio_api/call/output_song/' + encodeURIComponent(submitted.event_id),
+        { headers: { Accept: 'text/event-stream', ...(auth ? { Authorization: 'Bearer ' + auth } : {}) }, signal: controller.signal }
+      );
+    } catch (error) {
+      clearTimeout(timeout);
+      throw error;
+    }
+
+    if (!eventResponse.ok) {
+      const detail = (await eventResponse.text()).slice(0, 1800);
+      return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 worker status request failed.', details: detail };
+    }
+
+    const sse = await eventResponse.text();
+    clearTimeout(timeout);
+    let activeEvent = '';
+    let completed = null;
+    let workerError = '';
+    for (const raw of sse.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (line.startsWith('event:')) { activeEvent = line.slice(6).trim(); continue; }
+      if (!line.startsWith('data:')) continue;
+      const rawData = line.slice(5).trim();
+      if (activeEvent === 'error') workerError = rawData || workerError;
+      if (activeEvent === 'complete' || activeEvent === 'completed') {
+        let value = rawData;
+        for (let pass = 0; pass < 6 && typeof value === 'string'; pass++) {
+          try { value = JSON.parse(value); } catch { break; }
+        }
+        completed = value;
+      }
+    }
+
+    if (!completed) {
+      const detail = workerError && workerError !== 'null' ? workerError : 'No completed event was returned.';
+      const quota = /quota|authenticate|token|zerogpu/i.test(detail);
+      return {
+        ok: false,
+        fatal: true,
+        status: quota ? 429 : 502,
+        error: quota
+          ? 'MiniMax Music 3 Hugging Face quota/authentication was rejected or exhausted.'
+          : 'MiniMax Music 3 did not return a completed song.',
+        details: detail.slice(0, 2200)
+      };
+    }
+
+    const first = Array.isArray(completed) ? completed[0] : completed;
+    const rawUrl = first?.url || first?.path;
+    if (!rawUrl) return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 completed without an audio file.' };
+
+    const audioUrl = /^https?:\/\//i.test(String(rawUrl))
+      ? String(rawUrl)
+      : workerUrl + (String(rawUrl).startsWith('/') ? String(rawUrl) : '/' + String(rawUrl));
+    const audio = await fetch(audioUrl, { headers: auth ? { Authorization: 'Bearer ' + auth } : {} });
+    if (!audio.ok) {
+      const detail = (await audio.text()).slice(0, 1200);
+      return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 generated the song but audio download failed.', details: detail };
+    }
+    const buffer = Buffer.from(await audio.arrayBuffer());
+    if (!buffer.length) return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 returned an empty audio file.' };
+    return { ok: true, buffer, mimeType: audio.headers.get('content-type') || 'audio/wav', songId: submitted.event_id };
+  } catch (error) {
+    const message = error?.name === 'AbortError'
+      ? 'MiniMax Music 3 exceeded the 294-second server wait window.'
+      : (error?.message || String(error));
+    return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 request failed.', details: message };
+  }
+}
+
+function sendAudioBuffer(res, buffer, mimeType, provider, songId) {
+  res.statusCode = 200;
+  res.setHeader('Content-Type', mimeType || 'audio/wav');
+  res.setHeader('Content-Length', String(buffer.byteLength));
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Bikeztagram-Music-Provider', provider);
+  res.setHeader('X-Bikeztagram-Music-Original', 'true');
+  res.setHeader('X-Bikeztagram-Music-Song-Id', String(songId || ''));
+  return res.end(buffer);
 }
