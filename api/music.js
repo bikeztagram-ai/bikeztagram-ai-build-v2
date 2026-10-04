@@ -177,6 +177,7 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
   const isCover = Boolean(sourceAudio || referenceAudio) && (opts.taskType || 'cover') === 'cover';
   const messageText = [
     String(opts.prompt || '').trim(),
+    !Boolean(opts.forceInstrumental) ? 'Sung lead vocal required; clearly audible melodic vocals throughout the transformed performance.' : '',
     opts.vocalDirection ? `Vocal direction: ${String(opts.vocalDirection).trim()}` : ''
   ].filter(Boolean).join(' ');
   const contentParts = [{ type: 'text', text: '<prompt>' + messageText + '</prompt>' }];
@@ -221,7 +222,7 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
       // source latent before diffusion and can produce full-duration static.
       // The UI slider belongs on audio_cover_strength, which controls how
       // strongly the source structure is followed.
-      audio_cover_strength: Math.max(0.2, Math.min(0.9, Number(opts.coverStrength) || 0.55)),
+      audio_cover_strength: Math.max(0.2, Math.min(0.9, Number(opts.coverStrength) || 0.45)),
       cover_noise_strength: 0.0
     } : {})
   };
