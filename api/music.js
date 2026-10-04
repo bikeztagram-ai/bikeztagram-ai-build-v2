@@ -69,7 +69,8 @@ export default async function handler(req, res) {
         prompt,
         lyrics: String(body.lyrics || '').trim(),
         duration: clamp((Number(body.durationMs) || 30000) / 1000, 5, 300, 30),
-        vocalDirection: String(body.vocalDirection || '')
+        vocalDirection: String(body.vocalDirection || ''),
+        huggingFaceToken
       });
       if (minimaxFallback.ok) {
         return sendAudioBuffer(res, minimaxFallback.buffer, minimaxFallback.mimeType, 'MiniMax Music 3 Fallback Worker', minimaxFallback.songId);
@@ -92,7 +93,7 @@ export default async function handler(req, res) {
     // everyday creation. The hosted cloud API is reserved for source/reference
     // transformations (or longer tracks) where its extra capabilities matter.
     // This prevents a slow cloud request from blocking the normal song workflow.
-    const needsCloud = Boolean(sourceAudio || referenceAudio) || duration > 60;
+    const needsCloud = Boolean(sourceAudio || referenceAudio);
     if (baseUrl === DEFAULT_CLOUD_API && needsCloud) {
       return generateViaAceCloud(res, baseUrl, token, {
         prompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm, key: body.key,
@@ -103,7 +104,12 @@ export default async function handler(req, res) {
 
     if (!baseUrl || !needsCloud) {
       if (sourceAudio || referenceAudio) return json(res, 501, { error: 'True multi-source audio transformation needs the full ACE-Step engine.', details: 'The current free ZeroGPU worker only exposes text-to-music. Connect ACE_STEP_API_URL to enable source-audio cover/remix and reference-audio workflows.' });
-      if (duration > 60) return json(res, 400, { error: 'The free ZeroGPU music worker currently supports up to 60 seconds per request from Bikeztagram.' });
+      if (duration > 60) return json(res, 503, {
+        error: 'Long-form song generation needs an available MiniMax Music 3 ZeroGPU slot.',
+        details: huggingFaceToken
+          ? 'MiniMax Music 3 was attempted with your Hugging Face token, but the long-form worker did not complete. No generic ACE-Step track was substituted.'
+          : 'Add your free Hugging Face token in Advanced Options to use your own ZeroGPU quota for 60–300 second MiniMax Music 3 generations.'
+      });
       const vocalPrompt = Boolean(body.forceInstrumental)
         ? prompt
         : buildFallbackVocalPrompt(prompt, body);
@@ -642,12 +648,14 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
   }
 }
 
-async function generateViaMiniMaxUpsampler({ prompt, lyrics, duration, vocalDirection = '' }) {
+async function generateViaMiniMaxUpsampler({ prompt, lyrics, duration, vocalDirection = '', huggingFaceToken = '' }) {
   // Independent MiniMax Music 3 fallback. This Space exposes a deliberately
   // small stable Gradio endpoint (description, duration, seed, instrumental, lyrics)
   // and uses the same MiniMax Music 3 model, so an outage in the official workflow
   // Space does not take the whole vocal path down.
   const workerUrl = 'https://upsampler-minimax-music3.hf.space';
+  const auth = String(huggingFaceToken || '').trim();
+  const authHeaders = auth ? { Authorization: 'Bearer ' + auth } : {};
   const description = [
     String(prompt || '').trim(),
     vocalDirection ? 'Vocal direction: ' + String(vocalDirection).trim() : '',
@@ -659,7 +667,7 @@ async function generateViaMiniMaxUpsampler({ prompt, lyrics, duration, vocalDire
   try {
     const submit = await fetch(workerUrl + '/gradio_api/call/generate_music', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders },
       body: JSON.stringify({
         data: [
           description,
@@ -682,7 +690,7 @@ async function generateViaMiniMaxUpsampler({ prompt, lyrics, duration, vocalDire
 
     const eventResponse = await fetch(
       workerUrl + '/gradio_api/call/generate_music/' + encodeURIComponent(submitted.event_id),
-      { headers: { Accept: 'text/event-stream' } }
+      { headers: { Accept: 'text/event-stream', ...authHeaders } }
     );
     if (!eventResponse.ok) {
       return {
@@ -743,7 +751,7 @@ async function generateViaMiniMaxUpsampler({ prompt, lyrics, duration, vocalDire
         ? workerUrl + raw
         : workerUrl + '/gradio_api/file=' + raw;
 
-    const audio = await fetch(audioUrl);
+    const audio = await fetch(audioUrl, { headers: authHeaders });
     if (!audio.ok) {
       return {
         ok: false,
