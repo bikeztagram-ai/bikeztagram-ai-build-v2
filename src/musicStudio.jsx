@@ -8,11 +8,21 @@ const LIB_KEY='bikeztagram.music.library.v1';
 
 function readLibrary(){try{return JSON.parse(localStorage.getItem(LIB_KEY)||'[]')}catch{return[]}}
 function emitTrack(track){window.dispatchEvent(new CustomEvent('bikeztagram:music-selected',{detail:track}))}
+function extractSourceQuery(text){
+ const value=String(text||'').replace(/\s+/g,' ').trim();
+ if(!value)return '';
+ const beforeTransform=value.match(/^(.+?)(?:\s*[—–]\s*|\s+(?:turn|turning|make|making|transform|transforming|remix|remixing|rework|reworking|convert|converting)\b)/i)?.[1];
+ if(beforeTransform?.trim().length>=3)return beforeTransform.trim();
+ const into=value.match(/^(.+?)\s+(?:into|as)\s+/i)?.[1];
+ if(into?.trim().length>=3)return into.trim().replace(/^(?:take|use)\s+/i,'');
+ return value;
+}
 
 export default function MusicStudio(){
  const [open,setOpen]=useState(false),[intent,setIntent]=useState('create'),[prompt,setPrompt]=useState('Create a dark cinematic electronic anthem with deep bass, atmospheric synths, a huge emotional build and an explosive final drop'),[duration,setDuration]=useState(30),[bpm,setBpm]=useState('auto'),[key,setKey]=useState('auto'),[mode,setMode]=useState('auto'),[lyrics,setLyrics]=useState(''),[instrumental,setInstrumental]=useState(false),[vocalLanguage,setVocalLanguage]=useState('en'),[vocalDirection,setVocalDirection]=useState(''),[sourceAudio,setSourceAudio]=useState(null),[sourceMatch,setSourceMatch]=useState(null),[sourceSearching,setSourceSearching]=useState(false),[coverStrength,setCoverStrength]=useState(.55),[project,setProject]=useState(null),[audioUrl,setAudioUrl]=useState(''),[audioMime,setAudioMime]=useState('audio/wav'),[provider,setProvider]=useState(''),[songId,setSongId]=useState(''),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[playing,setPlaying]=useState(false),[library,setLibrary]=useState(readLibrary),audioRef=useRef(null);
  useEffect(()=>{const openMusic=()=>setOpen(true);window.addEventListener('bikeztagram:open-music',openMusic);return()=>window.removeEventListener('bikeztagram:open-music',openMusic)},[]);
- useEffect(()=>{if(intent!=='remix'||busy)return;const query=prompt.trim();if(query.length<5){setSourceMatch(null);return}const timer=setTimeout(async()=>{setSourceSearching(true);try{const r=await fetch('/api/music-source?q='+encodeURIComponent(query));const data=await r.json();setSourceMatch(data?.matches?.[0]||null)}catch{setSourceMatch(null)}finally{setSourceSearching(false)}},650);return()=>clearTimeout(timer)},[intent,prompt,busy]);
+ useEffect(()=>{if(!open){document.body.style.overflow='';return}document.body.style.overflow='hidden';return()=>{document.body.style.overflow=''}},[open]);
+ useEffect(()=>{if(intent!=='remix'||busy)return;const query=extractSourceQuery(prompt);if(query.length<3){setSourceMatch(null);setSourceSearching(false);return}const timer=setTimeout(async()=>{setSourceSearching(true);try{const r=await fetch('/api/music-source?q='+encodeURIComponent(query));const data=await r.json();setSourceMatch(data?.matches?.[0]||null)}catch{setSourceMatch(null)}finally{setSourceSearching(false)}},400);return()=>clearTimeout(timer)},[intent,prompt,busy]);
  useEffect(()=>()=>{if(audioUrl)URL.revokeObjectURL(audioUrl);audioRef.current?.pause?.()},[audioUrl]);
  const saveLibrary=(item)=>{const next=[item,...library.filter(x=>x.id!==item.id)].slice(0,12);setLibrary(next);try{localStorage.setItem(LIB_KEY,JSON.stringify(next.map(({blob,...meta})=>meta)))}catch{}};
  const make=async({full=false}={})=>{
@@ -43,9 +53,9 @@ export default function MusicStudio(){
  const stats=project?analyseMusicComposition(project.composition):null;
  const loadSaved=(item)=>{if(item.url){setAudioUrl(item.url);setAudioMime(item.mimeType||'audio/wav');setProvider(item.provider||'ACE-Step 1.5');setPrompt(item.prompt||'');setDuration(Number(item.duration)||30);setStatus('Loaded from this session. Generate again after a page reload to recreate the audio.') }};
 
- return <>{<button className="music-studio-launch" onClick={()=>setOpen(v=>!v)} aria-expanded={open}>♫ MUSIC</button>}
- {open&&<aside className="music-studio-panel music-studio-panel-wide" aria-label="Standalone Music Studio">
-  <div className="music-studio-head"><div><span>BIKEZTAGRAM AI • MUSIC STUDIO</span><h3>Make your own music.</h3></div><button onClick={()=>setOpen(false)} aria-label="Close">×</button></div>
+ return <>{!open&&<button className="music-studio-launch" onClick={()=>setOpen(true)} aria-expanded={open}>♫ MUSIC</button>}
+ {open&&<main className="music-studio-page" aria-label="Standalone Music Studio">
+  <div className="music-studio-head"><button className="music-back" onClick={()=>setOpen(false)} aria-label="Back to main screen">‹ <span>BACK</span></button><div className="music-studio-title"><span>BIKEZTAGRAM AI • MUSIC STUDIO</span><h3>Make your own music.</h3></div><div className="music-head-spacer" aria-hidden="true"/></div>
   <p className="music-studio-copy"><b>Write the idea. Get real audio.</b> Create original music, or switch to <b>Remix / Transform</b> when you want to turn a source track into a different genre.</p>
   <div className="music-intent-tabs"><button className={intent==='create'?'active':''} onClick={()=>setIntent('create')} disabled={busy}>✦ CREATE</button><button className={intent==='remix'?'active':''} onClick={()=>setIntent('remix')} disabled={busy}>↻ REMIX / TRANSFORM</button></div>
   <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} disabled={busy} aria-label="Describe your music" placeholder={intent==='remix'?'e.g. Turn this into a deep country rock version with twangy guitars and a big live drum feel…':'Describe the song you want…'}/>
@@ -57,4 +67,4 @@ export default function MusicStudio(){
   {project&&<div className="music-actions"><button onClick={downloadProject}>⬇ PROJECT</button><button onClick={()=>downloadStem('drums')}>🥁 STEM</button><button onClick={localDraft}>⚙ LOCAL ARRANGEMENT DRAFT</button><button onClick={()=>window.dispatchEvent(new CustomEvent('bikeztagram:open-arrangement'))}>🎚️ MUSIC LAB</button></div>}
   <section className="music-library"><div className="music-library-head"><strong>YOUR MUSIC</strong><span>{library.length}/12 session tracks</span></div>{library.length?<div className="music-library-list">{library.map(item=><article className="music-track-card" key={item.id}><div className="track-art">♫</div><div className="track-info"><strong>{item.title}</strong><small>{item.duration}s · {item.provider}</small><em>{new Date(item.createdAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</em></div><button onClick={()=>loadSaved(item)}>OPEN</button><button onClick={()=>emitTrack(item)}>USE</button></article>)}</div>:<p className="music-empty">Your generated songs will appear here.</p>}</section>
   <div className="music-footnote">Original-generation workflow • no commercial music API required • public ZeroGPU worker is the current bootstrap engine.</div>
- </aside>}</>}
+ </main>}</>}
