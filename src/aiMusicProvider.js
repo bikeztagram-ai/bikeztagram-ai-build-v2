@@ -16,12 +16,15 @@ async function generateViaMiniMaxMusic3({ prompt, lyrics, duration, vocalDirecti
   // MiniMax is proxied through our own Vercel function. This avoids browser
   // CORS/preflight failures when an authenticated Hugging Face token is used,
   // while keeping the token device-local and forwarding it only for this request.
+  const prepared = prepareMusicGeneration({
+    prompt, lyrics, duration: Number(duration || 30), vocalLanguage, vocalDirection, forceInstrumental: false
+  });
   const response = await fetch('/api/music', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      prompt: String(prompt || '').trim(),
-      lyrics: String(lyrics || '').trim(),
+      prompt: [prepared.prompt, prepared.instruction].filter(Boolean).join('\\n\\n'),
+      lyrics: prepared.lyrics,
       durationMs: Math.max(5000, Math.min(MINIMAX_MAX_DURATION * 1000, Number(duration || 30) * 1000)),
       forceInstrumental: false,
       vocalLanguage: String(vocalLanguage || 'en'),
