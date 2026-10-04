@@ -79,7 +79,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          MAX_CHECKS=120
+          MAX_CHECKS=720
           for i in $(seq 1 "$MAX_CHECKS"); do
             echo ""
             echo "============================================================"
@@ -102,7 +102,7 @@ jobs:
             fi
 
             if [ "$i" -eq "$MAX_CHECKS" ]; then
-              echo "Kaggle job did not reach a terminal state within 60 minutes."
+              echo "Kaggle job did not reach a terminal state within 6 hours."
               exit 1
             fi
             sleep 30
