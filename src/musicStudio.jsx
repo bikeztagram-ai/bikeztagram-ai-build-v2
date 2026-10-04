@@ -8,6 +8,13 @@ const LIB_KEY='bikeztagram.music.library.v1';
 
 function readLibrary(){try{return JSON.parse(localStorage.getItem(LIB_KEY)||'[]')}catch{return[]}}
 function emitTrack(track){window.dispatchEvent(new CustomEvent('bikeztagram:music-selected',{detail:track}))}
+function buildMusicIntent(text){
+ const value=String(text||'').replace(/\s+/g,' ').trim();
+ const crossSource=/\b(vocals?|voice)\s+(from|of)\b/i.test(value)&&/\b(music|instrumental|backing|track)\s+(from|of)\b/i.test(value);
+ const genreChange=/\b(country|rock|metal|punk|pop|jazz|blues|rap|trance|house|techno|reggae|folk|classical|soul|funk|disco|edm|acoustic|indie|grunge|gospel)\b/i.test(value);
+ return {mode:crossSource?'cross_source':genreChange?'style_transform':'identity_preserve',preserveSourceIdentity:true};
+}
+
 function extractSourceQuery(text){
  const value=String(text||'').replace(/\s+/g,' ').trim();
  if(!value)return '';
@@ -27,11 +34,12 @@ export default function MusicStudio(){
  const saveLibrary=(item)=>{const next=[item,...library.filter(x=>x.id!==item.id)].slice(0,12);setLibrary(next);try{localStorage.setItem(LIB_KEY,JSON.stringify(next.map(({blob,...meta})=>meta)))}catch{}};
  const make=async({full=false}={})=>{
   const remixing=intent==='remix';
+  const musicIntent=buildMusicIntent(prompt);
   setBusy(true);setStatus(full?'Building a longer full-song draft with ACE-Step…':remixing?(sourceAudio?'Remixing the source audio into your new style…':'Creating an original reinterpretation of the requested remix concept…'):'Generating a real original song with ACE-Step…');
   try{
    const seconds=full?60:Number(duration);
    const brief=remixing
-     ? `${prompt}. Reinterpret this as a completely new ${prompt.match(/(?:deep|country|rock|electronic|house|metal|jazz|hip hop|pop)[^,.]*/i)?.[0]||'genre'} production. Preserve the requested energy, groove and section movement, but create an original arrangement rather than copying any existing recording, melody or lyrics. Strong drums, bass, guitars/instruments appropriate to the target genre, clear intro, build, hook/drop and ending.`
+     ? `${prompt}. ${musicIntent.mode==='identity_preserve'?'Preserve the recognisable musical identity, main musical movement, groove, arrangement shape and overall feel of the named source unless the request explicitly replaces one of those elements. Do not turn a source-song request into a merely similar generic song.':musicIntent.mode==='cross_source'?'Treat this as a deliberate cross-source mashup: keep the requested vocal identity/source separate from the requested musical/instrumental identity/source, and combine them only in the roles the user specified.': 'Transform the named source deliberately into the requested genre/style while retaining its recognisable musical skeleton unless the user explicitly asks for a different song identity.'} Rebuild the production around the requested style, with instruments, rhythm, tempo, vocal character and mix appropriate to that style. Avoid generic genre music that loses the source identity.`
      : full?prompt+'. Develop this musical idea into a complete song with a clear intro, evolving sections, a strong chorus/drop and a satisfying ending.':prompt;
    const vocalBrief=!instrumental?(vocalDirection?` Sung vocal direction: ${vocalDirection}.`:' Use a natural lead vocal and sung performance, not spoken narration.'):'';
    const ai=await generateAIMusic({prompt:brief+vocalBrief,durationMs:seconds*1000,forceInstrumental:instrumental,bpm:bpm==='auto'?undefined:Number(bpm),key:key==='auto'?undefined:key,mode:mode==='auto'?undefined:mode,lyrics,vocalLanguage,vocalDirection,sourceAudio:remixing?sourceAudio:null,taskType:remixing&&sourceAudio?'cover':'text2music',coverStrength});
