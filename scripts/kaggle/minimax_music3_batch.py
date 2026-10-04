@@ -115,8 +115,7 @@ try:
 
         if p.poll() is not None:
             raise RuntimeError(
-                "Music 3 server exited during startup.
-"
+                "Music 3 server exited during startup.\n"
                 + Path(log_path).read_text(errors="replace")[-30000:]
             )
 
@@ -131,8 +130,7 @@ try:
 
     if not ready:
         raise RuntimeError(
-            "Music 3 server did not become ready within 45 minutes.
-"
+            "Music 3 server did not become ready within 45 minutes.\n"
             + Path(log_path).read_text(errors="replace")[-30000:]
         )
 
