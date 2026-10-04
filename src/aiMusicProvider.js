@@ -8,6 +8,115 @@ const DEFAULT_VOCAL_WORKERS = [
   'https://timefractal-ace-step-turbo-music-gen.hf.space'
 ];
 const LEGACY_KINES_WORKER = 'https://kines9661-acestepv1-5ai.hf.space';
+const WEBNOWA_VOCAL_WORKER = 'https://webnowa-ace-step-jam.hf.space';
+
+async function generateViaWebnowa({ prompt, lyrics, duration, vocalDirection = '' }) {
+  const workerUrl = WEBNOWA_VOCAL_WORKER;
+  const styledPrompt = [
+    String(prompt || '').trim(),
+    vocalDirection ? 'Lead vocal direction: ' + String(vocalDirection).trim() : '',
+    'Clearly sung melodic lead vocal from the opening section; audible words; do not make this instrumental.'
+  ].filter(Boolean).join(' ');
+
+  const submit = await fetch(workerUrl + '/gradio_api/call/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      data: [
+        styledPrompt,
+        String(lyrics || '').trim(),
+        Math.max(10, Math.min(60, Number(duration) || 30)),
+        8,
+        7,
+        -1,
+        '',
+        0.8
+      ]
+    })
+  });
+
+  const submitted = await submit.json().catch(() => ({}));
+  if (!submit.ok || !submitted?.event_id) {
+    throw new Error(
+      'ACE-Step WebNowa vocal worker rejected the request' +
+      (submit.status ? ' (HTTP ' + submit.status + ')' : '') +
+      (submitted?.detail ? ': ' + String(submitted.detail) : '')
+    );
+  }
+
+  const resultResponse = await fetch(
+    workerUrl + '/gradio_api/call/generate/' + encodeURIComponent(submitted.event_id),
+    { headers: { Accept: 'text/event-stream' } }
+  );
+  if (!resultResponse.ok) {
+    const detail = (await resultResponse.text()).slice(0, 800);
+    throw new Error(
+      'ACE-Step WebNowa vocal worker status failed (HTTP ' + resultResponse.status + ')' +
+      (detail ? ': ' + detail : '')
+    );
+  }
+
+  const sse = await resultResponse.text();
+  const lines = sse.split(/\r?\n/);
+  let activeEvent = '';
+  let completed = null;
+  let workerError = '';
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.startsWith('event:')) {
+      activeEvent = line.slice(6).trim();
+      continue;
+    }
+    if (!line.startsWith('data:')) continue;
+    const data = line.slice(5).trim();
+    if (activeEvent === 'error') workerError = data || workerError;
+    if (activeEvent === 'complete' || activeEvent === 'completed') {
+      let value = data;
+      for (let pass = 0; pass < 6 && typeof value === 'string'; pass++) {
+        try { value = JSON.parse(value); } catch { break; }
+      }
+      completed = value;
+    }
+  }
+
+  if (completed == null) {
+    throw new Error(
+      workerError && workerError !== 'null'
+        ? 'ACE-Step WebNowa vocal worker failed: ' + workerError
+        : 'ACE-Step WebNowa vocal worker did not return a completed track.'
+    );
+  }
+
+  let value = completed;
+  for (let pass = 0; pass < 6 && typeof value === 'string'; pass++) {
+    try { value = JSON.parse(value); } catch { break; }
+  }
+  const rawData = Array.isArray(value) ? value[0] : value;
+  if (typeof rawData !== 'string' || !/^data:audio\//i.test(rawData)) {
+    throw new Error(
+      'ACE-Step WebNowa completed without a WAV data URL.' +
+      (rawData ? ' Returned: ' + String(rawData).slice(0, 500) : '')
+    );
+  }
+
+  const match = /^data:([^;]+);base64,(.+)$/s.exec(rawData);
+  if (!match) throw new Error('ACE-Step WebNowa returned an invalid audio data URL.');
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: match[1] || 'audio/wav' });
+  if (!blob.size) throw new Error('ACE-Step WebNowa returned an empty audio file.');
+
+  return {
+    blob,
+    mimeType: blob.type || 'audio/wav',
+    songId: submitted.event_id,
+    provider: 'ACE-Step WebNowa Vocal Worker',
+    original: true
+  };
+}
+
+
 
 async function generateViaKinesApi({ prompt, lyrics, duration }) {
   const workerUrl = DEFAULT_VOCAL_WORKERS[0];
@@ -295,16 +404,17 @@ async function generateViaTimefractalWorker({ prompt, lyrics, duration }) {
   return { blob, mimeType: blob.type || 'audio/wav', songId: submitted.event_id, provider: 'ACE-Step 1.5 Turbo Vocal Worker', original: true };
 }
 
-async function generateShortVocalDirect({ prompt, lyrics, duration }) {
+async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirection }) {
   const failures = [];
   const providers = [
+    ['ACE-Step WebNowa', generateViaWebnowa],
     ['ACE-Step Studio API', generateViaKinesApi],
     ['ACE-Step 1.5 legacy Gradio', generateViaKinesGradioFallback],
     ['ACE-Step Turbo', generateViaTimefractalWorker]
   ];
   for (const [name, generator] of providers) {
     try {
-      return await generator({ prompt, lyrics, duration });
+      return await generator({ prompt, lyrics, duration, vocalDirection });
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       failures.push(name + ': ' + detail);
@@ -323,7 +433,8 @@ export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrum
     return generateShortVocalDirect({
       prompt,
       lyrics,
-      duration: Number(durationMs) / 1000
+      duration: Number(durationMs) / 1000,
+      vocalDirection
     });
   }
   const hasSource = sourceAudio instanceof Blob;
