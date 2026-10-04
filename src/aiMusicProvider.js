@@ -10,6 +10,62 @@ const DEFAULT_VOCAL_WORKERS = [
 
 async function generateViaKinesApi({ prompt, lyrics, duration }) {
   const workerUrl = DEFAULT_VOCAL_WORKERS[0];
+  const apiResponse = await fetch(workerUrl + '/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      messages: [{
+        role: 'user',
+        content: '<prompt>' + String(prompt || '').trim() + '</prompt>'
+      }],
+      lyrics: String(lyrics || '').trim(),
+      sample_mode: true,
+      audio_config: {
+        duration: Number(duration) || 30,
+        vocal_language: 'en',
+        instrumental: false
+      },
+      guidance_scale: 7
+    })
+  });
+
+  const apiData = await apiResponse.json().catch(() => ({}));
+  if (!apiResponse.ok) {
+    throw new Error(
+      'ACE-Step 1.5 API rejected the request (HTTP ' + apiResponse.status + ')' +
+      (apiData?.detail ? ': ' + String(apiData.detail) : '') +
+      (apiData?.error ? ': ' + String(apiData.error) : '')
+    );
+  }
+
+  const rawAudioUrl = apiData?.choices?.[0]?.message?.audio?.[0]?.audio_url?.url;
+  if (!rawAudioUrl) {
+    throw new Error(
+      'ACE-Step 1.5 API completed without an audio URL.' +
+      (apiData?.choices?.[0]?.message?.content
+        ? ' Response: ' + String(apiData.choices[0].message.content).slice(0, 500)
+        : '')
+    );
+  }
+
+  const audio = await fetch(rawAudioUrl);
+  if (!audio.ok) {
+    throw new Error('ACE-Step 1.5 API returned audio but it could not be downloaded (HTTP ' + audio.status + ').');
+  }
+  const blob = await audio.blob();
+  if (!blob.size) throw new Error('ACE-Step 1.5 API returned an empty audio file.');
+
+  return {
+    blob,
+    mimeType: blob.type || 'audio/wav',
+    songId: apiData?.id || '',
+    provider: 'ACE-Step 1.5 Vocal Worker',
+    original: true
+  };
+}
+
+async function generateViaKinesGradioFallback({ prompt, lyrics, duration }) {
+  const workerUrl = DEFAULT_VOCAL_WORKERS[0];
   const submit = await fetch(workerUrl + '/gradio_api/call/generate_music', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -195,7 +251,8 @@ async function generateViaTimefractalWorker({ prompt, lyrics, duration }) {
 async function generateShortVocalDirect({ prompt, lyrics, duration }) {
   const failures = [];
   const providers = [
-    ['ACE-Step 1.5', generateViaKinesApi],
+    ['ACE-Step 1.5 API', generateViaKinesApi],
+    ['ACE-Step 1.5 Gradio fallback', generateViaKinesGradioFallback],
     ['ACE-Step Turbo', generateViaTimefractalWorker]
   ];
   for (const [name, generator] of providers) {
