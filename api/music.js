@@ -594,7 +594,9 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
       const quota = /quota|authenticate|token|zerogpu/i.test(detail);
       return {
         ok: false,
-        fatal: true,
+        // Provider-side failures (including internal server errors) can fall
+        // through to ACE-Step. Authentication/quota failures stay fatal.
+        fatal: quota ? true : false,
         status: quota ? 429 : 502,
         error: quota
           ? 'MiniMax Music 3 Hugging Face quota/authentication was rejected or exhausted.'
@@ -613,7 +615,7 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
     const audio = await fetch(audioUrl, { headers: auth ? { Authorization: 'Bearer ' + auth } : {} });
     if (!audio.ok) {
       const detail = (await audio.text()).slice(0, 1200);
-      return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 generated the song but audio download failed.', details: detail };
+      return { ok: false, fatal: false, status: 502, error: 'MiniMax Music 3 generated the song but audio download failed.', details: detail };
     }
     const buffer = Buffer.from(await audio.arrayBuffer());
     if (!buffer.length) return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 returned an empty audio file.' };
@@ -622,7 +624,7 @@ async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguag
     const message = error?.name === 'AbortError'
       ? 'MiniMax Music 3 exceeded the 294-second server wait window.'
       : (error?.message || String(error));
-    return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 request failed.', details: message };
+    return { ok: false, fatal: false, status: 502, error: 'MiniMax Music 3 request failed.', details: message };
   }
 }
 
