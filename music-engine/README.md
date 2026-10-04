@@ -1,7 +1,54 @@
-# Bikeztagram Music Engine\n\nThis is the permanent renderer boundary for Bikeztagram AI.\n\nArchitecture: Bikeztagram Music Director → Lyrics Director → Music Engine → MiniMax-Music3 renderer.\n\nThe web app does not need to know whether the renderer is Hugging Face, a local GPU, a rented GPU, or another compatible backend. Set VITE_MUSIC_ENGINE_URL when the self-host engine is ready. Until then, the existing Vercel /api/music path continues using MiniMax Music 3 through Hugging Face.\n\n## Run the renderer\n\nMiniMax Music 3 is officially served by SGLang-Omni:\n\n    hf download MiniMaxAI/MiniMax-Music3 --local-dir /models/minimax-music3\n    sgl-omni serve --model-path /models/minimax-music3 --port 8000\n\n## Run Bikeztagram's engine gateway\n\n    cd music-engine\n    python -m venv .venv\n    . .venv/bin/activate\n    pip install -r requirements.txt\n    MINIMAX_SGLANG_URL=http://127.0.0.1:8000 uvicorn server:app --host 0.0.0.0 --port 8090\n\nThen configure the web app with VITE_MUSIC_ENGINE_URL=https://YOUR_ENGINE_HOST:8090.\n\n## Hardware reality\n\nThe official checkpoint is large and SGLang-Omni supports one- or two-GPU serving. Quantized community formats can reduce the footprint, but a serious GPU machine is still required. This service is separate from Vercel and phone compute.\n\n## License / safeguards\n\nMiniMax-Music3 has its own community license. Commercial UI use must prominently display MiniMax-Music3; hosted generation requires reasonable safeguards against infringing uses and outputs; yearly revenue above US$20M requires prior written authorization. Keep the license with any deployment.\n\n## Exit strategy\n\n1. Hugging Face MiniMax worker = temporary compute.\n2. Self-hosted SGLang-Omni = permanent renderer.\n3. Bikeztagram Director + lyrics + project/version layer remains ours.\n4. Renderer can later be swapped without rewriting Music Studio.
+# Bikeztagram Music Engine
 
-## Official MiniMax Music 3 contract
+This is the production renderer boundary for Bikeztagram AI.
 
-The gateway follows the current SGLang-Omni Music 3 API: lyrics are sent as `input`, production direction as `instructions`, and `max_new_tokens` is the audio-frame cap at 25 frames/second. The renderer returns 32 kHz stereo WAV. A health check uses `GET /v1/models`.
+Architecture: Bikeztagram Music Director -> Song Brain -> Lyrics Director -> Bikeztagram Music Engine -> MiniMax Music 3.
 
-The gateway does **not** invent a separate audio protocol; this keeps it compatible with the official runtime and makes the renderer replaceable later.
+The production web app no longer uses Hugging Face ZeroGPU for music generation. Hugging Face is not a runtime generation dependency and there is no shared free-tier GPU quota.
+
+## No-quota generation
+
+The renderer is self-hosted. A song request is limited by the GPU capacity we operate, not by a hosted free generation allowance.
+
+MiniMax Music 3 natively generates complete songs up to about five minutes per render. Bikeztagram's full-song workflow is 180 seconds and the private engine supports up to 300 seconds. A future long-form compositor can join multiple musically planned renders for tracks longer than five minutes.
+
+## Renderer
+
+MiniMax Music 3 is served by SGLang-Omni. The official runtime supports single-GPU colocated serving or dual-GPU serving with the autoregressive and acoustic stages separated.
+
+Example renderer command:
+
+    CUDA_VISIBLE_DEVICES=0 sgl-omni serve --model-path /models/minimax-music3 --port 8000
+
+Run the Bikeztagram gateway:
+
+    cd music-engine
+    python -m venv .venv
+    . .venv/bin/activate
+    pip install -r requirements.txt
+    MINIMAX_SGLANG_URL=http://127.0.0.1:8000 uvicorn server:app --host 0.0.0.0 --port 8090
+
+Set VITE_MUSIC_ENGINE_URL to the private HTTPS gateway. The browser talks to the Bikeztagram gateway; the SGLang port is never public.
+
+## Production requirements
+
+- Linux GPU host
+- NVIDIA CUDA GPU suitable for the selected MiniMax Music 3 runtime
+- persistent model storage
+- HTTPS endpoint for the Bikeztagram gateway
+- authentication and rate limiting before public launch
+- MINIMAX_SGLANG_URL pointing at the local SGLang renderer
+
+The Android/Termux environment is a development/control client, not the production GPU renderer.
+
+## Security
+
+Do not expose SGLang directly to the public internet. Protect the Bikeztagram gateway with an application secret and rate limits.
+
+## Licence
+
+MiniMax-Music3 has its own community licence. A commercial interface using the model must prominently display MiniMax-Music3, and hosted deployments have safeguards obligations. Ship the applicable licence/notice with production.
+
+## Failure policy
+
+There is no Hugging Face generation fallback. If our private renderer is offline, Bikeztagram reports that the Music Engine is unavailable rather than silently consuming another provider's quota.
