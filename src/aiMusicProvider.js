@@ -1,3 +1,4 @@
+import { getConfiguredMusicEngineUrl, prepareMusicGeneration } from './musicEngineDirector.js';
 /* Bikeztagram AI — open-source music generation gateway. */
 function providerBaseUrl() {
   return String(import.meta?.env?.VITE_ACE_STEP_API_URL || '').trim().replace(/\/$/, '');
@@ -478,7 +479,53 @@ async function generateShortVocalDirect({ prompt, lyrics, duration, vocalDirecti
   );
 }
 
+async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInstrumental, bpm, key, mode, vocalLanguage, vocalDirection }) {
+  const baseUrl = getConfiguredMusicEngineUrl();
+  if (!baseUrl) return null;
+  const prepared = prepareMusicGeneration({
+    prompt, lyrics, duration: Number(durationMs) / 1000, bpm, key, mode,
+    vocalLanguage, vocalDirection, forceInstrumental
+  });
+  const response = await fetch(baseUrl + '/v1/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'audio/wav' },
+    body: JSON.stringify({
+      prompt: prepared.prompt,
+      lyrics: prepared.lyrics,
+      duration: Math.round(prepared.duration),
+      bpm: prepared.bpm,
+      key: prepared.key,
+      mode: prepared.mode,
+      vocalLanguage: prepared.vocalLanguage,
+      vocalDirection,
+      forceInstrumental: prepared.forceInstrumental
+    })
+  });
+  if (!response.ok) {
+    let detail = '';
+    try { detail = (await response.json())?.detail || ''; } catch { detail = (await response.text()).slice(0, 1000); }
+    throw new Error('Bikeztagram Music Engine failed (HTTP ' + response.status + ')' + (detail ? ': ' + detail : ''));
+  }
+  const blob = await response.blob();
+  if (!blob.size) throw new Error('Bikeztagram Music Engine returned an empty audio file.');
+  return {
+    blob,
+    mimeType: blob.type || 'audio/wav',
+    songId: response.headers.get('X-Bikeztagram-Music-Song-Id') || '',
+    provider: response.headers.get('X-Bikeztagram-Music-Provider') || 'Bikeztagram Music Engine · MiniMax-Music3',
+    original: true,
+    generatedLyrics: response.headers.get('X-Bikeztagram-Music-Lyrics-Generated') === 'yes',
+    director: prepared
+  };
+}
+
 export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75, huggingFaceToken = '' } = {}) {
+  // Prefer the permanent Bikeztagram Music Engine whenever it is configured.
+  // Hugging Face remains the temporary renderer until the self-hosted engine is online.
+  if (!(sourceAudio instanceof Blob) && !(referenceAudio instanceof Blob)) {
+    const ownEngine = getConfiguredMusicEngineUrl();
+    if (ownEngine) return await generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInstrumental, bpm, key, mode, vocalLanguage, vocalDirection });
+  }
   // All vocal text-to-music requests must go through /api/music. The server
   // owns MiniMax Music 3 authentication, ZeroGPU quota handling and the
   // MiniMax-only failure contract. Do not call browser-side fallback workers
