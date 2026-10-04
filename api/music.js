@@ -235,9 +235,19 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
     body: JSON.stringify(payload)
   });
   const envelope = await readJson(response);
-  if (!response.ok) return json(res, response.status >= 400 && response.status < 500 ? response.status : 502, {
-    error: 'ACE-Step hosted music API rejected the request.', providerStatus: response.status, details: JSON.stringify(envelope).slice(0, 3000)
-  });
+  if (!response.ok) {
+    const providerStatus = response.status;
+    const friendly = providerStatus === 504
+      ? 'ACE-Step cloud timed out while processing the source transformation. The source was accepted, but the hosted model did not finish within its response window. Try the short test source again; Bikeztagram will keep the request small.'
+      : providerStatus === 502
+        ? 'ACE-Step cloud temporarily returned a gateway error. Try the transform again.'
+        : 'ACE-Step hosted music API rejected the request.';
+    return json(res, providerStatus >= 400 && providerStatus < 500 ? providerStatus : 502, {
+      error: friendly,
+      providerStatus,
+      details: providerStatus === 504 || providerStatus === 502 ? '' : cleanProviderDetails(envelope)
+    });
+  }
 
   const audio = envelope?.choices?.[0]?.message?.audio?.[0]?.audio_url?.url;
   if (!audio) return json(res, 502, { error: 'ACE-Step hosted API completed without returning audio.', details: JSON.stringify(envelope).slice(0, 3000) });
@@ -253,6 +263,11 @@ async function generateViaAceCloud(res, baseUrl, token, opts) {
   res.setHeader('X-Bikeztagram-Music-Original', 'true');
   res.setHeader('X-Bikeztagram-Music-Song-Id', String(envelope?.id || 'cloud-' + Date.now()));
   return res.end(buffer);
+}
+
+function cleanProviderDetails(payload) {
+  const raw = typeof payload === 'string' ? payload : JSON.stringify(payload || {});
+  return raw.replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 1200);
 }
 
 async function proxyAudio(res, baseUrl, token, audioPath, taskId, providerName = 'ACE-Step 1.5') {
