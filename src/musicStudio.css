@@ -172,3 +172,35 @@
   .music-library{margin-top:24px!important}.music-library-head{font-size:11px!important}.music-track-card{grid-template-columns:44px 1fr auto!important;padding:10px!important}.track-art{width:44px!important;height:44px!important}.track-info strong{font-size:12px!important}.track-info small,.track-info em{font-size:9px!important}.music-track-card button{min-height:38px!important;font-size:10px!important;padding:7px 9px!important}
   .music-footnote{display:none!important}
 }
+
+/* FORGE MUSIC HUB — simple AI-first front door */
+.music-create-hub{width:min(760px,100%);margin:clamp(38px,9vh,90px) auto 0;text-align:center}
+.music-create-eyebrow{font-size:9px;letter-spacing:.24em;color:#7ed0df;font-weight:900;margin-bottom:12px}
+.music-create-hub h1{margin:0;font-size:clamp(30px,5vw,52px);line-height:1.04;letter-spacing:-.035em}
+.music-create-hub>p{max-width:620px;margin:14px auto 24px;color:#a9c0c6;font-size:14px;line-height:1.55}
+.music-prompt-hub{display:block!important;width:100%!important;min-height:150px!important;padding:18px 20px!important;font-size:17px!important;line-height:1.5!important;border:1px solid rgba(126,207,226,.22)!important;background:rgba(255,255,255,.055)!important;box-shadow:0 18px 60px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.03);resize:vertical}
+.music-prompt-hub:focus{outline:none;border-color:rgba(126,207,226,.55)!important;box-shadow:0 0 0 3px rgba(83,210,225,.08),0 22px 70px rgba(0,0,0,.25)}
+.music-prompt-hints{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
+.music-prompt-hints button{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.035);color:#9eb9bf;border-radius:999px;padding:7px 11px;font-size:9px;cursor:pointer}
+.music-prompt-hints button:hover{border-color:rgba(126,207,226,.3);color:#d8f7fb}
+.music-create-main{width:100%;min-height:58px;border:1px solid rgba(126,207,226,.42);border-radius:14px;background:linear-gradient(135deg,rgba(45,151,171,.9),rgba(86,72,166,.92));color:#fff;font-size:15px;font-weight:950;letter-spacing:.08em;box-shadow:0 14px 45px rgba(29,128,151,.2);cursor:pointer}
+.music-create-main:disabled{opacity:.6;cursor:wait}
+.music-advanced-toggle{width:100%;display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;border:0;background:none;color:#9ab7be;font-size:10px;font-weight:900;letter-spacing:.08em;cursor:pointer}
+.music-advanced-toggle span{font-weight:500;letter-spacing:0;opacity:.55}
+.music-advanced-panel{width:min(920px,100%);margin:24px auto 0;padding:16px;border:1px solid rgba(126,207,226,.12);border-radius:16px;background:rgba(255,255,255,.025)}
+.music-advanced-note{font-size:10px;color:#718d95;text-align:center;margin:8px 0 12px}
+.music-output-actions{width:min(920px,100%);margin:28px auto 0!important}
+@media(max-width:600px){
+ .music-create-hub{margin-top:32px}
+ .music-create-eyebrow{font-size:8px}
+ .music-create-hub h1{font-size:34px}
+ .music-create-hub>p{font-size:13px;line-height:1.5;margin:12px auto 18px}
+ .music-prompt-hub{min-height:170px!important;padding:15px!important;font-size:16px!important}
+ .music-prompt-hints{justify-content:flex-start;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}
+ .music-prompt-hints button{white-space:nowrap;font-size:9px;min-height:34px}
+ .music-create-main{min-height:58px;font-size:14px}
+ .music-advanced-toggle{flex-direction:column;gap:4px;font-size:10px;padding:7px}
+ .music-advanced-panel{margin-top:16px;padding:10px;border-radius:14px}
+ .music-advanced-note{font-size:9px;line-height:1.4}
+ .music-output-actions{margin-top:20px!important}
+}
