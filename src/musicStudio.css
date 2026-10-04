@@ -204,3 +204,13 @@
  .music-advanced-note{font-size:9px;line-height:1.4}
  .music-output-actions{margin-top:20px!important}
 }
+
+/* MUSIC PROJECT MANAGEMENT */
+.music-project-name{display:block;text-align:left;margin:0 0 10px}
+.music-project-name>span{display:block;margin:0 0 6px;font-size:9px;font-weight:900;letter-spacing:.12em;color:#8fb0b8}
+.music-project-name small{font-weight:500;letter-spacing:0;opacity:.55}
+.music-project-name input{width:100%;box-sizing:border-box;min-height:44px;padding:11px 14px;border-radius:10px;border:1px solid rgba(126,207,226,.16);background:rgba(255,255,255,.035);color:#eaf8fa;font-size:14px}
+.music-project-name input:focus{outline:none;border-color:rgba(126,207,226,.5);box-shadow:0 0 0 3px rgba(83,210,225,.07)}
+.music-track-title-input{display:block;width:100%;box-sizing:border-box;border:0;background:transparent;color:#eaf8fa;font:inherit;font-weight:900;padding:2px 0;margin:0}
+.music-track-title-input:focus{outline:none;border-bottom:1px solid rgba(126,207,226,.45)}
+.music-delete{border-color:rgba(255,100,100,.18)!important;color:#ff9b9b!important}
