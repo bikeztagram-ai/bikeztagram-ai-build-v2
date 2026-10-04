@@ -279,7 +279,15 @@ const saveLibrary=async(item)=>{
   const remixing=intent==='remix';
   const musicIntent=buildMusicIntent(prompt);
   if(remixing&&!sourceAudio&&!sourceMatch){setStatus('SOURCE SONG NOT FOUND YET — name the artist and song clearly so Bikeztagram can build the reconstruction plan.');return;}
-  setBusy(true);setStatus(full?'Building a full-song reconstruction (up to 180 seconds)…':remixing?(sourceAudio?'Transforming the authorised source audio…':'Building Song DNA and reconstructing the identified song as a new production…'):'Generating a real original song with ACE-Step…');
+  // A new generation must never leave the previous track looking like the result of the new request.
+  if(audioRef.current)audioRef.current.pause();
+  if(audioUrl)URL.revokeObjectURL(audioUrl);
+  setAudioUrl('');
+  setAudioMime('audio/wav');
+  setSongId('');
+  setProvider('');
+  setPlaying(false);
+  setBusy(true);setStatus(full?'Building a full-song reconstruction (up to 180 seconds)…':remixing?(sourceAudio?'Transforming the authorised source audio…':'Building Song DNA and reconstructing the identified song as a new production…'):'Generating a real original song with MiniMax Music 3…');
   try{
    const seconds=full?180:remixing&&sourceDuration?Math.min(600,Math.max(10,sourceDuration)):Number(duration);
    const effectiveLyrics=!instrumental?(lyrics.trim()?(full?expandLyricsForFullSong(lyrics,prompt):lyrics):(remixing?buildAutoCoverLyrics(prompt):expandLyricsForFullSong(buildFallbackVocalLyrics(prompt),prompt))):'';
@@ -311,7 +319,10 @@ const saveLibrary=async(item)=>{
    setLibrary(prev=>[item,...prev.filter(x=>x.id!==item.id)].slice(0,12));setProjectName(baseTitle);setEditingVersionId(null);setEditingVersion(item.version||1);setProvider(ai.provider);setStatus(full?'FULL SONG DRAFT READY — up to 180 seconds requested.':remixing?'SOURCE TRANSFORM READY — real transformed audio':'AI MUSIC READY — real generated audio');emitTrack(item);
    const p=createSongProject({prompt:brief,duration:seconds,bpm,key,mode});if(validateSongProject(p).ok)setProject(p);
    saveLibrary(item);
-  }catch(error){setStatus(error?.message||'ACE-Step music generation failed.')}
+  }catch(error){
+   const message=String(error?.message||'Music generation failed.');
+   setStatus(message.length>900?message.slice(0,900)+'…':message);
+  }
   finally{setBusy(false)}
  };
  const preview=()=>{if(!audioUrl)return;audioRef.current?.pause?.();const a=new Audio(audioUrl);a.onended=()=>setPlaying(false);audioRef.current=a;a.play().then(()=>setPlaying(true)).catch(()=>setPlaying(false))};
