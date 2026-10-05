@@ -83,4 +83,83 @@ try:
         low_cpu_mem_usage=True,
     )
 
+    print("=== MUSIC 3 READY ===", flush=True)
+    print(f"GPU status before render: {gpu_snapshot()}", flush=True)
 
+    request = dict(globals().get("EMBEDDED_REQUEST") or {})
+    request_source = "embedded"
+    for candidate in (Path.cwd() / "music_request.json", Path("/kaggle/working/music_request.json")):
+        if candidate.exists():
+            request = json.loads(candidate.read_text(encoding="utf-8"))
+            request_source = str(candidate)
+            break
+
+    print(f"REQUEST_SOURCE={request_source}", flush=True)
+    print(f"REQUEST_HAS_LYRICS={bool(str(request.get('lyrics') or '').strip())}", flush=True)
+    print(f"REQUEST_FORCE_INSTRUMENTAL={bool(request.get('forceInstrumental'))}", flush=True)
+
+    job_id = str(request.get("job_id") or "local-test")
+    lyrics = str(request.get("lyrics") or "").strip()
+    prompt = str(request.get("prompt") or "").strip()
+    duration = max(5.0, min(300.0, float(request.get("duration") or 30)))
+    force_instrumental = bool(request.get("forceInstrumental"))
+    if force_instrumental:
+        lyrics = ""
+    elif not lyrics:
+        raise ValueError("Music Studio supplied no lyrics. MiniMax Music 3 requires non-empty lyrics for vocal generation.")
+    if not prompt:
+        prompt = "Genre: cinematic electronic rock. BPM: 105. Key: D minor. Deep punchy drums, pulsing bass, distorted electric guitar, atmospheric synths, dramatic build and a huge energetic chorus. Polished modern production."
+
+    print(f"JOB_ID={job_id}", flush=True)
+    print(f"DURATION={duration}", flush=True)
+
+    print("=== RENDER START ===", flush=True)
+    render_started = time.time()
+    # A 30s MiniMax render normally completes in a few minutes on the T4.
+    # Hard-stop pathological inference hangs so a free Kaggle session cannot
+    # sit occupied indefinitely. Scale slightly with requested duration.
+    render_timeout = max(600, min(1200, int(duration * 24)))
+    print(f"RENDER_TIMEOUT_SECONDS={render_timeout}", flush=True)
+
+    import signal
+    def _render_timeout_handler(signum, frame):
+        raise TimeoutError(f"MiniMax inference exceeded {render_timeout}s render timeout")
+
+    signal.signal(signal.SIGALRM, _render_timeout_handler)
+    signal.alarm(render_timeout)
+    try:
+        audio = pipe(
+            prompt=prompt,
+            lyrics=lyrics,
+            audio_duration=duration,
+            generator=torch.Generator("cuda").manual_seed(1001),
+            output="audios",
+        )[0]
+    finally:
+        signal.alarm(0)
+
+    import soundfile as sf
+    out = f"/kaggle/working/bikeztagram_minimax_music3_{job_id}.wav"
+    import numpy as np
+    audio_np = np.asarray(audio)
+    if audio_np.ndim == 2:
+        audio_np = audio_np.T
+    audio_np = audio_np.astype(np.float32, copy=False)
+    sf.write(out, audio_np, pipe.sampling_rate)
+
+    print("=== RENDER COMPLETE ===", flush=True)
+    print(f"RENDER_SECONDS={time.time() - render_started:.1f}", flush=True)
+    print(f"TOTAL_SECONDS={time.time() - started:.1f}", flush=True)
+    print(f"DONE={out}", flush=True)
+    print(f"BYTES={Path(out).stat().st_size}", flush=True)
+    print(f"GPU status after render: {gpu_snapshot()}", flush=True)
+
+finally:
+    print("=== SHUTTING DOWN LOW-VRAM MUSIC 3 ENGINE ===", flush=True)
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+    print("ENGINE_SHUTDOWN=TRUE", flush=True)
