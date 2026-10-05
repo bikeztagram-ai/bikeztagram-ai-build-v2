@@ -232,12 +232,11 @@ export default async function handler(req, res) {
       }
     }
     try {
-      // Verify the private Blob object directly. The public-URL HEAD probe can
-      // false-negative for private stores, leaving successful Kaggle runs stuck
-      // at FINALISING even though the WAV was already uploaded.
-      const matches = await list({ prefix: pathname, limit: 1 });
-      const blob = matches?.blobs?.find(item => item.pathname === pathname);
-      if (blob) {
+      // Read the exact private Blob pathname. Listing can lag or behave
+      // differently across Blob stores; get() is the authoritative existence
+      // check for the object we just uploaded.
+      const blob = await get(pathname, { access: 'private' });
+      if (blob?.stream) {
         const audioUrl = await issueGet(pathname);
         return json(res, 200, {
           status: 'COMPLETED',
