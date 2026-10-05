@@ -3,10 +3,20 @@ import { head, issueSignedToken, presignUrl } from '@vercel/blob';
 export const maxDuration = 10;
 
 const env = name => String(process.env[name] || '').trim();
-const json = (status, payload) => new Response(JSON.stringify(payload), {
-  status,
-  headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
-});
+function json(res, status, payload) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store');
+  res.end(JSON.stringify(payload));
+}
+
+async function readBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  const chunks = [];
+  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  const raw = Buffer.concat(chunks).toString('utf8');
+  return raw ? JSON.parse(raw) : {};
+}
 
 const OWNER = 'bikeztagram-ai';
 const REPO = 'bikeztagram-ai-build-v2';
@@ -67,17 +77,17 @@ async function findRun(jobId) {
   ) || null;
 }
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   if (req.method === 'GET') {
     const jobId = cleanJobId(new URL(req.url).searchParams.get('jobId'));
-    if (!jobId) return json(400, { error: 'jobId is required.' });
+    if (!jobId) return json(res, 400, { error: 'jobId is required.' });
 
     const pathname = outputPath(jobId);
     try {
       const existing = await head(pathname, { access: 'public' });
       if (existing?.url) {
         const audioUrl = await issueGet(pathname);
-        return json(200, {
+        return json(res, 200, {
           status: 'COMPLETED',
           audioUrl,
           mimeType: 'audio/wav',
@@ -92,13 +102,13 @@ export default async function handler(req) {
     if (run) {
       if (run.status === 'completed') {
         if (run.conclusion && run.conclusion !== 'success') {
-          return json(502, {
+          return json(res, 502, {
             status: 'FAILED',
             error: 'Private MiniMax Music 3 Kaggle render failed.',
             details: run.conclusion
           });
         }
-        return json(200, { status: 'FINALISING', progress: 95, phase: 'Finalising — uploading the finished WAV', progressEstimated: false, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
+        return json(res, 200, { status: 'FINALISING', progress: 95, phase: 'Finalising — uploading the finished WAV', progressEstimated: false, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
       }
       const status = run.status === 'queued' || run.status === 'waiting' ? 'IN_QUEUE' : 'IN_PROGRESS';
       const phase = status === 'IN_QUEUE' ? 'Queued — waiting for a free Kaggle GPU' : 'Rendering — MiniMax Music 3 is working on the song';
@@ -107,7 +117,7 @@ export default async function handler(req) {
       // This is an intentionally conservative estimate. Kaggle startup/model loading varies,
       // so it is progress guidance rather than a claim about exact GPU inference completion.
       const estimatedPercent = status === 'IN_QUEUE' ? 5 : Math.min(90, Math.max(15, Math.round(15 + (elapsedSeconds / 480) * 75)));
-      return json(200, {
+      return json(res, 200, {
         status,
         progress: estimatedPercent,
         phase,
@@ -117,25 +127,25 @@ export default async function handler(req) {
       });
     }
 
-    return json(200, {
+    return json(res, 200, {
       status: 'IN_QUEUE',
       jobId,
       provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle'
     });
   }
 
-  if (req.method !== 'POST') return json(405, { error: 'Method not allowed.' });
+  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed.' });
 
   const github = githubHeaders();
   if (!github) {
-    return json(503, {
+    return json(res, 503, {
       error: 'Zero-cost MiniMax engine is not wired to GitHub Actions yet.',
       details: 'Set the server-side GITHUB_ACTIONS_TOKEN on Vercel. This is a credential only; no paid GPU service is used.'
     });
   }
 
   try {
-    const input = await req.json();
+    const input = await readBody(req);
     const jobId = cleanJobId(input.jobId || ('mx3-' + Date.now().toString(36) + '-' + crypto.randomUUID().slice(0, 8)));
     const pathname = outputPath(jobId);
     const outputPutUrl = await issuePut(pathname);
@@ -166,19 +176,19 @@ export default async function handler(req) {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
-      return json(502, {
+      return json(res, 502, {
         error: 'GitHub could not start the free Kaggle MiniMax Music 3 job.',
         details: detail.slice(0, 1200)
       });
     }
 
-    return json(202, {
+    return json(res, 202, {
       status: 'IN_QUEUE',
       jobId,
       provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle'
     });
   } catch (error) {
-    return json(502, {
+    return json(res, 502, {
       error: 'Private MiniMax Music 3 request failed.',
       details: error?.message || String(error)
     });
