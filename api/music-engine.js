@@ -98,10 +98,20 @@ export default async function handler(req) {
             details: run.conclusion
           });
         }
-        return json(200, { status: 'FINALISING', jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
+        return json(200, { status: 'FINALISING', progress: 95, phase: 'Finalising — uploading the finished WAV', progressEstimated: false, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
       }
+      const status = run.status === 'queued' || run.status === 'waiting' ? 'IN_QUEUE' : 'IN_PROGRESS';
+      const phase = status === 'IN_QUEUE' ? 'Queued — waiting for a free Kaggle GPU' : 'Rendering — MiniMax Music 3 is working on the song';
+      const createdAt = run.run_started_at || run.created_at;
+      const elapsedSeconds = createdAt ? Math.max(0, (Date.now() - Date.parse(createdAt)) / 1000) : 0;
+      // This is an intentionally conservative estimate. Kaggle startup/model loading varies,
+      // so it is progress guidance rather than a claim about exact GPU inference completion.
+      const estimatedPercent = status === 'IN_QUEUE' ? 5 : Math.min(90, Math.max(15, Math.round(15 + (elapsedSeconds / 480) * 75)));
       return json(200, {
-        status: run.status === 'queued' || run.status === 'waiting' ? 'IN_QUEUE' : 'IN_PROGRESS',
+        status,
+        progress: estimatedPercent,
+        phase,
+        progressEstimated: true,
         jobId,
         provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle'
       });
