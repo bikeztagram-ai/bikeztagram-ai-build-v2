@@ -112,8 +112,13 @@ export default async function handler(req, res) {
     if (status?.status === 'FAILED') {
       return json(res, 502, { status: 'FAILED', error: status.error || 'Private MiniMax Music 3 render failed.', jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
     }
+    // Warm-worker jobs publish live status. Cold fallback jobs do not,
+    // so let the actual GitHub Actions/Kaggle run drive progress when present.
     if (status?.status === 'IN_PROGRESS' || status?.status === 'IN_QUEUE') {
-      return json(res, 200, { ...status, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
+      const run = await findRun(jobId);
+      if (!run) {
+        return json(res, 200, { ...status, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
+      }
     }
     try {
       const storeId = env('PUBLIC_BLOB_STORE_ID') || env('BLOB_STORE_ID');
