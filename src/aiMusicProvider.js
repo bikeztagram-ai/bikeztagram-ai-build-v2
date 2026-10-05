@@ -42,14 +42,13 @@ async function wakeAndWaitForMusicEngine(baseUrl) {
 async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInstrumental, bpm, key, mode, vocalLanguage, vocalDirection }) {
   const baseUrl = getConfiguredMusicEngineUrl();
   if (!baseUrl) return null;
-  await wakeAndWaitForMusicEngine(baseUrl);
   const prepared = prepareMusicGeneration({
     prompt, lyrics, duration: Number(durationMs) / 1000, bpm, key, mode,
     vocalLanguage, vocalDirection, forceInstrumental
   });
-  const response = await fetch(baseUrl + '/v1/generate', {
+  const submit = await fetch(baseUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'audio/wav' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
       prompt: prepared.prompt,
       lyrics: prepared.lyrics,
@@ -62,22 +61,46 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
       forceInstrumental: prepared.forceInstrumental
     })
   });
-  if (!response.ok) {
-    let detail = '';
-    try { detail = (await response.json())?.detail || ''; } catch { detail = (await response.text()).slice(0, 1000); }
-    throw new Error('Bikeztagram Music Engine failed (HTTP ' + response.status + ')' + (detail ? ': ' + detail : ''));
+  const submitData = await submit.json().catch(() => ({}));
+  if (!submit.ok || !submitData.jobId) {
+    throw new Error('Bikeztagram Music Engine could not start the GPU render.' + (submitData.details ? ' ' + submitData.details : ''));
   }
-  const blob = await response.blob();
-  if (!blob.size) throw new Error('Bikeztagram Music Engine returned an empty audio file.');
-  return {
-    blob,
-    mimeType: blob.type || 'audio/wav',
-    songId: response.headers.get('X-Bikeztagram-Music-Song-Id') || '',
-    provider: response.headers.get('X-Bikeztagram-Music-Provider') || 'Bikeztagram Music Engine · MiniMax-Music3',
-    original: true,
-    generatedLyrics: response.headers.get('X-Bikeztagram-Music-Lyrics-Generated') === 'yes',
-    director: prepared
-  };
+  const deadline = Date.now() + 12 * 60 * 1000;
+  let lastStatus = submitData.status || 'IN_QUEUE';
+  while (Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    const statusResponse = await fetch(baseUrl + '?jobId=' + encodeURIComponent(submitData.jobId), { cache: 'no-store' });
+    const data = await statusResponse.json().catch(() => ({}));
+    lastStatus = data.status || lastStatus;
+    if (!statusResponse.ok) throw new Error(data.error || 'Bikeztagram Music Engine failed while rendering.');
+    if (data.status === 'COMPLETED') {
+      let blob;
+      if (data.audioUrl) {
+        const audio = await fetch(data.audioUrl, { cache: 'no-store' });
+        if (!audio.ok) throw new Error('MiniMax Music 3 finished, but the generated audio could not be downloaded.');
+        blob = await audio.blob();
+      } else if (data.audioBase64) {
+        const binary = atob(data.audioBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        blob = new Blob([bytes], { type: data.mimeType || 'audio/mpeg' });
+      } else throw new Error('MiniMax Music 3 completed without returning audio.');
+      if (!blob.size) throw new Error('Bikeztagram Music Engine returned an empty audio file.');
+      return {
+        blob,
+        mimeType: data.mimeType || blob.type || 'audio/wav',
+        songId: data.songId || submitData.jobId,
+        provider: data.provider || 'Bikeztagram Music Engine · MiniMax-Music3',
+        original: true,
+        generatedLyrics: Boolean(data.generatedLyrics),
+        director: prepared
+      };
+    }
+    if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(String(data.status))) {
+      throw new Error(data.error || 'Private MiniMax Music 3 render failed.');
+    }
+  }
+  throw new Error('Bikeztagram Music Engine is still rendering after 12 minutes (' + lastStatus + '). No duplicate GPU job was submitted.');
 }
 
 export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75 } = {}) {
