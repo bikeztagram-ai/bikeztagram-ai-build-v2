@@ -100,7 +100,8 @@ async function dispatchColdFallback(jobId, currentStatus) {
     vocal_language: String(currentStatus?.vocalLanguage ?? currentStatus?.vocal_language ?? 'en').slice(0, 32),
     vocal_direction: String(currentStatus?.vocalDirection ?? currentStatus?.vocal_direction ?? '').slice(0, 1000),
     force_instrumental: String(currentStatus?.forceInstrumental ?? currentStatus?.force_instrumental ?? false),
-    output_put_url: String(currentStatus?.output_put_url || currentStatus?.outputPutUrl || '').trim()
+    output_put_url: String(currentStatus?.output_put_url || currentStatus?.outputPutUrl || '').trim(),
+    status_put_url: statusPutUrl
   };
 
   if (!workflowInputs.output_put_url) {
@@ -116,6 +117,7 @@ async function dispatchColdFallback(jobId, currentStatus) {
 
   const headers = githubHeaders();
   if (!headers) return { dispatched: false, pending: false };
+  const statusPutUrl = await issuePut(STATUS_PREFIX + jobId + '.json');
 
   // Claim the fallback before dispatching so repeated browser polls cannot
   // create multiple cold Kaggle jobs for the same song.
@@ -139,7 +141,7 @@ async function dispatchColdFallback(jobId, currentStatus) {
       {
         method: 'POST',
         headers,
-        body: JSON.stringify({ ref: 'main', inputs: workflowInputs })
+        body: JSON.stringify({ ref: 'main', inputs: coldWorkflowInputs })
       }
     );
     if (!response.ok) {
@@ -299,6 +301,7 @@ export default async function handler(req, res) {
     const jobId = cleanJobId(input.jobId || ('mx3-' + Date.now().toString(36) + '-' + crypto.randomUUID().slice(0, 8)));
     const pathname = outputPath(jobId);
     const outputPutUrl = await issuePut(pathname);
+    const statusPutUrl = await issuePut(STATUS_PREFIX + jobId + '.json');
 
     const workflowInputs = {
       job_id: jobId,
@@ -312,6 +315,10 @@ export default async function handler(req, res) {
       vocal_direction: String(input.vocalDirection || '').slice(0, 1000),
       force_instrumental: String(Boolean(input.forceInstrumental)),
       output_put_url: outputPutUrl
+    };
+    const coldWorkflowInputs = {
+      ...workflowInputs,
+      status_put_url: statusPutUrl
     };
 
     await writeBlobJson(QUEUE_PREFIX + jobId + '.json', {
