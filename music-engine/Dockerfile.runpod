@@ -1,0 +1,22 @@
+FROM runpod/pytorch:1.0.3-cu1281-torch291-ubuntu2204
+
+ENV PYTHONUNBUFFERED=1 \
+    HF_HOME=/runpod-volume/huggingface \
+    HF_HUB_CACHE=/runpod-volume/huggingface/hub \
+    TRANSFORMERS_CACHE=/runpod-volume/huggingface/transformers \
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+WORKDIR /app
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ffmpeg git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-runpod.txt /app/requirements-runpod.txt
+RUN pip install --break-system-packages --no-cache-dir \
+    git+https://github.com/huggingface/diffusers@dafe3733fcfdbf3c48915fe77be3aef65b5d6a2d \
+    -r /app/requirements-runpod.txt
+
+COPY runpod_renderer.py /app/runpod_renderer.py
+
+CMD ["python", "-u", "/app/runpod_renderer.py"]
