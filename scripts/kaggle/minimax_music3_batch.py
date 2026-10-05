@@ -1,4 +1,5 @@
 import os
+import json
 import shutil
 import subprocess
 import sys
@@ -85,24 +86,24 @@ try:
     print("=== MUSIC 3 READY ===", flush=True)
     print(f"GPU status before render: {gpu_snapshot()}", flush=True)
 
-    lyrics = """[Verse]
-Neon cuts across the road
-Engine singing through the night
-City fading in the mirrors
-Chasing every line of light
+    request = {}
+    for candidate in (Path.cwd() / "music_request.json", Path("/kaggle/working/music_request.json")):
+        if candidate.exists():
+            request = json.loads(candidate.read_text(encoding="utf-8"))
+            break
 
-[Chorus]
-Ride into the open dark
-Chase the road and chase the light
-No turning back, the engine calls
-We own the road tonight"""
+    job_id = str(request.get("job_id") or "local-test")
+    lyrics = str(request.get("lyrics") or "").strip()
+    prompt = str(request.get("prompt") or "").strip()
+    duration = max(5.0, min(300.0, float(request.get("duration") or 30)))
+    force_instrumental = bool(request.get("forceInstrumental"))
+    if force_instrumental:
+        lyrics = ""
+    if not prompt:
+        prompt = "Genre: cinematic electronic rock. BPM: 105. Key: D minor. Deep punchy drums, pulsing bass, distorted electric guitar, atmospheric synths, dramatic build and a huge energetic chorus. Polished modern production."
 
-    prompt = (
-        "Genre: cinematic electronic rock. BPM: 105. Key: D minor. "
-        "Deep punchy drums, pulsing bass, distorted electric guitar, "
-        "atmospheric synths, dramatic build and a huge energetic chorus. "
-        "Polished modern production. Strong clear lead vocal."
-    )
+    print(f"JOB_ID={job_id}", flush=True)
+    print(f"DURATION={duration}", flush=True)
 
     print("=== RENDER START ===", flush=True)
     render_started = time.time()
@@ -110,13 +111,13 @@ We own the road tonight"""
     audio = pipe(
         prompt=prompt,
         lyrics=lyrics,
-        audio_duration=30.0,
+        audio_duration=duration,
         generator=torch.Generator("cuda").manual_seed(1001),
         output="audios",
     )[0]
 
     import soundfile as sf
-    out = "/kaggle/working/bikeztagram_minimax_music3_test.wav"
+    out = f"/kaggle/working/bikeztagram_minimax_music3_{job_id}.wav"
     import numpy as np
     audio_np = np.asarray(audio)
     if audio_np.ndim == 2:
