@@ -2,9 +2,12 @@ name: MiniMax Music 3 — Kaggle T4x2
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   run-minimax-music3:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[run-minimax-music3]')
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
