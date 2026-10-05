@@ -30,6 +30,7 @@ jobs:
       - name: Validate runner
         run: |
           set -euo pipefail
+          test -f scripts/kaggle/minimax_music3_warm.py
           python -m py_compile scripts/kaggle/minimax_music3_warm.py
           echo "Warm MiniMax runner syntax: PASS"
 
@@ -77,6 +78,7 @@ jobs:
         run: |
           set -euo pipefail
           KERNEL="$(cat .kaggle-music3-warm/kernel-ref.txt)"
+          echo "KERNEL=$KERNEL" >> "$GITHUB_ENV"
           kaggle kernels push -p .kaggle-music3-warm --accelerator NvidiaTeslaT4 --timeout 2400
           echo "Warm worker submitted."
 
@@ -84,7 +86,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          KERNEL="$KERNEL"
+          KERNEL="${KERNEL:?kernel ref missing}"
           for i in $(seq 1 80); do
             STATUS="$(kaggle kernels status "$KERNEL" 2>&1 || true)"
             echo "CHECK $i/80 — $STATUS"
