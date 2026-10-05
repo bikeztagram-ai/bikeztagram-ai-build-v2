@@ -32,6 +32,7 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
   }
   const deadline = Date.now() + 90 * 60 * 1000;
   let lastStatus = submitData.status || 'IN_QUEUE';
+  try { localStorage.setItem('bikeztagram.music.pendingJobId', submitData.jobId); } catch {}
   onProgress?.({ percent: 5, phase: 'Queued — waiting for a free Kaggle GPU', status: lastStatus, estimated: true });
   let transientFailures = 0;
   while (Date.now() < deadline) {
@@ -86,6 +87,7 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
         blob = new Blob([bytes], { type: data.mimeType || 'audio/mpeg' });
       } else throw new Error('MiniMax Music 3 completed without returning audio.');
       if (!blob.size) throw new Error('Bikeztagram Music Engine returned an empty audio file.');
+      try { localStorage.removeItem('bikeztagram.music.pendingJobId'); } catch {}
       onProgress?.({ percent: 100, phase: 'Complete — your song is ready', status: 'COMPLETED', estimated: false });
       return {
         blob,

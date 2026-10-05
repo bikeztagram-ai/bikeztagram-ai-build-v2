@@ -124,6 +124,21 @@ function readAudioDuration(file){
  return new Promise(resolve=>{if(!file){resolve(null);return}const url=URL.createObjectURL(file),audio=new Audio();audio.preload='metadata';audio.onloadedmetadata=()=>{const d=Number(audio.duration);URL.revokeObjectURL(url);resolve(Number.isFinite(d)?d:null)};audio.onerror=()=>{URL.revokeObjectURL(url);resolve(null)};audio.src=url});
 }
 
+async function recoverSavedServerJob(jobId){
+ try{
+  const clean=String(jobId||'').trim();
+  if(!/^mx3-[a-z0-9-]{8,40}$/i.test(clean))return null;
+  const response=await fetch('/api/music-engine?jobId='+encodeURIComponent(clean),{cache:'no-store'});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||data.status!=='COMPLETED'||!data.audioUrl)return null;
+  const audio=await fetch(data.audioUrl,{cache:'no-store'});
+  if(!audio.ok)return null;
+  const blob=await audio.blob();
+  if(!blob.size)return null;
+  return {blob,mimeType:data.mimeType||blob.type||'audio/wav',songId:data.songId||clean,provider:data.provider||'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle',duration:Number(data.duration)||30};
+ }catch{return null}
+}
+
 function extractSourceQuery(text){
  const value=String(text||'').replace(/\s+/g,' ').trim();
  if(!value)return '';
@@ -169,7 +184,35 @@ useEffect(()=>{const openMusic=()=>setOpen(true);window.addEventListener('bikezt
   (async()=>{
    const meta=readLibrary();
    const hydrated=await Promise.all(meta.map(async item=>({...item,blob:await readTrackBlob(item.id)})));
-   if(active)setLibrary(hydrated);
+   if(!active)return;
+   setLibrary(hydrated);
+   let requestedJob='';
+   try{
+    const params=new URLSearchParams(window.location.search);
+    requestedJob=params.get('musicJob')||'';
+    if(!requestedJob)requestedJob=localStorage.getItem('bikeztagram.music.pendingJobId')||'';
+   }catch{}
+   if(!requestedJob)return;
+   const recovered=await recoverSavedServerJob(requestedJob);
+   if(!active||!recovered)return;
+   const existing=hydrated.some(item=>item.id===recovered.songId);
+   const item={
+    id:recovered.songId,
+    title:'AI Song',
+    prompt:'Recovered MiniMax Music 3 generation',
+    duration:recovered.duration,
+    provider:recovered.provider,
+    createdAt:new Date().toISOString(),
+    mimeType:recovered.mimeType,
+    blob:recovered.blob,
+    url:URL.createObjectURL(recovered.blob),
+    version:1
+   };
+   const next=existing?hydrated:[item,...hydrated].slice(0,12);
+   setLibrary(next);
+   await storeTrackBlob(item.id,item.blob);
+   try{localStorage.setItem(LIB_KEY,JSON.stringify(next.map(({blob,url,...meta})=>meta)));localStorage.removeItem('bikeztagram.music.pendingJobId')}catch{}
+   setAudioUrl(item.url);setAudioMime(item.mimeType);setProvider(item.provider);setSongId(item.id);setStatus('✓ RECOVERED — your completed MiniMax Music 3 song is back in YOUR MUSIC.');setProgress(100);setProgressPhase('Complete — your song is ready');setProgressEstimated(false);
   })();
   return()=>{active=false};
  },[]);
