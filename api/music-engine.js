@@ -1,5 +1,3 @@
-import { head, issueSignedToken, presignUrl } from '@vercel/blob';
-
 export const maxDuration = 10;
 
 const env = name => String(process.env[name] || '').trim();
@@ -43,6 +41,7 @@ function outputPath(jobId) {
 }
 
 async function issuePut(pathname) {
+  const { issueSignedToken, presignUrl } = await import('@vercel/blob');
   const token = await issueSignedToken({ pathname, operations: ['put'] });
   return (await presignUrl(token, {
     pathname,
@@ -52,6 +51,7 @@ async function issuePut(pathname) {
 }
 
 async function issueGet(pathname) {
+  const { issueSignedToken, presignUrl } = await import('@vercel/blob');
   const token = await issueSignedToken({ pathname, operations: ['get'] });
   return (await presignUrl(token, {
     pathname,
@@ -84,6 +84,7 @@ export default async function handler(req, res) {
 
     const pathname = outputPath(jobId);
     try {
+      const { head } = await import('@vercel/blob');
       const existing = await head(pathname, { access: 'public' });
       if (existing?.url) {
         const audioUrl = await issueGet(pathname);
