@@ -56,6 +56,11 @@ on:
         description: "Short-lived signed Vercel Blob PUT URL"
         required: true
         type: string
+      status_put_url:
+        description: "Short-lived signed Vercel Blob status PUT URL"
+        required: false
+        default: ""
+        type: string
 
 run-name: "Music Engine ${{ inputs.job_id || 'workflow-test' }}"
 
@@ -71,6 +76,7 @@ jobs:
       KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
       JOB_ID: ${{ inputs.job_id || format('manual-{0}', github.run_id) }}
       OUTPUT_PUT_URL: ${{ inputs.output_put_url }}
+      STATUS_PUT_URL: ${{ inputs.status_put_url || '' }}
       REQUEST_PROMPT: ${{ inputs.prompt }}
       REQUEST_LYRICS: ${{ inputs.lyrics }}
       REQUEST_DURATION: ${{ inputs.duration || '30' }}
@@ -192,7 +198,7 @@ jobs:
             if echo "$STATUS" | grep -Eiq 'COMPLETE|SUCCESS|ERROR|FAILED|CANCEL'; then
               if echo "$STATUS" | grep -Eiq 'ERROR|FAILED|CANCEL'; then
                 echo "Kaggle job failed."
-                kaggle kernels logs "${KERNEL}" 2>&1 | tail -n 500 || true
+                kaggle kernels logs "${KERNEL}" 2>&1 | tee kaggle-failure.log | tail -n 500 || true
                 exit 1
               fi
               break
@@ -226,6 +232,43 @@ jobs:
           echo "Uploading generated WAV to the signed Vercel Blob URL."
           curl --fail-with-body --retry 3 --retry-delay 2             -X PUT             -H "Content-Type: audio/wav"             --data-binary "@${WAV}"             "${OUTPUT_PUT_URL}"
           echo "WAV upload: PASS"
+
+
+      - name: Report cold worker failure to Music Engine
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${STATUS_PUT_URL}" || {
+            echo "No status PUT URL was supplied; failure remains visible in GitHub Actions."
+            exit 0
+          }
+          DETAILS="Cold MiniMax Music 3 Kaggle worker failed."
+          if [ -f kaggle-failure.log ]; then
+            DETAILS="$(tail -n 120 kaggle-failure.log | tr '\n' ' ' | cut -c1-7000)"
+          fi
+          export FAILURE_DETAILS="$DETAILS"
+          python - <<'PY'
+          import json, os, subprocess, time
+          payload = {
+              "jobId": os.environ["JOB_ID"],
+              "status": "FAILED",
+              "progress": 100,
+              "phase": "Generation failed — MiniMax/Kaggle cold worker",
+              "progressEstimated": False,
+              "error": "Cold MiniMax Music 3 GPU render failed.",
+              "details": os.environ.get("FAILURE_DETAILS", "")[:7000],
+              "updatedAt": int(time.time() * 1000),
+          }
+          with open("/tmp/music-failure.json", "w", encoding="utf-8") as f:
+              json.dump(payload, f)
+          subprocess.run([
+              "curl", "--fail-with-body", "--retry", "3", "--retry-delay", "2",
+              "-X", "PUT", "-H", "Content-Type: application/json",
+              "--data-binary", "@/tmp/music-failure.json",
+              os.environ["STATUS_PUT_URL"]
+          ], check=True)
+          PY
 
       - name: Delete temporary Kaggle kernel
         if: always()

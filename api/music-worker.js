@@ -84,6 +84,10 @@ export default async function handler(req, res) {
 
     await heartbeat();
 
+    if (action === 'heartbeat') {
+      return json(res, 200, { ok: true, heartbeatAt: Date.now() });
+    }
+
     if (action === 'next') {
       await recoverStaleJob();
       const page = await list({ prefix: QUEUE_PREFIX, limit: 1 });

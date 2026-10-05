@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import time
+import threading
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
@@ -103,6 +104,23 @@ apply_group_offloading(
 )
 print("=== MUSIC 3 READY / WARM ===", flush=True)
 
+# Keep the server-side heartbeat alive while MiniMax is rendering.
+# The render itself can legitimately take several minutes and does not
+# call the worker API, so the API cannot otherwise distinguish a live
+# renderer from a dead one.
+heartbeat_stop = threading.Event()
+
+def heartbeat_loop():
+    while not heartbeat_stop.is_set():
+        try:
+            worker_call("heartbeat")
+        except Exception as exc:
+            print("Heartbeat update failed:", exc, flush=True)
+        heartbeat_stop.wait(20)
+
+heartbeat_thread = threading.Thread(target=heartbeat_loop, name="music-worker-heartbeat", daemon=True)
+heartbeat_thread.start()
+
 last_activity = time.time()
 
 try:
@@ -181,6 +199,7 @@ try:
         last_activity = time.time()
 
 finally:
+    heartbeat_stop.set()
     print("=== WARM WORKER IDLE TIME REACHED — SHUTTING DOWN ===", flush=True)
     try:
         torch.cuda.empty_cache()

@@ -29,6 +29,8 @@ const WORKER_HEARTBEAT_PATH = 'music-engine/worker/heartbeat.json';
 const WORKER_WORKFLOW = 'minimax-music3-warm.yml';
 const WARM_IDLE_MS = 15 * 60 * 1000;
 const WARM_START_GRACE_MS = 90 * 1000;
+const WARM_HEARTBEAT_DEAD_MS = 90 * 1000;
+const FALLBACK_RETRY_MS = 2 * 60 * 1000;
 
 function githubHeaders() {
   const token = env('GITHUB_ACTIONS_TOKEN');
@@ -82,6 +84,93 @@ async function issueGet(pathname) {
   })).presignedUrl;
 }
 
+async function dispatchColdFallback(jobId, currentStatus) {
+  const now = Date.now();
+  const already = Number(currentStatus?.fallbackDispatchedAt || 0);
+  if (already && now - already < FALLBACK_RETRY_MS) return { dispatched: false, pending: true };
+
+  const workflowInputs = {
+    job_id: jobId,
+    prompt: String(currentStatus?.prompt || '').slice(0, 5000),
+    lyrics: String(currentStatus?.lyrics || '').slice(0, 12000),
+    duration: String(Math.max(5, Math.min(300, Number(currentStatus?.duration) || 30))),
+    bpm: String(currentStatus?.bpm ?? 'auto').slice(0, 32),
+    key: String(currentStatus?.key ?? 'auto').slice(0, 32),
+    mode: String(currentStatus?.mode ?? 'auto').slice(0, 32),
+    vocal_language: String(currentStatus?.vocalLanguage ?? currentStatus?.vocal_language ?? 'en').slice(0, 32),
+    vocal_direction: String(currentStatus?.vocalDirection ?? currentStatus?.vocal_direction ?? '').slice(0, 1000),
+    force_instrumental: String(currentStatus?.forceInstrumental ?? currentStatus?.force_instrumental ?? false),
+    output_put_url: String(currentStatus?.output_put_url || currentStatus?.outputPutUrl || '').trim()
+  };
+
+  if (!workflowInputs.output_put_url) {
+    await writeBlobJson(STATUS_PREFIX + jobId + '.json', {
+      ...(currentStatus || {}),
+      jobId,
+      status: 'FAILED',
+      error: 'Warm MiniMax worker stopped before a cold fallback could be started because the output upload URL was missing.',
+      updatedAt: now
+    });
+    return { dispatched: false, pending: false };
+  }
+
+  const headers = githubHeaders();
+  if (!headers) return { dispatched: false, pending: false };
+  const statusPutUrl = await issuePut(STATUS_PREFIX + jobId + '.json');
+  const coldWorkflowInputs = {
+    ...workflowInputs,
+    status_put_url: statusPutUrl
+  };
+
+  // Claim the fallback before dispatching so repeated browser polls cannot
+  // create multiple cold Kaggle jobs for the same song.
+  const claimed = {
+    ...(currentStatus || {}),
+    ...workflowInputs,
+    jobId,
+    status: 'RECOVERING',
+    progress: 8,
+    phase: 'Recovering — warm worker stopped responding; starting cold MiniMax GPU fallback',
+    progressEstimated: true,
+    fallbackDispatchedAt: now,
+    updatedAt: now
+  };
+  await writeBlobJson(STATUS_PREFIX + jobId + '.json', claimed);
+
+  try {
+    const response = await fetch(
+      'https://api.github.com/repos/' + OWNER + '/' + REPO +
+      '/actions/workflows/' + WORKFLOW + '/dispatches',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ref: 'main', inputs: coldWorkflowInputs })
+      }
+    );
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      await writeBlobJson(STATUS_PREFIX + jobId + '.json', {
+        ...claimed,
+        status: 'FAILED',
+        error: 'GitHub could not start the cold MiniMax fallback.',
+        details: detail.slice(0, 1200),
+        updatedAt: Date.now()
+      });
+      return { dispatched: false, pending: false };
+    }
+    return { dispatched: true, pending: true };
+  } catch (error) {
+    await writeBlobJson(STATUS_PREFIX + jobId + '.json', {
+      ...claimed,
+      status: 'FAILED',
+      error: 'Cold MiniMax fallback dispatch failed.',
+      details: error?.message || String(error),
+      updatedAt: Date.now()
+    });
+    return { dispatched: false, pending: false };
+  }
+}
+
 async function findRun(jobId) {
   try {
     const headers = githubHeaders();
@@ -121,8 +210,23 @@ export default async function handler(req, res) {
         const age = status?.createdAt ? Date.now() - Number(status.createdAt) : 0;
         const heartbeat = await blobJson(WORKER_HEARTBEAT_PATH);
         const heartbeatAge = heartbeat?.updatedAt ? Date.now() - Number(heartbeat.updatedAt) : Infinity;
-        if (status.status === 'IN_QUEUE' && age > WARM_START_GRACE_MS && heartbeatAge > 45000) {
-          return json(res, 200, { ...status, status: 'RECOVERING', progress: 8, phase: 'Recovering — the warm worker did not start, switching to a cold MiniMax GPU job', progressEstimated: true, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
+        const warmNeedsRecovery =
+          age > WARM_START_GRACE_MS &&
+          heartbeatAge > WARM_HEARTBEAT_DEAD_MS &&
+          (status.status === 'IN_QUEUE' || status.status === 'IN_PROGRESS');
+        if (warmNeedsRecovery) {
+          const recovery = await dispatchColdFallback(jobId, status);
+          if (recovery.pending) {
+            return json(res, 200, {
+              ...status,
+              status: 'RECOVERING',
+              progress: 8,
+              phase: 'Recovering — warm worker stopped responding; cold MiniMax GPU fallback is starting',
+              progressEstimated: true,
+              jobId,
+              provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle'
+            });
+          }
         }
         return json(res, 200, { ...status, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
       }
@@ -200,6 +304,7 @@ export default async function handler(req, res) {
     const jobId = cleanJobId(input.jobId || ('mx3-' + Date.now().toString(36) + '-' + crypto.randomUUID().slice(0, 8)));
     const pathname = outputPath(jobId);
     const outputPutUrl = await issuePut(pathname);
+    const statusPutUrl = await issuePut(STATUS_PREFIX + jobId + '.json');
 
     const workflowInputs = {
       job_id: jobId,
@@ -214,6 +319,10 @@ export default async function handler(req, res) {
       force_instrumental: String(Boolean(input.forceInstrumental)),
       output_put_url: outputPutUrl
     };
+    const coldWorkflowInputs = {
+      ...workflowInputs,
+      status_put_url: statusPutUrl
+    };
 
     await writeBlobJson(QUEUE_PREFIX + jobId + '.json', {
       jobId,
@@ -222,10 +331,14 @@ export default async function handler(req, res) {
       warmDispatchAt: Date.now()
     });
     await writeBlobJson(STATUS_PREFIX + jobId + '.json', {
+      jobId,
+      ...workflowInputs,
       status: 'IN_QUEUE',
       progress: 5,
       phase: 'Queued — waiting for the warm MiniMax worker',
       progressEstimated: true,
+      createdAt: Date.now(),
+      warmDispatchAt: Date.now(),
       updatedAt: Date.now()
     });
 
