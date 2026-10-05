@@ -56,10 +56,6 @@ on:
         description: "Short-lived signed Vercel Blob PUT URL"
         required: true
         type: string
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/minimax-music3-kaggle.yml
 
 run-name: "Music Engine ${{ inputs.job_id || 'workflow-test' }}"
 
