@@ -1,7 +1,55 @@
-# Bikeztagram Music Engine\n\nThis is the permanent renderer boundary for Bikeztagram AI.\n\nArchitecture: Bikeztagram Music Director → Lyrics Director → Music Engine → MiniMax-Music3 renderer.\n\nThe web app does not need to know whether the renderer is Hugging Face, a local GPU, a rented GPU, or another compatible backend. Set VITE_MUSIC_ENGINE_URL when the self-host engine is ready. Until then, the existing Vercel /api/music path continues using MiniMax Music 3 through Hugging Face.\n\n## Run the renderer\n\nMiniMax Music 3 is officially served by SGLang-Omni:\n\n    hf download MiniMaxAI/MiniMax-Music3 --local-dir /models/minimax-music3\n    sgl-omni serve --model-path /models/minimax-music3 --port 8000\n\n## Run Bikeztagram's engine gateway\n\n    cd music-engine\n    python -m venv .venv\n    . .venv/bin/activate\n    pip install -r requirements.txt\n    MINIMAX_SGLANG_URL=http://127.0.0.1:8000 uvicorn server:app --host 0.0.0.0 --port 8090\n\nThen configure the web app with VITE_MUSIC_ENGINE_URL=https://YOUR_ENGINE_HOST:8090.\n\n## Hardware reality\n\nThe official checkpoint is large and SGLang-Omni supports one- or two-GPU serving. Quantized community formats can reduce the footprint, but a serious GPU machine is still required. This service is separate from Vercel and phone compute.\n\n## License / safeguards\n\nMiniMax-Music3 has its own community license. Commercial UI use must prominently display MiniMax-Music3; hosted generation requires reasonable safeguards against infringing uses and outputs; yearly revenue above US$20M requires prior written authorization. Keep the license with any deployment.\n\n## Exit strategy\n\n1. Hugging Face MiniMax worker = temporary compute.\n2. Self-hosted SGLang-Omni = permanent renderer.\n3. Bikeztagram Director + lyrics + project/version layer remains ours.\n4. Renderer can later be swapped without rewriting Music Studio.
+# Bikeztagram Music Engine
 
-## Official MiniMax Music 3 contract
+Private MiniMax Music 3 renderer for Bikeztagram AI.
 
-The gateway follows the current SGLang-Omni Music 3 API: lyrics are sent as `input`, production direction as `instructions`, and `max_new_tokens` is the audio-frame cap at 25 frames/second. The renderer returns 32 kHz stereo WAV. A health check uses `GET /v1/models`.
+## Production path
 
-The gateway does **not** invent a separate audio protocol; this keeps it compatible with the official runtime and makes the renderer replaceable later.
+Music Studio → Vercel /api/music-engine → RunPod Serverless → MiniMax Music 3 (Diffusers) → Vercel Blob → Music Studio.
+
+RunPod is the GPU boundary. It scales workers from zero, so there is no permanently running GPU worker. Compute is billed only while the worker is active. The first production target is a 24 GB Serverless GPU class.
+
+The model weights are not hosted inference. The worker runs the open MiniMax Music 3 weights itself. A RunPod model cache or persistent network volume should be attached so the 57 GB model repository is not downloaded on every cold start.
+
+## RunPod worker
+
+Dockerfile.runpod builds the worker from a RunPod PyTorch CUDA image. runpod_renderer.py loads MiniMax Music 3 lazily, applies automatic CPU offload plus leaf-level streaming language-model offload, renders the requested song, then uploads the full-quality WAV directly to a Vercel Blob signed PUT URL supplied by the Vercel gateway.
+
+Build for RunPod's x86_64 workers:
+
+    docker build --platform linux/amd64 -f music-engine/Dockerfile.runpod -t YOUR_REGISTRY/bikeztagram-minimax-music3:v1 .
+    docker push YOUR_REGISTRY/bikeztagram-minimax-music3:v1
+
+Create a RunPod Serverless endpoint from that image with minimum workers = 0. Use a 24 GB GPU class for the first production test. Do not set a permanent minimum worker: that would create an idle GPU bill.
+
+Attach persistent model storage / RunPod cached-model support and set the worker cache to /runpod-volume/huggingface. The first cold start may be dominated by model initialization; later workers should reuse the cached weights.
+
+## Vercel environment
+
+Set these server-side variables on the Bikeztagram Vercel project:
+
+    RUNPOD_API_KEY=...
+    RUNPOD_ENDPOINT_ID=...
+
+VITE_MUSIC_ENGINE_URL is optional. Without it the Music Studio defaults to /api/music-engine.
+
+The Vercel gateway never exposes the RunPod API key to the browser. It creates a short-lived signed Blob PUT URL, submits the GPU job, polls its status, then creates a signed GET URL for the generated WAV.
+
+## Lifecycle
+
+1. User presses CREATE SONG.
+2. Vercel creates a scoped Blob upload URL.
+3. RunPod queues the job and automatically starts a GPU worker if none is active.
+4. MiniMax Music 3 generates the track.
+5. The worker uploads the lossless WAV directly to Blob.
+6. The worker exits / scales to zero when idle.
+7. Music Studio receives a temporary signed audio URL and plays the track.
+
+There is deliberately no Hugging Face hosted-generation fallback.
+
+## Local renderer
+
+For a local GPU, the same runpod_renderer.py can be imported by music-engine/server.py and served through FastAPI. This is useful for debugging and private development, but the production deployment target is RunPod Serverless.
+
+## Quality / limits
+
+The current production request ceiling is 180 seconds so full-song generation stays inside the first Vercel/RunPod integration envelope. MiniMax Music 3 itself supports longer renders; a later long-form compositor can stitch multiple planned renders when the product needs tracks beyond this envelope.
