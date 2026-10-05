@@ -140,7 +140,7 @@ jobs:
           slug=("bikeztagram-mx3-"+job)[:48].rstrip("-")
           meta={
               "id": f"{os.environ['KAGGLE_USERNAME']}/{slug}",
-              "title": f"Bikeztagram MiniMax Music 3 {job[:24]}",
+              "title": slug,
               "code_file": "minimax_music3_batch.py",
               "language": "python",
               "kernel_type": "script",
