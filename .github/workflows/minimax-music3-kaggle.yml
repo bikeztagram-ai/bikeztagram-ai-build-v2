@@ -136,6 +136,23 @@ jobs:
           PY
           python - <<'PY'
           import json, os
+          from pathlib import Path
+          source = Path(".kaggle-music3-kernel/minimax_music3_batch.py")
+          request = {
+              "job_id": os.environ["JOB_ID"],
+              "prompt": os.environ.get("REQUEST_PROMPT", ""),
+              "lyrics": os.environ.get("REQUEST_LYRICS", ""),
+              "duration": os.environ.get("REQUEST_DURATION", "30"),
+              "bpm": os.environ.get("REQUEST_BPM", "auto"),
+              "key": os.environ.get("REQUEST_KEY", "auto"),
+              "mode": os.environ.get("REQUEST_MODE", "auto"),
+              "vocalLanguage": os.environ.get("REQUEST_VOCAL_LANGUAGE", "en"),
+              "vocalDirection": os.environ.get("REQUEST_VOCAL_DIRECTION", ""),
+              "forceInstrumental": os.environ.get("REQUEST_FORCE_INSTRUMENTAL", "false").lower() == "true"
+          }
+          embedded = "EMBEDDED_REQUEST = " + repr(request) + "\n"
+          source.write_text(embedded + source.read_text(encoding="utf-8"), encoding="utf-8")
+          print("Embedded Music Studio request into Kaggle script.")
           job=os.environ["JOB_ID"].lower().replace("_","-")
           slug=("bikeztagram-mx3-"+job)[:48].rstrip("-")
           meta={

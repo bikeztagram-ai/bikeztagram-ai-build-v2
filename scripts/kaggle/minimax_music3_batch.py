@@ -86,11 +86,17 @@ try:
     print("=== MUSIC 3 READY ===", flush=True)
     print(f"GPU status before render: {gpu_snapshot()}", flush=True)
 
-    request = {}
+    request = dict(globals().get("EMBEDDED_REQUEST") or {})
+    request_source = "embedded"
     for candidate in (Path.cwd() / "music_request.json", Path("/kaggle/working/music_request.json")):
         if candidate.exists():
             request = json.loads(candidate.read_text(encoding="utf-8"))
+            request_source = str(candidate)
             break
+
+    print(f"REQUEST_SOURCE={request_source}", flush=True)
+    print(f"REQUEST_HAS_LYRICS={bool(str(request.get('lyrics') or '').strip())}", flush=True)
+    print(f"REQUEST_FORCE_INSTRUMENTAL={bool(request.get('forceInstrumental'))}", flush=True)
 
     job_id = str(request.get("job_id") or "local-test")
     lyrics = str(request.get("lyrics") or "").strip()
@@ -99,6 +105,8 @@ try:
     force_instrumental = bool(request.get("forceInstrumental"))
     if force_instrumental:
         lyrics = ""
+    elif not lyrics:
+        raise ValueError("Music Studio supplied no lyrics. MiniMax Music 3 requires non-empty lyrics for vocal generation.")
     if not prompt:
         prompt = "Genre: cinematic electronic rock. BPM: 105. Key: D minor. Deep punchy drums, pulsing bass, distorted electric guitar, atmospheric synths, dramatic build and a huge energetic chorus. Polished modern production."
 
