@@ -80,6 +80,7 @@ async function findRun(jobId) {
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     const jobId = cleanJobId(new URL(req.url).searchParams.get('jobId'));
+    if (jobId === 'health') return json(res, 200, { status: 'OK', service: 'music-engine', runtime: 'vercel-node' });
     if (!jobId) return json(res, 400, { error: 'jobId is required.' });
 
     const pathname = outputPath(jobId);
