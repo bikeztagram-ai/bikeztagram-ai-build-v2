@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          KERNEL="$KERNEL"
+          KERNEL="$(cat .kaggle-music3-warm/kernel-ref.txt)"
           kaggle kernels push -p .kaggle-music3-warm --accelerator NvidiaTeslaT4 --timeout 2400
           echo "Warm worker submitted."
 
