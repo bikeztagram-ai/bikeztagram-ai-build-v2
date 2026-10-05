@@ -63,55 +63,21 @@ function expandLyricsForFullSong(baseLyrics,prompt){
  return base+'\n\n[Bridge]\nBring the story back, let the music rise\nBuild it bigger now beneath the open skies\n\n[Final Chorus]\n'+base.split('\n').filter(line=>line.trim()).slice(-6).join('\n');
 }
 function buildFallbackVocalLyrics(prompt){
- const text=String(prompt||'').replace(/\s+/g,' ').trim();
- const dog=text.match(/my dog\s+([A-Za-z][A-Za-z0-9'-]*)/i)?.[1] || text.match(/dog\s+([A-Za-z][A-Za-z0-9'-]*)/i)?.[1];
- if(dog && /fart|king of the house|king of this house/i.test(text)){
-  return `[Verse 1]
-${dog} walks in like he owns the place
-Head held high with a royal face
-Every room is his, every chair is his throne
-He rules the house like it's all his own
-
-[Chorus]
-Oh ${dog}, king of the house
-Farting loud like a trumpet blast
-Oh ${dog}, king of the house
-Everybody knows that you're the boss
-We live with the smell, we live with the sound
-Long live ${dog}, the king of the house
-
-[Verse 2]
-He lets one rip and he doesn't care
-Then looks around like he wasn't there
-We open the windows, we wave the air
-But ${dog} just grins like a millionaire
-
-[Chorus]
-Oh ${dog}, king of the house
-Farting loud like a trumpet blast
-Oh ${dog}, king of the house
-Everybody knows that you're the boss`;
- }
- const story=text
-   .replace(/make (the )?lyrics[^.]*\.?/ig,'')
-   .replace(/with a memorable funny chorus\.?/ig,'')
-   .trim();
- return `[Verse 1]
-${story}
-
-[Chorus]
-This is our story, sing it loud
-${story}
-This is our story, sing it loud
-
-[Verse 2]
-${story}
-
-[Chorus]
-This is our story, sing it loud
-${story}`;
+  const raw=String(prompt||'').replace(/\s+/g,' ').trim();
+  const text=raw.replace(/[“”]/g,'"');
+  const title=text.match(/(?:called|titled|named)\s+["']([^"']+)["']/i)?.[1] || text.match(/(?:called|titled|named)\s+([^.,:]+?)(?:\.|,|\s+The song)/i)?.[1]?.trim();
+  const theme=text.match(/Theme:\s*([^]+?)(?=\s+Style:|\s+Vocals?:|\s+Structure:|\s+Lyrics:|\s+Production:|$)/i)?.[1]?.trim();
+  const lyricIdea=text.match(/Lyrics:\s*([^]+?)(?=\s+Keep the lyrics|\s+Give the song|\s+Production:|\s+Overall goal:|\s+IMPORTANT LYRIC BRIEF:|$)/i)?.[1]?.trim();
+  const subject=[theme,lyricIdea].filter(Boolean).map(s=>s.replace(/\.$/,'')).join('. ') || raw;
+  const hook=title || subject.split(/[,.]/)[0].slice(0,48).trim() || 'Tonight';
+  const words=subject.split(/[,;]+/).map(s=>s.trim()).filter(Boolean).slice(0,6);
+  const detail=(i,fallback)=>words[i]||fallback;
+  if(/dog\s+bowie|my dog\s+bowie/i.test(text)||(/fart/i.test(text)&&/king of the house/i.test(text))){
+    const dog=text.match(/(?:my\s+)?dog\s+([A-Za-z][A-Za-z0-9'-]*)/i)?.[1]||'Bowie';
+    return '[Verse 1]\n'+dog+' walks in like he owns the place\nHead held high with a royal face\nEvery room is his, every chair is his throne\nHe rules the house like it is all his own\n\n[Pre-Chorus]\nThen he turns around with that look in his eyes\nOne little trumpet and we open the skies\nWindows go wide, everybody knows\nThe king has spoken and the whole house knows\n\n[Chorus]\nOh '+dog+', king of the house\nFarting loud like a trumpet blast\nOh '+dog+', king of the house\nEverybody knows that you are the boss\nWe live with the smell, we live with the sound\nLong live '+dog+', the king of the house\n\n[Verse 2]\nHe lets one rip and he does not care\nThen looks around like he was not there\nWe wave the air and we clear the room\nBut '+dog+' just settles in and starts to snooze\n\n[Final Chorus]\nOh '+dog+', king of the house\nFarting loud like a trumpet blast\nOh '+dog+', king of the house\nEverybody knows that you are the boss\nLong live '+dog+', the king of the house';
+  }
+  return '[Verse 1]\n'+detail(0,'We leave the city behind tonight')+'\n'+detail(1,'The open road is calling us away')+'\n'+detail(2,'Cold night air is rushing through the dark')+'\n'+detail(3,'Every mile feels like a reason to stay alive')+'\n\n[Pre-Chorus]\nNo looking back, no slowing down\nWe hear the heartbeat underneath this town\nThe horizon opens, the lights disappear\nAnd everything we came for is suddenly here\n\n[Chorus]\n'+hook+', take me through the night\n'+detail(0,'Leave the city behind and let the engine sing')+'\n'+detail(1,'Chase the horizon till the morning light')+'\n'+hook+', we are alive tonight\n\n[Verse 2]\n'+detail(4,'Neon lights are fading in the mirror')+'\n'+detail(5,'The road keeps pulling every doubt away')+'\nThe throttle turns and the whole world opens\nWe find the freedom we were chasing all day\n\n[Bridge]\nOne more mile, one more breath\nNothing waiting here can hold us yet\nLet the rhythm rise, let the skyline fade\nWe choose the road, we choose the escape\n\n[Final Chorus]\n'+hook+', take me through the night\n'+detail(0,'Leave the city behind and let the engine sing')+'\n'+detail(1,'Chase the horizon till the morning light')+'\n'+hook+', we are alive tonight';
 }
-
 function buildAutoCoverLyrics(prompt){
  const text=String(prompt||'').toLowerCase();
  const country=/country|western|twang|honky|slide guitar/.test(text);
