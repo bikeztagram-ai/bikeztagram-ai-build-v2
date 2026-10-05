@@ -122,7 +122,7 @@ jobs:
           set -euo pipefail
           rm -rf .kaggle-music3-kernel
           mkdir -p .kaggle-music3-kernel
-          cp scripts/kaggle/minimax_music3_batch.py .kaggle-music3-kernel/
+          cp scripts/kaggle/minimax_music3_sglang.py .kaggle-music3-kernel/
           python - <<'PY'
           import json, os
           request = {
@@ -164,7 +164,7 @@ jobs:
           meta={
               "id": f"{os.environ['KAGGLE_USERNAME']}/{slug}",
               "title": slug,
-              "code_file": "minimax_music3_batch.py",
+              "code_file": "minimax_music3_sglang.py",
               "language": "python",
               "kernel_type": "script",
               "is_private": "true",
@@ -185,7 +185,7 @@ jobs:
           set -euo pipefail
           KERNEL="$(cat .kaggle-music3-kernel/kernel-ref.txt)"
           kaggle kernels push -p .kaggle-music3-kernel --accelerator NvidiaTeslaT4 --timeout 5400
-          echo "Kaggle job submitted: ${KERNEL}"
+          echo "Kaggle job submitted: ${KERNEL} (SGLang dual-T4)"
 
       - name: Monitor Kaggle job
         shell: bash
