@@ -4,7 +4,7 @@ function providerBaseUrl() {
   return String(import.meta?.env?.VITE_ACE_STEP_API_URL || '').trim().replace(/\/$/, '');
 }
 
-async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInstrumental, bpm, key, mode, vocalLanguage, vocalDirection }) {
+async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInstrumental, bpm, key, mode, vocalLanguage, vocalDirection, onProgress }) {
   const baseUrl = getConfiguredMusicEngineUrl();
   if (!baseUrl) return null;
   const prepared = prepareMusicGeneration({
@@ -32,11 +32,15 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
   }
   const deadline = Date.now() + 20 * 60 * 1000;
   let lastStatus = submitData.status || 'IN_QUEUE';
+  onProgress?.({ percent: 5, phase: 'Queued — waiting for a free Kaggle GPU', status: lastStatus, estimated: true });
   while (Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 2000));
     const statusResponse = await fetch(baseUrl + '?jobId=' + encodeURIComponent(submitData.jobId), { cache: 'no-store' });
     const data = await statusResponse.json().catch(() => ({}));
     lastStatus = data.status || lastStatus;
+    if (typeof data.progress === 'number') {
+      onProgress?.({ percent: Math.max(0, Math.min(100, Math.round(data.progress))), phase: data.phase || 'Rendering…', status: lastStatus, estimated: data.progressEstimated !== false });
+    }
     if (!statusResponse.ok) throw new Error(data.error || 'Bikeztagram Music Engine failed while rendering.');
     if (data.status === 'COMPLETED') {
       let blob;
@@ -51,6 +55,7 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
         blob = new Blob([bytes], { type: data.mimeType || 'audio/mpeg' });
       } else throw new Error('MiniMax Music 3 completed without returning audio.');
       if (!blob.size) throw new Error('Bikeztagram Music Engine returned an empty audio file.');
+      onProgress?.({ percent: 100, phase: 'Complete — your song is ready', status: 'COMPLETED', estimated: false });
       return {
         blob,
         mimeType: data.mimeType || blob.type || 'audio/wav',
@@ -68,11 +73,11 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
   throw new Error('Bikeztagram Music Engine is still rendering after 20 minutes (' + lastStatus + '). No duplicate GPU job was submitted.');
 }
 
-export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75 } = {}) {
+export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75, onProgress } = {}) {
   if (!(sourceAudio instanceof Blob) && !(referenceAudio instanceof Blob)) {
     const ownEngine = getConfiguredMusicEngineUrl();
     if (!ownEngine) throw new Error('Bikeztagram Music Engine is not online yet. the private renderer must be configured before music can be generated.');
-    return await generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInstrumental, bpm, key, mode, vocalLanguage, vocalDirection });
+    return await generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInstrumental, bpm, key, mode, vocalLanguage, vocalDirection, onProgress });
   }
   const hasSource = sourceAudio instanceof Blob;
   const hasReference = referenceAudio instanceof Blob;
