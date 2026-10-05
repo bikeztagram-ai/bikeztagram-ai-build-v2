@@ -121,22 +121,25 @@ try:
     render_timeout = max(600, min(1200, int(duration * 24)))
     print(f"RENDER_TIMEOUT_SECONDS={render_timeout}", flush=True)
 
-    import signal
-    def _render_timeout_handler(signum, frame):
-        raise TimeoutError(f"MiniMax inference exceeded {render_timeout}s render timeout")
+    import threading
+    import os
 
-    signal.signal(signal.SIGALRM, _render_timeout_handler)
-    signal.alarm(render_timeout)
-    try:
-        audio = pipe(
-            prompt=prompt,
-            lyrics=lyrics,
-            audio_duration=duration,
-            generator=torch.Generator("cuda").manual_seed(1001),
-            output="audios",
-        )[0]
-    finally:
-        signal.alarm(0)
+    def _render_watchdog():
+        time.sleep(render_timeout)
+        print(f"RENDER_TIMEOUT_EXCEEDED={render_timeout}", flush=True)
+        print("RENDER_WATCHDOG_EXIT=124", flush=True)
+        os._exit(124)
+
+    watchdog = threading.Thread(target=_render_watchdog, name="render-watchdog", daemon=True)
+    watchdog.start()
+
+    audio = pipe(
+        prompt=prompt,
+        lyrics=lyrics,
+        audio_duration=duration,
+        generator=torch.Generator("cuda").manual_seed(1001),
+        output="audios",
+    )[0]
 
     import soundfile as sf
     out = f"/kaggle/working/bikeztagram_minimax_music3_{job_id}.wav"
