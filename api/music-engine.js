@@ -380,7 +380,7 @@ export default async function handler(req, res) {
           {
             method: 'POST',
             headers: github,
-            body: JSON.stringify({ ref: 'main', inputs: workflowInputs })
+            body: JSON.stringify({ ref: 'main', inputs: coldWorkflowInputs })
           }
         );
       }
