@@ -1,0 +1,109 @@
+name: MiniMax Music 3 — Kaggle Warm Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      worker_token:
+        description: "Short-lived private worker session token"
+        required: true
+        type: string
+
+run-name: "Music Warm Worker"
+
+jobs:
+  run-warm-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      WORKER_TOKEN: ${{ inputs.worker_token }}
+      WORKER_API_URL: https://bikeztagram-ai-build-v2.vercel.app/api/music-worker
+    steps:
+      - name: Checkout workflow revision
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Validate runner
+        run: |
+          set -euo pipefail
+          python -m py_compile scripts/kaggle/minimax_music3_warm.py
+          echo "Warm MiniMax runner syntax: PASS"
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Prepare unique warm Kaggle kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .kaggle-music3-warm
+          mkdir -p .kaggle-music3-warm
+          cp scripts/kaggle/minimax_music3_warm.py .kaggle-music3-warm/
+          python - <<'PY'
+          import os, json
+          from pathlib import Path
+          p = Path(".kaggle-music3-warm/minimax_music3_warm.py")
+          text = p.read_text(encoding="utf-8")
+          text = text.replace("WORKER_API_URL_PLACEHOLDER", os.environ["WORKER_API_URL"])
+          text = text.replace("WORKER_TOKEN_PLACEHOLDER", os.environ["WORKER_TOKEN"])
+          p.write_text(text, encoding="utf-8")
+          job = "warm-" + os.environ["GITHUB_RUN_ID"]
+          slug = ("bikeztagram-mx3-" + job).lower()[:48].rstrip("-")
+          meta = {
+              "id": f"{os.environ['KAGGLE_USERNAME']}/{slug}",
+              "title": slug,
+              "code_file": "minimax_music3_warm.py",
+              "language": "python",
+              "kernel_type": "script",
+              "is_private": "true",
+              "enable_gpu": "true",
+              "enable_internet": "true",
+              "machine_shape": "NvidiaTeslaT4"
+          }
+          Path(".kaggle-music3-warm/kernel-metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+          Path(".kaggle-music3-warm/kernel-ref.txt").write_text(meta["id"], encoding="utf-8")
+          print("Warm Kaggle kernel prepared.")
+          PY
+
+      - name: Push and start warm Kaggle GPU worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          KERNEL="$KERNEL"
+          kaggle kernels push -p .kaggle-music3-warm --accelerator NvidiaTeslaT4 --timeout 2400
+          echo "Warm worker submitted."
+
+      - name: Monitor warm worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          KERNEL="$KERNEL"
+          for i in $(seq 1 80); do
+            STATUS="$(kaggle kernels status "$KERNEL" 2>&1 || true)"
+            echo "CHECK $i/80 — $STATUS"
+            if echo "$STATUS" | grep -Eiq 'COMPLETE|SUCCESS|ERROR|FAILED|CANCEL'; then
+              if echo "$STATUS" | grep -Eiq 'ERROR|FAILED|CANCEL'; then
+                kaggle kernels logs "$KERNEL" 2>&1 | tail -n 500 || true
+                exit 1
+              fi
+              break
+            fi
+            sleep 30
+          done
+
+      - name: Delete warm Kaggle kernel
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f .kaggle-music3-warm/kernel-ref.txt ]; then
+            KERNEL="$(cat .kaggle-music3-warm/kernel-ref.txt)"
+            kaggle kernels delete "$KERNEL" -y || true
+          fi
