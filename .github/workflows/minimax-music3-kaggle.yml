@@ -1,11 +1,63 @@
-name: MiniMax Music 3 — Kaggle T4x2
+name: MiniMax Music 3 — Kaggle Free GPU
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/minimax-music3-kaggle.yml
+    inputs:
+      job_id:
+        description: "Unique Music Engine job id"
+        required: true
+        type: string
+      prompt:
+        description: "Music generation prompt"
+        required: false
+        default: ""
+        type: string
+      lyrics:
+        description: "Lyrics"
+        required: false
+        default: ""
+        type: string
+      duration:
+        description: "Duration in seconds"
+        required: false
+        default: "30"
+        type: string
+      bpm:
+        description: "BPM or auto"
+        required: false
+        default: "auto"
+        type: string
+      key:
+        description: "Key or auto"
+        required: false
+        default: "auto"
+        type: string
+      mode:
+        description: "Mode or auto"
+        required: false
+        default: "auto"
+        type: string
+      vocal_language:
+        description: "Vocal language"
+        required: false
+        default: "en"
+        type: string
+      vocal_direction:
+        description: "Vocal direction"
+        required: false
+        default: ""
+        type: string
+      force_instrumental:
+        description: "Instrumental only"
+        required: false
+        default: "false"
+        type: string
+      output_put_url:
+        description: "Short-lived signed Vercel Blob PUT URL"
+        required: true
+        type: string
+
+run-name: "Music Engine ${{ inputs.job_id || 'workflow-test' }}"
 
 jobs:
   run-minimax-music3:
@@ -17,30 +69,40 @@ jobs:
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
       KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
-      KERNEL_SLUG: bikeztagram-minimax-music-3-t4x2
+      JOB_ID: ${{ inputs.job_id || format('manual-{0}', github.run_id) }}
+      OUTPUT_PUT_URL: ${{ inputs.output_put_url }}
+      REQUEST_PROMPT: ${{ inputs.prompt }}
+      REQUEST_LYRICS: ${{ inputs.lyrics }}
+      REQUEST_DURATION: ${{ inputs.duration || '30' }}
+      REQUEST_BPM: ${{ inputs.bpm || 'auto' }}
+      REQUEST_KEY: ${{ inputs.key || 'auto' }}
+      REQUEST_MODE: ${{ inputs.mode || 'auto' }}
+      REQUEST_VOCAL_LANGUAGE: ${{ inputs.vocal_language || 'en' }}
+      REQUEST_VOCAL_DIRECTION: ${{ inputs.vocal_direction }}
+      REQUEST_FORCE_INSTRUMENTAL: ${{ inputs.force_instrumental || 'false' }}
 
     steps:
       - name: Checkout workflow revision
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: main
 
-      - name: Validate submitted Python runner
+      - name: Validate runner
         shell: bash
         run: |
           set -euo pipefail
-          echo "=== PYTHON SYNTAX PREFLIGHT ==="
           python -m py_compile scripts/kaggle/minimax_music3_batch.py
-          echo "Python runner syntax: PASS"
+          echo "MiniMax runner syntax: PASS"
 
-      - name: Validate Kaggle credentials
+      - name: Validate credentials and request
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${KAGGLE_API_TOKEN}" || { echo "Missing GitHub secret KAGGLE_API_TOKEN"; exit 1; }
-          test -n "${KAGGLE_USERNAME}" || { echo "Missing GitHub secret KAGGLE_USERNAME"; exit 1; }
-          echo "Kaggle credentials present for configured user."
-          echo "Kaggle kernel: https://www.kaggle.com/code/${KAGGLE_USERNAME}/${KERNEL_SLUG}"
+          test -n "${KAGGLE_API_TOKEN}" || { echo "Missing KAGGLE_API_TOKEN"; exit 1; }
+          test -n "${KAGGLE_USERNAME}" || { echo "Missing KAGGLE_USERNAME"; exit 1; }
+          test -n "${OUTPUT_PUT_URL}" || { echo "Missing signed Blob output URL"; exit 1; }
+          echo "Kaggle credentials present."
+          echo "Job: ${JOB_ID}"
 
       - name: Install Kaggle CLI
         run: |
@@ -48,88 +110,112 @@ jobs:
           python -m pip install --upgrade kaggle
           kaggle --version
 
-      - name: Prepare Kaggle kernel
+      - name: Prepare unique Kaggle kernel
         shell: bash
         run: |
           set -euo pipefail
           rm -rf .kaggle-music3-kernel
           mkdir -p .kaggle-music3-kernel
           cp scripts/kaggle/minimax_music3_batch.py .kaggle-music3-kernel/
-          cat > .kaggle-music3-kernel/kernel-metadata.json <<EOF
-          {
-            "id": "${KAGGLE_USERNAME}/${KERNEL_SLUG}",
-            "title": "Bikeztagram MiniMax Music 3 T4x2",
-            "code_file": "minimax_music3_batch.py",
-            "language": "python",
-            "kernel_type": "script",
-            "is_private": "true",
-            "enable_gpu": "true",
-            "enable_internet": "true",
-            "machine_shape": "NvidiaTeslaT4"
+          python - <<'PY'
+          import json, os
+          request = {
+              "job_id": os.environ["JOB_ID"],
+              "prompt": os.environ.get("REQUEST_PROMPT", ""),
+              "lyrics": os.environ.get("REQUEST_LYRICS", ""),
+              "duration": os.environ.get("REQUEST_DURATION", "30"),
+              "bpm": os.environ.get("REQUEST_BPM", "auto"),
+              "key": os.environ.get("REQUEST_KEY", "auto"),
+              "mode": os.environ.get("REQUEST_MODE", "auto"),
+              "vocalLanguage": os.environ.get("REQUEST_VOCAL_LANGUAGE", "en"),
+              "vocalDirection": os.environ.get("REQUEST_VOCAL_DIRECTION", ""),
+              "forceInstrumental": os.environ.get("REQUEST_FORCE_INSTRUMENTAL", "false").lower() == "true"
           }
-          EOF
-          cat .kaggle-music3-kernel/kernel-metadata.json
+          with open(".kaggle-music3-kernel/music_request.json", "w", encoding="utf-8") as f:
+              json.dump(request, f, ensure_ascii=False)
+          PY
+          python - <<'PY'
+          import json, os
+          job=os.environ["JOB_ID"].lower().replace("_","-")
+          slug=("bikeztagram-mx3-"+job)[:48].rstrip("-")
+          meta={
+              "id": f"{os.environ['KAGGLE_USERNAME']}/{slug}",
+              "title": slug,
+              "code_file": "minimax_music3_batch.py",
+              "language": "python",
+              "kernel_type": "script",
+              "is_private": "true",
+              "enable_gpu": "true",
+              "enable_internet": "true",
+              "machine_shape": "NvidiaTeslaT4"
+          }
+          with open(".kaggle-music3-kernel/kernel-metadata.json","w",encoding="utf-8") as f:
+              json.dump(meta,f,indent=2)
+          with open(".kaggle-music3-kernel/kernel-ref.txt","w",encoding="utf-8") as f:
+              f.write(meta["id"])
+          print("Kaggle kernel:", meta["id"])
+          PY
 
       - name: Push and start Kaggle GPU job
         shell: bash
         run: |
           set -euo pipefail
-          echo "=== SUBMITTING KAGGLE GPU JOB ==="
+          KERNEL="$(cat .kaggle-music3-kernel/kernel-ref.txt)"
           kaggle kernels push -p .kaggle-music3-kernel --accelerator NvidiaTeslaT4 --timeout 5400
-          echo "=== KAGGLE JOB SUBMITTED ==="
-          echo "Kaggle kernel: https://www.kaggle.com/code/${KAGGLE_USERNAME}/${KERNEL_SLUG}"
+          echo "Kaggle job submitted: ${KERNEL}"
 
-      - name: Monitor Kaggle job with live diagnostics
+      - name: Monitor Kaggle job
         shell: bash
         run: |
           set -euo pipefail
-          MAX_CHECKS=720
-          for i in $(seq 1 "$MAX_CHECKS"); do
-            echo ""
-            echo "============================================================"
-            echo "KAGGLE MONITOR CHECK $i/$MAX_CHECKS — $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            echo "============================================================"
-
-            STATUS="$(kaggle kernels status "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 || true)"
-            echo "STATUS:"
-            echo "$STATUS"
-
-            echo ""
-            echo "RECENT KAGGLE LOGS:"
-            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 | tail -n 160 || true
-
+          KERNEL="$(cat .kaggle-music3-kernel/kernel-ref.txt)"
+          for i in $(seq 1 720); do
+            STATUS="$(kaggle kernels status "${KERNEL}" 2>&1 || true)"
+            echo "CHECK $i/720 — $STATUS"
             if echo "$STATUS" | grep -Eiq 'COMPLETE|SUCCESS|ERROR|FAILED|CANCEL'; then
-              echo ""
-              echo "=== KAGGLE TERMINAL STATE ==="
-              echo "$STATUS"
+              if echo "$STATUS" | grep -Eiq 'ERROR|FAILED|CANCEL'; then
+                echo "Kaggle job failed."
+                kaggle kernels logs "${KERNEL}" 2>&1 | tail -n 500 || true
+                exit 1
+              fi
               break
             fi
-
-            if [ "$i" -eq "$MAX_CHECKS" ]; then
-              echo "Kaggle job did not reach a terminal state within 6 hours."
+            if [ "$i" -eq 720 ]; then
+              echo "Kaggle job did not finish within the workflow monitoring window."
               exit 1
             fi
             sleep 30
           done
 
-      - name: Download Kaggle output
+      - name: Download generated WAV
         shell: bash
         run: |
           set -euo pipefail
+          KERNEL="$(cat .kaggle-music3-kernel/kernel-ref.txt)"
           mkdir -p kaggle-output
-          echo "=== DOWNLOADING WAV OUTPUT ==="
-          kaggle kernels output "${KAGGLE_USERNAME}/${KERNEL_SLUG}" -p kaggle-output -o --file-pattern '.*\.wav' || true
-          find kaggle-output -maxdepth 2 -type f -print
-          if ! find kaggle-output -type f -name '*.wav' -print -quit | grep -q .; then
+          kaggle kernels output "${KERNEL}" -p kaggle-output -o --file-pattern '.*\.wav'
+          find kaggle-output -type f -name '*.wav' -print
+          test -n "$(find kaggle-output -type f -name '*.wav' -print -quit)" || {
             echo "No WAV output was produced."
-            echo "=== FINAL KAGGLE LOGS ==="
-            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 | tail -n 500 || true
+            kaggle kernels logs "${KERNEL}" 2>&1 | tail -n 500 || true
             exit 1
-          fi
+          }
 
-      - name: Upload WAV as GitHub Actions artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: minimax-music3-test-wav
-          path: kaggle-output/*.wav
-          if-no-files-found: error
+      - name: Upload WAV directly to Vercel Blob
+        shell: bash
+        run: |
+          set -euo pipefail
+          WAV="$(find kaggle-output -type f -name '*.wav' -print -quit)"
+          echo "Uploading generated WAV to the signed Vercel Blob URL."
+          curl --fail-with-body --retry 3 --retry-delay 2             -X PUT             -H "Content-Type: audio/wav"             --data-binary "@${WAV}"             "${OUTPUT_PUT_URL}"
+          echo "WAV upload: PASS"
+
+      - name: Delete temporary Kaggle kernel
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f .kaggle-music3-kernel/kernel-ref.txt ]; then
+            KERNEL="$(cat .kaggle-music3-kernel/kernel-ref.txt)"
+            kaggle kernels delete "${KERNEL}" -y || true
+          fi

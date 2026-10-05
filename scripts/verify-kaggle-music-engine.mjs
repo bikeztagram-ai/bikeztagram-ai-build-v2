@@ -12,11 +12,11 @@ assert.match(api, /operation: 'put'/);
 assert.match(api, /operation: 'get'/);
 
 assert.match(workflow, /KAGGLE_API_TOKEN/);
-assert.match(workflow, /KERNEL_SLUG|bikeztagram-mx3-/);
+assert.match(workflow, /bikeztagram-mx3-/);
 assert.match(workflow, /NvidiaTeslaT4/);
 assert.match(workflow, /kaggle kernels push/);
 assert.match(workflow, /kaggle kernels output/);
-assert.match(workflow, /curl .*PUT|curl --fail-with-body/);
+assert.match(workflow, /curl --fail-with-body/);
 
 assert.match(runner, /MiniMaxAI\/MiniMax-Music3/);
 assert.match(runner, /apply_group_offloading/);
