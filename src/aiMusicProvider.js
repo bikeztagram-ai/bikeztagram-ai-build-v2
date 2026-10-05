@@ -30,7 +30,7 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
   if (!submit.ok || !submitData.jobId) {
     throw new Error('Bikeztagram Music Engine could not start the GPU render.' + (submitData.details ? ' ' + submitData.details : ''));
   }
-  const deadline = Date.now() + 20 * 60 * 1000;
+  const deadline = Date.now() + 90 * 60 * 1000;
   let lastStatus = submitData.status || 'IN_QUEUE';
   onProgress?.({ percent: 5, phase: 'Queued — waiting for a free Kaggle GPU', status: lastStatus, estimated: true });
   let transientFailures = 0;
@@ -61,6 +61,10 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
       continue;
     }
     lastStatus = data.status || lastStatus;
+    if (data.status === 'RECOVERING') {
+      onProgress?.({ percent: 8, phase: data.phase || 'Recovering the GPU render…', status: data.status, estimated: true });
+      continue;
+    }
     if (typeof data.progress === 'number') {
       onProgress?.({ percent: Math.max(0, Math.min(100, Math.round(data.progress))), phase: data.phase || 'Rendering…', status: lastStatus, estimated: data.progressEstimated !== false });
     }
