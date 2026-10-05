@@ -13,8 +13,6 @@ const clamp = (value, min, max, fallback) => {
   return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
 };
 const env = name => String(process.env[name] || '').trim().replace(/\/$/, '');
-const DEFAULT_ZERO_GPU_WORKER = 'https://2btainment-ace-step.hf.space';
-const DEFAULT_VOCAL_WORKER = 'https://timefractal-ace-step-turbo-music-gen.hf.space';
 const DEFAULT_CLOUD_API = 'https://api.acemusic.ai';
 
 async function readJson(response) {
@@ -33,10 +31,9 @@ export default async function handler(req, res) {
   // The official hosted ACE-Step API is only selected when a key is actually configured.
   // This keeps the zero-cost public worker as the no-key fallback.
   const baseUrl = configuredBaseUrl || (token ? DEFAULT_CLOUD_API : '');
-  const workerUrl = env('ACE_STEP_WORKER_URL') || DEFAULT_ZERO_GPU_WORKER;
-  if (!baseUrl && !workerUrl) return json(res, 503, {
-    error: 'Open-source music engine is not connected yet.',
-    details: 'Set ACE_STEP_API_URL to an ACE-Step 1.5 REST API server. No commercial music API key is required.'
+  if (!baseUrl) return json(res, 503, {
+    error: 'Private music engine is not connected.',
+    details: 'Set VITE_MUSIC_ENGINE_URL to the Bikeztagram Music Engine. Source-audio transforms require a separately configured authorised-audio engine.'
   });
 
   try {
@@ -44,70 +41,15 @@ export default async function handler(req, res) {
     const prompt = String(body.prompt || '').trim();
     if (!prompt) return json(res, 400, { error: 'Music prompt is required.' });
 
-    const huggingFaceToken = String(body.huggingFaceToken || '').trim();
-    const requestedDuration = clamp((Number(body.durationMs) || 30000) / 1000, 5, 300, 30);
-
-    // Hugging Face's public ZeroGPU pool can reject long MiniMax jobs before
-    // generation starts because the anonymous visitor has only a small runtime
-    // allowance. Do not send an illegal long job to the fallback worker and then
-    // report its low-level "GPU duration" error to the user. Short jobs may still
-    // use the anonymous pool; 61–300 second jobs require the user's own HF token.
-    if (!sourceAudio && !referenceAudio && !Boolean(body.forceInstrumental) && requestedDuration > 60 && !huggingFaceToken) {
-      return json(res, 503, {
-        error: 'Full-length MiniMax Music 3 generation needs your Hugging Face token.',
-        provider: 'MiniMax Music 3',
-        details: 'The shared anonymous ZeroGPU pool cannot reserve enough GPU time for a ' + requestedDuration + ' second song. Add your free Hugging Face token in Advanced Options, then press MAKE FULL SONG again.',
-        hint: 'Your token is used for this generation request and is stored only on this device.'
+    // Text-to-music is owned by the private Bikeztagram Music Engine.
+    // Never fall back to a hosted generator here.
+    if (!sourceAudio && !referenceAudio) {
+      return json(res, 410, {
+        error: 'Bikeztagram Music Engine is required for text-to-music generation.',
+        provider: 'Bikeztagram Music Engine',
+        details: 'Text-to-music is generated only by the private Bikeztagram Music Engine.'
       });
     }
-
-    // MiniMax Music 3 must be called server-side. Browser -> Hugging Face
-    // requests can fail on CORS/preflight when an authenticated HF token is
-    // attached. The token is forwarded for this request only and is never
-    // persisted by Bikeztagram.
-    if (!sourceAudio && !referenceAudio && !Boolean(body.forceInstrumental)) {
-      const minimax = await generateViaMiniMaxServer({
-        prompt,
-        lyrics: String(body.lyrics || '').trim(),
-        duration: requestedDuration,
-        vocalLanguage: String(body.vocalLanguage || 'en'),
-        vocalDirection: String(body.vocalDirection || ''),
-        huggingFaceToken
-      });
-      if (minimax.ok) return sendAudioBuffer(res, minimax.buffer, minimax.mimeType, 'MiniMax Music 3 Vocal Worker', minimax.songId);
-
-      // The official workflow Space can return transient 5xx/quota failures.
-      // Before dropping to ACE-Step, try an independent MiniMax Music 3 Space
-      // with a stable five-input Gradio API. This keeps MiniMax as the preferred
-      // engine while removing a single Space as a single point of failure.
-      const minimaxFallback = await generateViaMiniMaxUpsampler({
-        prompt,
-        lyrics: String(body.lyrics || '').trim(),
-        duration: requestedDuration,
-        vocalDirection: String(body.vocalDirection || ''),
-        huggingFaceToken
-      });
-      if (minimaxFallback.ok) {
-        return sendAudioBuffer(res, minimaxFallback.buffer, minimaxFallback.mimeType, 'MiniMax Music 3 Fallback Worker', minimaxFallback.songId);
-      }
-
-      // Do not hide a MiniMax failure behind ACE-Step. This endpoint is the
-      // MiniMax Music 3 route, so returning an ACE-Step error here makes the
-      // browser incorrectly label the failure as "MiniMax". Keep the provider
-      // contract honest and give the UI the two actual MiniMax failures.
-      return json(res, 503, {
-        error: 'MiniMax Music 3 could not complete this song.',
-        provider: 'MiniMax Music 3',
-        details: [
-          minimax.error ? 'Primary: ' + minimax.error + (minimax.details ? ' ' + minimax.details : '') : '',
-          minimaxFallback.error ? 'Fallback: ' + minimaxFallback.error + (minimaxFallback.details ? ' ' + minimaxFallback.details : '') : ''
-        ].filter(Boolean).join(' | ').slice(0, 3200),
-        hint: huggingFaceToken
-          ? 'Your Hugging Face token was supplied. Retry once the ZeroGPU worker is available again.'
-          : 'For longer generations, add your free Hugging Face token in Advanced Options so MiniMax can use your authenticated ZeroGPU quota.'
-      });
-    }
-
     const taskType = String(body.taskType || (sourceAudio ? 'cover' : 'text2music')).trim();
     const coverStrength = clamp(body.coverStrength, 0.1, 1, 0.75);
     const duration = clamp((Number(body.durationMs) || 30000) / 1000, 10, 600, 30);
@@ -129,27 +71,11 @@ export default async function handler(req, res) {
       });
     }
 
-    if (!baseUrl || !needsCloud) {
-      if (sourceAudio || referenceAudio) return json(res, 501, { error: 'True multi-source audio transformation needs the full ACE-Step engine.', details: 'The current free ZeroGPU worker only exposes text-to-music. Connect ACE_STEP_API_URL to enable source-audio cover/remix and reference-audio workflows.' });
-      if (duration > 60) return json(res, 503, {
-        error: 'Long-form song generation needs an available MiniMax Music 3 ZeroGPU slot.',
-        details: huggingFaceToken
-          ? 'MiniMax Music 3 was attempted with your Hugging Face token, but the long-form worker did not complete. No generic ACE-Step track was substituted.'
-          : 'Add your free Hugging Face token in Advanced Options to use your own ZeroGPU quota for 60–300 second MiniMax Music 3 generations.'
+    if (!needsCloud) {
+      return json(res, 410, {
+        error: 'Private Bikeztagram Music Engine is required for text-to-music generation.',
+        details: 'The browser should call VITE_MUSIC_ENGINE_URL directly for song generation.'
       });
-      const vocalPrompt = Boolean(body.forceInstrumental)
-        ? prompt
-        : buildFallbackVocalPrompt(prompt, body);
-      if (!body.forceInstrumental) {
-        return generateViaLyricsWorker(res, env('ACE_STEP_VOCAL_WORKER_URL') || DEFAULT_VOCAL_WORKER, token, {
-          prompt: vocalPrompt,
-          lyrics: String(body.lyrics || '').trim(),
-          duration,
-          seed: -1,
-          steps: 8
-        });
-      }
-      return generateViaGradioWorker(res, workerUrl, token, { prompt: vocalPrompt, duration, forceInstrumental: Boolean(body.forceInstrumental), bpm: body.bpm });
     }
 
     const task = {
@@ -537,272 +463,6 @@ function parseSseComplete(text) {
     }
   }
   return completed;
-}
-
-async function generateViaMiniMaxServer({ prompt, lyrics, duration, vocalLanguage = 'en', vocalDirection = '', huggingFaceToken = '' }) {
-  const workerUrl = 'https://minimaxai-minimax-music3-workflow.hf.space';
-  const lyricText = String(lyrics || '').trim();
-  if (!lyricText) return { ok: false, fatal: true, status: 400, error: 'MiniMax Music 3 requires lyrics for the vocal route.' };
-
-  const language = String(vocalLanguage || 'en').toLowerCase() === 'en' ? 'English' : String(vocalLanguage);
-  const globalMeta = [
-    String(prompt || '').trim(),
-    'Professional finished song, coherent arrangement, polished commercial mix.',
-    'Vocal language: ' + language + '.'
-  ].filter(Boolean).join(' ');
-  const vocals = [
-    vocalDirection ? String(vocalDirection).trim() : 'Clear, melodic lead vocal with audible words from the opening section.',
-    'Do not use spoken-word delivery; sing the supplied lyrics.',
-    'Keep the requested subject and concrete names/details audible and intelligible.'
-  ].join(' ');
-  const arrangement = [
-    'Build the arrangement around the supplied lyric section tags.',
-    'Use a strong intro, developing verse, memorable chorus, musical contrast and satisfying ending.',
-    'Choose instrumentation and groove that match the requested genre/style.',
-    'Prioritise the story and lyrics over generic genre filler.'
-  ].join(' ');
-
-  const auth = String(huggingFaceToken || '').trim();
-  const headers = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    ...(auth ? { Authorization: 'Bearer ' + auth } : {})
-  };
-
-  try {
-    const submit = await fetch(workerUrl + '/gradio_api/call/generate_song', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        data: [
-          lyricText, globalMeta, vocals, arrangement,
-          Math.max(5, Math.min(300, Number(duration) || 30)),
-          0, true, 20, 1.7
-        ]
-      })
-    });
-    const submitted = await readJson(submit);
-    if (!submit.ok || !submitted?.event_id) {
-      const detail = JSON.stringify(submitted).slice(0, 1800);
-      const quota = /quota|authenticate|token|zerogpu/i.test(detail);
-      return {
-        ok: false,
-        // 5xx means the public Space itself failed; let the next open provider
-        // take over. 4xx remains fatal unless it is a transient rate/quota response.
-        fatal: quota || (submit.status >= 400 && submit.status < 500 && submit.status !== 429),
-        status: submit.status >= 400 ? submit.status : 502,
-        error: quota
-          ? 'MiniMax Music 3 Hugging Face quota/authentication was rejected.'
-          : 'MiniMax Music 3 worker rejected the request.',
-        details: detail
-      };
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 294000);
-    let eventResponse;
-    try {
-      eventResponse = await fetch(
-        workerUrl + '/gradio_api/call/generate_song/' + encodeURIComponent(submitted.event_id),
-        { headers: { Accept: 'text/event-stream', ...(auth ? { Authorization: 'Bearer ' + auth } : {}) }, signal: controller.signal }
-      );
-    } catch (error) {
-      clearTimeout(timeout);
-      throw error;
-    }
-
-    if (!eventResponse.ok) {
-      const detail = (await eventResponse.text()).slice(0, 1800);
-      return { ok: false, fatal: eventResponse.status < 500, status: 502, error: 'MiniMax Music 3 worker status request failed.', details: detail };
-    }
-
-    const sse = await eventResponse.text();
-    clearTimeout(timeout);
-    let activeEvent = '';
-    let completed = null;
-    let workerError = '';
-    for (const raw of sse.split(/\r?\n/)) {
-      const line = raw.trim();
-      if (line.startsWith('event:')) { activeEvent = line.slice(6).trim(); continue; }
-      if (!line.startsWith('data:')) continue;
-      const rawData = line.slice(5).trim();
-      if (activeEvent === 'error') workerError = rawData || workerError;
-      if (activeEvent === 'complete' || activeEvent === 'completed') {
-        let value = rawData;
-        for (let pass = 0; pass < 6 && typeof value === 'string'; pass++) {
-          try { value = JSON.parse(value); } catch { break; }
-        }
-        completed = value;
-      }
-    }
-
-    if (!completed) {
-      const detail = workerError && workerError !== 'null' ? workerError : 'No completed event was returned.';
-      const quota = /quota|authenticate|token|zerogpu/i.test(detail);
-      return {
-        ok: false,
-        // Provider-side failures (including internal server errors) can fall
-        // through to ACE-Step. Authentication/quota failures stay fatal.
-        fatal: quota ? true : false,
-        status: quota ? 429 : 502,
-        error: quota
-          ? 'MiniMax Music 3 Hugging Face quota/authentication was rejected or exhausted.'
-          : 'MiniMax Music 3 did not return a completed song.',
-        details: detail.slice(0, 2200)
-      };
-    }
-
-    const first = Array.isArray(completed) ? completed[0] : completed;
-    const rawUrl = first?.url || first?.path;
-    if (!rawUrl) return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 completed without an audio file.' };
-
-    const audioUrl = /^https?:\/\//i.test(String(rawUrl))
-      ? String(rawUrl)
-      : workerUrl + (String(rawUrl).startsWith('/') ? String(rawUrl) : '/' + String(rawUrl));
-    const audio = await fetch(audioUrl, { headers: auth ? { Authorization: 'Bearer ' + auth } : {} });
-    if (!audio.ok) {
-      const detail = (await audio.text()).slice(0, 1200);
-      return { ok: false, fatal: false, status: 502, error: 'MiniMax Music 3 generated the song but audio download failed.', details: detail };
-    }
-    const buffer = Buffer.from(await audio.arrayBuffer());
-    if (!buffer.length) return { ok: false, fatal: true, status: 502, error: 'MiniMax Music 3 returned an empty audio file.' };
-    return { ok: true, buffer, mimeType: audio.headers.get('content-type') || 'audio/wav', songId: submitted.event_id };
-  } catch (error) {
-    const message = error?.name === 'AbortError'
-      ? 'MiniMax Music 3 exceeded the 294-second server wait window.'
-      : (error?.message || String(error));
-    return { ok: false, fatal: false, status: 502, error: 'MiniMax Music 3 request failed.', details: message };
-  }
-}
-
-async function generateViaMiniMaxUpsampler({ prompt, lyrics, duration, vocalDirection = '', huggingFaceToken = '' }) {
-  // Independent MiniMax Music 3 fallback. This Space exposes a deliberately
-  // small stable Gradio endpoint (description, duration, seed, instrumental, lyrics)
-  // and uses the same MiniMax Music 3 model, so an outage in the official workflow
-  // Space does not take the whole vocal path down.
-  const workerUrl = 'https://upsampler-minimax-music3.hf.space';
-  const auth = String(huggingFaceToken || '').trim();
-  const authHeaders = auth ? { Authorization: 'Bearer ' + auth } : {};
-  const description = [
-    String(prompt || '').trim(),
-    vocalDirection ? 'Vocal direction: ' + String(vocalDirection).trim() : '',
-    'Professional finished song with clearly audible sung vocals.'
-  ].filter(Boolean).join(' ');
-  const lyricText = String(lyrics || '').trim();
-  if (!description || !lyricText) return { ok: false, error: 'MiniMax fallback requires a description and lyrics.' };
-
-  try {
-    const submit = await fetch(workerUrl + '/gradio_api/call/generate_music', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...authHeaders },
-      body: JSON.stringify({
-        data: [
-          description,
-          Math.max(5, Math.min(300, Number(duration) || 30)),
-          Math.floor(Math.random() * 2147483647),
-          false,
-          lyricText
-        ]
-      })
-    });
-    const submitted = await readJson(submit);
-    if (!submit.ok || !submitted?.event_id) {
-      return {
-        ok: false,
-        status: submit.status || 502,
-        error: 'MiniMax Music 3 fallback worker rejected the request.',
-        details: JSON.stringify(submitted).slice(0, 1200)
-      };
-    }
-
-    const eventResponse = await fetch(
-      workerUrl + '/gradio_api/call/generate_music/' + encodeURIComponent(submitted.event_id),
-      { headers: { Accept: 'text/event-stream', ...authHeaders } }
-    );
-    if (!eventResponse.ok) {
-      return {
-        ok: false,
-        status: eventResponse.status,
-        error: 'MiniMax Music 3 fallback worker status failed.',
-        details: (await eventResponse.text()).slice(0, 1200)
-      };
-    }
-
-    const sse = await eventResponse.text();
-    let activeEvent = '';
-    let completed = null;
-    let workerError = '';
-    for (const raw of sse.split(/\r?\n/)) {
-      const line = raw.trim();
-      if (line.startsWith('event:')) {
-        activeEvent = line.slice(6).trim();
-        continue;
-      }
-      if (!line.startsWith('data:')) continue;
-      const rawData = line.slice(5).trim();
-      if (activeEvent === 'error') workerError = rawData || workerError;
-      if (activeEvent === 'complete' || activeEvent === 'completed') {
-        let value = rawData;
-        for (let pass = 0; pass < 6 && typeof value === 'string'; pass++) {
-          try { value = JSON.parse(value); } catch { break; }
-        }
-        completed = value;
-      }
-    }
-
-    if (completed == null) {
-      return {
-        ok: false,
-        status: 502,
-        error: 'MiniMax Music 3 fallback worker did not complete.',
-        details: workerError && workerError !== 'null'
-          ? workerError.slice(0, 1800)
-          : 'No completed Gradio event was returned.'
-      };
-    }
-
-    let value = completed;
-    for (let pass = 0; pass < 6 && typeof value === 'string'; pass++) {
-      try { value = JSON.parse(value); } catch { break; }
-    }
-    const first = Array.isArray(value) ? value[0] : value;
-    const rawUrl = typeof first === 'string' ? first : first?.url || first?.path;
-    if (!rawUrl) {
-      return { ok: false, status: 502, error: 'MiniMax Music 3 fallback completed without an audio file.' };
-    }
-
-    const raw = String(rawUrl);
-    const audioUrl = /^https?:\/\//i.test(raw)
-      ? raw
-      : raw.startsWith('/gradio_api/file=')
-        ? workerUrl + raw
-        : workerUrl + '/gradio_api/file=' + raw;
-
-    const audio = await fetch(audioUrl, { headers: authHeaders });
-    if (!audio.ok) {
-      return {
-        ok: false,
-        status: 502,
-        error: 'MiniMax Music 3 fallback generated audio but download failed.',
-        details: (await audio.text()).slice(0, 1000)
-      };
-    }
-    const buffer = Buffer.from(await audio.arrayBuffer());
-    if (!buffer.length) return { ok: false, status: 502, error: 'MiniMax Music 3 fallback returned an empty audio file.' };
-    return {
-      ok: true,
-      buffer,
-      mimeType: audio.headers.get('content-type') || 'audio/wav',
-      songId: submitted.event_id
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      status: 502,
-      error: 'MiniMax Music 3 fallback request failed.',
-      details: error?.message || String(error)
-    };
-  }
 }
 
 function sendAudioBuffer(res, buffer, mimeType, provider, songId) {
