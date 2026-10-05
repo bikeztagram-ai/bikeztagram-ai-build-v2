@@ -232,21 +232,21 @@ export default async function handler(req, res) {
       }
     }
     try {
-      const storeId = env('PUBLIC_BLOB_STORE_ID') || env('BLOB_STORE_ID');
-      if (storeId) {
-        const blobUrl = 'https://' + storeId + '.public.blob.vercel-storage.com/' + pathname.split('/').map(encodeURIComponent).join('/');
-        const probe = await fetch(blobUrl, { method: 'HEAD', cache: 'no-store' });
-        if (probe.ok) {
-          const audioUrl = await issueGet(pathname);
-          return json(res, 200, {
-            status: 'COMPLETED',
-            audioUrl,
-            mimeType: 'audio/wav',
-            songId: jobId,
-            duration: null,
-            provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle'
-          });
-        }
+      // Verify the private Blob object directly. The public-URL HEAD probe can
+      // false-negative for private stores, leaving successful Kaggle runs stuck
+      // at FINALISING even though the WAV was already uploaded.
+      const matches = await list({ prefix: pathname, limit: 1 });
+      const blob = matches?.blobs?.find(item => item.pathname === pathname);
+      if (blob) {
+        const audioUrl = await issueGet(pathname);
+        return json(res, 200, {
+          status: 'COMPLETED',
+          audioUrl,
+          mimeType: 'audio/wav',
+          songId: jobId,
+          duration: Number(status?.duration) || null,
+          provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle'
+        });
       }
     } catch {}
 
