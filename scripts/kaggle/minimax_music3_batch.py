@@ -79,6 +79,7 @@ try:
         onload_device=torch.device("cuda"),
         offload_type="leaf_level",
         use_stream=True,
+        low_cpu_mem_usage=True,
     )
 
     print("=== MUSIC 3 READY ===", flush=True)
