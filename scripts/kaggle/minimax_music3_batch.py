@@ -74,31 +74,19 @@ try:
     # T4 is SM75; FP16 avoids native-BF16 requirements while keeping VRAM low.
     pipe.load_components(dtype=torch.float16)
 
-    print("Applying streamed block offload to Qwen decoder layers only...", flush=True)
-    lm_model = pipe.language_model.model
-    qwen_layers = getattr(lm_model, "layers", None)
-    if qwen_layers is None:
-        raise RuntimeError("MiniMax Qwen language model has no decoder layer collection")
+    print("Applying explicit streamed offload to Qwen decoder blocks...", flush=True)
     apply_group_offloading(
-        qwen_layers,
+        pipe.language_model,
         onload_device=torch.device("cuda"),
         offload_type="block_level",
         num_blocks_per_group=1,
+        block_modules=["Qwen3DecoderLayer"],
         use_stream=True,
         non_blocking=True,
-        low_cpu_mem_usage=True,
+        record_stream=True,
+        low_cpu_mem_usage=False,
     )
-
-    # Keep the small embedding/norm/head modules resident on CUDA. Only the
-    # large decoder layer collection is streamed between CPU and T4.
-    for module_name in ("embed_tokens", "norm"):
-        module = getattr(lm_model, module_name, None)
-        if module is not None:
-            module.to(torch.device("cuda"))
-    lm_head = getattr(pipe.language_model, "lm_head", None)
-    if lm_head is not None:
-        lm_head.to(torch.device("cuda"))
-    print("Qwen embeddings/norm/head pinned to CUDA; decoder blocks streamed", flush=True)
+    print("Qwen3DecoderLayer blocks streamed; surrounding language-model modules remain resident", flush=True)
 
     print("=== MUSIC 3 READY ===", flush=True)
     print(f"GPU status before render: {gpu_snapshot()}", flush=True)
