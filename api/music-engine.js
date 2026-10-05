@@ -100,8 +100,7 @@ async function dispatchColdFallback(jobId, currentStatus) {
     vocal_language: String(currentStatus?.vocalLanguage ?? currentStatus?.vocal_language ?? 'en').slice(0, 32),
     vocal_direction: String(currentStatus?.vocalDirection ?? currentStatus?.vocal_direction ?? '').slice(0, 1000),
     force_instrumental: String(currentStatus?.forceInstrumental ?? currentStatus?.force_instrumental ?? false),
-    output_put_url: String(currentStatus?.output_put_url || currentStatus?.outputPutUrl || '').trim(),
-    status_put_url: statusPutUrl
+    output_put_url: String(currentStatus?.output_put_url || currentStatus?.outputPutUrl || '').trim()
   };
 
   if (!workflowInputs.output_put_url) {
@@ -118,6 +117,10 @@ async function dispatchColdFallback(jobId, currentStatus) {
   const headers = githubHeaders();
   if (!headers) return { dispatched: false, pending: false };
   const statusPutUrl = await issuePut(STATUS_PREFIX + jobId + '.json');
+  const coldWorkflowInputs = {
+    ...workflowInputs,
+    status_put_url: statusPutUrl
+  };
 
   // Claim the fallback before dispatching so repeated browser polls cannot
   // create multiple cold Kaggle jobs for the same song.
