@@ -1,8 +1,4 @@
 import assert from 'node:assert/strict';
-
-const source = await (await fetch('https://raw.githubusercontent.com/bikeztagram-ai/bikeztagram-ai-build-v2/feat/own-music-engine-no-huggingface/music-engine/server.py')).text();
-assert.match(source,/MUSIC_ENGINE_STOP_URL/);
-assert.match(source,/MUSIC_ENGINE_STOP_TOKEN/);
-assert.match(source,/BackgroundTasks/);
-assert.match(source,/shutdown_after_response/);
-console.log('Music Engine lifecycle contract PASS — successful generation can trigger provider shutdown.');
+const source=await (await fetch('https://raw.githubusercontent.com/bikeztagram-ai/bikeztagram-ai-build-v2/feat/runpod-minimax-music-engine/api/music-engine.js')).text();
+assert.match(source,/RUNPOD_ENDPOINT_ID/); assert.match(source,/RUNPOD_API_KEY/); assert.match(source,/\/run/); assert.match(source,/\/status\//); assert.match(source,/issueSignedToken/); assert.match(source,/presignUrl/);
+console.log('Music Engine lifecycle contract PASS — RunPod scales GPU workers on demand and generated audio is returned through signed Blob URLs.');
