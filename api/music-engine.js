@@ -1,5 +1,5 @@
 import { issueSignedToken, presignUrl, put, get, list } from '@vercel/blob';
-import { prepareMusicGeneration } from '../src/musicEngineDirector.js';
+import { prepareMusicGeneration, generateDirectorLyrics } from '../src/musicEngineDirector.js';
 
 export const maxDuration = 10;
 
@@ -320,7 +320,19 @@ export default async function handler(req, res) {
       vocalDirection: input.vocalDirection || '',
       forceInstrumental
     });
-    const generatedLyrics = forceInstrumental ? '' : String(prepared.lyrics || rawLyrics).slice(0, 12000);
+    let generatedLyrics = forceInstrumental ? '' : String(prepared.lyrics || rawLyrics).slice(0, 12000);
+    // Final server-side contract check: never dispatch a vocal GPU job with
+    // an empty lyric payload. Repair once from the director, otherwise fail
+    // before Kaggle is started.
+    if (!forceInstrumental && !generatedLyrics.trim()) {
+      generatedLyrics = String(generateDirectorLyrics({ ...prepared, prompt: rawPrompt, lyrics: rawLyrics }) || '').slice(0, 12000);
+    }
+    if (!forceInstrumental && !generatedLyrics.trim()) {
+      return json(res, 422, {
+        error: 'MiniMax vocal generation needs a non-empty lyric brief.',
+        details: 'The Music Director could not construct lyrics from the supplied song request, so no GPU job was started.'
+      });
+    }
     const workflowInputs = {
       job_id: jobId,
       prompt: String(prepared.prompt || rawPrompt).slice(0, 5000),
