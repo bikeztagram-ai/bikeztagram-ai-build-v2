@@ -1,0 +1,32 @@
+name: Emergency cleanup — Bikeztagram Music Kaggle sessions
+
+on:
+  push:
+    paths:
+      - ".github/workflows/emergency-cleanup-kaggle-music.yml"
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+    steps:
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+      - name: Delete temporary Bikeztagram Music GPU kernels
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KAGGLE_API_TOKEN}"
+          test -n "${KAGGLE_USERNAME}"
+          echo "Listing temporary Bikeztagram Music kernels..."
+          kaggle kernels list --mine --page-size 50 2>&1 | tee /tmp/kernels.txt || true
+          grep -Eo "${KAGGLE_USERNAME}/bikeztagram-mx3-[a-zA-Z0-9-]+" /tmp/kernels.txt | sort -u | while read -r kernel; do
+            [ -n "${kernel}" ] || continue
+            echo "Deleting ${kernel}"
+            kaggle kernels delete "${kernel}" -y || true
+          done
+          echo "Cleanup complete."
