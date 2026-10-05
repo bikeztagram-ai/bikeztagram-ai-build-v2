@@ -25,9 +25,9 @@ export function generateDirectorLyrics(brief={}){
  if(brief.lyrics)return brief.lyrics;
  const source=clean(brief.prompt);
  const quotedTitle=source.match(/(?:called|titled|named)\s+[“"']([^”"']+)[”"']/i)?.[1] || source.match(/(?:called|titled|named)\s+([^.,:]+?)(?:\.|,|\s+The song)/i)?.[1]?.trim();
- const themeMatch=source.match(/Theme:\s*([^]+?)(?=\s+Style:|\s+Vocals?:|\s+Structure:|\s+Lyrics:|\s+Production:|$)/i)?.[1]?.trim();
- const lyricMatch=source.match(/Lyrics:\s*([^]+?)(?=\s+Keep the lyrics|\s+Give the song|\s+Production:|\s+Overall goal:|\s+IMPORTANT LYRIC BRIEF:|$)/i)?.[1]?.trim();
- const subject=themeMatch||lyricMatch||quotedTitle||topicWords(source).slice(0,6).join(' ')||'the road tonight',mood=brief.mood||'cinematic';
+ const themeMatch=source.match(/Theme:\s*([^]+?)(?=\s+(?:Style:|Vocals?:|Structure:|Lyrics:|Production:|Use\s|Natural\s|Make\s|The\s+song\s|IMPORTANT\s)|$)/i)?.[1]?.trim();
+ const lyricMatch=source.match(/Lyrics(?:\s+should)?\s*:?\s*([^]+?)(?=\s+(?:Keep the lyrics|Give the song|Production:|Overall goal:|IMPORTANT LYRIC BRIEF:)|$)/i)?.[1]?.trim();
+ const subject=lyricMatch||themeMatch||quotedTitle||topicWords(source).slice(0,6).join(' ')||'the road tonight',mood=brief.mood||'cinematic';
  const banks={
   dark:['Under the midnight sky, the city holds its breath','Every shadow moves like it remembers what we left','No turning back, no looking down','We light the dark and own this town'],
   uplifting:['Feel the world open wide beneath our feet','Every little heartbeat finds the beat','We rise together, higher than before','Open up the night and give us more'],
@@ -37,7 +37,8 @@ export function generateDirectorLyrics(brief={}){
   cinematic:['The night begins to move, a spark becomes a flame','The road is calling and it knows us by name','We cross the line where the old world ends','And start again with fire in our hands']
  };
  const b=banks[mood]||banks.cinematic,hook=(quotedTitle||subject.split(/[,.]/)[0]).split(' ').slice(0,7).join(' ');
- return ['[Verse 1]',b[0],b[1],'We carry '+subject+' through the night','[Pre-Chorus]',b[2],b[3],'[Chorus]',hook+' tonight',b[3],b[0],hook+' tonight','[Verse 2]',b[1],'We keep the rhythm underneath our feet',b[0],'[Bridge]','Everything we were is turning into now','Let the music rise and pull us through the crowd','[Final Chorus]',hook+' tonight',b[3],b[0],hook+' tonight'].join('\n');
+ const lyricSubject=subject.replace(/\b(?:genre|bpm|key|production|vocals?|arrangement)\b[^.]*\.?/gi,'').replace(/\s+/g,' ').trim()||'the open road';
+ return ['[Verse 1]',b[0],b[1],'We carry '+lyricSubject+' through the night','[Pre-Chorus]',b[2],b[3],'[Chorus]',hook+' tonight',b[3],b[0],hook+' tonight','[Verse 2]',b[1],'We keep the rhythm underneath our feet',b[0],'[Bridge]','Everything we were is turning into now','Let the music rise and pull us through the crowd','[Final Chorus]',hook+' tonight',b[3],b[0],hook+' tonight'].join('\n');
 }
 
 export function prepareMusicGeneration(input={}){
