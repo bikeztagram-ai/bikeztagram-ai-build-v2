@@ -118,7 +118,7 @@ try:
     # A 30s MiniMax render normally completes in a few minutes on the T4.
     # Hard-stop pathological inference hangs so a free Kaggle session cannot
     # sit occupied indefinitely. Scale slightly with requested duration.
-    render_timeout = max(600, min(1200, int(duration * 24)))
+    render_timeout = max(900, min(1800, int(duration * 60)))
     print(f"RENDER_TIMEOUT_SECONDS={render_timeout}", flush=True)
 
     import signal
