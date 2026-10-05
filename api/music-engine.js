@@ -1,4 +1,4 @@
-import { issueSignedToken, presignUrl } from '@vercel/blob';
+import { issueSignedToken, presignUrl, put, get, list } from '@vercel/blob';
 
 export const maxDuration = 10;
 
@@ -22,6 +22,12 @@ const OWNER = 'bikeztagram-ai';
 const REPO = 'bikeztagram-ai-build-v2';
 const WORKFLOW = 'minimax-music3-kaggle.yml';
 const OUTPUT_PREFIX = 'music-engine/jobs/';
+const QUEUE_PREFIX = 'music-engine/queue/';
+const STATUS_PREFIX = 'music-engine/status/';
+const WORKER_SESSION_PATH = 'music-engine/worker/session.json';
+const WORKER_HEARTBEAT_PATH = 'music-engine/worker/heartbeat.json';
+const WORKER_WORKFLOW = 'minimax-music3-warm.yml';
+const WARM_IDLE_MS = 15 * 60 * 1000;
 
 function githubHeaders() {
   const token = env('GITHUB_ACTIONS_TOKEN');
@@ -49,6 +55,20 @@ async function issuePut(pathname) {
     operation: 'put',
     validUntil: Date.now() + 2 * 60 * 60 * 1000,
   })).presignedUrl;
+}
+
+async function blobJson(pathname) {
+  try {
+    const result = await get(pathname, { access: 'private' });
+    if (!result?.stream) return null;
+    return JSON.parse(await new Response(result.stream).text());
+  } catch {
+    return null;
+  }
+}
+
+async function writeBlobJson(pathname, value) {
+  return put(pathname, JSON.stringify(value), { access: 'private', addRandomSuffix: false, allowOverwrite: true, contentType: 'application/json' });
 }
 
 async function issueGet(pathname) {
@@ -88,6 +108,13 @@ export default async function handler(req, res) {
     if (!jobId) return json(res, 400, { error: 'jobId is required.' });
 
     const pathname = outputPath(jobId);
+    const status = await blobJson(STATUS_PREFIX + jobId + '.json');
+    if (status?.status === 'FAILED') {
+      return json(res, 502, { status: 'FAILED', error: status.error || 'Private MiniMax Music 3 render failed.', jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
+    }
+    if (status?.status === 'IN_PROGRESS' || status?.status === 'IN_QUEUE') {
+      return json(res, 200, { ...status, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
+    }
     try {
       const storeId = env('PUBLIC_BLOB_STORE_ID') || env('BLOB_STORE_ID');
       if (storeId) {
@@ -138,6 +165,9 @@ export default async function handler(req, res) {
 
     return json(res, 200, {
       status: 'IN_QUEUE',
+      progress: 5,
+      phase: 'Queued — waiting for the warm MiniMax worker',
+      progressEstimated: true,
       jobId,
       provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle'
     });
@@ -173,20 +203,56 @@ export default async function handler(req, res) {
       output_put_url: outputPutUrl
     };
 
-    const response = await fetch(
-      'https://api.github.com/repos/' + OWNER + '/' + REPO +
-      '/actions/workflows/' + WORKFLOW + '/dispatches',
-      {
-        method: 'POST',
-        headers: github,
-        body: JSON.stringify({ ref: 'main', inputs: workflowInputs })
-      }
+    await writeBlobJson(QUEUE_PREFIX + jobId + '.json', {
+      jobId,
+      ...workflowInputs,
+      createdAt: Date.now()
+    });
+    await writeBlobJson(STATUS_PREFIX + jobId + '.json', {
+      status: 'IN_QUEUE',
+      progress: 5,
+      phase: 'Queued — waiting for the warm MiniMax worker',
+      progressEstimated: true,
+      updatedAt: Date.now()
+    });
+
+    const session = await blobJson(WORKER_SESSION_PATH);
+    const heartbeat = await blobJson(WORKER_HEARTBEAT_PATH);
+    const workerAlive = Boolean(
+      session?.token &&
+      session.expiresAt > Date.now() &&
+      heartbeat?.updatedAt &&
+      Date.now() - heartbeat.updatedAt < 45000
     );
+
+    let response = { ok: true };
+    if (!workerAlive) {
+      const workerToken = crypto.randomUUID() + crypto.randomUUID();
+      await writeBlobJson(WORKER_SESSION_PATH, {
+        token: workerToken,
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 30 * 60 * 1000
+      });
+      response = await fetch(
+        'https://api.github.com/repos/' + OWNER + '/' + REPO +
+        '/actions/workflows/' + WORKER_WORKFLOW + '/dispatches',
+        {
+          method: 'POST',
+          headers: github,
+          body: JSON.stringify({
+            ref: 'main',
+            inputs: {
+              worker_token: workerToken
+            }
+          })
+        }
+      );
+    }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
       return json(res, 502, {
-        error: 'GitHub could not start the free Kaggle MiniMax Music 3 job.',
+        error: 'GitHub could not start the free Kaggle MiniMax Music 3 warm worker.',
         details: detail.slice(0, 1200)
       });
     }
