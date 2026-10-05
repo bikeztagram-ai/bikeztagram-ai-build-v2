@@ -4,41 +4,6 @@ function providerBaseUrl() {
   return String(import.meta?.env?.VITE_ACE_STEP_API_URL || '').trim().replace(/\/$/, '');
 }
 
-async function wakeAndWaitForMusicEngine(baseUrl) {
-  const healthUrl = baseUrl + '/health';
-  try {
-    const current = await fetch(healthUrl, { method: 'GET', cache: 'no-store' });
-    if (current.ok) {
-      const data = await current.json().catch(() => ({}));
-      if (data?.ok) return;
-    }
-  } catch {}
-
-  const wake = await fetch('/api/music-engine-wake', { method: 'POST' });
-  if (!wake.ok) {
-    let detail = '';
-    try { detail = (await wake.json())?.details || ''; } catch {}
-    throw new Error('Bikeztagram Music Engine could not be started.' + (detail ? ' ' + detail : ''));
-  }
-
-  const deadline = Date.now() + 90000;
-  let lastError = '';
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(healthUrl, { method: 'GET', cache: 'no-store' });
-      if (response.ok) {
-        const data = await response.json().catch(() => ({}));
-        if (data?.ok) return;
-        lastError = 'GPU is starting and the MiniMax renderer is still loading.';
-      }
-    } catch (error) {
-      lastError = error?.message || String(error);
-    }
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
-  throw new Error('Bikeztagram Music Engine did not become ready within 90 seconds.' + (lastError ? ' ' + lastError : ''));
-}
-
 async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInstrumental, bpm, key, mode, vocalLanguage, vocalDirection }) {
   const baseUrl = getConfiguredMusicEngineUrl();
   if (!baseUrl) return null;
@@ -65,7 +30,7 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
   if (!submit.ok || !submitData.jobId) {
     throw new Error('Bikeztagram Music Engine could not start the GPU render.' + (submitData.details ? ' ' + submitData.details : ''));
   }
-  const deadline = Date.now() + 12 * 60 * 1000;
+  const deadline = Date.now() + 20 * 60 * 1000;
   let lastStatus = submitData.status || 'IN_QUEUE';
   while (Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -100,7 +65,7 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
       throw new Error(data.error || 'Private MiniMax Music 3 render failed.');
     }
   }
-  throw new Error('Bikeztagram Music Engine is still rendering after 12 minutes (' + lastStatus + '). No duplicate GPU job was submitted.');
+  throw new Error('Bikeztagram Music Engine is still rendering after 20 minutes (' + lastStatus + '). No duplicate GPU job was submitted.');
 }
 
 export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75 } = {}) {
