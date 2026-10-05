@@ -42,5 +42,5 @@ export function prepareMusicGeneration(input={}){
 }
 
 export function getConfiguredMusicEngineUrl(){
- return String(import.meta?.env?.VITE_MUSIC_ENGINE_URL||'').trim().replace(/\/$/,'');
+ return String(import.meta?.env?.VITE_MUSIC_ENGINE_URL||'/api/music-engine').trim().replace(/\/$/,'');
 }
