@@ -85,6 +85,19 @@ try:
         low_cpu_mem_usage=True,
     )
 
+    # The Qwen embedding/norm/head are touched outside the decoder-layer
+    # groups. Keep these small critical modules resident on CUDA so token IDs
+    # and logits never cross a CPU/CUDA boundary during streamed offload.
+    lm_model = pipe.language_model.model
+    for module_name in ("embed_tokens", "norm"):
+        module = getattr(lm_model, module_name, None)
+        if module is not None:
+            module.to(torch.device("cuda"))
+    lm_head = getattr(pipe.language_model, "lm_head", None)
+    if lm_head is not None:
+        lm_head.to(torch.device("cuda"))
+    print("Qwen embeddings/norm/head pinned to CUDA; decoder blocks streamed", flush=True)
+
     print("=== MUSIC 3 READY ===", flush=True)
     print(f"GPU status before render: {gpu_snapshot()}", flush=True)
 
