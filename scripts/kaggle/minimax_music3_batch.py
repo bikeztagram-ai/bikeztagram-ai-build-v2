@@ -115,14 +115,28 @@ try:
 
     print("=== RENDER START ===", flush=True)
     render_started = time.time()
+    # A 30s MiniMax render normally completes in a few minutes on the T4.
+    # Hard-stop pathological inference hangs so a free Kaggle session cannot
+    # sit occupied indefinitely. Scale slightly with requested duration.
+    render_timeout = max(600, min(1200, int(duration * 24)))
+    print(f"RENDER_TIMEOUT_SECONDS={render_timeout}", flush=True)
 
-    audio = pipe(
-        prompt=prompt,
-        lyrics=lyrics,
-        audio_duration=duration,
-        generator=torch.Generator("cuda").manual_seed(1001),
-        output="audios",
-    )[0]
+    import signal
+    def _render_timeout_handler(signum, frame):
+        raise TimeoutError(f"MiniMax inference exceeded {render_timeout}s render timeout")
+
+    signal.signal(signal.SIGALRM, _render_timeout_handler)
+    signal.alarm(render_timeout)
+    try:
+        audio = pipe(
+            prompt=prompt,
+            lyrics=lyrics,
+            audio_duration=duration,
+            generator=torch.Generator("cuda").manual_seed(1001),
+            output="audios",
+        )[0]
+    finally:
+        signal.alarm(0)
 
     import soundfile as sf
     out = f"/kaggle/working/bikeztagram_minimax_music3_{job_id}.wav"
