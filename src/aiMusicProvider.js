@@ -68,7 +68,11 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
     if (typeof data.progress === 'number') {
       onProgress?.({ percent: Math.max(0, Math.min(100, Math.round(data.progress))), phase: data.phase || 'Rendering…', status: lastStatus, estimated: data.progressEstimated !== false });
     }
-    if (!statusResponse.ok) throw new Error(data.error || 'Bikeztagram Music Engine failed while rendering.');
+    if (!statusResponse.ok) {
+      let message = data.error || 'Bikeztagram Music Engine failed while rendering.';
+      if (data.details) message += ' ' + data.details;
+      throw new Error(message);
+    }
     if (data.status === 'COMPLETED') {
       let blob;
       if (data.audioUrl) {
@@ -97,7 +101,7 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
       throw new Error(data.error || 'Private MiniMax Music 3 render failed.');
     }
   }
-  throw new Error('Bikeztagram Music Engine is still rendering after 20 minutes (' + lastStatus + '). No duplicate GPU job was submitted.');
+  throw new Error('Bikeztagram Music Engine is still rendering after 90 minutes (' + lastStatus + '). No duplicate GPU job was submitted.');
 }
 
 export async function generateAIMusic({ prompt, durationMs = 30000, forceInstrumental = false, bpm, key, mode, lyrics = '', vocalLanguage = 'en', vocalDirection = '', sourceAudio = null, referenceAudio = null, taskType = 'text2music', coverStrength = 0.75, onProgress } = {}) {
