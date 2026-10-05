@@ -51,7 +51,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 started = time.time()
 print("=== STARTING MINIMAX MUSIC 3 LOW-VRAM ENGINE ===", flush=True)
 print("Backend: Diffusers ModularPipeline", flush=True)
-print("Mode: automatic CPU offload + language-model leaf offload", flush=True)
+print("Mode: automatic CPU offload + language-model block offload", flush=True)
 print("GPU: T4 #0; T4 #1 intentionally unused for this memory diagnostic", flush=True)
 
 try:
@@ -78,8 +78,10 @@ try:
     apply_group_offloading(
         pipe.language_model,
         onload_device=torch.device("cuda"),
-        offload_type="leaf_level",
+        offload_type="block_level",
+        num_blocks_per_group=1,
         use_stream=True,
+        non_blocking=True,
         low_cpu_mem_usage=True,
     )
 
