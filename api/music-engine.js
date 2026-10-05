@@ -247,12 +247,23 @@ export default async function handler(req, res) {
           })
         }
       );
+      if (response.status === 404) {
+        response = await fetch(
+          'https://api.github.com/repos/' + OWNER + '/' + REPO +
+          '/actions/workflows/' + WORKFLOW + '/dispatches',
+          {
+            method: 'POST',
+            headers: github,
+            body: JSON.stringify({ ref: 'main', inputs: workflowInputs })
+          }
+        );
+      }
     }
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
       return json(res, 502, {
-        error: 'GitHub could not start the free Kaggle MiniMax Music 3 warm worker.',
+        error: 'GitHub could not start the MiniMax Music 3 render.',
         details: detail.slice(0, 1200)
       });
     }
