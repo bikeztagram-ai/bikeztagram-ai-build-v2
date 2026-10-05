@@ -28,6 +28,7 @@ const WORKER_SESSION_PATH = 'music-engine/worker/session.json';
 const WORKER_HEARTBEAT_PATH = 'music-engine/worker/heartbeat.json';
 const WORKER_WORKFLOW = 'minimax-music3-warm.yml';
 const WARM_IDLE_MS = 15 * 60 * 1000;
+const WARM_START_GRACE_MS = 90 * 1000;
 
 function githubHeaders() {
   const token = env('GITHUB_ACTIONS_TOKEN');
@@ -117,6 +118,12 @@ export default async function handler(req, res) {
     if (status?.status === 'IN_PROGRESS' || status?.status === 'IN_QUEUE') {
       const run = await findRun(jobId);
       if (!run) {
+        const age = status?.createdAt ? Date.now() - Number(status.createdAt) : 0;
+        const heartbeat = await blobJson(WORKER_HEARTBEAT_PATH);
+        const heartbeatAge = heartbeat?.updatedAt ? Date.now() - Number(heartbeat.updatedAt) : Infinity;
+        if (status.status === 'IN_QUEUE' && age > WARM_START_GRACE_MS && heartbeatAge > 45000) {
+          return json(res, 200, { ...status, status: 'RECOVERING', progress: 8, phase: 'Recovering — the warm worker did not start, switching to a cold MiniMax GPU job', progressEstimated: true, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
+        }
         return json(res, 200, { ...status, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
       }
     }
@@ -211,7 +218,8 @@ export default async function handler(req, res) {
     await writeBlobJson(QUEUE_PREFIX + jobId + '.json', {
       jobId,
       ...workflowInputs,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      warmDispatchAt: Date.now()
     });
     await writeBlobJson(STATUS_PREFIX + jobId + '.json', {
       status: 'IN_QUEUE',
