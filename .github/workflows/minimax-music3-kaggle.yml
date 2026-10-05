@@ -230,9 +230,32 @@ jobs:
           set -euo pipefail
           WAV="$(find kaggle-output -type f -name '*.wav' -print -quit)"
           echo "Uploading generated WAV to the signed Vercel Blob URL."
-          curl --fail-with-body --retry 3 --retry-delay 2             -X PUT             -H "Content-Type: audio/wav"             --data-binary "@${WAV}"             "${OUTPUT_PUT_URL}"
+          UPLOAD_RESPONSE="$(curl --fail-with-body --retry 3 --retry-delay 2 \
+            -X PUT \
+            -H "Content-Type: audio/wav" \
+            --data-binary "@${WAV}" \
+            "${OUTPUT_PUT_URL}")"
+          echo "Blob upload response received."
+          echo "${UPLOAD_RESPONSE}" | python -c 'import json,sys; d=json.load(sys.stdin); print("BLOB_PATHNAME="+str(d.get("pathname",""))); print("BLOB_SIZE="+str(d.get("size",""))); print("BLOB_UPLOAD_URL_PRESENT="+str(bool(d.get("url"))))'
           echo "WAV upload: PASS"
 
+      - name: Verify WAV is retrievable through Music Engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERIFY_URL="https://bikeztagram-ai-build-v2.vercel.app/api/music-engine?jobId=${JOB_ID}"
+          echo "Verifying server-side Blob retrieval: ${VERIFY_URL}"
+          for attempt in $(seq 1 10); do
+            RESPONSE="$(curl --silent --show-error --fail "${VERIFY_URL}" || true)"
+            echo "VERIFY ${attempt}/10 — ${RESPONSE}"
+            if echo "${RESPONSE}" | grep -q '"status":"COMPLETED"'; then
+              echo "Blob retrieval: PASS"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Blob upload completed but Music Engine could not retrieve the WAV."
+          exit 1
 
       - name: Report cold worker failure to Music Engine
         if: failure()
