@@ -34,7 +34,7 @@ py = f"{venv}/bin/python"
 run([
     sys.executable, "-m", "uv", "pip", "install", "--python", py,
     "git+https://github.com/huggingface/diffusers.git",
-    "transformers", "accelerate", "safetensors", "soundfile",
+    "transformers", "accelerate", "safetensors", "soundfile", "bitsandbytes",
 ])
 
 print("=== GPU PRE-FLIGHT ===", flush=True)
@@ -71,19 +71,29 @@ try:
         components_manager=manager,
     )
 
-    # T4 is SM75; FP16 avoids native-BF16 requirements while keeping VRAM low.
-    pipe.load_components(dtype=torch.float16)
+    # T4 is SM75; FP16 is the safe compute dtype. Prefer an 8-bit
+    # quantized Qwen language model so the 8B autoregressive stage can stay
+    # resident instead of streaming every layer over CPU<->GPU.
+    quantized_lm = False
+    try:
+        from transformers import BitsAndBytesConfig
+        lm_quant = BitsAndBytesConfig(load_in_8bit=True, llm_int8_enable_fp32_cpu_offload=False)
+        pipe.load_components(dtype=torch.float16, quantization_config={"language_model": lm_quant})
+        quantized_lm = True
+        print("Language model mode: 8-bit BitsAndBytes on T4", flush=True)
+    except Exception as exc:
+        print(f"8-bit language-model path unavailable; using streaming offload fallback: {exc}", flush=True)
+        pipe.load_components(dtype=torch.float16)
+        print("Applying leaf-level streaming offload to language model...", flush=True)
+        apply_group_offloading(
+            pipe.language_model,
+            onload_device=torch.device("cuda"),
+            offload_type="leaf_level",
+            use_stream=True,
+            low_cpu_mem_usage=True,
+        )
 
-    print("Applying leaf-level streaming offload to language model...", flush=True)
-    apply_group_offloading(
-        pipe.language_model,
-        onload_device=torch.device("cuda"),
-        offload_type="leaf_level",
-        use_stream=True,
-        low_cpu_mem_usage=True,
-    )
-
-    print("=== MUSIC 3 READY ===", flush=True)
+    print(f"=== MUSIC 3 READY === quantized_lm={quantized_lm}", flush=True)
     print(f"GPU status before render: {gpu_snapshot()}", flush=True)
 
     request = dict(globals().get("EMBEDDED_REQUEST") or {})
