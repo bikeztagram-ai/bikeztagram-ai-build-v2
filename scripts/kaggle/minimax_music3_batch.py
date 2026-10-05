@@ -74,9 +74,13 @@ try:
     # T4 is SM75; FP16 avoids native-BF16 requirements while keeping VRAM low.
     pipe.load_components(dtype=torch.float16)
 
-    print("Applying leaf-level streaming offload to language model...", flush=True)
+    print("Applying streamed block offload to Qwen decoder layers only...", flush=True)
+    lm_model = pipe.language_model.model
+    qwen_layers = getattr(lm_model, "layers", None)
+    if qwen_layers is None:
+        raise RuntimeError("MiniMax Qwen language model has no decoder layer collection")
     apply_group_offloading(
-        pipe.language_model,
+        qwen_layers,
         onload_device=torch.device("cuda"),
         offload_type="block_level",
         num_blocks_per_group=1,
@@ -85,10 +89,8 @@ try:
         low_cpu_mem_usage=True,
     )
 
-    # The Qwen embedding/norm/head are touched outside the decoder-layer
-    # groups. Keep these small critical modules resident on CUDA so token IDs
-    # and logits never cross a CPU/CUDA boundary during streamed offload.
-    lm_model = pipe.language_model.model
+    # Keep the small embedding/norm/head modules resident on CUDA. Only the
+    # large decoder layer collection is streamed between CPU and T4.
     for module_name in ("embed_tokens", "norm"):
         module = getattr(lm_model, module_name, None)
         if module is not None:
