@@ -116,7 +116,12 @@ We own the road tonight"""
 
     import soundfile as sf
     out = "/kaggle/working/bikeztagram_minimax_music3_test.wav"
-    sf.write(out, audio.T.float().cpu().numpy(), pipe.sampling_rate)
+    import numpy as np
+    audio_np = np.asarray(audio)
+    if audio_np.ndim == 2:
+        audio_np = audio_np.T
+    audio_np = audio_np.astype(np.float32, copy=False)
+    sf.write(out, audio_np, pipe.sampling_rate)
 
     print("=== RENDER COMPLETE ===", flush=True)
     print(f"RENDER_SECONDS={time.time() - render_started:.1f}", flush=True)
