@@ -143,7 +143,7 @@ jobs:
           python - <<'PY'
           import json, os
           from pathlib import Path
-          source = Path(".kaggle-music3-kernel/minimax_music3_batch.py")
+          source = Path(".kaggle-music3-kernel/minimax_music3_sglang.py")
           request = {
               "job_id": os.environ["JOB_ID"],
               "prompt": os.environ.get("REQUEST_PROMPT", ""),
