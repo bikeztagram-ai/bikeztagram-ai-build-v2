@@ -33,10 +33,33 @@ async function generateViaOwnMusicEngine({ prompt, lyrics, durationMs, forceInst
   const deadline = Date.now() + 20 * 60 * 1000;
   let lastStatus = submitData.status || 'IN_QUEUE';
   onProgress?.({ percent: 5, phase: 'Queued — waiting for a free Kaggle GPU', status: lastStatus, estimated: true });
+  let transientFailures = 0;
   while (Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, 2000));
-    const statusResponse = await fetch(baseUrl + '?jobId=' + encodeURIComponent(submitData.jobId), { cache: 'no-store' });
-    const data = await statusResponse.json().catch(() => ({}));
+    let statusResponse;
+    let data = {};
+    try {
+      statusResponse = await fetch(baseUrl + '?jobId=' + encodeURIComponent(submitData.jobId), {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8000)
+      });
+      data = await statusResponse.json().catch(() => ({}));
+      transientFailures = 0;
+    } catch (error) {
+      transientFailures += 1;
+      const waitMs = Math.min(10000, 1500 * transientFailures);
+      onProgress?.({
+        percent: typeof lastStatus === 'string' && lastStatus === 'IN_PROGRESS' ? 61 : 5,
+        phase: 'Reconnecting — checking the GPU render…',
+        status: lastStatus,
+        estimated: true
+      });
+      if (transientFailures >= 8) {
+        throw new Error('Bikeztagram Music Engine could not reconnect to the render status after several attempts. The GPU job was not duplicated.');
+      }
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+      continue;
+    }
     lastStatus = data.status || lastStatus;
     if (typeof data.progress === 'number') {
       onProgress?.({ percent: Math.max(0, Math.min(100, Math.round(data.progress))), phase: data.phase || 'Rendering…', status: lastStatus, estimated: data.progressEstimated !== false });
