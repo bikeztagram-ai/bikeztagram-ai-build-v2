@@ -1,4 +1,5 @@
 import { issueSignedToken, presignUrl, put, get, list } from '@vercel/blob';
+import { prepareMusicGeneration } from '../src/musicEngineDirector.js';
 
 export const maxDuration = 10;
 
@@ -305,17 +306,32 @@ export default async function handler(req, res) {
     const outputPutUrl = await issuePut(pathname);
     const statusPutUrl = await issuePut(STATUS_PREFIX + jobId + '.json');
 
+    const rawPrompt = String(input.prompt || '').slice(0, 5000);
+    const rawLyrics = String(input.lyrics || '').slice(0, 12000);
+    const forceInstrumental = Boolean(input.forceInstrumental);
+    const prepared = prepareMusicGeneration({
+      prompt: rawPrompt,
+      lyrics: rawLyrics,
+      duration: Math.max(5, Math.min(300, Number(input.duration) || 30)),
+      bpm: input.bpm ?? 'auto',
+      key: input.key ?? 'auto',
+      mode: input.mode ?? 'auto',
+      vocalLanguage: input.vocalLanguage ?? 'en',
+      vocalDirection: input.vocalDirection || '',
+      forceInstrumental
+    });
+    const generatedLyrics = forceInstrumental ? '' : String(prepared.lyrics || rawLyrics).slice(0, 12000);
     const workflowInputs = {
       job_id: jobId,
-      prompt: String(input.prompt || '').slice(0, 5000),
-      lyrics: String(input.lyrics || '').slice(0, 12000),
-      duration: String(Math.max(5, Math.min(300, Number(input.duration) || 30))),
+      prompt: String(prepared.prompt || rawPrompt).slice(0, 5000),
+      lyrics: generatedLyrics,
+      duration: String(prepared.duration || Math.max(5, Math.min(300, Number(input.duration) || 30))),
       bpm: String(input.bpm ?? 'auto').slice(0, 32),
       key: String(input.key ?? 'auto').slice(0, 32),
       mode: String(input.mode ?? 'auto').slice(0, 32),
       vocal_language: String(input.vocalLanguage ?? 'en').slice(0, 32),
       vocal_direction: String(input.vocalDirection || '').slice(0, 1000),
-      force_instrumental: String(Boolean(input.forceInstrumental)),
+      force_instrumental: String(forceInstrumental),
       output_put_url: outputPutUrl
     };
     const coldWorkflowInputs = {
