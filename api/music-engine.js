@@ -68,7 +68,7 @@ async function findRun(jobId) {
   const response = await fetch(
     'https://api.github.com/repos/' + OWNER + '/' + REPO +
     '/actions/workflows/' + WORKFLOW + '/runs?per_page=30&event=workflow_dispatch',
-    { headers, cache: 'no-store' }
+    { headers, cache: 'no-store', signal: AbortSignal.timeout(6500) }
   );
   if (!response.ok) return null;
   const data = await response.json().catch(() => ({}));
