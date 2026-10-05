@@ -62,8 +62,9 @@ async function issueGet(pathname) {
 }
 
 async function findRun(jobId) {
-  const headers = githubHeaders();
-  if (!headers) return null;
+  try {
+    const headers = githubHeaders();
+    if (!headers) return null;
   const response = await fetch(
     'https://api.github.com/repos/' + OWNER + '/' + REPO +
     '/actions/workflows/' + WORKFLOW + '/runs?per_page=30&event=workflow_dispatch',
@@ -71,16 +72,19 @@ async function findRun(jobId) {
   );
   if (!response.ok) return null;
   const data = await response.json().catch(() => ({}));
-  return (data.workflow_runs || []).find(run =>
-    String(run.name || '').includes(jobId) ||
-    String(run.display_title || '').includes(jobId)
-  ) || null;
+    return (data.workflow_runs || []).find(run =>
+      String(run.name || '').includes(jobId) ||
+      String(run.display_title || '').includes(jobId)
+    ) || null;
+  } catch {
+    return null;
+  }
 }
 
 export default async function handler(req, res) {
   try {
   if (req.method === 'GET') {
-    const jobId = cleanJobId(new URL(req.url).searchParams.get('jobId'));
+    const jobId = cleanJobId(new URL(req.url, 'https://' + (req.headers?.host || 'localhost')).searchParams.get('jobId'));
     if (!jobId) return json(res, 400, { error: 'jobId is required.' });
 
     const pathname = outputPath(jobId);
@@ -113,10 +117,20 @@ export default async function handler(req, res) {
             details: run.conclusion
           });
         }
-        return json(res, 200, { status: 'FINALISING', jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
+        return json(res, 200, { status: 'FINALISING', progress: 95, phase: 'Finalising — uploading the finished WAV', progressEstimated: false, jobId, provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle' });
       }
+      const status = run.status === 'queued' || run.status === 'waiting' ? 'IN_QUEUE' : 'IN_PROGRESS';
+      const phase = status === 'IN_QUEUE' ? 'Queued — waiting for a free Kaggle GPU' : 'Rendering — MiniMax Music 3 is working on the song';
+      const createdAt = run.run_started_at || run.created_at;
+      const elapsedSeconds = createdAt ? Math.max(0, (Date.now() - Date.parse(createdAt)) / 1000) : 0;
+      // This is an intentionally conservative estimate. Kaggle startup/model loading varies,
+      // so it is progress guidance rather than a claim about exact GPU inference completion.
+      const estimatedPercent = status === 'IN_QUEUE' ? 5 : Math.min(90, Math.max(15, Math.round(15 + (elapsedSeconds / 480) * 75)));
       return json(res, 200, {
-        status: run.status === 'queued' || run.status === 'waiting' ? 'IN_QUEUE' : 'IN_PROGRESS',
+        status,
+        progress: estimatedPercent,
+        phase,
+        progressEstimated: true,
         jobId,
         provider: 'Bikeztagram Music Engine · MiniMax-Music3 · Kaggle'
       });
