@@ -1,11 +1,35 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+# Kaggle's /kaggle/working filesystem is comparatively small. ModelScope
+# shards can total many GB, and the default ~/.cache can fill the root disk.
+# Put model downloads, temporary files, pip cache and disk offload on the
+# large ephemeral /kaggle/temp volume instead.
+TEMP_ROOT = Path("/kaggle/temp/bikeztagram-music3")
+for folder in ("modelscope", "huggingface", "torch", "tmp", "pip-cache", "offload"):
+    (TEMP_ROOT / folder).mkdir(parents=True, exist_ok=True)
+os.environ["MODELSCOPE_CACHE"] = str(TEMP_ROOT / "modelscope")
+os.environ["HF_HOME"] = str(TEMP_ROOT / "huggingface")
+os.environ["HUGGINGFACE_HUB_CACHE"] = str(TEMP_ROOT / "huggingface" / "hub")
+os.environ["TORCH_HOME"] = str(TEMP_ROOT / "torch")
+os.environ["TMPDIR"] = str(TEMP_ROOT / "tmp")
+os.environ["TMP"] = str(TEMP_ROOT / "tmp")
+os.environ["TEMP"] = str(TEMP_ROOT / "tmp")
+os.environ["PIP_CACHE_DIR"] = str(TEMP_ROOT / "pip-cache")
+
+def print_disk_usage(label, path):
+    usage = shutil.disk_usage(path)
+    print(f"DISK_{label} total_gb={usage.total / 1024**3:.1f} free_gb={usage.free / 1024**3:.1f}", flush=True)
+
 print("=== BIKEZTAGRAM / MINIMAX MUSIC 3 DIFFSYNTH LOW-VRAM ===", flush=True)
+print(f"MODEL_CACHE_ROOT={TEMP_ROOT}", flush=True)
+print_disk_usage("WORKING", "/kaggle/working")
+print_disk_usage("TEMP", "/kaggle/temp")
 
 request = dict(globals().get("EMBEDDED_REQUEST") or {})
 for candidate in (Path.cwd() / "music_request.json", Path("/kaggle/working/music_request.json")):
@@ -29,7 +53,7 @@ print(f"DURATION={duration}", flush=True)
 print(f"REQUEST_HAS_LYRICS={bool(lyrics)}", flush=True)
 
 subprocess.run([
-    sys.executable, "-m", "pip", "install", "-q", "--no-input",
+    sys.executable, "-m", "pip", "install", "-q", "--no-input", "--no-cache-dir",
     "git+https://github.com/modelscope/DiffSynth-Studio.git",
     "modelscope",
 ], check=True)
