@@ -1,0 +1,63 @@
+name: FORGE — MiniMax Cache Fix E2E (temporary)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/forge-minimax-e2e-smoke.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - name: Start real 15-second production vocal generation
+        id: start
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROMPT='Genre: electronic dance-pop. Theme: motorcycle freedom, night riding, neon lights, cold night air, chasing the horizon. Driving bass, bright synths, powerful drums, atmospheric pads and a memorable chorus. Natural sung lead vocal with backing harmonies.'
+          BODY="$(python -c 'import json,sys; print(json.dumps({"prompt":sys.argv[1],"lyrics":"","duration":15,"vocalLanguage":"en","forceInstrumental":False,"bpm":"auto","key":"auto","mode":"auto"}))' "$PROMPT")"
+          for attempt in $(seq 1 20); do
+            RESPONSE="$(curl --silent --show-error --request POST --header 'Content-Type: application/json' --data "$BODY" https://bikeztagram-ai-build-v2.vercel.app/api/music-engine || true)"
+            echo "START $attempt/20 — $RESPONSE"
+            if echo "$RESPONSE" | grep -q '"jobId"'; then
+              JOB_ID="$(echo "$RESPONSE" | python -c 'import json,sys; print(json.load(sys.stdin)["jobId"])')"
+              echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Could not start production Music Engine."
+          exit 1
+
+      - name: Poll until the WAV is retrievable
+        shell: bash
+        env:
+          JOB_ID: ${{ steps.start.outputs.job_id }}
+        run: |
+          set -euo pipefail
+          URL="https://bikeztagram-ai-build-v2.vercel.app/api/music-engine?jobId=${JOB_ID}"
+          for attempt in $(seq 1 540); do
+            RESPONSE="$(curl --silent --show-error "$URL" || true)"
+            echo "POLL $attempt/540 — $RESPONSE"
+            if echo "$RESPONSE" | grep -q '"status":"COMPLETED"'; then
+              AUDIO_URL="$(echo "$RESPONSE" | python -c 'import json,sys; print(json.load(sys.stdin).get("audioUrl",""))')"
+              test -n "$AUDIO_URL"
+              curl --silent --show-error --fail --output /tmp/final.wav "$AUDIO_URL"
+              test -s /tmp/final.wav
+              python - <<'PY'
+          from pathlib import Path
+          p=Path("/tmp/final.wav")
+          data=p.read_bytes()
+          assert data[:4] == b"RIFF" and data[8:12] == b"WAVE", "retrieved audio is not a WAV"
+          assert len(data) > 10000, f"WAV too small: {len(data)} bytes"
+          print(f"E2E WAV PASS — {len(data)} bytes")
+          PY
+              exit 0
+            fi
+            if echo "$RESPONSE" | grep -q '"status":"FAILED"'; then echo "Production Music Engine reported FAILED."; exit 1; fi
+            sleep 10
+          done
+          echo "Timed out waiting for real audio."
+          exit 1
