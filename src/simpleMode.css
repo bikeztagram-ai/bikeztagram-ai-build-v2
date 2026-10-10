@@ -27,3 +27,12 @@ body:has(.forge-dashboard) .dashboard-hero h2 { max-width: 500px; }
   body:has(.forge-dashboard) .dashboard-tool { min-height: 112px; padding: 15px; }
   body:has(.forge-dashboard) .dashboard-hero { padding-bottom: 20px; }
 }
+
+
+/* The landing dashboard is mounted inside App, while these legacy prompt studios
+   are mounted as sibling roots in main.jsx. Hide those siblings on the landing
+   screen so they cannot leak above/below the dashboard and create a double home. */
+body:has(.forge-dashboard) .prompt-only-studio,
+body:has(.forge-dashboard) section[aria-label="Original prompt scene studio"] {
+  display: none !important;
+}
