@@ -132,3 +132,305 @@ body:has(#creative-workspace) section[aria-label="Original prompt scene studio"]
   #creative-workspace .action-row .secondary-cta { flex-basis: 100%; }
   #creative-workspace .control-row label { flex: 1 1 150px; }
 }
+
+
+/* FORGE pass 3 — one filmmaker flow, not multiple stacked studios.
+   The old prompt-only and original-scene roots duplicate the primary filmmaker
+   workspace. Keep their implementation in the repo, but don't render their UI
+   alongside the main experience. */
+.prompt-only-studio,
+section[aria-label="Original prompt scene studio"] {
+  display: none !important;
+}
+
+/* Keep the main filmmaker flow focused on the prompt, optional media, plan,
+   and finished export. Hide the duplicate procedural-scene shortcut; its
+   output remains available from the dedicated creation flow when needed. */
+#creative-workspace > .world-button {
+  display: none !important;
+}
+
+/* A calmer settings row: controls wrap naturally instead of colliding on phones. */
+#creative-workspace .control-card {
+  display: grid;
+  gap: 12px;
+}
+#creative-workspace .control-row > span {
+  color: #a8c2ca;
+  font-size: 12px;
+}
+#creative-workspace .control-row select {
+  min-height: 42px;
+  max-width: 100%;
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: #effaff;
+  background: #101c28;
+  border: 1px solid rgba(126,207,226,.22);
+}
+#creative-workspace .text-button {
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+#creative-workspace .paid-video-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  margin: 0;
+}
+#creative-workspace .paid-video-consent input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+#creative-workspace .plan-confidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+#creative-workspace .plan-confidence > * {
+  font-size: 11px;
+}
+#creative-workspace .plan-meta span {
+  border-radius: 999px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(126,207,226,.12);
+}
+#creative-workspace .film-plan .action-row {
+  align-items: stretch;
+}
+#creative-workspace .film-plan .action-row .primary-cta {
+  min-height: 52px;
+}
+@media (max-width: 480px) {
+  #creative-workspace .control-row {
+    display: grid;
+    grid-template-columns: minmax(0,1fr);
+    align-items: stretch;
+  }
+  #creative-workspace .control-row label {
+    display: grid;
+    grid-template-columns: auto minmax(0,1fr);
+    align-items: center;
+    gap: 10px;
+  }
+  #creative-workspace .control-row label select {
+    width: 100%;
+  }
+  #creative-workspace .paid-video-consent {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  #creative-workspace .plan-confidence {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  #creative-workspace .plan-meta {
+    gap: 6px;
+  }
+  #creative-workspace .plan-meta span {
+    font-size: 10px;
+    padding: 7px 9px;
+  }
+}
+
+/* Music already has a simple prompt-first hub; keep advanced controls folded
+   until requested and make the primary action easy to reach on small screens. */
+.music-studio-page .music-create-hub {
+  max-width: 680px;
+  margin-top: clamp(24px, 6vh, 58px);
+  text-align: left;
+}
+.music-studio-page .music-create-hub > p {
+  margin-left: 0;
+  margin-right: 0;
+}
+.music-studio-page .music-prompt-hints {
+  justify-content: flex-start;
+}
+.music-studio-page .music-advanced-toggle {
+  min-height: 44px;
+  border: 1px solid rgba(126,207,226,.16);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.025);
+}
+.music-studio-page .music-advanced-toggle span {
+  text-align: center;
+}
+.music-studio-page .music-advanced-panel {
+  margin-top: 18px;
+}
+@media (max-width: 600px) {
+  .music-studio-page .music-create-hub {
+    margin-top: 22px;
+    text-align: left;
+  }
+  .music-studio-page .music-create-hub h1 {
+    max-width: 12ch;
+    line-height: 1.02;
+  }
+  .music-studio-page .music-project-name > span {
+    line-height: 1.5;
+  }
+  .music-studio-page .music-prompt-hints {
+    gap: 6px;
+  }
+  .music-studio-page .music-prompt-hints button {
+    flex: 1 1 auto;
+  }
+  .music-studio-page .music-create-main {
+    min-height: 56px;
+    border-radius: 12px;
+  }
+  .music-studio-page .music-advanced-toggle {
+    display: flex;
+    align-items: flex-start;
+    text-align: left;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .music-studio-page .music-advanced-toggle span {
+    text-align: left;
+    font-size: 10px;
+  }
+}
+
+
+/* FORGE mobile filmmaker wizard: one decision per screen. */
+#creative-workspace .hero-panel,
+#creative-workspace .workflow-strip { display: none !important; }
+.wizard-progress {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0 18px;
+  padding: 7px;
+  border: 1px solid rgba(126,207,226,.16);
+  border-radius: 16px;
+  background: rgba(4,12,18,.8);
+}
+.wizard-progress button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 60px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #77929b;
+  font-size: 11px;
+  font-weight: 700;
+}
+.wizard-progress button span {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 1px solid rgba(126,207,226,.25);
+  border-radius: 50%;
+  font-size: 10px;
+}
+.wizard-progress button.active {
+  color: #eafaff;
+  background: linear-gradient(145deg, rgba(28,154,202,.24), rgba(31,213,233,.08));
+  border-color: rgba(77,201,239,.5);
+}
+.wizard-progress button.active span,
+.wizard-progress button.complete span {
+  color: #03121a;
+  background: #78d8ee;
+  border-color: #78d8ee;
+}
+.wizard-progress button.complete { color: #a4dce8; }
+.wizard-page-intro { margin: 0 0 18px; }
+.wizard-page-intro > span {
+  display: block;
+  margin-bottom: 9px;
+  color: #7ad6eb;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+.wizard-page-intro h3 {
+  margin: 0 0 8px;
+  color: #f1fbff;
+  font-size: clamp(25px, 6vw, 34px);
+  line-height: 1.08;
+}
+.wizard-page-intro p {
+  margin: 0;
+  color: #9eb4bd;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.wizard-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+.wizard-actions > button { flex: 1 1 0; min-width: 0; min-height: 50px; }
+.wizard-actions .primary-cta { white-space: normal; }
+.advanced-settings {
+  margin: 12px 0 0;
+  border: 1px solid rgba(126,207,226,.18);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255,255,255,.02);
+}
+.advanced-settings summary {
+  min-height: 28px;
+  color: #a9dce7;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.advanced-settings[open] summary { margin-bottom: 12px; }
+.advanced-settings .control-row { flex-wrap: wrap; gap: 10px; }
+.advanced-settings .paid-video-consent { margin-top: 12px; }
+.wizard-step-1 #creative-workspace .director-card,
+.wizard-step-1 #creative-workspace .control-card,
+.wizard-step-1 #creative-workspace .film-plan,
+.wizard-step-1 #creative-workspace .result-card,
+.wizard-step-1 #creative-workspace .world-button,
+.wizard-step-2 #creative-workspace .source-card,
+.wizard-step-2 #creative-workspace .control-card,
+.wizard-step-2 #creative-workspace .film-plan,
+.wizard-step-2 #creative-workspace .result-card,
+.wizard-step-2 #creative-workspace .world-button,
+.wizard-step-3 #creative-workspace .source-card,
+.wizard-step-3 #creative-workspace .director-card,
+.wizard-step-3 #creative-workspace .result-card,
+.wizard-step-3 #creative-workspace .world-button,
+.wizard-step-4 #creative-workspace .workspace-grid,
+.wizard-step-4 #creative-workspace .control-card,
+.wizard-step-4 #creative-workspace .film-plan,
+.wizard-step-4 #creative-workspace .world-button {
+  display: none !important;
+}
+.wizard-step-3 #creative-workspace .workspace-grid { display: none !important; }
+.wizard-step-4 #creative-workspace .workspace-grid { display: none !important; }
+.wizard-step-4 #creative-workspace .result-card { display: block; }
+.wizard-step-3 #creative-workspace .control-card { display: block; }
+.wizard-step-3 #creative-workspace .film-plan { display: block; }
+@media (max-width: 480px) {
+  .wizard-progress { margin: 8px 0 14px; }
+  .wizard-progress button { min-height: 54px; font-size: 10px; }
+  .wizard-actions { gap: 8px; }
+  .wizard-actions > button { padding: 12px 10px; font-size: 12px; }
+  #creative-workspace .source-card,
+  #creative-workspace .director-card,
+  #creative-workspace .control-card,
+  #creative-workspace .film-plan,
+  #creative-workspace .result-card { padding: 16px; }
+}
+
+
+#creative-workspace .render-percent{float:right;margin-left:10px;color:#86e8fa;font-size:21px;font-variant-numeric:tabular-nums;line-height:1.2}#creative-workspace .render-progress-note{display:block;margin-top:8px;color:#7e9ca6;font-size:11px;line-height:1.4}#creative-workspace .progress i{transition:width .35s ease}
