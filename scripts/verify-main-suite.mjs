@@ -38,7 +38,11 @@ for (const name of autobotChecks) {
   if (result.status !== 0) failures.push(name);
 }
 
-console.log(`\nVerification audit complete: ${entries.length + autobotChecks.length} checks run, ${failures.length} failed.`);
+console.log('\n=== verify:video-provider-consent ===');
+const videoProviderCheck = spawnSync('node scripts/verify-video-provider-consent.mjs', { shell: true, stdio: 'inherit', env: process.env });
+if (videoProviderCheck.status !== 0) failures.push('verify:video-provider-consent');
+
+console.log(`\nVerification audit complete: ${entries.length + autobotChecks.length + 1} checks run, ${failures.length} failed.`);
 if (failures.length) {
   console.error(`Failed checks: ${failures.join(', ')}`);
   process.exit(1);
