@@ -15,7 +15,8 @@ assert.match(api, /body\.provider === 'huggingface'.*501/s, 'unimplemented free 
 assert.match(api, /requiresExplicitConsent: true/, 'capabilities must disclose paid consent');
 assert.match(api, /req\.method === 'GET' && !url\.searchParams\.has\('id'\)/, 'provider capability preflight must not require a task id');
 assert.match(provider, /allowPaidVideo=false/, 'client provider default must be opt-in');
-assert.match(provider, /allowPaid:allowPaidVideo===true/, 'client must send explicit consent boolean');
+assert.match(provider, /if\(!allowPaidVideo\)throw Error/, 'client must reject paid generation before sending a request when consent is absent');
+assert.match(provider, /allowPaid:true/, 'client may mark a request paid only after passing the consent gate');
 assert.match(batch, /allowPaidVideo = false/, 'prompt-only batch defaults to no paid generation');
 assert.match(batch, /allowPaidVideo, onProgress/, 'prompt-only shots must pass consent');
 assert.match(enhancer, /allowPaidVideo=false/, 'reference-photo animation defaults to no paid generation');
