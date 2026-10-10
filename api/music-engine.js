@@ -86,6 +86,9 @@ async function issueGet(pathname) {
 }
 
 async function dispatchColdFallback(jobId, currentStatus) {
+  // A direct cold dispatch is already running; never launch a duplicate just
+  // because GitHub's workflow-run listing has not become visible yet.
+  if (currentStatus?.coldDispatchAt) return { dispatched: false, pending: true };
   const now = Date.now();
   const already = Number(currentStatus?.fallbackDispatchedAt || 0);
   if (already && now - already < FALLBACK_RETRY_MS) return { dispatched: false, pending: true };
@@ -389,11 +392,29 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
+      await writeBlobJson(STATUS_PREFIX + jobId + '.json', {
+        jobId,
+        status: 'FAILED',
+        error: 'GitHub could not start the MiniMax Music 3 render.',
+        details: detail.slice(0, 1200),
+        updatedAt: Date.now()
+      });
       return json(res, 502, {
         error: 'GitHub could not start the MiniMax Music 3 render.',
         details: detail.slice(0, 1200)
       });
     }
+
+    await writeBlobJson(STATUS_PREFIX + jobId + '.json', {
+      jobId,
+      ...workflowInputs,
+      status: 'IN_QUEUE',
+      progress: 5,
+      phase: 'Queued — waiting for a free Kaggle GPU',
+      progressEstimated: true,
+      coldDispatchAt: Date.now(),
+      updatedAt: Date.now()
+    });
 
     return json(res, 202, {
       status: 'IN_QUEUE',
