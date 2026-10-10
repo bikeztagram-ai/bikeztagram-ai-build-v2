@@ -10,6 +10,7 @@ import { installLocalAnalysisRuntime } from './localAnalysisRuntime.js';
 import './registerCreativeCapabilities.js';
 import { creativeRuntime } from './creativeRuntimeBootstrap.js';
 import './styles.css';
+import './simpleMode.css';
 
 class RuntimeBoundary extends React.Component {
   constructor(props){super(props);this.state={error:null};}
