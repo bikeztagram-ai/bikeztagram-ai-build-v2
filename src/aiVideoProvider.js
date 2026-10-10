@@ -1,8 +1,8 @@
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const retryableStatus=status=>status===408||status===425||status===429||status>=500;
 async function readJson(response){try{return await response.json()}catch{return{}}}
-export async function generateAIVideoScene({prompt,duration=5,ratio='720:1280',promptImage='',provider='auto',dryRun=false,onProgress}={}){
-  const start=await fetch('/api/video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,duration,ratio,promptImage:promptImage||undefined,provider,dryRun:Boolean(dryRun)})});
+export async function generateAIVideoScene({prompt,duration=5,ratio='720:1280',promptImage='',provider='auto',dryRun=false,allowPaidVideo=false,onProgress}={}){
+  const start=await fetch('/api/video',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,duration,ratio,promptImage:promptImage||undefined,provider,dryRun:Boolean(dryRun),allowPaid:allowPaidVideo===true})});
   if(!start.ok){const data=await readJson(start);if(start.status===503)return null;throw Error(data.error||'AI video generation could not start.');}
   const task=await readJson(start);
   if(dryRun)return{status:'dry-run',provider:start.headers.get('x-bikeztagram-provider')||'runway-model-router',routing:task.routing||null,task};
