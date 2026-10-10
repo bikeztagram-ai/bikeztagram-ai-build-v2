@@ -12,7 +12,7 @@ assert.match(client, /Boolean\(free\?\.configured&&free\?\.url\)/, 'auto provide
 assert.match(client, /if\(!allowPaidVideo\)throw Error/, 'Runway must remain locked when no free provider is available');
 assert.match(adapter, /\/gradio_api\/upload/, 'reference images must be uploaded using Gradio file API');
 assert.match(adapter, /\/gradio_api\/call/, 'generation must use the Gradio queue API');
-assert.match(adapter, /event === 'complete'/, 'adapter should parse completed queue results');
+assert.match(adapter, /type === 'complete'/, 'adapter should parse completed queue results');
 assert.match(adapter, /startsWith\('video\/'\)/, 'adapter must reject empty/non-video outputs');
 assert.match(space, /Wan-AI\/Wan2\.2-TI2V-5B-Diffusers/, 'Space must use the intended open video model');
 assert.match(space, /@spaces\.GPU\(duration=180\)/, 'Space must use bounded ZeroGPU allocation');
