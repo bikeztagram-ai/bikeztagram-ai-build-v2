@@ -86,6 +86,9 @@ async function issueGet(pathname) {
 }
 
 async function dispatchColdFallback(jobId, currentStatus) {
+  // A direct cold dispatch is already running; never launch a duplicate just
+  // because GitHub's workflow-run listing has not become visible yet.
+  if (currentStatus?.coldDispatchAt) return { dispatched: false, pending: true };
   const now = Date.now();
   const already = Number(currentStatus?.fallbackDispatchedAt || 0);
   if (already && now - already < FALLBACK_RETRY_MS) return { dispatched: false, pending: true };
@@ -374,57 +377,44 @@ export default async function handler(req, res) {
       updatedAt: Date.now()
     });
 
-    const session = await blobJson(WORKER_SESSION_PATH);
-    const heartbeat = await blobJson(WORKER_HEARTBEAT_PATH);
-    const workerAlive = Boolean(
-      session?.token &&
-      session.expiresAt > Date.now() &&
-      heartbeat?.updatedAt &&
-      Date.now() - heartbeat.updatedAt < 45000
-    );
-
-    let response = { ok: true };
-    if (!workerAlive) {
-      const workerToken = crypto.randomUUID() + crypto.randomUUID();
-      await writeBlobJson(WORKER_SESSION_PATH, {
-        token: workerToken,
-        createdAt: Date.now(),
-        expiresAt: Date.now() + 30 * 60 * 1000
-      });
-      response = await fetch(
-        'https://api.github.com/repos/' + OWNER + '/' + REPO +
-        '/actions/workflows/' + WORKER_WORKFLOW + '/dispatches',
-        {
-          method: 'POST',
-          headers: github,
-          body: JSON.stringify({
-            ref: 'main',
-            inputs: {
-              worker_token: workerToken
-            }
-          })
-        }
-      );
-      if (response.status === 404) {
-        response = await fetch(
-          'https://api.github.com/repos/' + OWNER + '/' + REPO +
-          '/actions/workflows/' + WORKFLOW + '/dispatches',
-          {
-            method: 'POST',
-            headers: github,
-            body: JSON.stringify({ ref: 'main', inputs: coldWorkflowInputs })
-          }
-        );
+    // Dispatch the cold Kaggle worker directly. The warm-worker workflow
+    // referenced by older code is not present in the repository, so attempting
+    // it first adds a guaranteed 404 and can leave jobs falsely queued.
+    const response = await fetch(
+      'https://api.github.com/repos/' + OWNER + '/' + REPO +
+      '/actions/workflows/' + WORKFLOW + '/dispatches',
+      {
+        method: 'POST',
+        headers: github,
+        body: JSON.stringify({ ref: 'main', inputs: coldWorkflowInputs })
       }
-    }
+    );
 
     if (!response.ok) {
       const detail = await response.text().catch(() => '');
+      await writeBlobJson(STATUS_PREFIX + jobId + '.json', {
+        jobId,
+        status: 'FAILED',
+        error: 'GitHub could not start the MiniMax Music 3 render.',
+        details: detail.slice(0, 1200),
+        updatedAt: Date.now()
+      });
       return json(res, 502, {
         error: 'GitHub could not start the MiniMax Music 3 render.',
         details: detail.slice(0, 1200)
       });
     }
+
+    await writeBlobJson(STATUS_PREFIX + jobId + '.json', {
+      jobId,
+      ...workflowInputs,
+      status: 'IN_QUEUE',
+      progress: 5,
+      phase: 'Queued — waiting for a free Kaggle GPU',
+      progressEstimated: true,
+      coldDispatchAt: Date.now(),
+      updatedAt: Date.now()
+    });
 
     return json(res, 202, {
       status: 'IN_QUEUE',
