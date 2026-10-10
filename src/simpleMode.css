@@ -431,3 +431,6 @@ section[aria-label="Original prompt scene studio"] {
   #creative-workspace .film-plan,
   #creative-workspace .result-card { padding: 16px; }
 }
+
+
+#creative-workspace .render-percent{float:right;margin-left:10px;color:#86e8fa;font-size:21px;font-variant-numeric:tabular-nums;line-height:1.2}#creative-workspace .render-progress-note{display:block;margin-top:8px;color:#7e9ca6;font-size:11px;line-height:1.4}#creative-workspace .progress i{transition:width .35s ease}
