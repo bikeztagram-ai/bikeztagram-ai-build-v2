@@ -1,0 +1,29 @@
+/* FORGE: simplify the first-run mobile experience without removing advanced tools. */
+/* The dashboard is the only landing screen; detailed workspaces appear after the user chooses a destination. */
+body:has(.forge-dashboard) #creative-workspace,
+body:has(.forge-dashboard) .mode-switch { display: none !important; }
+
+/* Keep the landing page focused on the two core jobs: film and music. */
+body:has(.forge-dashboard) .dashboard-tool:nth-child(3),
+body:has(.forge-dashboard) .dashboard-tool:nth-child(4),
+body:has(.forge-dashboard) .dashboard-recent { display: none !important; }
+
+body:has(.forge-dashboard) .dashboard-tools {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+body:has(.forge-dashboard) .dashboard-tool {
+  min-height: 148px;
+  padding: 18px;
+}
+body:has(.forge-dashboard) .dashboard-tool strong { font-size: 12px; }
+body:has(.forge-dashboard) .dashboard-tool small { font-size: 11px; line-height: 1.5; }
+body:has(.forge-dashboard) .dashboard-header-actions button:first-child,
+body:has(.forge-dashboard) .dashboard-header-actions button:last-child { display: none; }
+body:has(.forge-dashboard) .dashboard-hero { margin-bottom: 16px; }
+body:has(.forge-dashboard) .dashboard-hero h2 { max-width: 500px; }
+@media (max-width: 480px) {
+  body:has(.forge-dashboard) .dashboard-tools { grid-template-columns: 1fr; gap: 9px; }
+  body:has(.forge-dashboard) .dashboard-tool { min-height: 112px; padding: 15px; }
+  body:has(.forge-dashboard) .dashboard-hero { padding-bottom: 20px; }
+}
