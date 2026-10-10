@@ -26,10 +26,24 @@ async function startRouted(args){
   return routedRequest({...args,dryRun:false});
 }
 export default async function handler(req){
-  const key=process.env.RUNWAYML_API_SECRET; if(!key)return json({error:'AI video provider is not configured. Add RUNWAYML_API_SECRET in Vercel.'},503);
   try{
+    const url = new URL(req.url, 'http://localhost');
+    if (req.method === 'GET' && !url.searchParams.has('id')) {
+      return json({
+        providers: {
+          runway: { configured: Boolean(process.env.RUNWAYML_API_SECRET), paid: true, requiresExplicitConsent: true, model: 'gen4.5' },
+          huggingfaceSpace: { configured: false, paid: false, requiresConfiguration: true, note: 'A compatible Gradio Space and endpoint schema must be configured before it can be called reliably.' }
+        },
+        defaultProvider: 'none',
+        policy: 'No paid generation starts unless allowPaid is explicitly true.'
+      });
+    }
+    const key=process.env.RUNWAYML_API_SECRET;
+    if(!key)return json({error:'No AI video provider is configured. The free procedural renderer remains available; no paid request was made.'},503);
     if(req.method==='POST'){
       const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):req.body||{};
+      if (body.provider === 'huggingface') return json({ error: 'The Hugging Face provider adapter is not connected yet. No generation was started.' }, 501);
+      if (body.allowPaid !== true) return json({ error: 'Paid AI video is locked. Explicitly enable the paid-generation option before starting Runway; no charge was initiated.' }, 402);
       const prompt=String(body.prompt||'').trim(); if(!prompt)return json({error:'Video prompt is required.'},400);
       const duration=Math.max(2,Math.min(10,Number(body.duration)||5));
       const requestedRatio=String(body.ratio||'720:1280'); const ratio=SUPPORTED_RATIOS.includes(requestedRatio)?requestedRatio:'720:1280';

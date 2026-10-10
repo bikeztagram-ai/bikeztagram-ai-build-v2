@@ -89,7 +89,8 @@
     "verify:autobot-specialist-edit-mode": "node scripts/autobot/verify-autobot-specialist-edit-mode.mjs",
     "verify:own-music-engine": "node scripts/verify-own-music-engine.mjs",
     "verify:music-engine-lifecycle": "node scripts/verify-music-engine-lifecycle.mjs",
-    "verify:kaggle-music-engine": "node scripts/verify-kaggle-music-engine.mjs"
+    "verify:kaggle-music-engine": "node scripts/verify-kaggle-music-engine.mjs",
+    "verify:video-provider-consent": "node scripts/verify-video-provider-consent.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",

@@ -1,0 +1,30 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const read = (path) => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
+const api = read('../api/video.js');
+const provider = read('../src/aiVideoProvider.js');
+const batch = read('../src/promptOnlyVideoBatch.js');
+const enhancer = read('../src/aiVideoEnhancer.js');
+const runtime = read('../src/universalRenderRuntime.js');
+const promptStudio = read('../src/promptOnlyStudio.jsx');
+const app = read('../src/App.jsx');
+
+assert.match(api, /body\.allowPaid !== true/, 'server must reject paid generation without explicit consent');
+assert.match(api, /body\.provider === 'huggingface'.*501/s, 'unimplemented free provider must fail closed rather than fall through to Runway');
+assert.match(api, /requiresExplicitConsent: true/, 'capabilities must disclose paid consent');
+assert.match(api, /req\.method === 'GET' && !url\.searchParams\.has\('id'\)/, 'provider capability preflight must not require a task id');
+assert.match(provider, /allowPaidVideo=false/, 'client provider default must be opt-in');
+assert.match(provider, /allowPaid:allowPaidVideo===true/, 'client must send explicit consent boolean');
+assert.match(batch, /allowPaidVideo = false/, 'prompt-only batch defaults to no paid generation');
+assert.match(batch, /allowPaidVideo, onProgress/, 'prompt-only shots must pass consent');
+assert.match(enhancer, /allowPaidVideo=false/, 'reference-photo animation defaults to no paid generation');
+assert.match(enhancer, /promptImage,allowPaidVideo,onProgress/, 'reference-photo animation must pass consent');
+assert.match(runtime, /allowPaidVideo = false/, 'universal runtime defaults to no paid generation');
+assert.match(runtime, /outputPreset, allowPaidVideo, onProgress/, 'universal runtime must pass consent to photo animation');
+assert.match(runtime, /concurrency: 3, allowPaidVideo, onProgress/, 'universal runtime must pass consent to prompt-only generation');
+assert.match(promptStudio, /Allow paid Runway video generation/, 'prompt-only UI must disclose paid generation');
+assert.match(promptStudio, /Free AI provider: not connected yet/, 'prompt-only UI must not imply a free AI provider is live');
+assert.match(app, /Allow paid Runway video generation/, 'main filmmaker UI must disclose paid generation');
+assert.match(app, /outputPreset,allowPaidVideo,onProgress/, 'main filmmaker must pass consent into production');
+console.log('PASS: video provider preflight and explicit paid-generation consent contract');
