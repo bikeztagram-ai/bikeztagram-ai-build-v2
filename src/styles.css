@@ -7,3 +7,7 @@
 
 /* Prompt-only procedural game-scene prototype */
 .scene-prototype-note{margin:0 0 14px;color:#a8c0cb;font-size:12px;line-height:1.6;padding:12px 14px;border-left:3px solid #48b9e5;background:rgba(14,43,56,.55);border-radius:0 10px 10px 0}.scene-download{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}.world-button{margin:14px 0 20px;min-height:48px;width:100%;font-weight:800;letter-spacing:.04em}
+
+
+/* Provider transparency and explicit paid-generation consent */
+.provider-readiness{display:grid;gap:5px;margin:12px 0;padding:12px 14px;border:1px solid rgba(110,216,255,.22);border-radius:12px;background:rgba(8,22,34,.78);color:#e9f5ff}.provider-readiness strong{font-size:12px;letter-spacing:.04em}.provider-readiness small{font-size:11px;line-height:1.5;color:#b5c7d8}.paid-video-consent{display:flex;align-items:flex-start;gap:10px;margin:12px 0;padding:12px 14px;border:1px solid rgba(255,184,82,.35);border-radius:12px;background:rgba(66,39,8,.22);color:#f4dfbd;font-size:12px;line-height:1.5}.paid-video-consent input{flex:0 0 auto;width:17px;height:17px;margin-top:1px;accent-color:#ffb852}
