@@ -14,7 +14,7 @@ export async function generateAIVideoScene({prompt,duration=5,ratio='720:1280',p
   const free=capabilities?.providers?.huggingfaceSpace;
   const useFree=(provider==='auto'||provider==='huggingface')&&Boolean(free?.configured&&free?.url);
   if(provider==='huggingface'&&!useFree)throw new Error('The free Hugging Face video Space is not connected yet. Configure HF_VIDEO_SPACE_URL in Vercel after deploying the Space.');
-  const selectedProvider = useFree ? 'huggingface-zerogpu-wan' : 'runway-gen4.5';
+  const selectedProvider = useFree ? `huggingface-zerogpu-wan:${free.url}:${free.apiName || '/generate_video'}` : 'runway-gen4.5';
   if(!useFree&&!allowPaidVideo)throw new Error('No free AI video provider is connected. Paid Runway generation is disabled unless you explicitly opt in. Your prompt and photos were not sent to a paid provider.');
   if(dryRun)return{status:'dry-run',provider:useFree?'Hugging Face ZeroGPU (Wan 2.2 TI2V 5B)':'Runway Gen-4.5',mode:promptImage?'image-to-video':'text-to-video'};
   const cacheKey = await createVideoCacheKey({provider:selectedProvider,prompt,duration,ratio,promptImage});
