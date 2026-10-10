@@ -299,3 +299,135 @@ section[aria-label="Original prompt scene studio"] {
     font-size: 10px;
   }
 }
+
+
+/* FORGE mobile filmmaker wizard: one decision per screen. */
+#creative-workspace .hero-panel,
+#creative-workspace .workflow-strip { display: none !important; }
+.wizard-progress {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0 18px;
+  padding: 7px;
+  border: 1px solid rgba(126,207,226,.16);
+  border-radius: 16px;
+  background: rgba(4,12,18,.8);
+}
+.wizard-progress button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 60px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #77929b;
+  font-size: 11px;
+  font-weight: 700;
+}
+.wizard-progress button span {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border: 1px solid rgba(126,207,226,.25);
+  border-radius: 50%;
+  font-size: 10px;
+}
+.wizard-progress button.active {
+  color: #eafaff;
+  background: linear-gradient(145deg, rgba(28,154,202,.24), rgba(31,213,233,.08));
+  border-color: rgba(77,201,239,.5);
+}
+.wizard-progress button.active span,
+.wizard-progress button.complete span {
+  color: #03121a;
+  background: #78d8ee;
+  border-color: #78d8ee;
+}
+.wizard-progress button.complete { color: #a4dce8; }
+.wizard-page-intro { margin: 0 0 18px; }
+.wizard-page-intro > span {
+  display: block;
+  margin-bottom: 9px;
+  color: #7ad6eb;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+.wizard-page-intro h3 {
+  margin: 0 0 8px;
+  color: #f1fbff;
+  font-size: clamp(25px, 6vw, 34px);
+  line-height: 1.08;
+}
+.wizard-page-intro p {
+  margin: 0;
+  color: #9eb4bd;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.wizard-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+.wizard-actions > button { flex: 1 1 0; min-width: 0; min-height: 50px; }
+.wizard-actions .primary-cta { white-space: normal; }
+.advanced-settings {
+  margin: 12px 0 0;
+  border: 1px solid rgba(126,207,226,.18);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255,255,255,.02);
+}
+.advanced-settings summary {
+  min-height: 28px;
+  color: #a9dce7;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.advanced-settings[open] summary { margin-bottom: 12px; }
+.advanced-settings .control-row { flex-wrap: wrap; gap: 10px; }
+.advanced-settings .paid-video-consent { margin-top: 12px; }
+.wizard-step-1 #creative-workspace .director-card,
+.wizard-step-1 #creative-workspace .control-card,
+.wizard-step-1 #creative-workspace .film-plan,
+.wizard-step-1 #creative-workspace .result-card,
+.wizard-step-1 #creative-workspace .world-button,
+.wizard-step-2 #creative-workspace .source-card,
+.wizard-step-2 #creative-workspace .control-card,
+.wizard-step-2 #creative-workspace .film-plan,
+.wizard-step-2 #creative-workspace .result-card,
+.wizard-step-2 #creative-workspace .world-button,
+.wizard-step-3 #creative-workspace .source-card,
+.wizard-step-3 #creative-workspace .director-card,
+.wizard-step-3 #creative-workspace .result-card,
+.wizard-step-3 #creative-workspace .world-button,
+.wizard-step-4 #creative-workspace .workspace-grid,
+.wizard-step-4 #creative-workspace .control-card,
+.wizard-step-4 #creative-workspace .film-plan,
+.wizard-step-4 #creative-workspace .world-button {
+  display: none !important;
+}
+.wizard-step-3 #creative-workspace .workspace-grid { display: none !important; }
+.wizard-step-4 #creative-workspace .workspace-grid { display: none !important; }
+.wizard-step-4 #creative-workspace .result-card { display: block; }
+.wizard-step-3 #creative-workspace .control-card { display: block; }
+.wizard-step-3 #creative-workspace .film-plan { display: block; }
+@media (max-width: 480px) {
+  .wizard-progress { margin: 8px 0 14px; }
+  .wizard-progress button { min-height: 54px; font-size: 10px; }
+  .wizard-actions { gap: 8px; }
+  .wizard-actions > button { padding: 12px 10px; font-size: 12px; }
+  #creative-workspace .source-card,
+  #creative-workspace .director-card,
+  #creative-workspace .control-card,
+  #creative-workspace .film-plan,
+  #creative-workspace .result-card { padding: 16px; }
+}
