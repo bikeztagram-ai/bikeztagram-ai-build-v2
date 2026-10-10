@@ -7,7 +7,7 @@ import { generatePromptOnlyVideoCutsParallel } from './promptOnlyVideoBatch.js';
 import { prepareCreativeContinuity } from './creativeContinuityEngine.js';
 import { compileCreativeIntent, mergeCreativeIntent } from './creativeIntentCompiler.js';
 import { generationContract } from './mediaGenerationPolicy.js';
-export async function renderUniversalProduction({ media = [], mediaItems = null, plan, prompt = '', duration = 15, music = true, selectedMusic = null, outputPreset = 'portrait', onProgress } = {}) {
+export async function renderUniversalProduction({ media = [], mediaItems = null, plan, prompt = '', duration = 15, music = true, selectedMusic = null, outputPreset = 'portrait', allowPaidVideo = false, onProgress } = {}) {
   if (!plan) throw new Error('A render plan is required.');
   const suppliedMedia = Array.isArray(mediaItems) ? mediaItems : media;
   onProgress?.({ stage: 'creative-intent', value: 5 });
@@ -16,10 +16,10 @@ export async function renderUniversalProduction({ media = [], mediaItems = null,
   let productionMedia = Array.isArray(suppliedMedia) ? suppliedMedia : [];
   let aiVideo = { generatedCount: 0, attemptedCount: 0, failedCount: 0, provider: 'none' };
   if (productionMedia.length) {
-    try { const enhanced = await enhanceStillCutsWithAIVideo({ mediaItems: productionMedia, plan: directedPlan, creativePrompt: prompt, outputPreset, onProgress }); productionMedia = enhanced.mediaItems; aiVideo = enhanced; }
+    try { const enhanced = await enhanceStillCutsWithAIVideo({ mediaItems: productionMedia, plan: directedPlan, creativePrompt: prompt, outputPreset, allowPaidVideo, onProgress }); productionMedia = enhanced.mediaItems; aiVideo = enhanced; }
     catch (error) { console.warn('[UNIVERSAL RENDER] Reference-video enhancement unavailable; authentic media retained.', error); }
   } else {
-    const generated = await generatePromptOnlyVideoCutsParallel({ plan: directedPlan, creativePrompt: prompt, outputPreset, concurrency: 3, onProgress });
+    const generated = await generatePromptOnlyVideoCutsParallel({ plan: directedPlan, creativePrompt: prompt, outputPreset, concurrency: 3, allowPaidVideo, onProgress });
     productionMedia = generated.mediaItems; aiVideo = generated;
   }
   if (!productionMedia.length) throw new Error('No playable production media was created. Configure the AI video provider or add source media.');
