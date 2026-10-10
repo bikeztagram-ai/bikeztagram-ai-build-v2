@@ -195,8 +195,13 @@ async function findRun(jobId) {
 export default async function handler(req, res) {
   try {
   if (req.method === 'GET') {
-    const jobId = cleanJobId(new URL(req.url, 'https://' + (req.headers?.host || 'localhost')).searchParams.get('jobId'));
-    if (!jobId) return json(res, 400, { error: 'jobId is required.' });
+    const requestedJobId = new URL(req.url, 'https://' + (req.headers?.host || 'localhost')).searchParams.get('jobId');
+    // Validate before sanitising: cleanJobId() intentionally generates an ID
+    // for new POST jobs, so calling it first here hid missing GET parameters.
+    if (!requestedJobId || !requestedJobId.trim()) {
+      return json(res, 400, { error: 'jobId is required.' });
+    }
+    const jobId = cleanJobId(requestedJobId);
 
     const pathname = outputPath(jobId);
     const status = await blobJson(STATUS_PREFIX + jobId + '.json');
