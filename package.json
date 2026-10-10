@@ -91,7 +91,8 @@
     "verify:music-engine-lifecycle": "node scripts/verify-music-engine-lifecycle.mjs",
     "verify:kaggle-music-engine": "node scripts/verify-kaggle-music-engine.mjs",
     "verify:video-provider-consent": "node scripts/verify-video-provider-consent.mjs",
-    "verify:free-video-provider": "node scripts/verify-free-video-provider.mjs"
+    "verify:free-video-provider": "node scripts/verify-free-video-provider.mjs",
+    "verify:video-generation-cache": "node scripts/verify-video-generation-cache.mjs"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",

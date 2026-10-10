@@ -43,8 +43,10 @@ const videoProviderCheck = spawnSync('node scripts/verify-video-provider-consent
 if (videoProviderCheck.status !== 0) failures.push('verify:video-provider-consent');
 const freeVideoProviderCheck = spawnSync('node scripts/verify-free-video-provider.mjs', { shell: true, stdio: 'inherit', env: process.env });
 if (freeVideoProviderCheck.status !== 0) failures.push('verify:free-video-provider');
+const videoCacheCheck = spawnSync('node scripts/verify-video-generation-cache.mjs', { shell: true, stdio: 'inherit', env: process.env });
+if (videoCacheCheck.status !== 0) failures.push('verify:video-generation-cache');
 
-console.log(`\nVerification audit complete: ${entries.length + autobotChecks.length + 2} checks run, ${failures.length} failed.`);
+console.log(`\nVerification audit complete: ${entries.length + autobotChecks.length + 3} checks run, ${failures.length} failed.`);
 if (failures.length) {
   console.error(`Failed checks: ${failures.join(', ')}`);
   process.exit(1);
