@@ -33,7 +33,7 @@ py = f"{venv}/bin/python"
 # Official MiniMax low-VRAM route: CPU offload plus layerwise streaming.
 run([
     sys.executable, "-m", "uv", "pip", "install", "--python", py,
-    "git+https://github.com/huggingface/diffusers.git",
+    "git+https://github.com/huggingface/diffusers@dafe3733fcfdbf3c48915fe77be3aef65b5d6a2d",
     "transformers", "accelerate", "safetensors", "soundfile",
 ])
 
@@ -78,13 +78,11 @@ try:
     apply_group_offloading(
         pipe.language_model,
         onload_device=torch.device("cuda"),
-        offload_type="block_level",
-        num_blocks_per_group=1,
-        block_modules=["Qwen3DecoderLayer"],
+        offload_type="leaf_level",
         use_stream=True,
         non_blocking=True,
         record_stream=True,
-        low_cpu_mem_usage=False,
+        low_cpu_mem_usage=True,
     )
     print("Qwen3DecoderLayer blocks streamed; surrounding language-model modules remain resident", flush=True)
 
@@ -109,7 +107,10 @@ try:
     duration = max(5.0, min(300.0, float(request.get("duration") or 30)))
     force_instrumental = bool(request.get("forceInstrumental"))
     if force_instrumental:
-        lyrics = ""
+        # The model family documents structure-tagged instrumental markers;
+        # avoid relying on an empty lyric sequence for instrumental generation.
+        lyrics = "[Intro]\n(instrumental)"
+        prompt = (prompt + " Instrumental only: no vocals, no singing, no spoken words.") if prompt else "Instrumental only: no vocals, no singing, no spoken words."
     elif not lyrics:
         raise ValueError("Music Studio supplied no lyrics. MiniMax Music 3 requires non-empty lyrics for vocal generation.")
     if not prompt:
