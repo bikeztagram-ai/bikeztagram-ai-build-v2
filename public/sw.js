@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bikeztagram-shell-v3';
+const CACHE_NAME = 'bikeztagram-shell-v4';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon.svg'];
 const NAVIGATION_FALLBACK = '/index.html';
 
@@ -20,8 +20,9 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ffmpeg/')) return;
   if (event.request.mode === 'navigate') {
-    event.respondWith(fetch(event.request).catch(() => caches.match(NAVIGATION_FALLBACK)));
+    event.respondWith(fetch(event.request, { cache: 'no-store' }).catch(() => caches.match(NAVIGATION_FALLBACK)));
     return;
   }
+  // Vite assets are content-hashed; always try the network first and only use cache offline.
   event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });
