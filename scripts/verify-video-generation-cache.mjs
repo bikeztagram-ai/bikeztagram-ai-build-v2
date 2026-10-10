@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const read = (path) => fs.readFileSync(new URL(path, import.meta.url), 'utf8');
+const cache = read('../src/videoGenerationCache.js');
+const provider = read('../src/aiVideoProvider.js');
+assert.match(cache, /indexedDB\.open/, 'video cache must use browser IndexedDB');
+assert.match(cache, /MAX_CACHE_BYTES = 120 \* 1024 \* 1024/, 'video cache must have a bounded size');
+assert.match(cache, /MAX_AGE_MS = 14 \* 24 \* 60 \* 60 \* 1000/, 'cache entries must expire');
+assert.match(cache, /createVideoCacheKey/, 'cache keys must be stable and explicit');
+assert.match(provider, /getCachedVideo\(cacheKey\)/, 'generation should reuse a cached successful shot');
+assert.match(provider, /putCachedVideo\(cacheKey,blob,metadata\)/, 'free generated clips should be cached');
+assert.match(provider, /putCachedVideo\(cacheKey,cachedBlob,metadata\)/, 'paid generated clips should be cached to prevent duplicate charges');
+assert.match(provider, /if\(cached\).*cached:true/s, 'cache hits must be marked for diagnostics');
+console.log('PASS: generated video cache and quota-saving contract');
