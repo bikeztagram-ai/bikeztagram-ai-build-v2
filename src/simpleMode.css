@@ -36,3 +36,99 @@ body:has(.forge-dashboard) .prompt-only-studio,
 body:has(.forge-dashboard) section[aria-label="Original prompt scene studio"] {
   display: none !important;
 }
+
+
+/* FORGE pass 2: keep the filmmaker workspace as the single source of truth.
+   These legacy studios are separate React roots and duplicate the controls/results
+   already provided by App. Hide them whenever the real workspace is open. */
+body:has(#creative-workspace) .prompt-only-studio,
+body:has(#creative-workspace) section[aria-label="Original prompt scene studio"] {
+  display: none !important;
+}
+
+/* Remove the extra four-step explainer from the working screen; the actual
+   workflow should be visible through the next useful action, not more cards. */
+#creative-workspace .workflow-strip {
+  display: none !important;
+}
+#creative-workspace .hero-panel {
+  margin-bottom: 12px;
+}
+#creative-workspace .hero-panel h2 {
+  max-width: 16ch;
+  font-size: clamp(28px, 7vw, 42px);
+  line-height: 1.05;
+}
+#creative-workspace .hero-panel p {
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 42ch;
+}
+#creative-workspace .workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+#creative-workspace .source-card,
+#creative-workspace .director-card,
+#creative-workspace .control-card,
+#creative-workspace .film-plan,
+#creative-workspace .result-card {
+  padding: clamp(14px, 4vw, 22px);
+  margin-bottom: 12px;
+}
+#creative-workspace .dropzone {
+  min-height: 160px;
+  padding: 18px;
+}
+#creative-workspace .director-card textarea {
+  min-height: 132px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+#creative-workspace .prompt-chips {
+  gap: 7px;
+  margin: 10px 0;
+}
+#creative-workspace .prompt-chips button {
+  padding: 8px 11px;
+  font-size: 12px;
+}
+#creative-workspace .action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#creative-workspace .action-row .primary-cta,
+#creative-workspace .action-row .secondary-cta {
+  flex: 1 1 180px;
+  min-height: 48px;
+}
+#creative-workspace .control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+#creative-workspace .paid-video-consent {
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+#creative-workspace .shot-rail {
+  overflow-x: auto;
+}
+#creative-workspace .plan-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+@media (max-width: 480px) {
+  #creative-workspace .hero-panel { padding: 18px; }
+  #creative-workspace .hero-badge { display: none; }
+  #creative-workspace .section-title { gap: 8px; }
+  #creative-workspace .section-title em { font-size: 9px; }
+  #creative-workspace .action-row .primary-cta,
+  #creative-workspace .action-row .secondary-cta { flex-basis: 100%; }
+  #creative-workspace .control-row label { flex: 1 1 150px; }
+}
