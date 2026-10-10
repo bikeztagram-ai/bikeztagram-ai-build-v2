@@ -16,6 +16,9 @@ export default function PromptOnlyStudio() {
   const [error, setError] = useState('');
   const [resultUrl, setResultUrl] = useState('');
   const [provider, setProvider] = useState('');
+  const [allowPaidVideo, setAllowPaidVideo] = useState(false);
+  const [capabilities, setCapabilities] = useState(null);
+  useEffect(() => { let active = true; fetch('/api/video').then((r) => r.json()).then((data) => { if (active) setCapabilities(data); }).catch(() => { if (active) setCapabilities({ providers: {} }); }); return () => { active = false; }; }, []);
   const output = useMemo(() => resolveOutputPreset(preset, prompt), [preset, prompt]);
 
   useEffect(() => () => { if (resultUrl) URL.revokeObjectURL(resultUrl); }, [resultUrl]);
@@ -28,7 +31,7 @@ export default function PromptOnlyStudio() {
       setStatus(`Directed ${plan.cuts.length} original scenes. Generating real AI footage...`);
       const production = await renderUniversalProduction({
         mediaItems: [], plan, prompt: prompt.trim(), duration: plan.targetDuration || 15,
-        music: true, outputPreset: preset,
+        music: true, outputPreset: preset, allowPaidVideo,
         onProgress: (event) => {
           if (event?.stage === 'ai-video') setProgress(Math.max(5, Math.min(72, Math.round(Number(event.value) || 0) * .68)));
           if (event?.stage === 'ai-video-complete') { setProvider(event.provider || 'AI video'); setStatus('AI scenes complete. Building music, edit and final render...'); }
@@ -50,6 +53,8 @@ export default function PromptOnlyStudio() {
     <div className="section-title"><span>AI</span><h3>Create from any idea</h3><em>NO MEDIA REQUIRED</em></div>
     <p className="prompt-only-copy">Start with an idea, story, advert, scene, world or character. Bikeztagram turns the brief into directed shots, generates real moving footage, creates the soundtrack and assembles the finished film.</p>
     <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={busy} aria-label="Creative idea" />
+    <div className="provider-readiness" role="status"><strong>Video provider status</strong><small>{capabilities?.providers?.runway?.configured ? "Runway is configured; it is a paid provider." : "Runway is not configured."} Free AI provider: not connected yet. The local procedural renderer does not use an AI video model.</small></div>
+    <label className="paid-video-consent"><input type="checkbox" checked={allowPaidVideo} onChange={(e) => setAllowPaidVideo(e.target.checked)} disabled={busy} /> Allow paid Runway video generation for this film. The provider may charge for each generated shot.</label>
     <div className="prompt-only-controls">
       <label>FORMAT <select value={preset} onChange={(e) => setPreset(e.target.value)} disabled={busy}>{PRESETS.map((id) => <option key={id} value={id}>{resolveOutputPreset(id).label}</option>)}</select></label>
       <button className="primary-cta" onClick={createFilm} disabled={busy || !prompt.trim()}>{busy ? `◌ CREATING ${progress}%` : '✦ CREATE REAL AI FILM'}</button>
