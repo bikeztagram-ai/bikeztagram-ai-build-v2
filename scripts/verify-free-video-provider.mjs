@@ -15,7 +15,7 @@ assert.match(adapter, /\/gradio_api\/call/, 'generation must use the Gradio queu
 assert.match(adapter, /type === 'complete'/, 'adapter should parse completed queue results');
 assert.match(adapter, /startsWith\('video\/'\)/, 'adapter must reject empty/non-video outputs');
 assert.match(space, /Wan-AI\/Wan2\.2-TI2V-5B-Diffusers/, 'Space must use the intended open video model');
-assert.match(space, /@spaces\.GPU\(duration=180\)/, 'Space must use bounded ZeroGPU allocation');
+assert.match(space, /@spaces\.GPU\(duration=120\)/, 'Space must use bounded ZeroGPU allocation');
 assert.match(space, /api_name="generate_video"/, 'Space must expose the stable generate_video endpoint');
 assert.match(readme, /HF_VIDEO_SPACE_URL/, 'Space deployment instructions must document app integration');
 console.log('PASS: free-first Hugging Face video provider contract');
