@@ -11,6 +11,7 @@ const promptStudio = read('../src/promptOnlyStudio.jsx');
 const app = read('../src/App.jsx');
 
 assert.match(api, /body\.allowPaid !== true/, 'server must reject paid generation without explicit consent');
+assert.match(api, /body\.provider === 'huggingface'.*501/s, 'unimplemented free provider must fail closed rather than fall through to Runway');
 assert.match(api, /requiresExplicitConsent: true/, 'capabilities must disclose paid consent');
 assert.match(api, /req\.method === 'GET' && !url\.searchParams\.has\('id'\)/, 'provider capability preflight must not require a task id');
 assert.match(provider, /allowPaidVideo=false/, 'client provider default must be opt-in');
