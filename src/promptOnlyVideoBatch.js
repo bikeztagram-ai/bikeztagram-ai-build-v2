@@ -1,5 +1,5 @@
 /* Parallel prompt-only generation. Provider-neutral metadata + bounded real generation. */
-import { generateAIVideoScene } from './aiVideoProvider.js';
+import { generateAIVideoScene, getVideoProviderCapabilities } from './aiVideoProvider.js';
 import { mapWithConcurrency } from './asyncPool.js';
 
 const ratioForPreset = (preset = 'portrait') => preset === 'square' ? '960:960' : preset === 'landscape' || preset === 'cinema' ? '1280:720' : '720:1280';
@@ -20,7 +20,9 @@ export async function generatePromptOnlyVideoCutsParallel({ plan, creativePrompt
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
   const jobs = cuts.slice(0, Math.min(cuts.length, Math.max(1, Number(maxGeneratedCuts) || 6)));
   let completed = 0;
-  const results = await mapWithConcurrency(jobs, Math.max(1, Number(concurrency) || 3), async (cut, index) => {
+  let safeConcurrency = Math.max(1, Number(concurrency) || 3);
+  try { const capabilities = await getVideoProviderCapabilities(); if (capabilities?.providers?.huggingfaceSpace?.configured) safeConcurrency = 1; } catch { /* The provider call will surface the actionable preflight error. */ }
+  const results = await mapWithConcurrency(jobs, safeConcurrency, async (cut, index) => {
     const duration = Math.max(2, Math.min(10, Number(cut?.duration) || 5));
     const generationPrompt = buildPrompt({ creativePrompt, cut });
     try {
@@ -40,6 +42,7 @@ export async function generatePromptOnlyVideoCutsParallel({ plan, creativePrompt
     }
   });
   const mediaItems = results.filter((result) => result?.ok).sort((a, b) => a.index - b.index).map((result) => result.media);
+  if (!mediaItems.length && results.length) throw results.find((result) => result?.error)?.error || new Error('No AI video shots were generated.');
   const providers = [...new Set(mediaItems.map((item) => item.provider).filter(Boolean))];
   return { mediaItems, generatedCount: mediaItems.length, attemptedCount: jobs.length, failedCount: jobs.length - mediaItems.length, provider: providers.length === 1 ? providers[0] : providers.join(', ') || 'none', providers };
 }
