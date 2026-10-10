@@ -32,7 +32,7 @@ export default async function handler(req){
       return json({
         providers: {
           runway: { configured: Boolean(process.env.RUNWAYML_API_SECRET), paid: true, requiresExplicitConsent: true, model: 'gen4.5' },
-          huggingfaceSpace: { configured: false, paid: false, requiresConfiguration: true, note: 'A compatible Gradio Space and endpoint schema must be configured before it can be called reliably.' }
+          huggingfaceSpace: { configured: Boolean(process.env.HF_VIDEO_SPACE_URL), paid: false, url: String(process.env.HF_VIDEO_SPACE_URL || '').trim().replace(/\\/$/, ''), apiName: String(process.env.HF_VIDEO_API_NAME || '/generate_video').trim(), model: 'Wan 2.2 TI2V 5B', note: 'Uses the configured public Gradio Space and its ZeroGPU quota.' }
         },
         defaultProvider: 'none',
         policy: 'No paid generation starts unless allowPaid is explicitly true.'
