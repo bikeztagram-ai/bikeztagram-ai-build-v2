@@ -16,7 +16,7 @@ const buildPrompt = ({ creativePrompt, cut }) => {
   return [creativePrompt || 'Create a premium cinematic audiovisual scene.', `Generate a real moving video shot for the ${role}.`, `Subject: ${subject}. Environment: ${world}. Action: ${action}.`, `Camera: ${motion}. Lighting: ${lighting}. Visual language: ${style}.`, `Continuity: ${continuity}.`, 'Natural purposeful motion, believable physics, coherent temporal movement and premium commercial cinematography.', 'Do not add unrelated objects, text, logos or watermarks unless explicitly requested.'].join(' ');
 };
 
-export async function generatePromptOnlyVideoCutsParallel({ plan, creativePrompt = '', outputPreset = 'portrait', maxGeneratedCuts = 6, concurrency = 3, onProgress } = {}) {
+export async function generatePromptOnlyVideoCutsParallel({ plan, creativePrompt = '', outputPreset = 'portrait', maxGeneratedCuts = 6, concurrency = 3, allowPaidVideo = false, onProgress } = {}) {
   const cuts = Array.isArray(plan?.cuts) ? plan.cuts : [];
   const jobs = cuts.slice(0, Math.min(cuts.length, Math.max(1, Number(maxGeneratedCuts) || 6)));
   let completed = 0;
@@ -24,7 +24,7 @@ export async function generatePromptOnlyVideoCutsParallel({ plan, creativePrompt
     const duration = Math.max(2, Math.min(10, Number(cut?.duration) || 5));
     const generationPrompt = buildPrompt({ creativePrompt, cut });
     try {
-      const result = await generateAIVideoScene({ prompt: generationPrompt, duration, ratio: ratioForPreset(outputPreset), onProgress: (value) => onProgress?.({ stage: 'ai-video', value: Math.round(((completed + value / 100) / Math.max(1, jobs.length)) * 100), current: index + 1, total: jobs.length, mode: 'text-to-video' }) });
+      const result = await generateAIVideoScene({ prompt: generationPrompt, duration, ratio: ratioForPreset(outputPreset), allowPaidVideo, onProgress: (value) => onProgress?.({ stage: 'ai-video', value: Math.round(((completed + value / 100) / Math.max(1, jobs.length)) * 100), current: index + 1, total: jobs.length, mode: 'text-to-video' }) });
       if (!result?.blob) throw new Error('AI video provider returned no video.');
       completed += 1;
       const id = `generated-text-video-${index}-${Date.now()}`;
