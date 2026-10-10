@@ -78,7 +78,8 @@ export async function generateFromHuggingFaceSpace({spaceUrl,apiName='/generate_
   }
   onProgress?.(82);
   const video = extractVideo(result?.data || result);
-  const remoteUrl = video.url ? absolute(base, video.url) : video.path ? absolute(base, '/gradio_api/file=' + encodeURIComponent(video.path)) : '';
+  const encodedPath = video.path ? String(video.path).split('/').map((part) => encodeURIComponent(part)).join('/') : '';
+  const remoteUrl = video.url ? absolute(base, video.url) : video.path ? base + '/gradio_api/file=' + encodedPath : '';
   if (!remoteUrl) throw new Error('Hugging Face Space result has no downloadable video path.');
   const mediaResponse = await fetch(remoteUrl);
   if (!mediaResponse.ok) throw new Error('Generated video exists but could not be downloaded from the Space.');
