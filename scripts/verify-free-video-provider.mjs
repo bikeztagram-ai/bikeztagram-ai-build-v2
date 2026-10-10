@@ -9,7 +9,7 @@ const readme = read('../hf-space-video/README.md');
 assert.match(api, /HF_VIDEO_SPACE_URL/, 'preflight must expose the configured Space URL');
 assert.match(api, /HF_VIDEO_API_NAME/, 'preflight must expose the configured endpoint name');
 assert.match(client, /Boolean\(free\?\.configured&&free\?\.url\)/, 'auto provider must prefer a configured free Space');
-assert.match(client, /if\(!allowPaidVideo\)throw Error/, 'Runway must remain locked when no free provider is available');
+assert.match(client, /if\(!allowPaidVideo\)throw new Error/, 'Runway must remain locked when no free provider is available');
 assert.match(adapter, /\/gradio_api\/upload/, 'reference images must be uploaded using Gradio file API');
 assert.match(adapter, /\/gradio_api\/call/, 'generation must use the Gradio queue API');
 assert.match(adapter, /type === 'complete'/, 'adapter should parse completed queue results');
