@@ -9,6 +9,10 @@ const runner = read('./kaggle/minimax_music3_batch.py');
 assert.doesNotMatch(api, /RUNPOD_API_KEY|RUNPOD_ENDPOINT_ID/);
 assert.match(api, /GITHUB_ACTIONS_TOKEN/);
 assert.match(api, /actions\/workflows\/.*dispatches/);
+assert.match(api, /Dispatch the cold Kaggle worker directly/);
+assert.match(api, /coldDispatchAt/);
+assert.match(api, /status: 'FAILED'/);
+assert.doesNotMatch(api, /WORKER_WORKFLOW \\+ '\/dispatches'/, 'API must not attempt dispatch to the absent warm-worker workflow');
 assert.match(api, /issueSignedToken/);
 assert.match(api, /operation: 'put'/);
 assert.match(api, /operation: 'get'/);
@@ -23,6 +27,9 @@ assert.doesNotMatch(workflow, /minimax_music3_sglang\.py|minimax_music3_diffsynt
 assert.match(workflow, /kaggle kernels push/);
 assert.match(workflow, /kaggle kernels output/);
 assert.match(workflow, /curl --fail-with-body/);
+assert.match(workflow, /Verify WAV is retrievable through Music Engine/);
+assert.match(workflow, /Report cold worker failure to Music Engine/);
+assert.match(workflow, /Delete temporary Kaggle kernel/);
 
 assert.match(runner, /MiniMaxAI\/MiniMax-Music3/);
 assert.match(runner, /apply_group_offloading/);
