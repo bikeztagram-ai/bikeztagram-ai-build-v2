@@ -33,7 +33,11 @@ assert.match(workflow, /Delete temporary Kaggle kernel/);
 
 assert.match(runner, /MiniMaxAI\/MiniMax-Music3/);
 assert.match(runner, /apply_group_offloading/);
+assert.match(runner, /dafe3733fcfdbf3c48915fe77be3aef65b5d6a2d/, "pin the documented MiniMax Music 3 Diffusers integration revision");
+assert.match(runner, /offload_type="leaf_level"/, "use streamed leaf-level offloading for the low-VRAM language model");
 assert.match(runner, /low_cpu_mem_usage=True/);
+assert.match(runner, /\[Intro\]\\n\(instrumental\)/, "instrumental jobs must use an explicit structure-tagged lyric marker");
+assert.match(runner, /Instrumental only: no vocals, no singing, no spoken words/);
 assert.match(runner, /audio_duration=duration/);
 assert.match(runner, /music_request\.json/);
 
