@@ -49,7 +49,7 @@ jobs:
           cat > .kaggle-music3-kernel/kernel-metadata.json <<EOF
           {
             "id": "${KAGGLE_USERNAME}/${KERNEL_SLUG}",
-            "title": "Bikeztagram MiniMax Music 3 T4x2",
+            "title": "Bikeztagram MiniMax Music3 T4x2",
             "code_file": "minimax_music3_batch.py",
             "language": "python",
             "kernel_type": "script",
