@@ -1,6 +1,10 @@
 name: MiniMax Music 3 — Kaggle T4x2
 
 on:
+  push:
+    branches: [feat/kaggle-minimax-music3-t4x2-test]
+    paths:
+      - 'scripts/kaggle/minimax_music3_batch.py'
   workflow_dispatch:
 
 jobs:
