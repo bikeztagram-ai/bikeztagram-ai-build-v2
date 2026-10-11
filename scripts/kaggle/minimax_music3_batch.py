@@ -2,6 +2,7 @@ import os, subprocess, sys, time, signal, shutil
 from pathlib import Path
 
 print("=== VYRO ORIGINAL ANTHEM / MINIMAX MUSIC3 BATCH v2 ===", flush=True)
+print("DIAGNOSTIC RETRY: expose the actual model startup/render error in Kaggle logs if this attempt fails.", flush=True)
 def run(cmd, **kwargs):
     print("$", " ".join(cmd), flush=True)
     return subprocess.run(cmd, check=True, **kwargs)
