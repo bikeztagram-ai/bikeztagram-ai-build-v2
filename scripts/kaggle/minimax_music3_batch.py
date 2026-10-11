@@ -93,3 +93,7 @@ finally:
         try: os.killpg(os.getpgid(p.pid),signal.SIGKILL)
         except Exception: pass
     log.close(); print("ENGINE_SHUTDOWN=TRUE", flush=True)
+    if os.path.exists(log_path):
+        print("=== MUSIC ENGINE FINAL LOG TAIL ===", flush=True)
+        try: print(Path(log_path).read_text(errors="replace")[-24000:], flush=True)
+        except Exception as e: print("Could not read engine log:", repr(e), flush=True)
