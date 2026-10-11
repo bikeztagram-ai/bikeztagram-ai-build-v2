@@ -58,4 +58,4 @@ jobs:
             exit 0
           fi
           git commit -m "Add generated original VYRO anthem audio asset"
-          git push origin HEAD:main
+          git push origin HEAD:vyro-anthem-assets
