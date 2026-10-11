@@ -1,4 +1,4 @@
-name: MiniMax Music 3 live diagnostics
+name: MiniMax Music 3 live diagnostics - current status
 
 on:
   push:
@@ -27,7 +27,8 @@ jobs:
         shell: bash
         run: |
           set +e
-          echo "=== KAGGLE KERNEL STATUS ==="
+          echo "=== CURRENT KAGGLE KERNEL STATUS ==="
+          date -u
           kaggle kernels status "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 | tee /tmp/kaggle-status.txt
           echo "=== RECENT KAGGLE LOGS ==="
           kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 | tee /tmp/kaggle-kernel.log
