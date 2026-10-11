@@ -73,7 +73,14 @@ We are the spark, we are VYRO"""
     print("Rendering ORIGINAL VYRO anthem with rap verse and sung chorus...", flush=True)
     render_started=time.time()
     resp=requests.post("http://127.0.0.1:8000/v1/audio/speech",json=payload,timeout=1800); resp.raise_for_status()
+    if len(resp.content) < 100_000 or resp.content[:4] != b"RIFF" or resp.content[8:12] != b"WAVE":
+        raise RuntimeError(f"Music 3 returned no valid WAV audio. content-type={resp.headers.get('content-type')!r}; bytes={len(resp.content)}; body={resp.content[:500]!r}")
     out="/kaggle/working/vyro_original_anthem_minimax_music3.wav"; Path(out).write_bytes(resp.content)
+    import wave
+    with wave.open(out, "rb") as audio:
+        duration = audio.getnframes() / float(audio.getframerate())
+        print(f"AUDIO_SECONDS={duration:.1f}", flush=True)
+        if duration < 20: raise RuntimeError(f"Generated track is too short to be a useful anthem: {duration:.1f}s")
     print(f"RENDER_SECONDS={time.time()-render_started:.1f}", flush=True)
     print(f"TOTAL_SECONDS={time.time()-started:.1f}", flush=True)
     print(f"DONE={out}", flush=True); print(f"BYTES={len(resp.content)}", flush=True)
