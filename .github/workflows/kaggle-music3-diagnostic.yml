@@ -1,0 +1,44 @@
+name: MiniMax Music 3 live diagnostics
+
+on:
+  push:
+    branches: [feat/kaggle-minimax-music3-t4x2-test]
+    paths:
+      - '.github/workflows/kaggle-music3-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-kaggle-kernel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KERNEL_SLUG: bikeztagram-minimax-music3-t4x2
+    steps:
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --quiet --upgrade kaggle
+
+      - name: Capture current kernel status and recent logs
+        shell: bash
+        run: |
+          set +e
+          echo "=== KAGGLE KERNEL STATUS ==="
+          kaggle kernels status "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 | tee /tmp/kaggle-status.txt
+          echo "=== RECENT KAGGLE LOGS ==="
+          kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 200 2>&1 | tee /tmp/kaggle-kernel.log
+          mkdir -p diagnostics
+          cp /tmp/kaggle-status.txt diagnostics/status.txt
+          cp /tmp/kaggle-kernel.log diagnostics/kernel.log
+
+      - name: Upload diagnostic snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minimax-music3-live-diagnostics
+          path: diagnostics/
+          if-no-files-found: warn
