@@ -30,7 +30,7 @@ jobs:
           echo "=== KAGGLE KERNEL STATUS ==="
           kaggle kernels status "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 | tee /tmp/kaggle-status.txt
           echo "=== RECENT KAGGLE LOGS ==="
-          kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 200 2>&1 | tee /tmp/kaggle-kernel.log
+          kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 | tee /tmp/kaggle-kernel.log
           mkdir -p diagnostics
           cp /tmp/kaggle-status.txt diagnostics/status.txt
           cp /tmp/kaggle-kernel.log diagnostics/kernel.log
