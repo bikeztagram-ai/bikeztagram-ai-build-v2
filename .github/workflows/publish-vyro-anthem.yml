@@ -1,0 +1,61 @@
+name: Publish VYRO anthem asset
+
+on:
+  workflow_run:
+    workflows: ["MiniMax Music 3 — Kaggle T4x2"]
+    types: [completed]
+    branches: [feat/kaggle-minimax-music3-t4x2-test]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-original-anthem:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout asset repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download generated WAV artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: minimax-music3-test-wav
+          path: incoming-audio
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Convert and validate MP3
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          wav="$(find incoming-audio -type f -name '*.wav' -print -quit)"
+          test -n "$wav" || { echo "Generated WAV artifact missing"; exit 1; }
+          mkdir -p public-assets
+          ffmpeg -hide_banner -loglevel error -y -i "$wav" -codec:a libmp3lame -b:a 192k -ar 44100 -ac 2 public-assets/vyro-original-anthem.mp3
+          duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 public-assets/vyro-original-anthem.mp3)"
+          bytes="$(stat -c %s public-assets/vyro-original-anthem.mp3)"
+          echo "ANTHEM_SECONDS=$duration"
+          echo "ANTHEM_BYTES=$bytes"
+          test "$bytes" -gt 250000
+          awk -v d="$duration" 'BEGIN { if (d < 20) exit 1 }' || { echo "Anthem too short: $duration seconds"; exit 1; }
+
+      - name: Publish versioned soundtrack asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public-assets/vyro-original-anthem.mp3
+          if git diff --cached --quiet; then
+            echo "No asset changes to publish."
+            exit 0
+          fi
+          git commit -m "Add generated original VYRO anthem audio asset"
+          git push origin HEAD:main
