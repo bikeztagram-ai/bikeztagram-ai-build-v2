@@ -76,7 +76,7 @@ jobs:
             kaggle kernels status "${KAGGLE_USERNAME}/${KERNEL_SLUG}" || true
             if [ $((i % 6)) -eq 0 ]; then
               echo "=== Recent Kaggle logs ==="
-              kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 80 || true
+              kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" || true
             fi
             STATUS="$(kaggle kernels status "${KAGGLE_USERNAME}/${KERNEL_SLUG}" 2>&1 || true)"
             if echo "$STATUS" | grep -Eiq 'complete|success|error|failed|cancel'; then
@@ -96,7 +96,7 @@ jobs:
           test -n "$(find kaggle-output -type f -name '*.wav' -print -quit)" || {
             echo "No WAV output was produced."
             echo "Final Kaggle logs:"
-            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" --max-lines 300 || true
+            kaggle kernels logs "${KAGGLE_USERNAME}/${KERNEL_SLUG}" || true
             exit 1
           }
 
