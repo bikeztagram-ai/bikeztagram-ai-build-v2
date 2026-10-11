@@ -1,7 +1,7 @@
 import os, subprocess, sys, time, signal, shutil
 from pathlib import Path
 
-print("=== BIKEZTAGRAM / MINIMAX MUSIC 3 BATCH ===", flush=True)
+print("=== VYRO ORIGINAL ANTHEM / MINIMAX MUSIC 3 BATCH ===", flush=True)
 def run(cmd, **kwargs):
     print("$", " ".join(cmd), flush=True)
     return subprocess.run(cmd, check=True, **kwargs)
@@ -16,7 +16,7 @@ run([sys.executable, "-m", "uv", "pip", "install", "--python", py, "--prerelease
 if not os.path.exists(sgl): raise RuntimeError("sgl-omni installation failed")
 gpus = subprocess.check_output(["nvidia-smi", "--query-gpu=index,name,memory.total", "--format=csv,noheader"], text=True).strip()
 print("GPUs:", gpus, flush=True)
-if len([x for x in gpus.splitlines() if x.strip()]) < 2: raise RuntimeError("MiniMax Music 3 requires T4 x2 for this test.")
+if len([x for x in gpus.splitlines() if x.strip()]) < 2: raise RuntimeError("MiniMax Music 3 test requires two GPUs; configure Kaggle Accelerator to T4 x2.")
 os.makedirs("/kaggle/temp/huggingface/hub", exist_ok=True)
 os.environ["HF_HOME"]="/kaggle/temp/huggingface"; os.environ["HF_HUB_CACHE"]="/kaggle/temp/huggingface/hub"
 log_path="/kaggle/temp/music3_batch.log"; log=open(log_path,"w",buffering=1)
@@ -35,13 +35,45 @@ try:
         time.sleep(5)
     if not ready: raise RuntimeError("Music 3 server did not become ready within 20 minutes.\n"+Path(log_path).read_text(errors="replace")[-16000:])
     import requests
-    lyrics="""[Verse]\nNeon cuts across the road\nEngine singing through the night\nCity fading in the mirrors\nChasing every line of light\n\n[Chorus]\nRide into the open dark\nChase the road and chase the light\nNo turning back, the engine calls\nWe own the road tonight"""
-    instructions="Cinematic electronic rock motorcycle soundtrack, 105 BPM, D minor, deep punchy drums, pulsing bass, distorted electric guitar, atmospheric synths, dramatic build and a huge energetic chorus, polished modern production."
-    payload={"model":"MiniMaxAI/MiniMax-Music3","input":lyrics,"instructions":instructions,"seed":1001,"max_new_tokens":750}
-    print("Rendering real 30-second Music 3 test...", flush=True)
+    lyrics="""[Intro - sung, airy]
+Lights up, hands high, feel that sound
+V-Y-R-O, we own this round
+
+[Verse - rhythmic rap, confident and tightly on beat]
+Step in the glow, let the whole floor spark
+Kick drum hits and we light up the dark
+Pick your lane, keep your timing tight
+One clean drop and we own the night
+No copy bars, this is our own flow
+Build our world in the neon glow
+Crowd goes left, then the whole place right
+Hit that beat and ignite the night
+
+[Pre-Chorus - sung, melody rises]
+Hold that moment, count to four
+Feel the bass shake through the floor
+When the lights flash, let it go
+Everybody shout VYRO
+
+[Chorus - fully sung, catchy melodic hook with layered harmonies]
+We come alive in the afterglow
+Hearts beat fast when the bass drops low
+Hands to the sky, let the whole world know
+We are the spark, we are VYRO
+Oh-oh-oh, let the whole place glow
+Oh-oh-oh, now lose control
+One more round and we're stealing the show
+We are the spark, we are VYRO
+
+[Final Drop - sung hook over biggest drop]
+We are the spark, we are VYRO
+We are the spark, we are VYRO"""
+    instructions="Create an ORIGINAL polished commercial-quality 45-second high-energy UK club EDM / bass-house anthem for a neon rhythm arcade called VYRO. 128 BPM, 4/4, punchy kick, crisp claps, tight hi-hats, deep controlled sub bass, bright memorable synth-pluck hook, vocal chops used only as musical accents, atmospheric 2-bar intro, rhythmic rap verse with intelligible words and confident natural rap cadence, rising melodic sung pre-chorus, then a genuinely sung catchy chorus with layered harmonies and a big euphoric bass drop. Clear contrast between rap verse and melodic singing. Modern club mix, tight groove, strong hook that listeners can hum, energetic and fun, clean master, no spoken narration, no sound effects-only track, no imitation of existing artists or songs."
+    payload={"model":"MiniMaxAI/MiniMax-Music3","input":lyrics,"instructions":instructions,"seed":1001,"max_new_tokens":1100}
+    print("Rendering ORIGINAL VYRO anthem with rap verse and sung chorus...", flush=True)
     render_started=time.time()
     resp=requests.post("http://127.0.0.1:8000/v1/audio/speech",json=payload,timeout=1800); resp.raise_for_status()
-    out="/kaggle/working/bikeztagram_minimax_music3_test.wav"; Path(out).write_bytes(resp.content)
+    out="/kaggle/working/vyro_original_anthem_minimax_music3.wav"; Path(out).write_bytes(resp.content)
     print(f"RENDER_SECONDS={time.time()-render_started:.1f}", flush=True)
     print(f"TOTAL_SECONDS={time.time()-started:.1f}", flush=True)
     print(f"DONE={out}", flush=True); print(f"BYTES={len(resp.content)}", flush=True)
